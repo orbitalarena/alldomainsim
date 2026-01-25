@@ -23,20 +23,42 @@ $CXX $CXXFLAGS -c src/core/simulation_engine.cpp -o build/obj/simulation_engine.
 
 # Compile entities
 $CXX $CXXFLAGS -c src/entities/entity.cpp -o build/obj/entity.o
+$CXX $CXXFLAGS -c src/entities/satellite.cpp -o build/obj/satellite.o
+
+# Compile io
+$CXX $CXXFLAGS -c src/io/tle_parser.cpp -o build/obj/tle_parser.o
 
 # Compile main
 $CXX $CXXFLAGS -c src/main.cpp -o build/obj/main.o
 
-echo "Linking..."
+# Compile demo
+$CXX $CXXFLAGS -c src/demo.cpp -o build/obj/demo.o
 
-# Link executable
+echo "Linking executables..."
+
+# Link sim_engine executable
 $CXX $CXXFLAGS $LDFLAGS \
     build/obj/state_vector.o \
     build/obj/physics_domain.o \
     build/obj/simulation_engine.o \
     build/obj/entity.o \
+    build/obj/satellite.o \
+    build/obj/tle_parser.o \
     build/obj/main.o \
     -o build/bin/sim_engine
 
+# Link demo executable
+$CXX $CXXFLAGS $LDFLAGS \
+    build/obj/state_vector.o \
+    build/obj/physics_domain.o \
+    build/obj/simulation_engine.o \
+    build/obj/entity.o \
+    build/obj/satellite.o \
+    build/obj/tle_parser.o \
+    build/obj/demo.o \
+    -o build/bin/demo
+
 echo "Build complete!"
-echo "Executable: build/bin/sim_engine"
+echo "Executables:"
+echo "  - build/bin/sim_engine"
+echo "  - build/bin/demo"

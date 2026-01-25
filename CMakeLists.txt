@@ -56,6 +56,21 @@ target_link_libraries(sim_engine
     utils
 )
 
+# Demo executable
+add_executable(demo
+    src/demo.cpp
+)
+
+target_link_libraries(demo
+    core
+    physics
+    entities
+    coordinate
+    propagators
+    io
+    utils
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)

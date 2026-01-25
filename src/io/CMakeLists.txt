@@ -1,5 +1,5 @@
 add_library(io
-    # Source files will be added as modules are implemented
+    tle_parser.cpp
 )
 
 target_include_directories(io PUBLIC
