@@ -9,4 +9,7 @@ target_include_directories(entities PUBLIC
 
 target_link_libraries(entities
     core
+    coordinate
+    physics
+    propagators
 )

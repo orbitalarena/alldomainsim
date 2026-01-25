@@ -21,6 +21,9 @@ public:
     
     // Get TLE data
     const TLE& get_tle() const { return tle_; }
+
+    // Get epoch as Julian Date
+    double get_epoch_jd() const;
     
     // Initialize state from TLE
     void initialize_from_tle();

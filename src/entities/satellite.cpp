@@ -1,6 +1,7 @@
 #include "entities/satellite.hpp"
 #include "propagators/rk4_integrator.hpp"
 #include "physics/gravity_model.hpp"
+#include "coordinate/time_utils.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -97,8 +98,12 @@ void Satellite::propagate_rk4(double dt) {
     auto derivatives_func = [this](const StateVector& s) {
         return GravityModel::compute_derivatives(s, use_j2_);
     };
-    
+
     state_ = RK4Integrator::step(state_, dt, derivatives_func);
+}
+
+double Satellite::get_epoch_jd() const {
+    return TimeUtils::tle_epoch_to_jd(tle_.epoch_year, tle_.epoch_day);
 }
 
 } // namespace sim

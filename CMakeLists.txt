@@ -23,20 +23,25 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# Find dependencies
-find_package(Eigen3 REQUIRED)
+# Find dependencies (optional)
+find_package(Eigen3 QUIET)
+if(Eigen3_FOUND)
+    message(STATUS "Found Eigen3: ${EIGEN3_INCLUDE_DIR}")
+endif()
 
 # Include directories
 include_directories(
     ${CMAKE_SOURCE_DIR}/src
-    ${EIGEN3_INCLUDE_DIR}
 )
+if(Eigen3_FOUND)
+    include_directories(${EIGEN3_INCLUDE_DIR})
+endif()
 
 # Add subdirectories
 add_subdirectory(src/core)
 add_subdirectory(src/physics)
-add_subdirectory(src/entities)
 add_subdirectory(src/coordinate)
+add_subdirectory(src/entities)
 add_subdirectory(src/propagators)
 add_subdirectory(src/io)
 add_subdirectory(src/utils)

@@ -8,6 +8,6 @@ target_include_directories(core PUBLIC
     ${CMAKE_SOURCE_DIR}/src
 )
 
-target_link_libraries(core
-    Eigen3::Eigen
-)
+if(Eigen3_FOUND)
+    target_link_libraries(core Eigen3::Eigen)
+endif()

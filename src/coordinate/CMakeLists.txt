@@ -1,5 +1,6 @@
 add_library(coordinate
-    # Source files will be added as modules are implemented
+    time_utils.cpp
+    frame_transformer.cpp
 )
 
 target_include_directories(coordinate PUBLIC

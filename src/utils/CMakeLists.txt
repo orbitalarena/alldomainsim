@@ -1,11 +1,9 @@
-add_library(utils
-    # Source files will be added as modules are implemented
-)
+add_library(utils INTERFACE)
 
-target_include_directories(utils PUBLIC
+target_include_directories(utils INTERFACE
     ${CMAKE_SOURCE_DIR}/src
 )
 
-target_link_libraries(utils
+target_link_libraries(utils INTERFACE
     core
 )
