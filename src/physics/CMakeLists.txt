@@ -4,6 +4,7 @@ add_library(physics
     atmosphere_model.cpp
     maneuver_planner.cpp
     proximity_ops.cpp
+    nonlinear_rendezvous.cpp
 )
 
 target_include_directories(physics PUBLIC
