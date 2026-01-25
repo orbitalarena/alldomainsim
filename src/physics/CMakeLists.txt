@@ -1,5 +1,5 @@
 add_library(physics
-    # Source files will be added as modules are implemented
+    gravity_model.cpp
 )
 
 target_include_directories(physics PUBLIC

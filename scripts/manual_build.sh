@@ -28,11 +28,20 @@ $CXX $CXXFLAGS -c src/entities/satellite.cpp -o build/obj/satellite.o
 # Compile io
 $CXX $CXXFLAGS -c src/io/tle_parser.cpp -o build/obj/tle_parser.o
 
+# Compile physics
+$CXX $CXXFLAGS -c src/physics/gravity_model.cpp -o build/obj/gravity_model.o
+
+# Compile propagators
+$CXX $CXXFLAGS -c src/propagators/rk4_integrator.cpp -o build/obj/rk4_integrator.o
+
 # Compile main
 $CXX $CXXFLAGS -c src/main.cpp -o build/obj/main.o
 
 # Compile demo
 $CXX $CXXFLAGS -c src/demo.cpp -o build/obj/demo.o
+
+# Compile comparison
+$CXX $CXXFLAGS -c src/comparison.cpp -o build/obj/comparison.o
 
 echo "Linking executables..."
 
@@ -44,6 +53,8 @@ $CXX $CXXFLAGS $LDFLAGS \
     build/obj/entity.o \
     build/obj/satellite.o \
     build/obj/tle_parser.o \
+    build/obj/gravity_model.o \
+    build/obj/rk4_integrator.o \
     build/obj/main.o \
     -o build/bin/sim_engine
 
@@ -55,10 +66,26 @@ $CXX $CXXFLAGS $LDFLAGS \
     build/obj/entity.o \
     build/obj/satellite.o \
     build/obj/tle_parser.o \
+    build/obj/gravity_model.o \
+    build/obj/rk4_integrator.o \
     build/obj/demo.o \
     -o build/bin/demo
+
+# Link comparison executable
+$CXX $CXXFLAGS $LDFLAGS \
+    build/obj/state_vector.o \
+    build/obj/physics_domain.o \
+    build/obj/simulation_engine.o \
+    build/obj/entity.o \
+    build/obj/satellite.o \
+    build/obj/tle_parser.o \
+    build/obj/gravity_model.o \
+    build/obj/rk4_integrator.o \
+    build/obj/comparison.o \
+    -o build/bin/comparison
 
 echo "Build complete!"
 echo "Executables:"
 echo "  - build/bin/sim_engine"
 echo "  - build/bin/demo"
+echo "  - build/bin/comparison"

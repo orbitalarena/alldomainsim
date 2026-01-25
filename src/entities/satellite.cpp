@@ -1,4 +1,6 @@
 #include "entities/satellite.hpp"
+#include "propagators/rk4_integrator.hpp"
+#include "physics/gravity_model.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -8,11 +10,9 @@ namespace sim {
 constexpr double PI = 3.14159265358979323846;
 constexpr double TWO_PI = 2.0 * PI;
 constexpr double DEG_TO_RAD = PI / 180.0;
-constexpr double EARTH_MU = 398600.4418e9;  // Earth gravitational parameter [m^3/s^2]
-constexpr double EARTH_RADIUS = 6378137.0;   // Earth radius [m]
 
-Satellite::Satellite(const std::string& name, int id, const TLE& tle)
-    : Entity(name, id), tle_(tle) {
+Satellite::Satellite(const std::string& name, int id, const TLE& tle, bool use_j2)
+    : Entity(name, id), tle_(tle), use_j2_(use_j2) {
     
     // Set physics domain to orbital
     domain_ = PhysicsDomain::ORBITAL;
@@ -24,9 +24,9 @@ Satellite::Satellite(const std::string& name, int id, const TLE& tle)
 void Satellite::initialize_from_tle() {
     // Convert TLE mean motion (rev/day) to semi-major axis
     double n_rad_per_sec = tle_.mean_motion * TWO_PI / 86400.0;  // Convert to rad/s
-    double a = std::pow(EARTH_MU / (n_rad_per_sec * n_rad_per_sec), 1.0/3.0);  // Semi-major axis [m]
+    double a = std::pow(GravityModel::EARTH_MU / (n_rad_per_sec * n_rad_per_sec), 1.0/3.0);
     
-    // Convert Keplerian elements to Cartesian (simplified for circular orbits initially)
+    // Convert Keplerian elements to Cartesian
     double i = tle_.inclination * DEG_TO_RAD;
     double raan = tle_.raan * DEG_TO_RAD;
     double w = tle_.arg_perigee * DEG_TO_RAD;
@@ -53,9 +53,9 @@ void Satellite::initialize_from_tle() {
     double y_orb = r * std::sin(nu);
     
     // Velocity in orbital plane
-    double v = std::sqrt(EARTH_MU / a);  // Circular orbit approximation
-    double vx_orb = -v * std::sin(nu);
-    double vy_orb = v * std::cos(nu);
+    double h = std::sqrt(GravityModel::EARTH_MU * a * (1.0 - e * e));  // Specific angular momentum
+    double vx_orb = -GravityModel::EARTH_MU / h * std::sin(nu);
+    double vy_orb = GravityModel::EARTH_MU / h * (e + std::cos(nu));
     
     // Rotation matrices to ECI
     double cos_i = std::cos(i);
@@ -80,40 +80,25 @@ void Satellite::initialize_from_tle() {
     state_.velocity.z = (sin_w * sin_i) * vx_orb + (cos_w * sin_i) * vy_orb;
     
     state_.frame = CoordinateFrame::J2000_ECI;
-    state_.time = 0.0;  // Will be set by simulation engine
+    state_.time = 0.0;
     
-    std::cout << "Initialized " << name_ << " at altitude: " 
-              << (state_.position.norm() - EARTH_RADIUS) / 1000.0 << " km" << std::endl;
+    double alt_km = (state_.position.norm() - GravityModel::EARTH_RADIUS) / 1000.0;
+    std::cout << "Initialized " << name_ << " at altitude: " << alt_km << " km";
+    if (use_j2_) std::cout << " (J2 enabled)";
+    std::cout << std::endl;
 }
 
 void Satellite::update(double dt) {
-    // Simple Keplerian propagation
-    propagate_keplerian(dt);
+    propagate_rk4(dt);
 }
 
-void Satellite::propagate_keplerian(double dt) {
-    // Two-body propagation (very simplified - just circular motion for now)
-    // For a proper implementation, use full Keplerian elements and numerical integration
+void Satellite::propagate_rk4(double dt) {
+    // Use RK4 integrator with gravity model
+    auto derivatives_func = [this](const StateVector& s) {
+        return GravityModel::compute_derivatives(s, use_j2_);
+    };
     
-    double r = state_.position.norm();
-    double v = state_.velocity.norm();
-    
-    // Gravitational acceleration
-    Vec3 acc;
-    acc.x = -EARTH_MU * state_.position.x / (r * r * r);
-    acc.y = -EARTH_MU * state_.position.y / (r * r * r);
-    acc.z = -EARTH_MU * state_.position.z / (r * r * r);
-    
-    // Simple Euler integration (TODO: Replace with RK4)
-    state_.velocity.x += acc.x * dt;
-    state_.velocity.y += acc.y * dt;
-    state_.velocity.z += acc.z * dt;
-    
-    state_.position.x += state_.velocity.x * dt;
-    state_.position.y += state_.velocity.y * dt;
-    state_.position.z += state_.velocity.z * dt;
-    
-    state_.time += dt;
+    state_ = RK4Integrator::step(state_, dt, derivatives_func);
 }
 
 } // namespace sim

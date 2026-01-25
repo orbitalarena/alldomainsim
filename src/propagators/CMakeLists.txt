@@ -1,5 +1,5 @@
 add_library(propagators
-    # Source files will be added as modules are implemented
+    rk4_integrator.cpp
 )
 
 target_include_directories(propagators PUBLIC

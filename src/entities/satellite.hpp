@@ -13,7 +13,7 @@ namespace sim {
  */
 class Satellite : public Entity {
 public:
-    Satellite(const std::string& name, int id, const TLE& tle);
+    Satellite(const std::string& name, int id, const TLE& tle, bool use_j2 = true);
     virtual ~Satellite() = default;
     
     // Update state (propagate orbit)
@@ -25,11 +25,16 @@ public:
     // Initialize state from TLE
     void initialize_from_tle();
     
+    // Enable/disable J2 perturbations
+    void set_use_j2(bool use_j2) { use_j2_ = use_j2; }
+    bool get_use_j2() const { return use_j2_; }
+    
 private:
     TLE tle_;
+    bool use_j2_;
     
-    // Simple Keplerian orbit propagation (placeholder for now)
-    void propagate_keplerian(double dt);
+    // Propagate using RK4 integrator with gravity model
+    void propagate_rk4(double dt);
 };
 
 } // namespace sim
