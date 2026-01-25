@@ -1,6 +1,7 @@
 add_library(entities
     entity.cpp
     satellite.cpp
+    launch_vehicle.cpp
 )
 
 target_include_directories(entities PUBLIC

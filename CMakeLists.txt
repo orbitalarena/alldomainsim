@@ -76,6 +76,21 @@ target_link_libraries(demo
     utils
 )
 
+# Rendezvous demo executable
+add_executable(rendezvous_demo
+    src/rendezvous_demo.cpp
+)
+
+target_link_libraries(rendezvous_demo
+    core
+    physics
+    entities
+    coordinate
+    propagators
+    io
+    utils
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)
