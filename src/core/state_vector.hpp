@@ -1,8 +1,8 @@
 #ifndef STATE_VECTOR_HPP
 #define STATE_VECTOR_HPP
 
-#include <Eigen/Dense>
-#include <chrono>
+#include <cmath>
+#include <array>
 
 namespace sim {
 
@@ -17,23 +17,53 @@ enum class CoordinateFrame {
 };
 
 /**
+ * @brief Simple 3D vector (temporary Eigen replacement)
+ */
+struct Vec3 {
+    double x, y, z;
+    
+    Vec3() : x(0), y(0), z(0) {}
+    Vec3(double x_, double y_, double z_) : x(x_), y(y_), z(z_) {}
+    
+    double norm() const {
+        return std::sqrt(x*x + y*y + z*z);
+    }
+    
+    static Vec3 Zero() { return Vec3(0, 0, 0); }
+};
+
+/**
+ * @brief Simple quaternion (temporary Eigen replacement)
+ */
+struct Quat {
+    double w, x, y, z;
+    
+    Quat() : w(1), x(0), y(0), z(0) {}
+    Quat(double w_, double x_, double y_, double z_) : w(w_), x(x_), y(y_), z(z_) {}
+    
+    static Quat Identity() { return Quat(1, 0, 0, 0); }
+};
+
+/**
  * @brief Universal state vector for entities
  * 
  * Contains position, velocity, and optional attitude/angular velocity
  * Timestamp and coordinate frame are tracked for proper transformations
+ * 
+ * NOTE: Currently using simple Vec3/Quat. Will migrate to Eigen when available.
  */
 struct StateVector {
     // Position [m]
-    Eigen::Vector3d position;
+    Vec3 position;
     
     // Velocity [m/s]
-    Eigen::Vector3d velocity;
+    Vec3 velocity;
     
     // Attitude (quaternion: w, x, y, z)
-    Eigen::Quaterniond attitude;
+    Quat attitude;
     
     // Angular velocity [rad/s]
-    Eigen::Vector3d angular_velocity;
+    Vec3 angular_velocity;
     
     // Timestamp (seconds since epoch)
     double time;
@@ -43,10 +73,10 @@ struct StateVector {
     
     // Constructor
     StateVector() 
-        : position(Eigen::Vector3d::Zero()),
-          velocity(Eigen::Vector3d::Zero()),
-          attitude(Eigen::Quaterniond::Identity()),
-          angular_velocity(Eigen::Vector3d::Zero()),
+        : position(Vec3::Zero()),
+          velocity(Vec3::Zero()),
+          attitude(Quat::Identity()),
+          angular_velocity(Vec3::Zero()),
           time(0.0),
           frame(CoordinateFrame::J2000_ECI) {}
     
