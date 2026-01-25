@@ -133,15 +133,24 @@
         const speedMultipliers = [1, 10, 60, 600, 3600];
         const speedLabels = ['1x', '10x', '1min/s', '10min/s', '1hr/s'];
 
-        // Initialize Cesium viewer with animation controls
+        // Initialize Cesium viewer with animation controls (no Ion token required)
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            terrainProvider: Cesium.createWorldTerrain(),
             animation: true,
             timeline: true,
             baseLayerPicker: false,
+            geocoder: false,
+            homeButton: true,
             infoBox: false,
             selectionIndicator: true,
+            sceneModePicker: true,
+            navigationHelpButton: false,
+            imageryProvider: new Cesium.TileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            })
         });
+
+        // Remove terrain (use ellipsoid)
+        viewer.scene.globe.depthTestAgainstTerrain = false;
 
         // Entity storage
         let satelliteEntities = [];
@@ -409,8 +418,12 @@
         // Initial view
         resetView();
 
-        // Try to load data automatically
-        setTimeout(loadOrbitData, 500);
+        // Try to load data automatically after viewer is ready
+        viewer.scene.globe.tileLoadProgressEvent.addEventListener(function() {
+            // Load once globe starts rendering
+        });
+
+        setTimeout(loadOrbitData, 1000);
     </script>
 </body>
 </html>

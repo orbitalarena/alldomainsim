@@ -108,8 +108,7 @@ int main(int argc, char* argv[]) {
     engine.set_mode(sim::SimulationMode::MODEL_MODE);
     engine.initialize();
 
-    // Limit to first 10 satellites for demo
-    int num_sats = std::min(10, (int)tles.size());
+    int num_sats = (int)tles.size();
     std::cout << "\nCreating " << num_sats << " satellite entities...\n" << std::endl;
 
     // Create satellite entities and get epoch from first satellite
@@ -132,9 +131,9 @@ int main(int argc, char* argv[]) {
     std::cout << "\n=== Starting Orbit Propagation ===\n" << std::endl;
 
     // Simulation parameters
-    double dt = 10.0;           // 10 second time steps
-    double sim_duration = 600.0; // 10 minutes
-    double output_interval = 60.0; // Output every 60 seconds
+    double dt = 60.0;            // 60 second time steps
+    double sim_duration = 86400.0; // 24 hours
+    double output_interval = 3600.0; // Output every hour
     double next_output = 0.0;
 
     std::cout << "Simulation parameters:" << std::endl;
