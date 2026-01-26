@@ -200,6 +200,18 @@ target_link_libraries(lunar_return_demo
     propagators
 )
 
+# GPS PDOP Grid Calculator
+add_executable(gps_pdop_demo
+    src/gps_pdop_demo.cpp
+)
+
+target_link_libraries(gps_pdop_demo
+    core
+    physics
+    coordinate
+    io
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)

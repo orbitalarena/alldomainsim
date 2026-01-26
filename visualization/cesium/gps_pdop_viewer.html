@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>GPS PDOP Visualization</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-family: monospace;
+            z-index: 1000;
+            min-width: 300px;
+        }
+
+        #controls h3 { margin: 0 0 15px 0; color: #4CAF50; }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .info-label { color: #888; }
+        .info-value { color: #4CAF50; font-weight: bold; }
+
+        #controls button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2196F3;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #controls button:hover { background: #1976D2; }
+        #controls button.active { background: #4CAF50; }
+
+        #controls select, #controls input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+        }
+
+        #controls label {
+            display: block;
+            margin: 10px 0 5px 0;
+            color: #aaa;
+        }
+
+        #colorLegend {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+        }
+
+        .legend-bar {
+            height: 20px;
+            background: linear-gradient(to right, #00ff00, #ffff00, #ff8000, #ff0000, #800000);
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        #statusLog {
+            margin-top: 10px;
+            padding: 8px;
+            background: #222;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #0f0;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        #pdopCanvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <canvas id="pdopCanvas"></canvas>
+
+    <div id="controls">
+        <h3>GPS PDOP Visualization</h3>
+
+        <div class="info-row">
+            <span class="info-label">Satellites:</span>
+            <span class="info-value" id="numSats">--</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Grid Points:</span>
+            <span class="info-value" id="numPoints">--</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Current Time:</span>
+            <span class="info-value" id="currentTime">T+0:00</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Avg PDOP:</span>
+            <span class="info-value" id="avgPdop">--</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Min/Max PDOP:</span>
+            <span class="info-value" id="minMaxPdop">--</span>
+        </div>
+
+        <label>Time Step:</label>
+        <input type="range" id="timeSlider" min="0" max="24" value="0">
+
+        <button id="playBtn" onclick="togglePlayback()">Play Animation</button>
+        <button id="satBtn" onclick="toggleSatellites()">Toggle Satellites</button>
+
+        <label>Opacity:</label>
+        <input type="range" id="opacitySlider" min="10" max="100" value="85">
+
+        <label>PDOP Scale:</label>
+        <select id="pdopScale">
+            <option value="1-6">Normal (1-6)</option>
+            <option value="1-3">Tight (1-3)</option>
+            <option value="1-10">Wide (1-10)</option>
+        </select>
+
+        <div id="colorLegend">
+            <div style="font-size: 12px; margin-bottom: 5px;">PDOP Color Scale</div>
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+                <span id="legendMin">1.0</span>
+                <span>Excellent</span>
+                <span>Good</span>
+                <span>Fair</span>
+                <span id="legendMax">6.0</span>
+            </div>
+        </div>
+
+        <div id="statusLog">Loading data...</div>
+    </div>
+
+    <script>
+        // Logging
+        function log(msg) {
+            const el = document.getElementById('statusLog');
+            el.innerHTML = msg + '<br>' + el.innerHTML;
+            if (el.children.length > 10) el.removeChild(el.lastChild);
+            console.log(msg);
+        }
+
+        // Create viewer
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            timeline: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true,
+            selectionIndicator: true,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+            })
+        });
+
+        // Disable lighting
+        viewer.scene.globe.enableLighting = false;
+
+        // Data storage
+        let pdopData = null;
+        let satEntities = [];
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval = null;
+        let opacity = 0.85;
+        let pdopMin = 1.0;
+        let pdopMax = 6.0;
+        let showSatellites = true;
+
+        // Canvas for PDOP rendering
+        const canvas = document.getElementById('pdopCanvas');
+        const ctx = canvas.getContext('2d');
+        const CANVAS_WIDTH = 1800;  // 5 pixels per degree longitude (~22km at equator)
+        const CANVAS_HEIGHT = 900;  // 5 pixels per degree latitude
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
+
+        // Imagery layer for PDOP overlay
+        let pdopImageryLayer = null;
+
+        // Grid lookup for fast canvas rendering
+        let gridLookup = null;
+
+        // PDOP to RGB color
+        function pdopToRGB(pdop) {
+            const val = Math.max(pdopMin, Math.min(pdopMax, pdop));
+            const t = (val - pdopMin) / (pdopMax - pdopMin);
+
+            let r, g, b;
+            if (t < 0.25) {
+                const s = t / 0.25;
+                r = Math.floor(255 * s);
+                g = 255;
+                b = 0;
+            } else if (t < 0.5) {
+                const s = (t - 0.25) / 0.25;
+                r = 255;
+                g = Math.floor(255 * (1 - s * 0.5));
+                b = 0;
+            } else if (t < 0.75) {
+                const s = (t - 0.5) / 0.25;
+                r = 255;
+                g = Math.floor(128 * (1 - s));
+                b = 0;
+            } else {
+                const s = (t - 0.75) / 0.25;
+                r = Math.floor(255 - 127 * s);
+                g = 0;
+                b = 0;
+            }
+
+            return { r, g, b };
+        }
+
+        // Build grid lookup for fast canvas updates
+        function buildGridLookup() {
+            log('Building grid lookup...');
+            const grid = pdopData.grid;
+            const latStep = pdopData.metadata.grid_size_km / 111.0;
+
+            // Create lookup: for each canvas pixel, which grid index?
+            gridLookup = new Int32Array(CANVAS_WIDTH * CANVAS_HEIGHT);
+            gridLookup.fill(-1);
+
+            for (let i = 0; i < grid.length; i++) {
+                const pt = grid[i];
+
+                // Calculate longitude step for this latitude
+                let lonStep = latStep / Math.max(0.1, Math.cos(pt.lat * Math.PI / 180));
+                lonStep = Math.min(lonStep, 30);
+
+                // Calculate pixel bounds for this grid cell
+                const west = pt.lon - lonStep / 2;
+                const east = pt.lon + lonStep / 2;
+                const south = pt.lat - latStep / 2;
+                const north = pt.lat + latStep / 2;
+
+                // Convert to canvas coordinates
+                const x1 = Math.floor((west + 180) * CANVAS_WIDTH / 360);
+                const x2 = Math.ceil((east + 180) * CANVAS_WIDTH / 360);
+                const y1 = Math.floor((90 - north) * CANVAS_HEIGHT / 180);
+                const y2 = Math.ceil((90 - south) * CANVAS_HEIGHT / 180);
+
+                // Fill pixels
+                for (let y = Math.max(0, y1); y < Math.min(CANVAS_HEIGHT, y2); y++) {
+                    for (let x = Math.max(0, x1); x < Math.min(CANVAS_WIDTH, x2); x++) {
+                        gridLookup[y * CANVAS_WIDTH + x] = i;
+                    }
+                }
+            }
+
+            log('Grid lookup built');
+        }
+
+        // Render PDOP to canvas
+        function renderPDOPToCanvas(pdopValues) {
+            const imageData = ctx.createImageData(CANVAS_WIDTH, CANVAS_HEIGHT);
+            const data = imageData.data;
+            const alpha = Math.floor(opacity * 255);
+
+            for (let i = 0; i < gridLookup.length; i++) {
+                const gridIdx = gridLookup[i];
+                const pixelIdx = i * 4;
+
+                if (gridIdx >= 0 && gridIdx < pdopValues.length) {
+                    const pdop = pdopValues[gridIdx];
+                    if (pdop < 99) {
+                        const { r, g, b } = pdopToRGB(pdop);
+                        data[pixelIdx] = r;
+                        data[pixelIdx + 1] = g;
+                        data[pixelIdx + 2] = b;
+                        data[pixelIdx + 3] = alpha;
+                    } else {
+                        // No coverage - transparent or dark
+                        data[pixelIdx] = 64;
+                        data[pixelIdx + 1] = 0;
+                        data[pixelIdx + 2] = 64;
+                        data[pixelIdx + 3] = Math.floor(alpha * 0.5);
+                    }
+                } else {
+                    // No data - transparent
+                    data[pixelIdx + 3] = 0;
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // Update imagery layer with current canvas
+        function updateImageryLayer() {
+            // Remove old layer
+            if (pdopImageryLayer) {
+                viewer.imageryLayers.remove(pdopImageryLayer);
+            }
+
+            // Create new layer from canvas
+            const provider = new Cesium.SingleTileImageryProvider({
+                url: canvas.toDataURL(),
+                rectangle: Cesium.Rectangle.fromDegrees(-180, -90, 180, 90)
+            });
+
+            pdopImageryLayer = viewer.imageryLayers.addImageryProvider(provider);
+            pdopImageryLayer.alpha = 1.0; // Alpha is baked into canvas
+        }
+
+        // Load data
+        async function loadData() {
+            try {
+                log('Fetching PDOP data...');
+                const response = await fetch('gps_pdop_data.json');
+                pdopData = await response.json();
+
+                log(`Loaded: ${pdopData.metadata.num_satellites} sats, ${pdopData.metadata.num_grid_points} points`);
+
+                // Update UI
+                document.getElementById('numSats').textContent = pdopData.metadata.num_satellites;
+                document.getElementById('numPoints').textContent = pdopData.metadata.num_grid_points;
+                document.getElementById('timeSlider').max = pdopData.metadata.num_time_steps - 1;
+
+                // Build grid lookup for fast rendering
+                buildGridLookup();
+
+                // Create satellite entities
+                createSatelliteEntities();
+
+                // Update to first time step
+                updateTimeStep(0);
+
+                // Set initial view
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(0, 20, 20000000),
+                    orientation: {
+                        heading: 0,
+                        pitch: Cesium.Math.toRadians(-90),
+                        roll: 0
+                    }
+                });
+
+                log('Visualization ready');
+            } catch (error) {
+                log('Error loading data: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        // Create satellite entities
+        function createSatelliteEntities() {
+            if (!pdopData.satellites) {
+                log('No satellite data in file');
+                return;
+            }
+
+            log('Creating satellite entities...');
+
+            for (let i = 0; i < pdopData.satellites.length; i++) {
+                const name = pdopData.satellites[i];
+
+                const entity = viewer.entities.add({
+                    name: name,
+                    position: Cesium.Cartesian3.ZERO,
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.CYAN,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: name.substring(0, 12),
+                        font: '10px sans-serif',
+                        fillColor: Cesium.Color.CYAN,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, -15),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        show: false
+                    }
+                });
+
+                satEntities.push(entity);
+            }
+
+            log(`Created ${satEntities.length} satellite entities`);
+        }
+
+        // Update visualization for a time step
+        function updateTimeStep(step) {
+            if (!pdopData || step < 0 || step >= pdopData.pdop_data.length) return;
+
+            currentStep = step;
+            const stepData = pdopData.pdop_data[step];
+            const pdopValues = stepData.pdop;
+
+            // Calculate statistics
+            let sum = 0;
+            let min = 999;
+            let max = 0;
+            let validCount = 0;
+
+            for (let i = 0; i < pdopValues.length; i++) {
+                const pdop = pdopValues[i];
+                if (pdop < 99) {
+                    sum += pdop;
+                    min = Math.min(min, pdop);
+                    max = Math.max(max, pdop);
+                    validCount++;
+                }
+            }
+
+            // Render PDOP to canvas and update imagery
+            renderPDOPToCanvas(pdopValues);
+            updateImageryLayer();
+
+            // Update satellite positions
+            if (stepData.sat_pos && satEntities.length > 0) {
+                for (let i = 0; i < satEntities.length && i < stepData.sat_pos.length; i++) {
+                    const pos = stepData.sat_pos[i];
+                    satEntities[i].position = new Cesium.Cartesian3(
+                        pos[0] * 1000,
+                        pos[1] * 1000,
+                        pos[2] * 1000
+                    );
+                    satEntities[i].show = showSatellites;
+                }
+            }
+
+            // Update UI
+            const timeMinutes = step * pdopData.metadata.time_step_minutes;
+            const hours = Math.floor(timeMinutes / 60);
+            const mins = Math.floor(timeMinutes % 60);
+            document.getElementById('currentTime').textContent = `T+${hours}:${mins.toString().padStart(2, '0')}`;
+            document.getElementById('timeSlider').value = step;
+
+            const avgPdop = validCount > 0 ? (sum / validCount).toFixed(2) : '--';
+            document.getElementById('avgPdop').textContent = avgPdop;
+            document.getElementById('minMaxPdop').textContent = validCount > 0 ?
+                `${min.toFixed(2)} / ${max.toFixed(2)}` : '--';
+        }
+
+        // Toggle playback
+        function togglePlayback() {
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playBtn');
+
+            if (isPlaying) {
+                btn.textContent = 'Pause';
+                btn.classList.add('active');
+                playInterval = setInterval(() => {
+                    let nextStep = currentStep + 1;
+                    if (nextStep >= pdopData.pdop_data.length) nextStep = 0;
+                    updateTimeStep(nextStep);
+                }, 500);
+            } else {
+                btn.textContent = 'Play Animation';
+                btn.classList.remove('active');
+                if (playInterval) {
+                    clearInterval(playInterval);
+                    playInterval = null;
+                }
+            }
+        }
+
+        // Toggle satellites
+        function toggleSatellites() {
+            showSatellites = !showSatellites;
+            const btn = document.getElementById('satBtn');
+            btn.classList.toggle('active', showSatellites);
+            for (const entity of satEntities) {
+                entity.show = showSatellites;
+            }
+            log(showSatellites ? 'Satellites shown' : 'Satellites hidden');
+        }
+
+        // Event listeners
+        document.getElementById('timeSlider').addEventListener('input', function() {
+            if (isPlaying) togglePlayback();
+            updateTimeStep(parseInt(this.value));
+        });
+
+        document.getElementById('opacitySlider').addEventListener('input', function() {
+            opacity = parseInt(this.value) / 100;
+            updateTimeStep(currentStep);
+        });
+
+        document.getElementById('pdopScale').addEventListener('change', function() {
+            const parts = this.value.split('-');
+            pdopMin = parseFloat(parts[0]);
+            pdopMax = parseFloat(parts[1]);
+            document.getElementById('legendMin').textContent = pdopMin.toFixed(1);
+            document.getElementById('legendMax').textContent = pdopMax.toFixed(1);
+            updateTimeStep(currentStep);
+        });
+
+        // Initialize
+        loadData();
+    </script>
+</body>
+</html>
