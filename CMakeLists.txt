@@ -45,6 +45,9 @@ add_subdirectory(src/entities)
 add_subdirectory(src/propagators)
 add_subdirectory(src/io)
 add_subdirectory(src/utils)
+add_subdirectory(src/targeting)
+add_subdirectory(src/debris)
+add_subdirectory(src/tactics)
 
 # Main simulation executable
 add_executable(sim_engine
@@ -104,6 +107,73 @@ target_link_libraries(geo_rendezvous_demo
     propagators
     io
     utils
+)
+
+# Satellite tour demo - 30 target rendezvous
+add_executable(sat_tour_demo
+    src/sat_tour_demo.cpp
+)
+
+target_link_libraries(sat_tour_demo
+    core
+    physics
+    entities
+    coordinate
+    propagators
+    io
+    utils
+)
+
+# Export all satellites from TLE catalog
+add_executable(export_all_sats
+    src/export_all_sats.cpp
+)
+
+target_link_libraries(export_all_sats
+    core
+    physics
+    coordinate
+    io
+)
+
+# ORD to JFK flight simulation
+add_executable(ord_jfk_flight
+    src/ord_jfk_flight.cpp
+)
+
+target_link_libraries(ord_jfk_flight
+    core
+    physics
+    entities
+    coordinate
+)
+
+# Dogfight demo - 4v4 BVR combat simulation
+add_executable(dogfight_demo
+    src/dogfight_demo.cpp
+)
+
+target_link_libraries(dogfight_demo
+    core
+    physics
+    entities
+    coordinate
+    tactics
+    debris
+)
+
+# GEO Collision demo - satellite collision with orbital debris
+add_executable(collision_demo
+    src/collision_demo.cpp
+)
+
+target_link_libraries(collision_demo
+    core
+    physics
+    coordinate
+    propagators
+    targeting
+    debris
 )
 
 # Testing

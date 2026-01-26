@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Dogfight Visualization - 4v4 over Indiana</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #infoPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            min-width: 280px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+        }
+
+        #infoPanel h3 {
+            margin: 0 0 10px 0;
+            color: #4da6ff;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(77, 166, 255, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .team-section {
+            margin: 10px 0;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .blue-team {
+            background: rgba(50, 100, 200, 0.2);
+            border-left: 3px solid #4da6ff;
+        }
+
+        .red-team {
+            background: rgba(200, 50, 50, 0.2);
+            border-left: 3px solid #ff4d4d;
+        }
+
+        .team-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .fighter-status {
+            font-size: 12px;
+            margin: 3px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-killed {
+            color: #888;
+            text-decoration: line-through;
+        }
+
+        .status-alive {
+            color: #4dff4d;
+        }
+
+        .state-badge {
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .state-patrol { background: #2d5a27; color: #90EE90; }
+        .state-commit { background: #8B4513; color: #FFA500; }
+        .state-launch { background: #8B0000; color: #FF6347; }
+        .state-crank { background: #4B0082; color: #DA70D6; }
+        .state-pump { background: #006400; color: #32CD32; }
+        .state-defend { background: #FF4500; color: #FFD700; }
+        .state-killed { background: #333; color: #888; }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            color: #e0e0e0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+        }
+
+        #controls label {
+            display: block;
+            margin: 5px 0;
+        }
+
+        #controls input[type="range"] {
+            width: 150px;
+        }
+
+        #eventLog {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(20, 25, 35, 0.9);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 11px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+        }
+
+        #eventLog h3 {
+            margin: 0 0 10px 0;
+            color: #4da6ff;
+            font-size: 14px;
+        }
+
+        .event {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .event-fire { color: #FFA500; }
+        .event-kill { color: #FF4444; font-weight: bold; }
+
+        .legend {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 11px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+
+        .legend-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="infoPanel">
+        <h3>4v4 BVR Dogfight</h3>
+        <div>Time: <span id="simTime">0:00</span></div>
+
+        <div class="team-section blue-team">
+            <div class="team-title" style="color: #4da6ff;">Blue Team (F-16C)</div>
+            <div id="blueStatus"></div>
+        </div>
+
+        <div class="team-section red-team">
+            <div class="team-title" style="color: #ff4d4d;">Red Team (MiG-29)</div>
+            <div id="redStatus"></div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><div class="legend-icon" style="background: #4da6ff;"></div>Blue Fighter</div>
+            <div class="legend-item"><div class="legend-icon" style="background: #ff4d4d;"></div>Red Fighter</div>
+            <div class="legend-item"><div class="legend-icon" style="background: #ffff00;"></div>AIM-120/R-77 (BVR)</div>
+            <div class="legend-item"><div class="legend-icon" style="background: #ff8800;"></div>AIM-9/R-73 (WVR)</div>
+            <div class="legend-item"><div class="legend-icon" style="background: #aaa;"></div>Debris</div>
+        </div>
+        <div id="debrisCount" style="margin-top: 10px; font-size: 11px; color: #888;"></div>
+    </div>
+
+    <div id="controls">
+        <label>
+            Speed: <span id="speedValue">1x</span>
+            <input type="range" id="speedSlider" min="1" max="100" value="10">
+        </label>
+        <label>
+            <input type="checkbox" id="showTrails" checked> Show Flight Trails
+        </label>
+        <label>
+            <input type="checkbox" id="showMissiles" checked> Show Missiles
+        </label>
+        <label>
+            <input type="checkbox" id="showDebris" checked> Show Debris
+        </label>
+    </div>
+
+    <div id="eventLog">
+        <h3>Combat Events</h3>
+        <div id="events"></div>
+    </div>
+
+    <script>
+        // Initialize Cesium without ion
+        Cesium.Ion.defaultAccessToken = undefined;
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            imageryProvider: new Cesium.TileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            }),
+            baseLayerPicker: false,
+            geocoder: false,
+            animation: true,
+            timeline: true,
+            fullscreenButton: false,
+            vrButton: false,
+            homeButton: false,
+            sceneModePicker: true,
+            navigationHelpButton: false
+        });
+
+        // Remove Cesium ion credits
+        viewer.cesiumWidget.creditContainer.style.display = 'none';
+
+        let dogfightData = null;
+        let fighterEntities = {};
+        let missileEntities = {};
+        let debrisEntities = [];
+        let trailEntities = {};
+        let events = [];
+
+        // Load dogfight data
+        fetch('dogfight_data.json')
+            .then(response => response.json())
+            .then(data => {
+                dogfightData = data;
+                console.log('Loaded dogfight data:', data);
+                setupVisualization();
+            })
+            .catch(err => {
+                console.error('Failed to load data:', err);
+                document.getElementById('infoPanel').innerHTML =
+                    '<h3>Error</h3><p>Failed to load dogfight_data.json</p>';
+            });
+
+        function setupVisualization() {
+            const metadata = dogfightData.metadata;
+            const fighters = dogfightData.fighters;
+            const missiles = dogfightData.missiles;
+
+            // Calculate time range
+            let minTime = Infinity, maxTime = 0;
+            fighters.forEach(f => {
+                f.trajectory.forEach(p => {
+                    minTime = Math.min(minTime, p.t);
+                    maxTime = Math.max(maxTime, p.t);
+                });
+            });
+
+            // Set up clock
+            const startTime = Cesium.JulianDate.fromDate(new Date());
+            const stopTime = Cesium.JulianDate.addSeconds(startTime, maxTime - minTime, new Cesium.JulianDate());
+
+            viewer.clock.startTime = startTime.clone();
+            viewer.clock.stopTime = stopTime.clone();
+            viewer.clock.currentTime = startTime.clone();
+            viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+            viewer.clock.multiplier = 10;
+
+            viewer.timeline.zoomTo(startTime, stopTime);
+
+            // Create fighter entities with sampled positions
+            fighters.forEach((fighter, idx) => {
+                const isBlue = fighter.team === 'BLUE';
+                const color = isBlue ? Cesium.Color.DODGERBLUE : Cesium.Color.RED;
+
+                // Create position property
+                const positionProperty = new Cesium.SampledPositionProperty();
+                const stateProperty = new Cesium.SampledProperty(String);
+
+                fighter.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t - minTime, new Cesium.JulianDate());
+                    const position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt);
+                    positionProperty.addSample(time, position);
+                });
+
+                positionProperty.setInterpolationOptions({
+                    interpolationDegree: 2,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                // Fighter entity
+                const entity = viewer.entities.add({
+                    name: fighter.callsign,
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 12,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: fighter.callsign,
+                        font: '12px sans-serif',
+                        fillColor: color,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -15)
+                    },
+                    path: {
+                        resolution: 1,
+                        material: new Cesium.ColorMaterialProperty(color.withAlpha(0.5)),
+                        width: 2,
+                        leadTime: 0,
+                        trailTime: 300
+                    }
+                });
+
+                fighterEntities[fighter.callsign] = {
+                    entity: entity,
+                    data: fighter,
+                    isBlue: isBlue
+                };
+            });
+
+            // Create missile entities
+            missiles.forEach((missile, idx) => {
+                if (missile.trajectory.length === 0) return;
+
+                const isBlue = missile.team === 'BLUE';
+                const isBVR = missile.type === 'AIM-120';
+                const color = isBVR ? Cesium.Color.YELLOW : Cesium.Color.ORANGE;
+
+                const positionProperty = new Cesium.SampledPositionProperty();
+
+                missile.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t - minTime, new Cesium.JulianDate());
+                    const position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt);
+                    positionProperty.addSample(time, position);
+                });
+
+                // Calculate availability
+                const missileStart = Cesium.JulianDate.addSeconds(startTime, missile.trajectory[0].t - minTime, new Cesium.JulianDate());
+                const missileEnd = Cesium.JulianDate.addSeconds(startTime, missile.trajectory[missile.trajectory.length-1].t - minTime, new Cesium.JulianDate());
+
+                const entity = viewer.entities.add({
+                    name: `${missile.type} (${isBlue ? 'Blue' : 'Red'})`,
+                    availability: new Cesium.TimeIntervalCollection([
+                        new Cesium.TimeInterval({ start: missileStart, stop: missileEnd })
+                    ]),
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 6,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1
+                    },
+                    path: {
+                        resolution: 1,
+                        material: new Cesium.ColorMaterialProperty(color.withAlpha(0.7)),
+                        width: 1,
+                        leadTime: 0,
+                        trailTime: 60
+                    }
+                });
+
+                missileEntities[`${missile.id}_${missile.shooter}`] = entity;
+            });
+
+            // Create debris entities
+            const debris = dogfightData.debris || [];
+            debris.forEach((d, idx) => {
+                if (d.trajectory.length === 0) return;
+
+                const isBlue = d.team === 'BLUE';
+                const color = isBlue ? Cesium.Color.LIGHTBLUE.withAlpha(0.8) : Cesium.Color.LIGHTCORAL.withAlpha(0.8);
+
+                const positionProperty = new Cesium.SampledPositionProperty();
+
+                d.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t - minTime, new Cesium.JulianDate());
+                    const position = Cesium.Cartesian3.fromDegrees(p.lon, p.lat, p.alt);
+                    positionProperty.addSample(time, position);
+                });
+
+                // Calculate availability
+                const debrisStart = Cesium.JulianDate.addSeconds(startTime, d.trajectory[0].t - minTime, new Cesium.JulianDate());
+                const debrisEnd = Cesium.JulianDate.addSeconds(startTime, d.trajectory[d.trajectory.length-1].t - minTime, new Cesium.JulianDate());
+
+                const debrisEntity = viewer.entities.add({
+                    name: `Debris from ${d.source_callsign}`,
+                    availability: new Cesium.TimeIntervalCollection([
+                        new Cesium.TimeInterval({ start: debrisStart, stop: debrisEnd })
+                    ]),
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 4,
+                        color: color,
+                        outlineColor: Cesium.Color.GRAY,
+                        outlineWidth: 1
+                    },
+                    path: {
+                        resolution: 1,
+                        material: new Cesium.ColorMaterialProperty(color.withAlpha(0.4)),
+                        width: 1,
+                        leadTime: 0,
+                        trailTime: 120
+                    }
+                });
+                debrisEntities.push(debrisEntity);
+            });
+
+            console.log(`Created ${debris.length} debris entities`);
+
+            // Update debris count in UI
+            if (debris.length > 0) {
+                document.getElementById('debrisCount').textContent =
+                    `Debris: ${debris.length} pieces tracked`;
+            }
+
+            // Parse events from data
+            parseEvents();
+
+            // Set initial camera view
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(
+                    metadata.center_lon,
+                    metadata.center_lat - 0.5,
+                    200000
+                ),
+                orientation: {
+                    heading: Cesium.Math.toRadians(0),
+                    pitch: Cesium.Math.toRadians(-45),
+                    roll: 0
+                }
+            });
+
+            // Update loop
+            viewer.clock.onTick.addEventListener(updateDisplay);
+        }
+
+        function parseEvents() {
+            // Parse missile events from the data
+            const missiles = dogfightData.missiles;
+
+            missiles.forEach(m => {
+                if (m.trajectory.length > 0) {
+                    events.push({
+                        time: m.trajectory[0].t,
+                        type: 'fire',
+                        text: `${getShooterName(m.shooter)} fires ${m.type}`
+                    });
+
+                    if (m.result === 'HIT') {
+                        events.push({
+                            time: m.trajectory[m.trajectory.length-1].t,
+                            type: 'kill',
+                            text: `${m.type} HITS target!`
+                        });
+                    }
+                }
+            });
+
+            events.sort((a, b) => a.time - b.time);
+        }
+
+        function getShooterName(shooterId) {
+            for (const f of dogfightData.fighters) {
+                // Extract ID from position in array
+                const isBlue = f.team === 'BLUE';
+                const baseId = isBlue ? 0 : 10;
+                const idx = dogfightData.fighters.indexOf(f);
+                const fighterId = isBlue ? idx : idx - 4 + 10;
+
+                if (fighterId === shooterId) return f.callsign;
+            }
+            return `Fighter ${shooterId}`;
+        }
+
+        function updateDisplay(clock) {
+            if (!dogfightData) return;
+
+            const currentTime = Cesium.JulianDate.secondsDifference(
+                clock.currentTime,
+                viewer.clock.startTime
+            );
+
+            // Update time display
+            const mins = Math.floor(currentTime / 60);
+            const secs = Math.floor(currentTime % 60);
+            document.getElementById('simTime').textContent =
+                `${mins}:${secs.toString().padStart(2, '0')}`;
+
+            // Update fighter status
+            updateFighterStatus(currentTime);
+
+            // Update event log
+            updateEventLog(currentTime);
+        }
+
+        function updateFighterStatus(currentTime) {
+            let blueHtml = '';
+            let redHtml = '';
+
+            dogfightData.fighters.forEach(f => {
+                // Find current state at this time
+                let currentState = 'PATROL';
+                let isAlive = true;
+
+                for (let i = 0; i < f.trajectory.length; i++) {
+                    if (f.trajectory[i].t <= currentTime) {
+                        currentState = f.trajectory[i].state;
+                        if (currentState === 'KILLED') isAlive = false;
+                    }
+                }
+
+                const statusClass = isAlive ? 'status-alive' : 'status-killed';
+                const stateClass = `state-${currentState.toLowerCase()}`;
+
+                const html = `
+                    <div class="fighter-status ${statusClass}">
+                        <span>${f.callsign}</span>
+                        <span class="state-badge ${stateClass}">${currentState}</span>
+                    </div>
+                `;
+
+                if (f.team === 'BLUE') {
+                    blueHtml += html;
+                } else {
+                    redHtml += html;
+                }
+            });
+
+            document.getElementById('blueStatus').innerHTML = blueHtml;
+            document.getElementById('redStatus').innerHTML = redHtml;
+        }
+
+        function updateEventLog(currentTime) {
+            let html = '';
+            let count = 0;
+
+            for (let i = events.length - 1; i >= 0 && count < 15; i--) {
+                if (events[i].time <= currentTime) {
+                    const eventClass = events[i].type === 'kill' ? 'event-kill' : 'event-fire';
+                    const timeStr = formatTime(events[i].time);
+                    html += `<div class="event ${eventClass}">[${timeStr}] ${events[i].text}</div>`;
+                    count++;
+                }
+            }
+
+            document.getElementById('events').innerHTML = html || '<div class="event">No events yet...</div>';
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Controls
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            viewer.clock.multiplier = parseInt(this.value);
+            document.getElementById('speedValue').textContent = this.value + 'x';
+        });
+
+        document.getElementById('showTrails').addEventListener('change', function() {
+            Object.values(fighterEntities).forEach(f => {
+                f.entity.path.show = this.checked;
+            });
+        });
+
+        document.getElementById('showMissiles').addEventListener('change', function() {
+            Object.values(missileEntities).forEach(e => {
+                e.show = this.checked;
+            });
+        });
+
+        document.getElementById('showDebris').addEventListener('change', function() {
+            debrisEntities.forEach(e => {
+                e.show = this.checked;
+            });
+        });
+    </script>
+</body>
+</html>

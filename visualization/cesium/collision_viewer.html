@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>GEO Satellite Collision - Debris Cloud</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #infoPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(10, 15, 25, 0.95);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            min-width: 280px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+        }
+
+        #infoPanel h3 {
+            margin: 0 0 10px 0;
+            color: #ff6666;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(255, 100, 100, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+
+        .stat-label { color: #aaa; }
+        .stat-value { color: #fff; font-weight: bold; }
+
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: rgba(10, 15, 25, 0.95);
+            color: #e0e0e0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+        }
+
+        #controls label {
+            display: block;
+            margin: 5px 0;
+        }
+
+        #controls input[type="range"] {
+            width: 150px;
+        }
+
+        .phase-indicator {
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .phase-approach {
+            background: rgba(100, 200, 100, 0.3);
+            border: 1px solid #4CAF50;
+            color: #4CAF50;
+        }
+
+        .phase-collision {
+            background: rgba(255, 100, 100, 0.3);
+            border: 1px solid #f44336;
+            color: #f44336;
+        }
+
+        .phase-debris {
+            background: rgba(255, 150, 50, 0.3);
+            border: 1px solid #ff9800;
+            color: #ff9800;
+        }
+
+        .legend {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 11px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="loadingOverlay">Loading collision data (this may take a moment)...</div>
+
+    <div id="infoPanel">
+        <h3>GEO Satellite Collision</h3>
+        <div class="stat-row">
+            <span class="stat-label">Simulation Time:</span>
+            <span class="stat-value" id="simTime">0:00:00</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Phase:</span>
+            <span class="stat-value" id="phase">Approach</span>
+        </div>
+
+        <div id="phaseIndicator" class="phase-indicator phase-approach">
+            SATELLITES APPROACHING
+        </div>
+
+        <div class="stat-row">
+            <span class="stat-label">Range:</span>
+            <span class="stat-value" id="range">--</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Debris Count:</span>
+            <span class="stat-value" id="debrisCount">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">SMA Spread:</span>
+            <span class="stat-value" id="smaSpread">--</span>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00;"></div>
+                Chase Satellite
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                Target Satellite
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffaa00;"></div>
+                Debris Cloud
+            </div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <label>
+            Speed: <span id="speedValue">60x</span>
+            <input type="range" id="speedSlider" min="1" max="3600" value="60">
+        </label>
+        <label>
+            Debris Sample: <span id="debrisSampleValue">100</span>
+            <input type="range" id="debrisSampleSlider" min="10" max="1000" value="100">
+        </label>
+        <label>
+            <input type="checkbox" id="showDebris" checked> Show Debris
+        </label>
+        <label>
+            <input type="checkbox" id="showSatellites" checked> Show Satellites
+        </label>
+    </div>
+
+    <script>
+        Cesium.Ion.defaultAccessToken = undefined;
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            imageryProvider: new Cesium.TileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            }),
+            baseLayerPicker: false,
+            geocoder: false,
+            animation: true,
+            timeline: true,
+            fullscreenButton: false,
+            vrButton: false,
+            homeButton: false,
+            sceneModePicker: true,
+            navigationHelpButton: false
+        });
+
+        viewer.cesiumWidget.creditContainer.style.display = 'none';
+        viewer.scene.globe.enableLighting = true;
+
+        let collisionData = null;
+        let satelliteEntities = [];
+        let debrisEntities = [];
+        let collisionTime = 0;
+        let debrisSampleSize = 100;
+
+        fetch('collision_data.json')
+            .then(response => response.json())
+            .then(data => {
+                collisionData = data;
+                console.log('Loaded collision data:', data.metadata);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                setupVisualization();
+            })
+            .catch(err => {
+                console.error('Failed to load data:', err);
+                document.getElementById('loadingOverlay').innerHTML =
+                    'Error loading data: ' + err.message;
+            });
+
+        function setupVisualization() {
+            const metadata = collisionData.metadata;
+            collisionTime = metadata.collision_time_hours * 3600;
+
+            // Time range: 0 to collision + 72h
+            const totalDuration = collisionTime + metadata.post_collision_hours * 3600;
+
+            const startTime = Cesium.JulianDate.fromDate(new Date());
+            const stopTime = Cesium.JulianDate.addSeconds(startTime, totalDuration, new Cesium.JulianDate());
+
+            viewer.clock.startTime = startTime.clone();
+            viewer.clock.stopTime = stopTime.clone();
+            viewer.clock.currentTime = startTime.clone();
+            viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+            viewer.clock.multiplier = 60;
+
+            viewer.timeline.zoomTo(startTime, stopTime);
+
+            // Create satellite entities
+            createSatellites(startTime);
+
+            // Create debris entities (sampled)
+            createDebris(startTime);
+
+            // Update metadata display
+            document.getElementById('debrisCount').textContent = metadata.debris_count;
+            document.getElementById('smaSpread').textContent =
+                `${(metadata.max_sma_km - metadata.min_sma_km).toFixed(0)} km`;
+
+            // Set camera to view GEO
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 150000000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-90),
+                    roll: 0
+                }
+            });
+
+            viewer.clock.onTick.addEventListener(updateDisplay);
+        }
+
+        function createSatellites(startTime) {
+            const satellites = collisionData.satellites;
+
+            satellites.forEach((sat, idx) => {
+                const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+
+                sat.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t, new Cesium.JulianDate());
+                    const position = new Cesium.Cartesian3(p.x, p.y, p.z);
+                    positionProperty.addSample(time, position);
+                });
+
+                positionProperty.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                const color = sat.color === '#00FF00' ? Cesium.Color.LIME : Cesium.Color.RED;
+
+                const entity = viewer.entities.add({
+                    name: sat.name,
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 15,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: sat.name,
+                        font: '14px sans-serif',
+                        fillColor: color,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, -25)
+                    },
+                    path: {
+                        resolution: 120,
+                        material: new Cesium.ColorMaterialProperty(color.withAlpha(0.5)),
+                        width: 2,
+                        leadTime: 0,
+                        trailTime: 3600
+                    }
+                });
+
+                satelliteEntities.push(entity);
+            });
+        }
+
+        function createDebris(startTime) {
+            // Sample debris to avoid overwhelming the browser
+            const debris = collisionData.debris;
+            const step = Math.max(1, Math.floor(debris.length / debrisSampleSize));
+
+            for (let i = 0; i < debris.length; i += step) {
+                const d = debris[i];
+                if (!d.trajectory || d.trajectory.length < 2) continue;
+
+                const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+
+                d.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t, new Cesium.JulianDate());
+                    const position = new Cesium.Cartesian3(p.x, p.y, p.z);
+                    positionProperty.addSample(time, position);
+                });
+
+                // Calculate availability (debris only exists after collision)
+                const debrisStartTime = Cesium.JulianDate.addSeconds(startTime, d.trajectory[0].t, new Cesium.JulianDate());
+                const debrisEndTime = Cesium.JulianDate.addSeconds(startTime, d.trajectory[d.trajectory.length-1].t, new Cesium.JulianDate());
+
+                const entity = viewer.entities.add({
+                    name: `Debris ${d.id}`,
+                    availability: new Cesium.TimeIntervalCollection([
+                        new Cesium.TimeInterval({ start: debrisStartTime, stop: debrisEndTime })
+                    ]),
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 3,
+                        color: Cesium.Color.ORANGE.withAlpha(0.7)
+                    }
+                });
+
+                debrisEntities.push(entity);
+            }
+
+            console.log(`Created ${debrisEntities.length} debris entities (sampled from ${debris.length})`);
+        }
+
+        function updateDisplay(clock) {
+            if (!collisionData) return;
+
+            const currentTime = Cesium.JulianDate.secondsDifference(
+                clock.currentTime,
+                viewer.clock.startTime
+            );
+
+            // Format time
+            const hours = Math.floor(currentTime / 3600);
+            const mins = Math.floor((currentTime % 3600) / 60);
+            const secs = Math.floor(currentTime % 60);
+            document.getElementById('simTime').textContent =
+                `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            // Determine phase
+            const phaseEl = document.getElementById('phaseIndicator');
+            if (currentTime < collisionTime - 60) {
+                document.getElementById('phase').textContent = 'Approach';
+                phaseEl.className = 'phase-indicator phase-approach';
+                phaseEl.textContent = 'SATELLITES APPROACHING';
+            } else if (currentTime < collisionTime + 60) {
+                document.getElementById('phase').textContent = 'COLLISION!';
+                phaseEl.className = 'phase-indicator phase-collision';
+                phaseEl.textContent = 'COLLISION IN PROGRESS';
+            } else {
+                document.getElementById('phase').textContent = 'Debris Tracking';
+                phaseEl.className = 'phase-indicator phase-debris';
+                const debrisHours = (currentTime - collisionTime) / 3600;
+                phaseEl.textContent = `DEBRIS SPREADING (${debrisHours.toFixed(1)}h)`;
+            }
+
+            // Calculate range (approximate from satellite positions)
+            if (currentTime < collisionTime && satelliteEntities.length >= 2) {
+                const pos1 = satelliteEntities[0].position.getValue(clock.currentTime);
+                const pos2 = satelliteEntities[1].position.getValue(clock.currentTime);
+                if (pos1 && pos2) {
+                    const range = Cesium.Cartesian3.distance(pos1, pos2);
+                    document.getElementById('range').textContent = formatDistance(range);
+                }
+            } else {
+                document.getElementById('range').textContent = 'N/A (collision)';
+            }
+        }
+
+        function formatDistance(meters) {
+            if (meters > 1000) {
+                return (meters / 1000).toFixed(1) + ' km';
+            }
+            return meters.toFixed(0) + ' m';
+        }
+
+        // Controls
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            viewer.clock.multiplier = parseInt(this.value);
+            document.getElementById('speedValue').textContent = this.value + 'x';
+        });
+
+        document.getElementById('showDebris').addEventListener('change', function() {
+            debrisEntities.forEach(e => e.show = this.checked);
+        });
+
+        document.getElementById('showSatellites').addEventListener('change', function() {
+            satelliteEntities.forEach(e => e.show = this.checked);
+        });
+    </script>
+</body>
+</html>
