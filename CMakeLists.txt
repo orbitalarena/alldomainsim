@@ -49,6 +49,7 @@ add_subdirectory(src/targeting)
 add_subdirectory(src/debris)
 add_subdirectory(src/tactics)
 add_subdirectory(src/data)
+add_subdirectory(src/fom)
 
 # Main simulation executable
 add_executable(sim_engine
@@ -210,6 +211,17 @@ target_link_libraries(gps_pdop_demo
     physics
     coordinate
     io
+)
+
+# LEO Sensor Revisit Calculator
+add_executable(leo_sensor_revisit
+    src/leo_sensor_revisit.cpp
+)
+
+target_link_libraries(leo_sensor_revisit
+    core
+    physics
+    coordinate
 )
 
 # Testing
