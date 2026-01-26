@@ -73,8 +73,55 @@ public:
      */
     static bool is_in_atmosphere(double altitude);
 
+    /**
+     * @brief Get density with extended model for aerobraking (up to 200km)
+     * Uses exponential decay above Karman line for aerobraking simulations
+     * @param altitude Altitude [m]
+     * @return Air density [kg/m^3]
+     */
+    static double get_density_extended(double altitude);
+
+    /**
+     * @brief Compute convective heat flux using Sutton-Graves correlation
+     * q = k * sqrt(rho/r_n) * v^3
+     * @param velocity Speed [m/s]
+     * @param altitude Altitude [m]
+     * @param nose_radius Effective nose radius [m] (Apollo CM ~4.7m)
+     * @return Heat flux [W/m^2]
+     */
+    static double compute_heat_flux(double velocity, double altitude, double nose_radius);
+
+    /**
+     * @brief Compute deceleration in g's from drag
+     * @param drag_force Drag force magnitude [N]
+     * @param mass Vehicle mass [kg]
+     * @return Deceleration [g's]
+     */
+    static double compute_g_load(double drag_force, double mass);
+
+    /**
+     * @brief Compute Mach number
+     * @param velocity Speed [m/s]
+     * @param altitude Altitude [m]
+     * @return Mach number
+     */
+    static double compute_mach(double velocity, double altitude);
+
+    /**
+     * @brief Check if in significant atmosphere for aerobraking (up to 200km)
+     * @param altitude Altitude [m]
+     * @return true if drag is significant
+     */
+    static bool is_in_aerobraking_region(double altitude);
+
     // Karman line - edge of space
     static constexpr double KARMAN_LINE = 100000.0;  // 100 km
+
+    // Upper limit for aerobraking model
+    static constexpr double AEROBRAKING_LIMIT = 200000.0;  // 200 km
+
+    // Sutton-Graves constant for air (approximate)
+    static constexpr double SUTTON_GRAVES_K = 1.7415e-4;  // (kg^0.5/m)
 
 private:
     // Layer boundaries for US Standard Atmosphere

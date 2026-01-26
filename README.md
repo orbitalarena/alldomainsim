@@ -139,14 +139,14 @@ all-domain-sim/
 (To be populated with build instructions)
 
 ## Milestones
-- [ ] Milestone 0: Project skeleton, build system, Git setup
-- [ ] Milestone 1: TLE parsing + single orbit propagation
-- [ ] Milestone 2: Cesium visualization of propagated orbit
-- [ ] Milestone 3: Mode switching (Model/Sim) with time control
-- [ ] Milestone 4: Multi-entity simulation (shuttle + satellite from TLE)
-- [ ] Milestone 5: Basic rendezvous dynamics
-- [ ] Milestone 6: Synthetic camera implementation
-- [ ] Milestone 7: Atmospheric re-entry physics
+- [x] Milestone 0: Project skeleton, build system, Git setup
+- [x] Milestone 1: TLE parsing + single orbit propagation
+- [x] Milestone 2: Cesium visualization of propagated orbit (including RK4/J2)
+- [x] Milestone 3: Mode switching (Model/Sim) with time control
+- [x] Milestone 4: Multi-entity simulation (shuttle + satellite from TLE)
+- [x] Milestone 5: Basic rendezvous dynamics (GEO & multi-sat tours)
+- [x] Milestone 6: Synthetic camera implementation (LEO imaging constellation)
+- [x] Milestone 7: Atmospheric re-entry physics (multi-body gravity, aerobraking)
 - [ ] Milestone 8: Runway landing + ground taxi
 - [ ] Milestone 9: Full "crushed it" scenario integration
 
@@ -158,6 +158,6 @@ all-domain-sim/
 - SGP4: Simplified perturbations model for TLE propagation
 
 ---
-*Last Updated*: 2026-01-25
+*Last Updated*: 2026-01-26
 *Team*: Human + Claude
-*Status*: Initial Design Phase
+*Status*: Milestone 7 Complete - Multi-body physics & aerobraking

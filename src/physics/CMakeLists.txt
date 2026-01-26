@@ -5,6 +5,9 @@ add_library(physics
     maneuver_planner.cpp
     proximity_ops.cpp
     nonlinear_rendezvous.cpp
+    lunar_ephemeris.cpp
+    multi_body_gravity.cpp
+    aerobraking.cpp
 )
 
 target_include_directories(physics PUBLIC
@@ -13,4 +16,5 @@ target_include_directories(physics PUBLIC
 
 target_link_libraries(physics
     core
+    propagators
 )

@@ -4,6 +4,7 @@ add_library(entities
     launch_vehicle.cpp
     aircraft.cpp
     fighter.cpp
+    command_module.cpp
 )
 
 target_include_directories(entities PUBLIC

@@ -187,6 +187,19 @@ target_link_libraries(leo_imager_demo
     physics
 )
 
+# Apollo Lunar Return demo
+add_executable(lunar_return_demo
+    src/lunar_return_demo.cpp
+)
+
+target_link_libraries(lunar_return_demo
+    core
+    physics
+    entities
+    coordinate
+    propagators
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)

@@ -109,7 +109,8 @@ double AtmosphereModel::get_density(double altitude) {
 
 Vec3 AtmosphereModel::compute_drag(const Vec3& velocity, double altitude,
                                    double Cd, double area) {
-    double rho = get_density(altitude);
+    // Use extended density model for aerobraking in upper atmosphere
+    double rho = get_density_extended(altitude);
 
     if (rho < 1e-15) {
         return Vec3(0, 0, 0);  // No atmosphere
@@ -139,6 +140,77 @@ double AtmosphereModel::dynamic_pressure(double velocity, double altitude) {
 
 bool AtmosphereModel::is_in_atmosphere(double altitude) {
     return altitude < KARMAN_LINE;
+}
+
+double AtmosphereModel::get_density_extended(double altitude) {
+    // Below Karman line, use standard model
+    if (altitude <= KARMAN_LINE) {
+        return get_density(altitude);
+    }
+
+    // Above 200km, negligible density
+    if (altitude > AEROBRAKING_LIMIT) {
+        return 0.0;
+    }
+
+    // Exponential model for 100-200 km (thermosphere)
+    // Scale height increases with altitude in thermosphere
+    // Using approximate values for moderate solar activity
+    double h = altitude - KARMAN_LINE;
+
+    // Density at 100km is approximately 5.6e-7 kg/m³
+    double rho_100 = 5.6e-7;
+
+    // Scale height varies: ~8km at 100km, increasing to ~50km at 200km
+    // Use linear interpolation of scale height
+    double H_100 = 8000.0;   // Scale height at 100km
+    double H_200 = 50000.0;  // Scale height at 200km
+    double H = H_100 + (H_200 - H_100) * h / 100000.0;
+
+    return rho_100 * std::exp(-h / H);
+}
+
+double AtmosphereModel::compute_heat_flux(double velocity, double altitude, double nose_radius) {
+    // Sutton-Graves correlation: q = k * sqrt(rho/r_n) * v^3
+    // Valid for continuum flow (generally below ~90km for Apollo-class vehicles)
+    // Above 90km, heating reduces due to rarefied flow effects
+
+    double rho = get_density_extended(altitude);
+
+    if (rho < 1e-15 || nose_radius <= 0.0) {
+        return 0.0;
+    }
+
+    // Heat flux in W/m²
+    double q = SUTTON_GRAVES_K * std::sqrt(rho / nose_radius) * velocity * velocity * velocity;
+
+    // Apply rarefied flow correction above 90km
+    // (Simplified: linear reduction to 10% at 120km)
+    if (altitude > 90000.0) {
+        double factor = 1.0 - 0.9 * std::min((altitude - 90000.0) / 30000.0, 1.0);
+        q *= factor;
+    }
+
+    return q;
+}
+
+double AtmosphereModel::compute_g_load(double drag_force, double mass) {
+    if (mass <= 0.0) {
+        return 0.0;
+    }
+    return drag_force / (mass * G0);
+}
+
+double AtmosphereModel::compute_mach(double velocity, double altitude) {
+    AtmosphereState atm = get_atmosphere(std::min(altitude, H_MESOPAUSE));
+    if (atm.speed_of_sound < 1.0) {
+        return 0.0;
+    }
+    return velocity / atm.speed_of_sound;
+}
+
+bool AtmosphereModel::is_in_aerobraking_region(double altitude) {
+    return altitude < AEROBRAKING_LIMIT;
 }
 
 } // namespace sim

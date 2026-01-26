@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Apollo Aerobraking Mission Viewer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(42, 42, 42, 0.9);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: sans-serif;
+            z-index: 1000;
+            min-width: 220px;
+        }
+        #controls h3 { margin: 0 0 10px 0; font-size: 16px; }
+        #controls button {
+            padding: 8px 15px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            background: #2196F3;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            font-size: 14px;
+        }
+        #controls button:hover { background: #1976D2; }
+        #controls label { display: block; margin: 10px 0 5px 0; font-size: 13px; }
+        #controls input[type="range"] { width: 100%; }
+        .checkbox-label { display: flex; align-items: center; margin: 8px 0; cursor: pointer; }
+        #controls input[type="checkbox"] { margin-right: 8px; }
+        #status { margin-top: 10px; font-size: 12px; color: #aaa; }
+        #speedValue { color: #4CAF50; font-weight: bold; }
+        #telemetry {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            z-index: 1000;
+            min-width: 220px;
+        }
+        #telemetry h4 { margin: 0 0 10px 0; color: #4CAF50; font-family: sans-serif; }
+        #telemetry .value { color: #00FF00; }
+        #telemetry .label { color: #aaa; }
+        #telemetry .row { margin: 5px 0; }
+        #telemetry .phase {
+            color: #FFD700;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .g-warning { color: #FF6600 !important; }
+        .g-danger { color: #FF0000 !important; }
+        #missionStats {
+            position: absolute;
+            bottom: 100px;
+            right: 10px;
+            background: rgba(42, 42, 42, 0.9);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        #missionStats h4 { margin: 0 0 10px 0; color: #2196F3; font-family: sans-serif; }
+        #legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(42, 42, 42, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-family: sans-serif;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        #legend h4 { margin: 0 0 8px 0; font-size: 13px; }
+        .legend-item { display: flex; align-items: center; margin: 4px 0; }
+        .legend-color { width: 20px; height: 3px; margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="controls">
+        <h3>Apollo Aerobraking</h3>
+        <button onclick="loadMissionData()">Reload Data</button>
+        <button onclick="resetView()">Earth View</button>
+        <button onclick="trackCM()">Track CM</button>
+
+        <label>Speed: <span id="speedValue">1x</span></label>
+        <input type="range" id="speedSlider" min="0" max="5" value="0" step="1" onchange="updateSpeed(this.value)">
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="showPath" checked onchange="togglePath()">
+            Show Trajectory Path
+        </label>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="showMoon" checked onchange="toggleMoon()">
+            Show Moon
+        </label>
+
+        <div id="status">Ready...</div>
+    </div>
+
+    <div id="telemetry">
+        <h4>CM Telemetry</h4>
+        <div class="phase" id="phaseValue">--</div>
+        <div class="row"><span class="label">Time:</span> <span class="value" id="missionTime">--:--:--</span></div>
+        <div class="row"><span class="label">Alt (Earth):</span> <span class="value" id="altEarth">--- km</span></div>
+        <div class="row"><span class="label">Velocity:</span> <span class="value" id="velocity">--- m/s</span></div>
+        <div class="row"><span class="label">Apogee:</span> <span class="value" id="apogee">--- km</span></div>
+        <div class="row"><span class="label">Perigee:</span> <span class="value" id="perigee">--- km</span></div>
+        <div class="row"><span class="label">G-Load:</span> <span class="value" id="gLoad">--- g</span></div>
+        <div class="row"><span class="label">Heat Flux:</span> <span class="value" id="heatFlux">--- W/m2</span></div>
+    </div>
+
+    <div id="missionStats">
+        <h4>Mission Summary</h4>
+        <div id="statsContent">Loading...</div>
+    </div>
+
+    <div id="legend">
+        <h4>Trajectory Phase</h4>
+        <div class="legend-item"><div class="legend-color" style="background: #00FF00;"></div>Orbital Coast</div>
+        <div class="legend-item"><div class="legend-color" style="background: #FF6600;"></div>Aerobraking</div>
+        <div class="legend-item"><div class="legend-color" style="background: #FF0000;"></div>Re-entry</div>
+        <div class="legend-item"><div class="legend-color" style="background: #00FFFF;"></div>Parachute</div>
+    </div>
+
+    <script>
+        const EARTH_RADIUS = 6378137;
+        const speedMultipliers = [1, 10, 60, 600, 3600, 36000];
+        const speedLabels = ['1x', '10x', '1min/s', '10min/s', '1hr/s', '10hr/s'];
+
+        const phaseColors = {
+            'Orbital': Cesium.Color.LIME,
+            'Powered': Cesium.Color.YELLOW,
+            'Aerobraking': Cesium.Color.ORANGE,
+            'Re-entry': Cesium.Color.RED,
+            'Drogue Descent': Cesium.Color.CYAN,
+            'Main Descent': Cesium.Color.CYAN,
+            'Splashdown': Cesium.Color.WHITE
+        };
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: true,
+            timeline: true,
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            selectionIndicator: false,
+            sceneModePicker: false,
+            navigationHelpButton: false
+        });
+
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+        addArcGISProviders(viewer);
+
+        let missionData = null;
+        let cmEntity = null;
+        let pathEntity = null;
+        let moonEntity = null;
+        let startTime = null;
+
+        function resetView() {
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 150000000),
+                orientation: {
+                    heading: 0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0
+                }
+            });
+            viewer.trackedEntity = undefined;
+        }
+
+        function trackCM() {
+            if (cmEntity) {
+                viewer.trackedEntity = cmEntity;
+            }
+        }
+
+        function updateSpeed(value) {
+            const multiplier = speedMultipliers[value];
+            document.getElementById('speedValue').textContent = speedLabels[value];
+            viewer.clock.multiplier = multiplier;
+        }
+
+        function togglePath() {
+            if (pathEntity) {
+                pathEntity.show = document.getElementById('showPath').checked;
+            }
+        }
+
+        function toggleMoon() {
+            if (moonEntity) {
+                moonEntity.show = document.getElementById('showMoon').checked;
+            }
+        }
+
+        function updateTelemetry() {
+            if (!missionData || !startTime) return;
+
+            const currentTime = viewer.clock.currentTime;
+            const elapsedSeconds = Cesium.JulianDate.secondsDifference(currentTime, startTime);
+            if (elapsedSeconds < 0) return;
+
+            // Find closest data point
+            const trajectory = missionData.trajectory;
+            let idx = 0;
+            for (let i = 0; i < trajectory.length; i++) {
+                if (trajectory[i].t > elapsedSeconds) break;
+                idx = i;
+            }
+
+            const point = trajectory[idx];
+
+            // Format time
+            const hours = Math.floor(elapsedSeconds / 3600);
+            const mins = Math.floor((elapsedSeconds % 3600) / 60);
+            const secs = Math.floor(elapsedSeconds % 60);
+
+            document.getElementById('missionTime').textContent =
+                `T+${hours.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+
+            document.getElementById('phaseValue').textContent = point.phase;
+            document.getElementById('altEarth').textContent = point.alt_earth_km.toFixed(1) + ' km';
+            document.getElementById('velocity').textContent = point.speed_ms.toFixed(0) + ' m/s';
+            document.getElementById('apogee').textContent = point.apogee_km.toFixed(0) + ' km';
+            document.getElementById('perigee').textContent = point.perigee_km.toFixed(0) + ' km';
+
+            // G-load with color coding
+            const gLoadEl = document.getElementById('gLoad');
+            gLoadEl.textContent = point.g_load.toFixed(1) + ' g';
+            gLoadEl.className = 'value';
+            if (point.g_load > 3) gLoadEl.className += ' g-warning';
+            if (point.g_load > 6) gLoadEl.className += ' g-danger';
+
+            document.getElementById('heatFlux').textContent =
+                point.heat_flux > 1000 ? (point.heat_flux / 1000).toFixed(0) + ' kW/m2' : point.heat_flux.toFixed(0) + ' W/m2';
+        }
+
+        async function loadMissionData() {
+            const status = document.getElementById('status');
+            status.textContent = 'Loading...';
+
+            try {
+                const response = await fetch('lunar_return_data.json?' + Date.now());
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                missionData = await response.json();
+
+                // Clear existing entities
+                if (cmEntity) viewer.entities.remove(cmEntity);
+                if (pathEntity) viewer.entities.remove(pathEntity);
+                if (moonEntity) viewer.entities.remove(moonEntity);
+
+                const metadata = missionData.metadata;
+                const trajectory = missionData.trajectory;
+                const moonTrajectory = missionData.moon_trajectory;
+                const duration = metadata.duration_hours * 3600;
+
+                startTime = Cesium.JulianDate.now();
+                const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+                viewer.clock.startTime = startTime.clone();
+                viewer.clock.stopTime = stopTime.clone();
+                viewer.clock.currentTime = startTime.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+                viewer.clock.multiplier = 1;
+                viewer.timeline.zoomTo(startTime, stopTime);
+
+                // Create CM position property (using INERTIAL frame for cislunar)
+                const cmPosition = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+                cmPosition.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                // Build trajectory with phase-colored segments
+                const pathPositions = [];
+                const pathColors = [];
+
+                trajectory.forEach((point, i) => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, point.t, new Cesium.JulianDate());
+                    const pos = new Cesium.Cartesian3(point.eci.x, point.eci.y, point.eci.z);
+                    cmPosition.addSample(time, pos);
+                    pathPositions.push(pos);
+                    pathColors.push(phaseColors[point.phase] || Cesium.Color.WHITE);
+                });
+
+                // Create CM entity
+                cmEntity = viewer.entities.add({
+                    name: 'Apollo CM',
+                    position: cmPosition,
+                    point: {
+                        pixelSize: 15,
+                        color: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.LIME,
+                        outlineWidth: 3,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    path: {
+                        leadTime: 0,
+                        trailTime: 7200,
+                        width: 3,
+                        material: Cesium.Color.LIME.withAlpha(0.6)
+                    },
+                    label: {
+                        text: 'CM',
+                        font: '14px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(15, 0),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+
+                // Create full trajectory path
+                pathEntity = viewer.entities.add({
+                    name: 'CM Trajectory',
+                    polyline: {
+                        positions: pathPositions,
+                        width: 1,
+                        material: Cesium.Color.LIME.withAlpha(0.3)
+                    },
+                    show: document.getElementById('showPath').checked
+                });
+
+                // Create Moon entity if we have moon trajectory
+                if (moonTrajectory && moonTrajectory.length > 0) {
+                    const moonPosition = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+                    moonPosition.setInterpolationOptions({
+                        interpolationDegree: 3,
+                        interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                    });
+
+                    moonTrajectory.forEach((pos, i) => {
+                        const time = Cesium.JulianDate.addSeconds(startTime, i * metadata.record_interval_s, new Cesium.JulianDate());
+                        moonPosition.addSample(time, new Cesium.Cartesian3(pos.x, pos.y, pos.z));
+                    });
+
+                    moonEntity = viewer.entities.add({
+                        name: 'Moon',
+                        position: moonPosition,
+                        ellipsoid: {
+                            radii: new Cesium.Cartesian3(1737400, 1737400, 1737400),
+                            material: Cesium.Color.GRAY.withAlpha(0.8)
+                        },
+                        label: {
+                            text: 'Moon',
+                            font: '16px sans-serif',
+                            fillColor: Cesium.Color.WHITE,
+                            pixelOffset: new Cesium.Cartesian2(0, -30),
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        },
+                        show: document.getElementById('showMoon').checked
+                    });
+                }
+
+                // Update mission stats
+                document.getElementById('statsContent').innerHTML = `
+                    Duration: ${metadata.duration_hours.toFixed(1)} hr<br>
+                    Points: ${metadata.total_points}
+                `;
+
+                // Set up telemetry update
+                viewer.clock.onTick.addEventListener(updateTelemetry);
+
+                status.textContent = `Loaded: ${trajectory.length} points`;
+                resetView();
+
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        resetView();
+        setTimeout(loadMissionData, 500);
+    </script>
+</body>
+</html>
