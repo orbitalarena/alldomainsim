@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>GEO Intercept - Sensor View</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-family: monospace;
+            z-index: 1000;
+            min-width: 280px;
+        }
+
+        #controls h3 { margin: 0 0 15px 0; color: #4CAF50; }
+
+        #controls label {
+            display: block;
+            margin: 10px 0 5px 0;
+            color: #aaa;
+        }
+
+        #controls select, #controls input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+        }
+
+        #controls button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2196F3;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #controls button:hover { background: #1976D2; }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .info-label { color: #888; }
+        .info-value { color: #4CAF50; font-weight: bold; }
+
+        #phaseIndicator {
+            padding: 8px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+            color: #4CAF50;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            color: #aaa;
+        }
+        .checkbox-row input { margin-right: 8px; }
+
+        #crosshairOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60px; height: 60px;
+            border: 2px solid rgba(0,255,0,0.6);
+            border-radius: 50%;
+        }
+
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(0,255,0,0.6);
+        }
+        #crosshair::before { top: 50%; left: -15px; right: -15px; height: 1px; }
+        #crosshair::after { left: 50%; top: -15px; bottom: -15px; width: 1px; }
+
+        #sensorLabel {
+            position: absolute;
+            top: 10px; left: 50%;
+            transform: translateX(-50%);
+            color: #4CAF50;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+            text-shadow: 2px 2px 4px black;
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="crosshairOverlay">
+        <div id="crosshair"></div>
+        <div id="sensorLabel">CHASE SENSOR VIEW</div>
+    </div>
+
+    <div id="controls">
+        <h3>GEO Intercept Viewer</h3>
+
+        <label>View Mode:</label>
+        <select id="viewMode">
+            <option value="main">Main Overview</option>
+            <option value="sensor">Chase Sensor View</option>
+        </select>
+
+        <div id="phaseIndicator">COAST</div>
+
+        <div class="info-row">
+            <span class="info-label">Mission Time:</span>
+            <span class="info-value" id="missionTime">T+00:00:00</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Range:</span>
+            <span class="info-value" id="rangeValue">---</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Closure Rate:</span>
+            <span class="info-value" id="closureRate">---</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Time to Impact:</span>
+            <span class="info-value" id="timeToImpact">---</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Target in FOV:</span>
+            <span class="info-value" id="targetInFov">---</span>
+        </div>
+
+        <label>Speed: <span id="speedValue">60x</span></label>
+        <input type="range" id="speedSlider" min="1" max="500" value="60">
+
+        <label>Sensor FOV: <span id="fovValue">10</span>°</label>
+        <input type="range" id="fovSlider" min="2" max="30" value="10">
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="showCone" checked>
+            <label>Show Sensor Cone</label>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="showPaths" checked>
+            <label>Show Orbit Paths</label>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="enableGrayscale" checked>
+            <label>Sensor Grayscale</label>
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="enableLighting" checked>
+            <label>Globe Lighting</label>
+        </div>
+
+        <button onclick="resetToOverview()">Reset to Overview</button>
+        <button onclick="trackChase()">Track Chase</button>
+        <button onclick="trackTarget()">Track Target</button>
+    </div>
+
+    <div id="loadingOverlay">Loading collision data...</div>
+
+    <script>
+        const EARTH_RADIUS = 6378137;
+
+        // Single viewer - like the debug viewer that worked
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: true,
+            timeline: true,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            selectionIndicator: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+            })
+        });
+
+        // Initial scene settings (will toggle based on view mode)
+        viewer.scene.globe.enableLighting = false;
+        viewer.scene.globe.showGroundAtmosphere = false;
+        viewer.scene.fog.enabled = false;
+        viewer.scene.skyAtmosphere.show = false;
+
+        // Grayscale post-processing for sensor view with brightness boost
+        const grayscaleStage = new Cesium.PostProcessStage({
+            fragmentShader: `
+                uniform sampler2D colorTexture;
+                in vec2 v_textureCoordinates;
+                void main() {
+                    vec4 color = texture(colorTexture, v_textureCoordinates);
+                    float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+                    // Boost brightness by 1.4x and add slight contrast
+                    gray = clamp(gray * 1.4 + 0.05, 0.0, 1.0);
+                    out_FragColor = vec4(vec3(gray), color.a);
+                }
+            `
+        });
+        grayscaleStage.enabled = false;
+        viewer.scene.postProcessStages.add(grayscaleStage);
+
+        // State
+        let collisionData = null;
+        let chaseEntity = null;
+        let targetEntity = null;
+        let sensorConeEntity = null;
+        let startTime = null;
+        let collisionTime = 0;
+        let sensorFOV = 10;
+        let lastRange = null;
+        let currentViewMode = 'main';
+
+        // Trajectory data
+        let chaseTrajectory = [];
+        let targetTrajectory = [];
+
+        // Load data
+        fetch('collision_data.json')
+            .then(r => r.json())
+            .then(data => {
+                collisionData = data;
+                console.log('Loaded:', data.metadata);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                initializeSimulation();
+            })
+            .catch(err => {
+                document.getElementById('loadingOverlay').innerHTML =
+                    'Error: ' + err.message + '<br>Run collision_demo first.';
+            });
+
+        function initializeSimulation() {
+            const metadata = collisionData.metadata;
+            collisionTime = metadata.collision_time_hours * 3600;
+
+            // Setup time
+            startTime = Cesium.JulianDate.fromDate(new Date());
+            const duration = collisionTime + 300;
+            const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+            viewer.clock.startTime = startTime.clone();
+            viewer.clock.stopTime = stopTime.clone();
+            viewer.clock.currentTime = startTime.clone();
+            viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+            viewer.clock.multiplier = 60;
+            viewer.timeline.zoomTo(startTime, stopTime);
+
+            // Parse trajectory data
+            collisionData.satellites.forEach(sat => {
+                const isChase = sat.name === 'Chase';
+                const trajectory = [];
+
+                sat.trajectory.forEach(p => {
+                    trajectory.push({
+                        t: p.t,
+                        position: new Cesium.Cartesian3(p.x, p.y, p.z)
+                    });
+                });
+
+                if (isChase) {
+                    chaseTrajectory = trajectory;
+                } else {
+                    targetTrajectory = trajectory;
+                }
+            });
+
+            // Create entities
+            createEntities();
+            createSensorCone();
+
+            // Update loop
+            viewer.clock.onTick.addEventListener(onTick);
+
+            resetToOverview();
+        }
+
+        function createEntities() {
+            // Create position properties
+            const chasePosition = new Cesium.SampledPositionProperty();
+            const targetPosition = new Cesium.SampledPositionProperty();
+
+            chaseTrajectory.forEach(p => {
+                const time = Cesium.JulianDate.addSeconds(startTime, p.t, new Cesium.JulianDate());
+                chasePosition.addSample(time, p.position);
+            });
+
+            targetTrajectory.forEach(p => {
+                const time = Cesium.JulianDate.addSeconds(startTime, p.t, new Cesium.JulianDate());
+                targetPosition.addSample(time, p.position);
+            });
+
+            chasePosition.setInterpolationOptions({
+                interpolationDegree: 3,
+                interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+            });
+            targetPosition.setInterpolationOptions({
+                interpolationDegree: 3,
+                interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+            });
+
+            // Chase entity - Space Shuttle
+            chaseEntity = viewer.entities.add({
+                name: 'Chase',
+                position: chasePosition,
+                model: {
+                    uri: 'models/shuttle.glb',
+                    scale: 5000,
+                    minimumPixelSize: 32,
+                    color: Cesium.Color.LIME,
+                    colorBlendMode: Cesium.ColorBlendMode.MULTIPLY,
+                    colorBlendAmount: 0.3
+                },
+                point: {
+                    pixelSize: 12,
+                    color: Cesium.Color.LIME,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                    text: 'Chase',
+                    font: '14px sans-serif',
+                    fillColor: Cesium.Color.LIME,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    pixelOffset: new Cesium.Cartesian2(0, -30),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                path: {
+                    resolution: 60,
+                    material: Cesium.Color.LIME.withAlpha(0.3),
+                    width: 2,
+                    leadTime: 1800,
+                    trailTime: 1800
+                }
+            });
+
+            // Target entity - James Webb Space Telescope
+            targetEntity = viewer.entities.add({
+                name: 'Target',
+                position: targetPosition,
+                model: {
+                    uri: 'models/webb.glb',
+                    scale: 5000,
+                    minimumPixelSize: 32,
+                    color: Cesium.Color.RED,
+                    colorBlendMode: Cesium.ColorBlendMode.MULTIPLY,
+                    colorBlendAmount: 0.3
+                },
+                point: {
+                    pixelSize: 15,
+                    color: Cesium.Color.YELLOW,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                    text: 'TARGET',
+                    font: 'bold 14px sans-serif',
+                    fillColor: Cesium.Color.RED,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    pixelOffset: new Cesium.Cartesian2(0, -30),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                path: {
+                    resolution: 60,
+                    material: Cesium.Color.RED.withAlpha(0.3),
+                    width: 2,
+                    leadTime: 1800,
+                    trailTime: 1800
+                }
+            });
+        }
+
+        function createSensorCone() {
+            sensorConeEntity = viewer.entities.add({
+                name: 'Sensor Cone',
+                position: new Cesium.CallbackProperty(() => {
+                    const time = viewer.clock.currentTime;
+                    const chasePos = chaseEntity.position.getValue(time);
+                    const targetPos = targetEntity.position.getValue(time);
+                    if (!chasePos || !targetPos) return Cesium.Cartesian3.ZERO;
+
+                    const direction = Cesium.Cartesian3.subtract(targetPos, chasePos, new Cesium.Cartesian3());
+                    Cesium.Cartesian3.normalize(direction, direction);
+
+                    const range = Cesium.Cartesian3.distance(chasePos, targetPos);
+                    const coneLength = Math.min(range * 0.8, 300000);
+
+                    const offset = Cesium.Cartesian3.multiplyByScalar(direction, coneLength / 2, new Cesium.Cartesian3());
+                    return Cesium.Cartesian3.add(chasePos, offset, new Cesium.Cartesian3());
+                }, false),
+                cylinder: {
+                    length: new Cesium.CallbackProperty(() => {
+                        const time = viewer.clock.currentTime;
+                        const chasePos = chaseEntity.position.getValue(time);
+                        const targetPos = targetEntity.position.getValue(time);
+                        if (!chasePos || !targetPos) return 10000;
+                        const range = Cesium.Cartesian3.distance(chasePos, targetPos);
+                        return Math.min(range * 0.8, 300000);
+                    }, false),
+                    bottomRadius: 0,
+                    topRadius: new Cesium.CallbackProperty(() => {
+                        const time = viewer.clock.currentTime;
+                        const chasePos = chaseEntity.position.getValue(time);
+                        const targetPos = targetEntity.position.getValue(time);
+                        if (!chasePos || !targetPos) return 1000;
+                        const range = Cesium.Cartesian3.distance(chasePos, targetPos);
+                        const len = Math.min(range * 0.8, 300000);
+                        return len * Math.tan(Cesium.Math.toRadians(sensorFOV / 2));
+                    }, false),
+                    material: Cesium.Color.LIME.withAlpha(0.15),
+                    outline: true,
+                    outlineColor: Cesium.Color.LIME.withAlpha(0.4)
+                },
+                orientation: new Cesium.CallbackProperty(() => {
+                    const time = viewer.clock.currentTime;
+                    const chasePos = chaseEntity.position.getValue(time);
+                    const targetPos = targetEntity.position.getValue(time);
+                    if (!chasePos || !targetPos) return Cesium.Quaternion.IDENTITY;
+
+                    const zAxis = Cesium.Cartesian3.subtract(targetPos, chasePos, new Cesium.Cartesian3());
+                    Cesium.Cartesian3.normalize(zAxis, zAxis);
+
+                    const radial = Cesium.Cartesian3.normalize(chasePos, new Cesium.Cartesian3());
+                    let xAxis = Cesium.Cartesian3.cross(radial, zAxis, new Cesium.Cartesian3());
+                    if (Cesium.Cartesian3.magnitude(xAxis) < 0.001) {
+                        xAxis = new Cesium.Cartesian3(1, 0, 0);
+                    }
+                    Cesium.Cartesian3.normalize(xAxis, xAxis);
+
+                    const yAxis = Cesium.Cartesian3.cross(zAxis, xAxis, new Cesium.Cartesian3());
+
+                    const rot = new Cesium.Matrix3(
+                        xAxis.x, yAxis.x, zAxis.x,
+                        xAxis.y, yAxis.y, zAxis.y,
+                        xAxis.z, yAxis.z, zAxis.z
+                    );
+                    return Cesium.Quaternion.fromRotationMatrix(rot);
+                }, false)
+            });
+        }
+
+        // View mode switching
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            const overlay = document.getElementById('crosshairOverlay');
+            const useGrayscale = document.getElementById('enableGrayscale').checked;
+            const useLighting = document.getElementById('enableLighting').checked;
+
+            if (mode === 'main') {
+                overlay.style.display = 'none';
+                // Main view: no grayscale, lighting optional
+                grayscaleStage.enabled = false;
+                viewer.scene.globe.enableLighting = useLighting;
+                viewer.scene.globe.showGroundAtmosphere = true;
+                viewer.scene.skyAtmosphere.show = true;
+            } else if (mode === 'sensor') {
+                overlay.style.display = 'block';
+                // Sensor view: grayscale if enabled, no atmosphere effects
+                grayscaleStage.enabled = useGrayscale;
+                viewer.scene.globe.enableLighting = false; // Always off for sensor visibility
+                viewer.scene.globe.showGroundAtmosphere = false;
+                viewer.scene.skyAtmosphere.show = false;
+            }
+        }
+
+        function onTick() {
+            if (currentViewMode === 'sensor') {
+                updateSensorCamera();
+            }
+            updateTelemetry();
+        }
+
+        function updateSensorCamera() {
+            const time = viewer.clock.currentTime;
+            const chasePos = chaseEntity.position.getValue(time);
+            const targetPos = targetEntity.position.getValue(time);
+
+            if (!chasePos || !targetPos) return;
+
+            // Direction from chase to target
+            const direction = Cesium.Cartesian3.subtract(targetPos, chasePos, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(direction, direction);
+
+            // Up vector - radial from Earth, orthogonalized
+            let up = Cesium.Cartesian3.normalize(chasePos, new Cesium.Cartesian3());
+            const dot = Cesium.Cartesian3.dot(up, direction);
+            const proj = Cesium.Cartesian3.multiplyByScalar(direction, dot, new Cesium.Cartesian3());
+            up = Cesium.Cartesian3.subtract(up, proj, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(up, up);
+
+            // Set frustum
+            viewer.camera.frustum.fov = Cesium.Math.toRadians(sensorFOV);
+            viewer.camera.frustum.near = 1.0;
+            viewer.camera.frustum.far = 100000000;
+
+            // Simple setView - same as debug viewer
+            viewer.camera.setView({
+                destination: chasePos,
+                orientation: {
+                    direction: direction,
+                    up: up
+                }
+            });
+        }
+
+        function updateTelemetry() {
+            const time = viewer.clock.currentTime;
+            const elapsed = Cesium.JulianDate.secondsDifference(time, startTime);
+
+            // Mission time
+            const h = Math.floor(elapsed / 3600);
+            const m = Math.floor((elapsed % 3600) / 60);
+            const s = Math.floor(elapsed % 60);
+            document.getElementById('missionTime').textContent =
+                `T+${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+
+            const chasePos = chaseEntity ? chaseEntity.position.getValue(time) : null;
+            const targetPos = targetEntity ? targetEntity.position.getValue(time) : null;
+
+            if (chasePos && targetPos) {
+                const range = Cesium.Cartesian3.distance(chasePos, targetPos);
+
+                // Range
+                if (range > 1000) {
+                    document.getElementById('rangeValue').textContent = (range / 1000).toFixed(2) + ' km';
+                } else {
+                    document.getElementById('rangeValue').textContent = range.toFixed(0) + ' m';
+                }
+
+                // Closure rate
+                if (lastRange !== null) {
+                    const dt = viewer.clock.multiplier / 60;
+                    const closure = (lastRange - range) / dt;
+                    document.getElementById('closureRate').textContent = closure.toFixed(1) + ' m/s';
+
+                    if (closure > 0) {
+                        const tti = range / closure;
+                        if (tti < 60) {
+                            document.getElementById('timeToImpact').textContent = tti.toFixed(0) + ' s';
+                        } else if (tti < 3600) {
+                            document.getElementById('timeToImpact').textContent = (tti / 60).toFixed(1) + ' min';
+                        } else {
+                            document.getElementById('timeToImpact').textContent = (tti / 3600).toFixed(2) + ' hr';
+                        }
+                    }
+                }
+                lastRange = range;
+
+                // Target in FOV
+                const screenPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(
+                    viewer.scene, targetPos
+                );
+                const inFov = screenPos &&
+                    screenPos.x >= 0 && screenPos.x <= viewer.canvas.width &&
+                    screenPos.y >= 0 && screenPos.y <= viewer.canvas.height;
+                document.getElementById('targetInFov').textContent = inFov ? 'YES' : 'NO';
+                document.getElementById('targetInFov').style.color = inFov ? '#4CAF50' : '#f44336';
+            }
+
+            // Phase indicator
+            const timeToCollision = collisionTime - elapsed;
+            const phaseEl = document.getElementById('phaseIndicator');
+            if (timeToCollision > 3600) {
+                phaseEl.textContent = 'COAST';
+                phaseEl.style.borderColor = phaseEl.style.color = '#2196F3';
+            } else if (timeToCollision > 60) {
+                phaseEl.textContent = 'APPROACH';
+                phaseEl.style.borderColor = phaseEl.style.color = '#4CAF50';
+            } else if (timeToCollision > 0) {
+                phaseEl.textContent = 'TERMINAL';
+                phaseEl.style.borderColor = phaseEl.style.color = '#ff9800';
+            } else {
+                phaseEl.textContent = 'IMPACT';
+                phaseEl.style.borderColor = phaseEl.style.color = '#f44336';
+            }
+        }
+
+        function resetToOverview() {
+            document.getElementById('viewMode').value = 'main';
+            setViewMode('main');
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 80000000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 }
+            });
+        }
+
+        function trackChase() {
+            document.getElementById('viewMode').value = 'main';
+            setViewMode('main');
+            viewer.trackedEntity = chaseEntity;
+        }
+
+        function trackTarget() {
+            document.getElementById('viewMode').value = 'main';
+            setViewMode('main');
+            viewer.trackedEntity = targetEntity;
+        }
+
+        // Event listeners
+        document.getElementById('viewMode').addEventListener('change', function() {
+            setViewMode(this.value);
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            viewer.clock.multiplier = parseInt(this.value);
+            document.getElementById('speedValue').textContent = this.value + 'x';
+        });
+
+        document.getElementById('fovSlider').addEventListener('input', function() {
+            sensorFOV = parseInt(this.value);
+            document.getElementById('fovValue').textContent = this.value;
+        });
+
+        document.getElementById('showCone').addEventListener('change', function() {
+            if (sensorConeEntity) sensorConeEntity.show = this.checked;
+        });
+
+        document.getElementById('showPaths').addEventListener('change', function() {
+            if (chaseEntity) chaseEntity.path.show = this.checked;
+            if (targetEntity) targetEntity.path.show = this.checked;
+        });
+
+        document.getElementById('enableGrayscale').addEventListener('change', function() {
+            if (currentViewMode === 'sensor') {
+                grayscaleStage.enabled = this.checked;
+            }
+        });
+
+        document.getElementById('enableLighting').addEventListener('change', function() {
+            if (currentViewMode === 'main') {
+                viewer.scene.globe.enableLighting = this.checked;
+            }
+        });
+    </script>
+</body>
+</html>

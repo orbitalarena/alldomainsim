@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Sensor Debug Viewer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-family: monospace;
+            z-index: 1000;
+            min-width: 280px;
+        }
+
+        #controls h3 { margin: 0 0 15px 0; color: #4CAF50; }
+
+        #controls label {
+            display: block;
+            margin: 10px 0 5px 0;
+            color: #aaa;
+        }
+
+        #controls select, #controls input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            border-radius: 4px;
+        }
+
+        #controls button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #2196F3;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+
+        #controls button:hover { background: #1976D2; }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #444;
+        }
+
+        .info-label { color: #888; }
+        .info-value { color: #4CAF50; font-weight: bold; }
+
+        #debugLog {
+            margin-top: 15px;
+            padding: 10px;
+            background: #222;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="controls">
+        <h3>Sensor Debug Viewer</h3>
+
+        <label>View Mode:</label>
+        <select id="viewMode">
+            <option value="main">Main Overview</option>
+            <option value="chase1">Chase 1 (0.1°) Sensor</option>
+            <option value="chase2">Chase 2 (0.2°) Sensor</option>
+            <option value="chase3">Chase 3 (0.3°) Sensor</option>
+            <option value="chase4">Chase 4 (0.4°) Sensor</option>
+            <option value="chase5">Chase 5 (0.5°) Sensor</option>
+            <option value="chase6">Chase 6 (0.6°) Sensor</option>
+            <option value="chase7">Chase 7 (0.7°) Sensor</option>
+            <option value="chase8">Chase 8 (0.8°) Sensor</option>
+            <option value="chase9">Chase 9 (0.9°) Sensor</option>
+            <option value="chase10">Chase 10 (1.0°) Sensor</option>
+        </select>
+
+        <label>Globe Imagery:</label>
+        <select id="globeImagery">
+            <option value="arcgis">ArcGIS World Imagery</option>
+            <option value="osm">OpenStreetMap</option>
+            <option value="natural">Natural Earth II</option>
+            <option value="blue">Blue Marble</option>
+            <option value="none">No Globe (Black)</option>
+        </select>
+
+        <label>Sensor FOV (degrees):</label>
+        <input type="range" id="fovSlider" min="1" max="45" value="10">
+        <span id="fovValue">10°</span>
+
+        <button onclick="resetCamera()">Reset to Overview</button>
+        <button onclick="flyToTarget()">Fly to Target</button>
+
+        <div style="margin-top: 15px;">
+            <div class="info-row">
+                <span class="info-label">Current View:</span>
+                <span class="info-value" id="currentView">Main</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Camera Alt:</span>
+                <span class="info-value" id="cameraAlt">---</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Range to Target:</span>
+                <span class="info-value" id="rangeToTarget">---</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Target Visible:</span>
+                <span class="info-value" id="targetVisible">---</span>
+            </div>
+        </div>
+
+        <div id="debugLog">Debug log...</div>
+    </div>
+
+    <script>
+        // Constants
+        const GEO_RADIUS = 42164000; // meters
+        const EARTH_RADIUS = 6378137;
+
+        // Logging helper
+        function log(msg) {
+            const logEl = document.getElementById('debugLog');
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML = `[${time}] ${msg}<br>` + logEl.innerHTML;
+            if (logEl.children.length > 20) {
+                logEl.removeChild(logEl.lastChild);
+            }
+            console.log(msg);
+        }
+
+        log('Initializing viewer...');
+
+        // Create viewer with basic settings - NO lighting, NO atmosphere
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            timeline: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            selectionIndicator: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            // Start with ArcGIS
+            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+            })
+        });
+
+        // Disable ALL lighting and atmosphere effects
+        viewer.scene.globe.enableLighting = false;
+        viewer.scene.globe.showGroundAtmosphere = false;
+        viewer.scene.fog.enabled = false;
+        viewer.scene.skyAtmosphere.show = false;
+        viewer.scene.sun.show = false;
+        viewer.scene.moon.show = false;
+
+        log('Lighting/atmosphere disabled');
+
+        // Store entities
+        let targetEntity = null;
+        const chaseEntities = [];
+        let currentViewMode = 'main';
+        let sensorFOV = 10;
+
+        // Create Target at GEO (0° longitude)
+        const targetPosition = new Cesium.Cartesian3(GEO_RADIUS, 0, 0);
+
+        targetEntity = viewer.entities.add({
+            name: 'Target',
+            position: targetPosition,
+            // Using the .glb model
+            model: {
+                uri: 'models/satellite_simple.glb',
+                scale: 5000,  // 5km scale
+                minimumPixelSize: 32,
+                maximumScale: 20000,
+                color: Cesium.Color.RED,
+                colorBlendMode: Cesium.ColorBlendMode.MULTIPLY,
+                colorBlendAmount: 0.5
+            },
+            // Keep point as backup visibility indicator
+            point: {
+                pixelSize: 15,
+                color: Cesium.Color.YELLOW,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: 'TARGET (GLB)',
+                font: 'bold 16px sans-serif',
+                fillColor: Cesium.Color.RED,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -35),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+
+        log('Target created at GEO');
+
+        // Create 10 Chase satellites at different angular separations
+        for (let i = 1; i <= 10; i++) {
+            const angleDeg = i * 0.1; // 0.1° to 1.0°
+            const angleRad = Cesium.Math.toRadians(angleDeg);
+
+            // Position at GEO, offset by angle
+            const x = GEO_RADIUS * Math.cos(angleRad);
+            const y = GEO_RADIUS * Math.sin(angleRad);
+            const z = 0;
+
+            const chasePosition = new Cesium.Cartesian3(x, y, z);
+            const range = Cesium.Cartesian3.distance(chasePosition, targetPosition);
+
+            // Color gradient from green to blue
+            const hue = 120 + (i - 1) * 12; // 120 (green) to 228 (blue)
+            const color = Cesium.Color.fromHsl(hue / 360, 1.0, 0.5);
+
+            const entity = viewer.entities.add({
+                name: `Chase ${i}`,
+                position: chasePosition,
+                point: {
+                    pixelSize: 15,
+                    color: color,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                box: {
+                    dimensions: new Cesium.Cartesian3(800, 800, 800),
+                    material: color.withAlpha(0.7),
+                    outline: true,
+                    outlineColor: Cesium.Color.WHITE
+                },
+                label: {
+                    text: `C${i} (${angleDeg.toFixed(1)}°)`,
+                    font: '12px sans-serif',
+                    fillColor: color,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    pixelOffset: new Cesium.Cartesian2(0, -25),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            chaseEntities.push({
+                entity: entity,
+                position: chasePosition,
+                angleDeg: angleDeg,
+                range: range
+            });
+
+            log(`Chase ${i}: ${angleDeg}° = ${(range/1000).toFixed(1)} km`);
+        }
+
+        // View mode switching
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            document.getElementById('currentView').textContent = mode;
+
+            if (mode === 'main') {
+                // Overview - look at all satellites
+                resetCamera();
+            } else {
+                // Sensor view from a chase satellite
+                const chaseNum = parseInt(mode.replace('chase', ''));
+                if (chaseNum >= 1 && chaseNum <= 10) {
+                    setSensorView(chaseNum);
+                }
+            }
+        }
+
+        function setSensorView(chaseNum) {
+            const chase = chaseEntities[chaseNum - 1];
+            if (!chase) return;
+
+            log(`Setting sensor view from Chase ${chaseNum}`);
+
+            const chasePos = chase.position;
+            const targetPos = targetPosition;
+            const range = chase.range;
+
+            // Direction from chase to target
+            const direction = Cesium.Cartesian3.subtract(targetPos, chasePos, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(direction, direction);
+
+            // Up vector - use Earth radial
+            let up = Cesium.Cartesian3.normalize(chasePos, new Cesium.Cartesian3());
+
+            // Orthogonalize up against direction
+            const dot = Cesium.Cartesian3.dot(up, direction);
+            const proj = Cesium.Cartesian3.multiplyByScalar(direction, dot, new Cesium.Cartesian3());
+            up = Cesium.Cartesian3.subtract(up, proj, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(up, up);
+
+            // Set frustum for space viewing
+            viewer.camera.frustum.fov = Cesium.Math.toRadians(sensorFOV);
+            viewer.camera.frustum.near = 1.0;
+            viewer.camera.frustum.far = 100000000; // 100,000 km
+
+            log(`FOV: ${sensorFOV}°, Range: ${(range/1000).toFixed(1)} km`);
+
+            // Set camera position and orientation
+            viewer.camera.setView({
+                destination: chasePos,
+                orientation: {
+                    direction: direction,
+                    up: up
+                }
+            });
+
+            log(`Camera set at Chase ${chaseNum} looking at Target`);
+        }
+
+        function resetCamera() {
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 50000000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-90),
+                    roll: 0
+                }
+            });
+            log('Camera reset to overview');
+        }
+
+        function flyToTarget() {
+            viewer.flyTo(targetEntity, {
+                offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 5000000)
+            });
+        }
+
+        // Globe imagery switching
+        function setGlobeImagery(type) {
+            const layers = viewer.imageryLayers;
+            layers.removeAll();
+
+            let provider;
+            switch(type) {
+                case 'arcgis':
+                    provider = new Cesium.ArcGisMapServerImageryProvider({
+                        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+                    });
+                    break;
+                case 'osm':
+                    provider = new Cesium.OpenStreetMapImageryProvider({
+                        url: 'https://a.tile.openstreetmap.org/'
+                    });
+                    break;
+                case 'natural':
+                    provider = Cesium.TileMapServiceImageryProvider.fromUrl(
+                        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+                    );
+                    break;
+                case 'blue':
+                    provider = Cesium.SingleTileImageryProvider.fromUrl(
+                        Cesium.buildModuleUrl('Assets/Textures/SkyBox/tycho2t3_80_mx.jpg')
+                    );
+                    break;
+                case 'none':
+                    viewer.scene.globe.show = false;
+                    log('Globe hidden');
+                    return;
+            }
+
+            viewer.scene.globe.show = true;
+
+            if (provider instanceof Promise) {
+                provider.then(p => {
+                    layers.addImageryProvider(p);
+                    log(`Globe imagery: ${type}`);
+                });
+            } else {
+                layers.addImageryProvider(provider);
+                log(`Globe imagery: ${type}`);
+            }
+        }
+
+        // Update info display
+        function updateInfo() {
+            const cameraPos = viewer.camera.positionCartographic;
+            const cameraAlt = cameraPos ? (cameraPos.height / 1000).toFixed(0) + ' km' : '---';
+            document.getElementById('cameraAlt').textContent = cameraAlt;
+
+            // Calculate range to target from current camera
+            const camCartesian = viewer.camera.position;
+            const range = Cesium.Cartesian3.distance(camCartesian, targetPosition);
+            document.getElementById('rangeToTarget').textContent = (range / 1000).toFixed(1) + ' km';
+
+            // Check if target is in view (simple check)
+            const targetScreenPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(
+                viewer.scene, targetPosition
+            );
+            const visible = targetScreenPos &&
+                targetScreenPos.x >= 0 && targetScreenPos.x <= viewer.canvas.width &&
+                targetScreenPos.y >= 0 && targetScreenPos.y <= viewer.canvas.height;
+            document.getElementById('targetVisible').textContent = visible ? 'YES' : 'NO';
+            document.getElementById('targetVisible').style.color = visible ? '#4CAF50' : '#f44336';
+        }
+
+        // Event listeners
+        document.getElementById('viewMode').addEventListener('change', function() {
+            setViewMode(this.value);
+        });
+
+        document.getElementById('globeImagery').addEventListener('change', function() {
+            setGlobeImagery(this.value);
+        });
+
+        document.getElementById('fovSlider').addEventListener('input', function() {
+            sensorFOV = parseInt(this.value);
+            document.getElementById('fovValue').textContent = sensorFOV + '°';
+
+            // Update camera FOV if in sensor mode
+            if (currentViewMode !== 'main') {
+                viewer.camera.frustum.fov = Cesium.Math.toRadians(sensorFOV);
+                log(`FOV updated to ${sensorFOV}°`);
+            }
+        });
+
+        // Update loop
+        viewer.clock.onTick.addEventListener(updateInfo);
+
+        // Initial view
+        resetCamera();
+        log('Viewer ready');
+    </script>
+</body>
+</html>
