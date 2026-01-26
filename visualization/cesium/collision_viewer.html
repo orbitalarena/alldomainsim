@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>GEO Satellite Collision - Debris Cloud</title>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         html, body, #cesiumContainer {
@@ -188,13 +189,9 @@
     </div>
 
     <script>
-        Cesium.Ion.defaultAccessToken = undefined;
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            imageryProvider: new Cesium.TileMapServiceImageryProvider({
-                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-            }),
-            baseLayerPicker: false,
+            baseLayerPicker: true,
             geocoder: false,
             animation: true,
             timeline: true,
@@ -205,6 +202,7 @@
             navigationHelpButton: false
         });
 
+        addArcGISProviders(viewer);
         viewer.cesiumWidget.creditContainer.style.display = 'none';
         viewer.scene.globe.enableLighting = true;
 

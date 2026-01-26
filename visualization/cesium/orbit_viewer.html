@@ -3,8 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>GEO Rendezvous Viewer</title>
+    <title>Orbit Viewer with Ground Tracks</title>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         html, body, #cesiumContainer {
@@ -14,7 +15,7 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(42, 42, 42, 0.9);
+            background: rgba(42, 42, 42, 0.95);
             padding: 15px;
             border-radius: 5px;
             color: white;
@@ -22,7 +23,7 @@
             z-index: 1000;
             min-width: 220px;
         }
-        #controls h3 { margin: 0 0 10px 0; font-size: 16px; }
+        #controls h3 { margin: 0 0 10px 0; font-size: 16px; color: #4CAF50; }
         #controls button {
             padding: 8px 15px;
             margin: 5px 5px 5px 0;
@@ -36,12 +37,11 @@
         #controls button:hover { background: #1976D2; }
         #controls label { display: block; margin: 10px 0 5px 0; font-size: 13px; }
         #controls input[type="range"] { width: 100%; }
-        #controls input[type="number"] { width: 60px; padding: 5px; margin-right: 5px; }
         .checkbox-label { display: flex; align-items: center; margin: 8px 0; cursor: pointer; }
         #controls input[type="checkbox"] { margin-right: 8px; }
         #status { margin-top: 10px; font-size: 12px; color: #aaa; }
         #speedValue { color: #4CAF50; font-weight: bold; }
-        #ricDisplay {
+        #metadataDisplay {
             position: absolute;
             top: 10px;
             right: 10px;
@@ -50,45 +50,47 @@
             border-radius: 5px;
             color: white;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 13px;
             z-index: 1000;
             min-width: 200px;
         }
-        #ricDisplay h4 { margin: 0 0 10px 0; color: #4CAF50; font-family: sans-serif; }
-        #ricDisplay .value { color: #00FF00; }
-        #ricDisplay .label { color: #aaa; }
-        #ricDisplay .row { margin: 5px 0; }
-        #metadataDisplay {
-            position: absolute;
-            bottom: 100px;
-            right: 10px;
-            background: rgba(42, 42, 42, 0.9);
-            padding: 15px;
-            border-radius: 5px;
-            color: white;
-            font-family: monospace;
+        #metadataDisplay h4 { margin: 0 0 10px 0; color: #4CAF50; font-family: sans-serif; }
+        .meta-row { margin: 4px 0; }
+        .meta-label { color: #aaa; }
+        .meta-value { color: #00FF00; }
+        #satList {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
             font-size: 12px;
-            z-index: 1000;
         }
-        #metadataDisplay h4 { margin: 0 0 10px 0; color: #2196F3; font-family: sans-serif; }
-        .transfer-controls { margin-top: 10px; padding-top: 10px; border-top: 1px solid #555; }
-        .dv-result {
-            margin-top: 5px; padding: 8px; background: rgba(0,0,0,0.3);
-            border-radius: 3px; font-family: monospace; font-size: 12px;
+        .sat-item {
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
         }
-        .dv-result .highlight { color: #4CAF50; font-weight: bold; }
+        .sat-item:hover { background: rgba(255,255,255,0.1); }
+        .sat-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
     </style>
 </head>
 <body>
     <div id="cesiumContainer"></div>
 
     <div id="controls">
-        <h3>GEO Rendezvous</h3>
+        <h3>Orbit Viewer</h3>
         <button onclick="loadOrbitData()">Reload Data</button>
         <button onclick="resetView()">Reset View</button>
 
         <label>Speed: <span id="speedValue">1x</span></label>
-        <input type="range" id="speedSlider" min="0" max="4" value="0" step="1" onchange="updateSpeed(this.value)">
+        <input type="range" id="speedSlider" min="0" max="5" value="0" step="1" onchange="updateSpeed(this.value)">
 
         <label class="checkbox-label">
             <input type="checkbox" id="showOrbits" checked onchange="toggleOrbits()">
@@ -96,75 +98,80 @@
         </label>
 
         <label class="checkbox-label">
+            <input type="checkbox" id="showGroundTracks" checked onchange="toggleGroundTracks()">
+            Show Ground Tracks
+        </label>
+
+        <label class="checkbox-label">
             <input type="checkbox" id="showLabels" checked onchange="toggleLabels()">
             Show Labels
         </label>
 
-        <div class="transfer-controls">
-            <label>Transfer Time (hours):</label>
-            <div style="display: flex; align-items: center;">
-                <input type="number" id="transferTime" value="24" min="1" max="168" step="0.5">
-                <button onclick="calculateDeltaV()">Calculate ΔV</button>
-            </div>
-            <div id="dvResult" class="dv-result" style="display:none;"></div>
-        </div>
-
+        <div id="satList"></div>
         <div id="status">Ready...</div>
     </div>
 
-    <div id="ricDisplay">
-        <h4>Range & RIC</h4>
-        <div class="row"><span class="label">Time:</span> <span class="value" id="simTime">--:--:--</span></div>
-        <div class="row"><span class="label">Range:</span> <span class="value" id="rangeValue">--- km</span></div>
-        <div class="row"><span class="label">Radial (R):</span> <span class="value" id="rValue">--- km</span></div>
-        <div class="row"><span class="label">In-Track (I):</span> <span class="value" id="iValue">--- km</span></div>
-        <div class="row"><span class="label">Cross-Track (C):</span> <span class="value" id="cValue">--- km</span></div>
-    </div>
-
-    <div id="metadataDisplay" style="display:none;">
-        <h4>Scenario Info</h4>
-        <div id="metadataContent"></div>
+    <div id="metadataDisplay">
+        <h4>Simulation Info</h4>
+        <div class="meta-row">
+            <span class="meta-label">Epoch:</span>
+            <span class="meta-value" id="epochValue">--</span>
+        </div>
+        <div class="meta-row">
+            <span class="meta-label">Duration:</span>
+            <span class="meta-value" id="durationValue">--</span>
+        </div>
+        <div class="meta-row">
+            <span class="meta-label">Time Step:</span>
+            <span class="meta-value" id="timeStepValue">--</span>
+        </div>
+        <div class="meta-row">
+            <span class="meta-label">Sim Time:</span>
+            <span class="meta-value" id="simTimeValue">--:--:--</span>
+        </div>
     </div>
 
     <script>
-        // Constants
-        const GEO_RADIUS = 42164000;
-        const EARTH_MU = 398600.4418e9;
-        const V_GEO = Math.sqrt(EARTH_MU / GEO_RADIUS);
-        const N_GEO = Math.sqrt(EARTH_MU / Math.pow(GEO_RADIUS, 3));
-        const DEG_TO_RAD = Math.PI / 180;
+        const speedMultipliers = [1, 10, 60, 600, 3600, 36000];
+        const speedLabels = ['1x', '10x', '1min/s', '10min/s', '1hr/s', '10hr/s'];
 
-        const speedMultipliers = [1, 10, 60, 600, 3600];
-        const speedLabels = ['1x', '10x', '1min/s', '10min/s', '1hr/s'];
+        // Satellite colors
+        const satColors = [
+            Cesium.Color.LIME,
+            Cesium.Color.CYAN,
+            Cesium.Color.YELLOW,
+            Cesium.Color.MAGENTA,
+            Cesium.Color.ORANGE,
+            Cesium.Color.WHITE,
+            Cesium.Color.AQUA,
+            Cesium.Color.CORAL
+        ];
 
-        // Create viewer with FIXED reference frame (ECEF) for stable camera
+        // Create viewer with animation enabled
         const viewer = new Cesium.Viewer('cesiumContainer', {
             animation: true,
             timeline: true,
-            baseLayerPicker: false,
+            baseLayerPicker: true,
             geocoder: false,
             homeButton: false,
-            infoBox: false,
-            selectionIndicator: false,
-            sceneModePicker: false,
-            navigationHelpButton: false,
-            imageryProvider: new Cesium.TileMapServiceImageryProvider({
-                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-            })
-        });
+            infoBox: true,
+            selectionIndicator: true,
+            sceneModePicker: true,
+            navigationHelpButton: false        });
 
         viewer.scene.globe.depthTestAgainstTerrain = false;
+        addArcGISProviders(viewer);
 
         // Storage
         let satelliteEntities = [];
         let orbitEntities = [];
+        let groundTrackEntities = [];
         let orbitData = null;
-        let ricHistory = null;
         let startTime = null;
 
         function resetView() {
             viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 100000000),
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 35000000),
                 orientation: {
                     heading: 0,
                     pitch: -Cesium.Math.PI_OVER_TWO,
@@ -184,57 +191,31 @@
             orbitEntities.forEach(e => { e.show = show; });
         }
 
+        function toggleGroundTracks() {
+            const show = document.getElementById('showGroundTracks').checked;
+            groundTrackEntities.forEach(e => { e.show = show; });
+        }
+
         function toggleLabels() {
             const show = document.getElementById('showLabels').checked;
             satelliteEntities.forEach(e => { if (e.label) e.label.show = show; });
         }
 
-        function calculateDeltaV() {
-            const tofHours = parseFloat(document.getElementById('transferTime').value);
-            if (isNaN(tofHours) || tofHours <= 0) return;
-
-            const tofSeconds = tofHours * 3600;
-            const deltaTheta = 1.0 * DEG_TO_RAD;  // 1 degree
-            const dvPerBurn = V_GEO * Math.abs(deltaTheta) / (3.0 * tofSeconds * N_GEO);
-            const dvTotal = 2 * dvPerBurn;
-
-            const resultDiv = document.getElementById('dvResult');
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = `
-                <span class="highlight">ΔV per burn:</span> ${dvPerBurn.toFixed(2)} m/s<br>
-                <span class="highlight">Total ΔV:</span> ${dvTotal.toFixed(2)} m/s<br>
-                <span style="color:#aaa;font-size:11px;">
-                    Run: ./build/bin/geo_rendezvous_demo ${tofHours}
-                </span>
-            `;
+        function trackSatellite(entity) {
+            viewer.trackedEntity = entity;
         }
 
-        function updateRICDisplay() {
-            if (!ricHistory || !startTime) return;
-
+        function updateSimTime() {
+            if (!startTime) return;
             const currentTime = viewer.clock.currentTime;
-            const elapsedSeconds = Cesium.JulianDate.secondsDifference(currentTime, startTime);
-            if (elapsedSeconds < 0) return;
+            const elapsed = Cesium.JulianDate.secondsDifference(currentTime, startTime);
+            if (elapsed < 0) return;
 
-            // Find closest RIC data point
-            let closestIdx = 0;
-            let minDiff = Infinity;
-            for (let i = 0; i < ricHistory.length; i++) {
-                const diff = Math.abs(ricHistory[i].time - elapsedSeconds);
-                if (diff < minDiff) { minDiff = diff; closestIdx = i; }
-            }
-
-            const ric = ricHistory[closestIdx];
-            const hours = Math.floor(elapsedSeconds / 3600);
-            const mins = Math.floor((elapsedSeconds % 3600) / 60);
-            const secs = Math.floor(elapsedSeconds % 60);
-
-            document.getElementById('simTime').textContent =
+            const hours = Math.floor(elapsed / 3600);
+            const mins = Math.floor((elapsed % 3600) / 60);
+            const secs = Math.floor(elapsed % 60);
+            document.getElementById('simTimeValue').textContent =
                 `${hours.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
-            document.getElementById('rangeValue').textContent = (ric.range / 1000).toFixed(2) + ' km';
-            document.getElementById('rValue').textContent = (ric.R / 1000).toFixed(2) + ' km';
-            document.getElementById('iValue').textContent = (ric.I / 1000).toFixed(2) + ' km';
-            document.getElementById('cValue').textContent = (ric.C / 1000).toFixed(4) + ' km';
         }
 
         async function loadOrbitData() {
@@ -242,20 +223,32 @@
             status.textContent = 'Loading...';
 
             try {
-                const response = await fetch('orbit_data.json?' + Date.now());
+                // Try loading orbit_data.json from parent directory first
+                let response = await fetch('../../orbit_data.json?' + Date.now());
+                if (!response.ok) {
+                    // Try current directory
+                    response = await fetch('orbit_data.json?' + Date.now());
+                }
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 orbitData = await response.json();
 
-                // Clear existing
+                // Clear existing entities
                 satelliteEntities.forEach(e => viewer.entities.remove(e));
                 orbitEntities.forEach(e => viewer.entities.remove(e));
+                groundTrackEntities.forEach(e => viewer.entities.remove(e));
                 satelliteEntities = [];
                 orbitEntities = [];
+                groundTrackEntities = [];
 
                 const metadata = orbitData.metadata;
-                ricHistory = orbitData.ric_history;
-                const duration = metadata.duration_hours * 3600;
+                const duration = metadata.duration || metadata.duration_hours * 3600;
 
+                // Update metadata display
+                document.getElementById('epochValue').textContent = metadata.epoch_iso || 'N/A';
+                document.getElementById('durationValue').textContent = (duration / 3600).toFixed(1) + ' hrs';
+                document.getElementById('timeStepValue').textContent = (metadata.time_step || 60) + ' s';
+
+                // Setup clock
                 startTime = Cesium.JulianDate.now();
                 const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
 
@@ -266,67 +259,68 @@
                 viewer.clock.multiplier = 1;
                 viewer.timeline.zoomTo(startTime, stopTime);
 
-                document.getElementById('transferTime').value = metadata.transfer_tof_hours;
+                // Build satellite list
+                const satList = document.getElementById('satList');
+                satList.innerHTML = '<div style="color:#aaa;margin-bottom:5px;font-size:11px;">Click to track:</div>';
 
-                // Metadata display
-                document.getElementById('metadataContent').innerHTML = `
-                    Scenario: ${metadata.scenario}<br>
-                    Separation: ${metadata.separation_deg}°<br>
-                    Transfer: ${metadata.transfer_tof_hours} hr<br>
-                    ΔV: ${metadata.dv_total_ms.toFixed(2)} m/s<br>
-                    Min Range: ${metadata.min_range_km.toFixed(3)} km
-                `;
-                document.getElementById('metadataDisplay').style.display = 'block';
-
-                // Create satellites using FIXED frame (ECEF) for stable rendering
+                // Create satellites
                 orbitData.satellites.forEach((satellite, idx) => {
-                    const color = satellite.color ?
-                        Cesium.Color.fromCssColorString(satellite.color) :
-                        (idx === 0 ? Cesium.Color.LIME : Cesium.Color.RED);
+                    const color = satColors[idx % satColors.length];
+                    const colorCss = color.toCssColorString();
 
-                    // Use FIXED reference frame for camera stability
-                    const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.FIXED);
+                    // Create sampled position property using INERTIAL frame (ECI)
+                    const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
                     positionProperty.setInterpolationOptions({
                         interpolationDegree: 3,
                         interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
                     });
 
-                    const orbitPositions = [];
+                    const groundTrackPositions = [];
 
                     satellite.positions.forEach(pos => {
                         const time = Cesium.JulianDate.addSeconds(startTime, pos.time, new Cesium.JulianDate());
 
-                        // Convert ECI to ECEF (rotate by -Earth rotation angle)
-                        // Earth rotates eastward, so ECEF to ECI is +θ, ECI to ECEF is -θ
-                        const earthRotationAngle = pos.time * (2 * Math.PI / 86164.1); // sidereal day
-                        const cosA = Math.cos(-earthRotationAngle);  // Note: negative angle
-                        const sinA = Math.sin(-earthRotationAngle);
+                        // Handle both new format (eci object) and old format (flat x,y,z)
+                        let x, y, z;
+                        if (pos.eci) {
+                            x = pos.eci.x;
+                            y = pos.eci.y;
+                            z = pos.eci.z;
+                        } else {
+                            x = pos.x;
+                            y = pos.y;
+                            z = pos.z;
+                        }
 
-                        // Rotate from ECI to ECEF (rotation around Z axis by -θ)
-                        const ecefX = pos.x * cosA - pos.y * sinA;
-                        const ecefY = pos.x * sinA + pos.y * cosA;
-                        const ecefZ = pos.z;
+                        const eciPosition = new Cesium.Cartesian3(x, y, z);
+                        positionProperty.addSample(time, eciPosition);
 
-                        const ecefPos = new Cesium.Cartesian3(ecefX, ecefY, ecefZ);
-                        positionProperty.addSample(time, ecefPos);
-                        orbitPositions.push(ecefPos);
+                        // Add ground track point if geodetic coordinates available
+                        if (pos.geo) {
+                            groundTrackPositions.push(Cesium.Cartesian3.fromDegrees(
+                                pos.geo.lon,
+                                pos.geo.lat,
+                                0 // Ground level
+                            ));
+                        }
                     });
 
+                    // Create satellite entity
                     const satEntity = viewer.entities.add({
                         name: satellite.name,
                         position: positionProperty,
                         point: {
-                            pixelSize: 12,
+                            pixelSize: 10,
                             color: color,
                             outlineColor: Cesium.Color.WHITE,
-                            outlineWidth: 2,
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                            outlineWidth: 2
                         },
                         path: {
                             leadTime: 0,
                             trailTime: 3600,
                             width: 2,
-                            material: new Cesium.ColorMaterialProperty(color.withAlpha(0.6))
+                            material: new Cesium.ColorMaterialProperty(color.withAlpha(0.6)),
+                            resolution: 60
                         },
                         label: {
                             text: satellite.name,
@@ -335,30 +329,86 @@
                             outlineColor: Cesium.Color.BLACK,
                             outlineWidth: 2,
                             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                            pixelOffset: new Cesium.Cartesian2(12, 0),
+                            pixelOffset: new Cesium.Cartesian2(15, 0),
                             showBackground: true,
-                            backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                            backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
                             show: document.getElementById('showLabels').checked
-                        }
+                        },
+                        description: `
+                            <h3>${satellite.name}</h3>
+                            <p>ID: ${satellite.id || idx}</p>
+                            <p>Data points: ${satellite.positions.length}</p>
+                        `
                     });
                     satelliteEntities.push(satEntity);
 
-                    const orbitEntity = viewer.entities.add({
-                        name: satellite.name + ' Orbit',
-                        polyline: {
-                            positions: orbitPositions,
-                            width: 1,
-                            material: color.withAlpha(0.3)
-                        },
-                        show: document.getElementById('showOrbits').checked
+                    // Create orbit path using full trajectory (in INERTIAL frame)
+                    const orbitPositions = satellite.positions.map(pos => {
+                        if (pos.eci) {
+                            return new Cesium.Cartesian3(pos.eci.x, pos.eci.y, pos.eci.z);
+                        }
+                        return new Cesium.Cartesian3(pos.x, pos.y, pos.z);
                     });
-                    orbitEntities.push(orbitEntity);
+
+                    // Need to convert ECI positions to ECEF for static polyline display
+                    // Since orbits move relative to Earth, we'll create a time-varying path instead
+                    // The path property above handles the orbit visualization
+
+                    // Create ground track polyline
+                    if (groundTrackPositions.length > 1) {
+                        // Split ground track at antimeridian crossings
+                        const segments = [];
+                        let currentSegment = [groundTrackPositions[0]];
+
+                        for (let i = 1; i < groundTrackPositions.length; i++) {
+                            const pos = satellite.positions[i];
+                            const prevPos = satellite.positions[i - 1];
+
+                            // Check for antimeridian crossing (large longitude jump)
+                            if (pos.geo && prevPos.geo) {
+                                const lonDiff = Math.abs(pos.geo.lon - prevPos.geo.lon);
+                                if (lonDiff > 180) {
+                                    // Antimeridian crossing - end current segment, start new one
+                                    if (currentSegment.length > 1) {
+                                        segments.push(currentSegment);
+                                    }
+                                    currentSegment = [];
+                                }
+                            }
+                            currentSegment.push(groundTrackPositions[i]);
+                        }
+                        if (currentSegment.length > 1) {
+                            segments.push(currentSegment);
+                        }
+
+                        // Create polyline for each segment
+                        segments.forEach((segment, segIdx) => {
+                            const groundTrackEntity = viewer.entities.add({
+                                name: satellite.name + ' Ground Track ' + (segIdx + 1),
+                                polyline: {
+                                    positions: segment,
+                                    width: 2,
+                                    material: color.withAlpha(0.5),
+                                    clampToGround: true
+                                },
+                                show: document.getElementById('showGroundTracks').checked
+                            });
+                            groundTrackEntities.push(groundTrackEntity);
+                        });
+                    }
+
+                    // Add to satellite list
+                    const satDiv = document.createElement('div');
+                    satDiv.className = 'sat-item';
+                    satDiv.innerHTML = `<span class="sat-color" style="background:${colorCss}"></span>${satellite.name}`;
+                    satDiv.onclick = () => trackSatellite(satEntity);
+                    satList.appendChild(satDiv);
                 });
 
-                viewer.clock.onTick.addEventListener(updateRICDisplay);
+                // Update sim time on clock tick
+                viewer.clock.onTick.addEventListener(updateSimTime);
 
-                status.textContent = `Loaded: ${orbitData.satellites.length} sats, ${metadata.duration_hours}h`;
+                status.textContent = `Loaded: ${orbitData.satellites.length} satellites`;
                 resetView();
 
             } catch (error) {

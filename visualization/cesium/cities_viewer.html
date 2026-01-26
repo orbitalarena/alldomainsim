@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>World's 1000 Largest Cities</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+
+        #infoPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(10, 15, 25, 0.95);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            min-width: 280px;
+            max-width: 350px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        #infoPanel h3 {
+            margin: 0 0 10px 0;
+            color: #4fc3f7;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(100, 200, 255, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 3px 0;
+        }
+
+        .stat-label { color: #aaa; }
+        .stat-value { color: #fff; font-weight: bold; }
+
+        #controls {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        #controls label {
+            display: block;
+            margin: 8px 0;
+        }
+
+        #controls input[type="range"] {
+            width: 100%;
+        }
+
+        #controls select {
+            width: 100%;
+            padding: 5px;
+            background: #1a2030;
+            color: #fff;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+        }
+
+        #cityInfo {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(79, 195, 247, 0.1);
+            border-radius: 4px;
+            border: 1px solid rgba(79, 195, 247, 0.3);
+            display: none;
+        }
+
+        #cityInfo h4 {
+            margin: 0 0 8px 0;
+            color: #4fc3f7;
+        }
+
+        .legend {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 11px;
+        }
+
+        .legend-title {
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        #searchBox {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            background: #1a2030;
+            color: #fff;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        #searchResults {
+            max-height: 150px;
+            overflow-y: auto;
+            margin-top: 5px;
+        }
+
+        .search-result {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+
+        .search-result:hover {
+            background: rgba(79, 195, 247, 0.2);
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="loadingOverlay">Loading city data...</div>
+
+    <div id="infoPanel">
+        <h3>World's 1000 Largest Cities</h3>
+
+        <input type="text" id="searchBox" placeholder="Search cities...">
+        <div id="searchResults"></div>
+
+        <div class="stat-row">
+            <span class="stat-label">Total Cities:</span>
+            <span class="stat-value" id="totalCities">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Displayed:</span>
+            <span class="stat-value" id="displayedCities">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Countries:</span>
+            <span class="stat-value" id="totalCountries">0</span>
+        </div>
+
+        <div id="controls">
+            <label>
+                Min Population: <span id="popValue">1M</span>
+                <input type="range" id="popSlider" min="0" max="20000000" value="0" step="100000">
+            </label>
+
+            <label>
+                Point Size: <span id="sizeValue">8</span>
+                <input type="range" id="sizeSlider" min="3" max="20" value="8">
+            </label>
+
+            <label>
+                Color By:
+                <select id="colorBy">
+                    <option value="population">Population</option>
+                    <option value="elevation">Elevation</option>
+                    <option value="continent">Region</option>
+                </select>
+            </label>
+
+            <label>
+                <input type="checkbox" id="showLabels" checked> Show Labels (top 50)
+            </label>
+
+            <label>
+                <input type="checkbox" id="showElevation"> Exaggerate Elevation (10x)
+            </label>
+        </div>
+
+        <div id="cityInfo">
+            <h4 id="cityName">City Name</h4>
+            <div class="stat-row">
+                <span class="stat-label">Country:</span>
+                <span class="stat-value" id="cityCountry">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Population:</span>
+                <span class="stat-value" id="cityPopulation">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Coordinates:</span>
+                <span class="stat-value" id="cityCoords">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Elevation:</span>
+                <span class="stat-value" id="cityElevation">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Rank:</span>
+                <span class="stat-value" id="cityRank">-</span>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-title">Population Scale:</div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                > 15M (Mega)
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff6600;"></div>
+                5M - 15M (Large)
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffcc00;"></div>
+                1M - 5M (Major)
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00cc66;"></div>
+                500K - 1M
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0099ff;"></div>
+                < 500K
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayerPicker: true,
+            geocoder: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+            vrButton: false,
+            homeButton: true,
+            sceneModePicker: true,
+            navigationHelpButton: false
+        });
+
+        addArcGISProviders(viewer);
+        viewer.cesiumWidget.creditContainer.style.display = 'none';
+        viewer.scene.globe.enableLighting = false;
+
+        let citiesData = null;
+        let cityEntities = [];
+        let currentMinPop = 0;
+        let pointSize = 8;
+        let colorMode = 'population';
+        let showLabels = true;
+        let showElevation = false;
+
+        // Load city data
+        fetch('world_cities_1000.json')
+            .then(response => response.json())
+            .then(data => {
+                citiesData = data;
+                console.log('Loaded', data.cities.length, 'cities');
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('totalCities').textContent = data.cities.length;
+
+                // Count unique countries
+                const countries = new Set(data.cities.map(c => c.country));
+                document.getElementById('totalCountries').textContent = countries.size;
+
+                createCityEntities();
+            })
+            .catch(err => {
+                console.error('Failed to load data:', err);
+                document.getElementById('loadingOverlay').innerHTML =
+                    'Error loading data: ' + err.message;
+            });
+
+        function getPopulationColor(pop) {
+            if (pop > 15000000) return Cesium.Color.RED;
+            if (pop > 5000000) return Cesium.Color.ORANGE;
+            if (pop > 1000000) return Cesium.Color.YELLOW;
+            if (pop > 500000) return Cesium.Color.fromCssColorString('#00cc66');
+            return Cesium.Color.fromCssColorString('#0099ff');
+        }
+
+        function getElevationColor(elev) {
+            if (elev > 2000) return Cesium.Color.WHITE;
+            if (elev > 1000) return Cesium.Color.BROWN;
+            if (elev > 500) return Cesium.Color.ORANGE;
+            if (elev > 100) return Cesium.Color.YELLOW;
+            return Cesium.Color.GREEN;
+        }
+
+        function getRegionColor(country) {
+            // Simple region assignment based on country
+            const asia = ['China', 'India', 'Japan', 'Indonesia', 'Pakistan', 'Bangladesh',
+                         'Viet Nam', 'Philippines', 'Thailand', 'Myanmar', 'South Korea',
+                         'Malaysia', 'Nepal', 'Taiwan', 'Sri Lanka', 'Cambodia'];
+            const europe = ['Germany', 'United Kingdom', 'France', 'Italy', 'Spain',
+                           'Poland', 'Romania', 'Netherlands', 'Belgium', 'Greece',
+                           'Portugal', 'Sweden', 'Hungary', 'Austria', 'Switzerland'];
+            const americas = ['United States', 'Brazil', 'Mexico', 'Canada', 'Argentina',
+                             'Colombia', 'Peru', 'Venezuela', 'Chile', 'Ecuador'];
+            const africa = ['Nigeria', 'Ethiopia', 'Egypt', 'Congo', 'South Africa',
+                           'Tanzania', 'Kenya', 'Uganda', 'Algeria', 'Sudan', 'Morocco'];
+            const middleEast = ['Turkey', 'Iran', 'Iraq', 'Saudi Arabia', 'Yemen',
+                               'Syria', 'Jordan', 'Israel', 'Lebanon', 'United Arab Emirates'];
+
+            if (asia.some(c => country.includes(c))) return Cesium.Color.RED;
+            if (europe.some(c => country.includes(c))) return Cesium.Color.BLUE;
+            if (americas.some(c => country.includes(c))) return Cesium.Color.GREEN;
+            if (africa.some(c => country.includes(c))) return Cesium.Color.ORANGE;
+            if (middleEast.some(c => country.includes(c))) return Cesium.Color.PURPLE;
+            return Cesium.Color.GRAY;
+        }
+
+        function getCityColor(city) {
+            switch (colorMode) {
+                case 'elevation':
+                    return getElevationColor(city.elevation_m);
+                case 'continent':
+                    return getRegionColor(city.country);
+                default:
+                    return getPopulationColor(city.population);
+            }
+        }
+
+        function createCityEntities() {
+            // Clear existing entities
+            cityEntities.forEach(e => viewer.entities.remove(e));
+            cityEntities = [];
+
+            let displayed = 0;
+            const cities = citiesData.cities;
+
+            cities.forEach((city, index) => {
+                if (city.population < currentMinPop) return;
+
+                displayed++;
+                const color = getCityColor(city);
+
+                // Calculate point size based on population
+                const popScale = Math.log10(city.population) - 5;  // log10(100000) = 5
+                const size = Math.max(4, Math.min(20, pointSize + popScale * 2));
+
+                // Altitude for display
+                let altitude = 0;
+                if (showElevation) {
+                    altitude = city.elevation_m * 10;  // 10x exaggeration
+                }
+
+                const entity = viewer.entities.add({
+                    name: city.name,
+                    position: Cesium.Cartesian3.fromDegrees(
+                        city.longitude,
+                        city.latitude,
+                        altitude
+                    ),
+                    point: {
+                        pixelSize: size,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        heightReference: showElevation ?
+                            Cesium.HeightReference.NONE :
+                            Cesium.HeightReference.CLAMP_TO_GROUND,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: (showLabels && index < 50) ? {
+                        text: city.name,
+                        font: '12px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, -15),
+                        heightReference: showElevation ?
+                            Cesium.HeightReference.NONE :
+                            Cesium.HeightReference.CLAMP_TO_GROUND,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    } : undefined,
+                    properties: {
+                        cityData: city,
+                        rank: index + 1
+                    }
+                });
+
+                cityEntities.push(entity);
+            });
+
+            document.getElementById('displayedCities').textContent = displayed;
+        }
+
+        // Click handler for city info
+        viewer.screenSpaceEventHandler.setInputAction(function(click) {
+            const pickedObject = viewer.scene.pick(click.position);
+            if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
+                const city = pickedObject.id.properties.cityData.getValue();
+                const rank = pickedObject.id.properties.rank.getValue();
+
+                document.getElementById('cityInfo').style.display = 'block';
+                document.getElementById('cityName').textContent = city.name;
+                document.getElementById('cityCountry').textContent = city.country;
+                document.getElementById('cityPopulation').textContent = city.population.toLocaleString();
+                document.getElementById('cityCoords').textContent =
+                    `${city.latitude.toFixed(3)}, ${city.longitude.toFixed(3)}`;
+                document.getElementById('cityElevation').textContent = city.elevation_m + ' m';
+                document.getElementById('cityRank').textContent = '#' + rank;
+            }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        // Controls
+        document.getElementById('popSlider').addEventListener('input', function() {
+            currentMinPop = parseInt(this.value);
+            const millions = (currentMinPop / 1000000).toFixed(1);
+            document.getElementById('popValue').textContent =
+                currentMinPop > 0 ? millions + 'M' : 'All';
+            createCityEntities();
+        });
+
+        document.getElementById('sizeSlider').addEventListener('input', function() {
+            pointSize = parseInt(this.value);
+            document.getElementById('sizeValue').textContent = pointSize;
+            createCityEntities();
+        });
+
+        document.getElementById('colorBy').addEventListener('change', function() {
+            colorMode = this.value;
+            createCityEntities();
+        });
+
+        document.getElementById('showLabels').addEventListener('change', function() {
+            showLabels = this.checked;
+            createCityEntities();
+        });
+
+        document.getElementById('showElevation').addEventListener('change', function() {
+            showElevation = this.checked;
+            createCityEntities();
+        });
+
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '';
+
+            if (query.length < 2 || !citiesData) return;
+
+            const matches = citiesData.cities.filter(c =>
+                c.name.toLowerCase().includes(query) ||
+                c.country.toLowerCase().includes(query)
+            ).slice(0, 10);
+
+            matches.forEach(city => {
+                const div = document.createElement('div');
+                div.className = 'search-result';
+                div.textContent = `${city.name}, ${city.country}`;
+                div.onclick = () => flyToCity(city);
+                resultsDiv.appendChild(div);
+            });
+        });
+
+        function flyToCity(city) {
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(
+                    city.longitude,
+                    city.latitude,
+                    500000
+                ),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-45),
+                    roll: 0
+                }
+            });
+
+            // Show city info
+            const rank = citiesData.cities.findIndex(c => c.id === city.id) + 1;
+            document.getElementById('cityInfo').style.display = 'block';
+            document.getElementById('cityName').textContent = city.name;
+            document.getElementById('cityCountry').textContent = city.country;
+            document.getElementById('cityPopulation').textContent = city.population.toLocaleString();
+            document.getElementById('cityCoords').textContent =
+                `${city.latitude.toFixed(3)}, ${city.longitude.toFixed(3)}`;
+            document.getElementById('cityElevation').textContent = city.elevation_m + ' m';
+            document.getElementById('cityRank').textContent = '#' + rank;
+
+            document.getElementById('searchResults').innerHTML = '';
+            document.getElementById('searchBox').value = '';
+        }
+
+        // Set initial view
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(0, 20, 25000000)
+        });
+    </script>
+</body>
+</html>

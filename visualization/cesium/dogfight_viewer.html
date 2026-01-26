@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title>Dogfight Visualization - 4v4 over Indiana</title>
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
     <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         html, body, #cesiumContainer {
@@ -205,13 +206,9 @@
 
     <script>
         // Initialize Cesium without ion
-        Cesium.Ion.defaultAccessToken = undefined;
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
-            imageryProvider: new Cesium.TileMapServiceImageryProvider({
-                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
-            }),
-            baseLayerPicker: false,
+            baseLayerPicker: true,
             geocoder: false,
             animation: true,
             timeline: true,
@@ -223,6 +220,7 @@
         });
 
         // Remove Cesium ion credits
+        addArcGISProviders(viewer);
         viewer.cesiumWidget.creditContainer.style.display = 'none';
 
         let dogfightData = null;

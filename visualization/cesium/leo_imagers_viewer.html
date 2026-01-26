@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>LEO Imaging Satellite Constellation</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
+
+        #container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #mainView {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        #sensorPanel {
+            width: 450px;
+            height: 100%;
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            border-left: 2px solid #4fc3f7;
+        }
+
+        #sensorHeader {
+            padding: 10px 15px;
+            background: #0f0f1a;
+            border-bottom: 1px solid #333;
+        }
+
+        #sensorHeader h3 {
+            color: #4fc3f7;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        #sensorViewContainer {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 300px;
+        }
+
+        #sensorView {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Noise canvas overlay */
+        #noiseCanvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.15;
+            mix-blend-mode: overlay;
+        }
+
+        /* Night overlay for sensor view */
+        #nightOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0);
+            pointer-events: none;
+            transition: background 0.3s;
+        }
+
+        #sensorInfo {
+            padding: 10px 15px;
+            background: #0f0f1a;
+            border-top: 1px solid #333;
+            color: #ccc;
+            font-size: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+
+        .info-label { color: #888; }
+        .info-value { color: #fff; }
+
+        #controlPanel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(10, 15, 25, 0.95);
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            min-width: 280px;
+            border: 1px solid rgba(100, 150, 200, 0.3);
+            z-index: 100;
+        }
+
+        #controlPanel h3 {
+            margin: 0 0 10px 0;
+            color: #4fc3f7;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(100, 200, 255, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .control-row {
+            margin: 8px 0;
+        }
+
+        .control-row label {
+            display: block;
+            margin-bottom: 4px;
+            color: #aaa;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 8px;
+            background: #1a2030;
+            color: #fff;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2a3050;
+        }
+
+        button.active {
+            background: #4fc3f7;
+            color: #000;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .button-row button {
+            flex: 1;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .legend {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 11px;
+        }
+
+        #sunIndicator {
+            padding: 8px;
+            margin-top: 10px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .sun-day { background: rgba(255, 200, 50, 0.3); border: 1px solid #ffc832; color: #ffc832; }
+        .sun-night { background: rgba(50, 50, 150, 0.3); border: 1px solid #5050aa; color: #8080ff; }
+        .sun-terminator { background: rgba(200, 100, 50, 0.3); border: 1px solid #c86432; color: #ff9050; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="mainView">
+            <div id="cesiumContainer" style="width: 100%; height: 100%;"></div>
+            <div id="controlPanel">
+                <h3>LEO Imaging Constellation</h3>
+
+                <div class="control-row">
+                    <label>Select Satellite:</label>
+                    <select id="satelliteSelect"></select>
+                </div>
+
+                <div class="control-row button-row">
+                    <button id="warpBtn">Warp to Satellite</button>
+                    <button id="trackBtn">Track</button>
+                </div>
+
+                <div class="control-row button-row">
+                    <button id="prevBtn">◄ Prev</button>
+                    <button id="nextBtn">Next ►</button>
+                </div>
+
+                <div class="control-row">
+                    <label>Time Speed: <span id="speedValue">60x</span></label>
+                    <input type="range" id="speedSlider" min="1" max="3600" value="60">
+                </div>
+
+                <div class="control-row">
+                    <label>Active Sensor:</label>
+                    <div class="button-row">
+                        <button id="wideBtn" class="active">Wide (30-60°)</button>
+                        <button id="narrowBtn">Hi-Res (0.5°)</button>
+                    </div>
+                </div>
+
+                <div class="control-row">
+                    <label>FOV Cone Opacity: <span id="coneOpacityValue">30%</span></label>
+                    <input type="range" id="coneOpacitySlider" min="0" max="100" value="30">
+                </div>
+
+                <div class="control-row">
+                    <label><input type="checkbox" id="showAllCones" checked> Show Wide Cones</label>
+                    <label><input type="checkbox" id="showNarrowCones"> Show Narrow Cones</label>
+                </div>
+
+                <div class="control-row">
+                    <label><input type="checkbox" id="showOrbits"> Show Orbit Paths</label>
+                </div>
+
+                <div class="control-row" style="border-top: 1px solid #333; padding-top: 8px; margin-top: 8px;">
+                    <div style="color: #888; font-size: 11px; margin-bottom: 5px;">Sensor View Effects:</div>
+                    <label><input type="checkbox" id="enableBW" checked> B&W Filter</label>
+                    <label><input type="checkbox" id="enableNoise" checked> Sensor Noise</label>
+                    <label><input type="checkbox" id="enableNight" checked> Night Darkness</label>
+                </div>
+
+                <div id="sunIndicator" class="sun-day">
+                    ☀ DAYLIGHT
+                </div>
+
+                <div class="legend">
+                    <div style="color: #aaa; margin-bottom: 5px;">Satellite Count: <span id="satCount">40</span></div>
+                    <div style="color: #aaa;">Selected: <span id="selectedName">-</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sensorPanel">
+            <div id="sensorHeader">
+                <h3>SENSOR VIEW: <span id="sensorSatName">-</span></h3>
+                <div style="color: #888; font-size: 11px;">Synthetic imagery (ArcGIS + processing)</div>
+            </div>
+            <div id="sensorViewContainer">
+                <div id="sensorView"></div>
+                <canvas id="noiseCanvas"></canvas>
+                <div id="nightOverlay"></div>
+            </div>
+            <div id="sensorInfo">
+                <div class="info-row">
+                    <span class="info-label">Altitude:</span>
+                    <span class="info-value" id="infoAlt">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">FOV:</span>
+                    <span class="info-value" id="infoFov">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Ground Swath:</span>
+                    <span class="info-value" id="infoSwath">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Sub-Sat Point:</span>
+                    <span class="info-value" id="infoSubSat">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Solar Illumination:</span>
+                    <span class="info-value" id="infoSolar">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">View Altitude:</span>
+                    <span class="info-value" id="infoViewAlt">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Imagery Status:</span>
+                    <span class="info-value" id="infoImagery">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Main viewer
+        const mainViewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayerPicker: true,
+            geocoder: false,
+            animation: true,
+            timeline: true,
+            fullscreenButton: false,
+            vrButton: false,
+            homeButton: true,
+            sceneModePicker: true,
+            navigationHelpButton: false,
+            infoBox: true,
+            selectionIndicator: true
+        });
+
+        addArcGISProviders(mainViewer);
+        mainViewer.scene.globe.enableLighting = true;
+
+        // Sensor viewer (nadir view) - start with default imagery, we'll add ArcGIS after
+        const sensorViewer = new Cesium.Viewer('sensorView', {
+            baseLayerPicker: false,
+            geocoder: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+            vrButton: false,
+            homeButton: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            infoBox: false,
+            selectionIndicator: false
+        });
+
+        // Disable Cesium's built-in lighting on sensor view - we control darkness via overlay
+        sensorViewer.scene.globe.enableLighting = false;
+
+        // Add ArcGIS imagery to sensor view (async)
+        async function setupSensorImagery() {
+            const statusEl = document.getElementById('infoImagery');
+            statusEl.textContent = 'Loading ArcGIS...';
+
+            try {
+                // Try the modern async way first
+                const arcGisProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+                    'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+                );
+                sensorViewer.imageryLayers.removeAll();
+                sensorViewer.imageryLayers.addImageryProvider(arcGisProvider);
+                console.log('ArcGIS imagery loaded for sensor view (async)');
+                statusEl.textContent = 'ArcGIS Ready';
+                statusEl.style.color = '#4f4';
+            } catch (error) {
+                console.warn('Async ArcGIS load failed, trying fallback:', error.message);
+                // Fallback - try the old synchronous way
+                try {
+                    const provider = new Cesium.ArcGisMapServerImageryProvider({
+                        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+                    });
+                    sensorViewer.imageryLayers.removeAll();
+                    sensorViewer.imageryLayers.addImageryProvider(provider);
+                    console.log('ArcGIS imagery loaded (sync fallback)');
+                    statusEl.textContent = 'ArcGIS Ready (fallback)';
+                    statusEl.style.color = '#ff4';
+                } catch (e2) {
+                    console.error('All ArcGIS methods failed:', e2);
+                    statusEl.textContent = 'FAILED';
+                    statusEl.style.color = '#f44';
+                }
+            }
+        }
+        setupSensorImagery();
+
+        // Disable camera controls on sensor view
+        sensorViewer.scene.screenSpaceCameraController.enableRotate = false;
+        sensorViewer.scene.screenSpaceCameraController.enableTranslate = false;
+        sensorViewer.scene.screenSpaceCameraController.enableZoom = false;
+        sensorViewer.scene.screenSpaceCameraController.enableTilt = false;
+        sensorViewer.scene.screenSpaceCameraController.enableLook = false;
+
+        // Hide credits
+        mainViewer.cesiumWidget.creditContainer.style.display = 'none';
+        sensorViewer.cesiumWidget.creditContainer.style.display = 'none';
+
+        // Apply grayscale filter to sensor view
+        const sensorCanvas = sensorViewer.canvas;
+        sensorCanvas.style.filter = 'grayscale(100%) contrast(1.1)';
+
+        // Noise canvas setup
+        const noiseCanvas = document.getElementById('noiseCanvas');
+        const noiseCtx = noiseCanvas.getContext('2d');
+        let noiseAnimationId = null;
+
+        function resizeNoiseCanvas() {
+            const container = document.getElementById('sensorViewContainer');
+            noiseCanvas.width = container.clientWidth;
+            noiseCanvas.height = container.clientHeight;
+        }
+        resizeNoiseCanvas();
+        window.addEventListener('resize', resizeNoiseCanvas);
+
+        function renderNoise(intensity) {
+            // Use smaller resolution for performance
+            const w = Math.floor(noiseCanvas.width / 4);
+            const h = Math.floor(noiseCanvas.height / 4);
+
+            noiseCtx.clearRect(0, 0, noiseCanvas.width, noiseCanvas.height);
+
+            const imageData = noiseCtx.createImageData(w, h);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                const noise = Math.floor((Math.random() - 0.5) * intensity * 200);
+                data[i] = 128 + noise;     // R
+                data[i + 1] = 128 + noise; // G
+                data[i + 2] = 128 + noise; // B
+                data[i + 3] = 60;          // Alpha (subtle)
+            }
+
+            // Draw scaled up
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
+
+            noiseCtx.imageSmoothingEnabled = false;
+            noiseCtx.drawImage(tempCanvas, 0, 0, noiseCanvas.width, noiseCanvas.height);
+        }
+
+        let noiseFrame = 0;
+        function animateNoise() {
+            noiseFrame++;
+            // Only update noise every 3 frames for performance
+            if (noiseFrame % 3 === 0) {
+                renderNoise(0.3);
+            }
+            noiseAnimationId = requestAnimationFrame(animateNoise);
+        }
+        animateNoise();
+
+        // Data storage
+        let satelliteData = null;
+        let satelliteEntities = [];
+        let coneEntities = [];        // Wide FOV cones
+        let narrowConeEntities = []; // Narrow FOV cones (high-res)
+        let orbitEntities = [];
+        let selectedSatelliteId = 0;
+        let coneOpacity = 0.3;
+        let isTracking = false;
+        let useNarrowSensor = false;  // Toggle between wide and narrow sensor
+        const NARROW_FOV_DEG = 0.5;   // High-res sensor FOV (Maxar-like, ~0.3m GSD capable)
+
+        // Load satellite data
+        fetch('leo_imagers_data.json')
+            .then(response => response.json())
+            .then(data => {
+                satelliteData = data;
+                console.log('Loaded', data.satellites.length, 'satellites');
+                document.getElementById('satCount').textContent = data.satellites.length;
+                setupVisualization();
+            })
+            .catch(err => {
+                console.error('Failed to load data:', err);
+                alert('Failed to load satellite data: ' + err.message);
+            });
+
+        function setupVisualization() {
+            const metadata = satelliteData.metadata;
+            const duration = metadata.duration_hours * 3600;
+            const dt = metadata.time_step_seconds;
+
+            const startTime = Cesium.JulianDate.fromDate(new Date());
+            const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+            mainViewer.clock.startTime = startTime.clone();
+            mainViewer.clock.stopTime = stopTime.clone();
+            mainViewer.clock.currentTime = startTime.clone();
+            mainViewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+            mainViewer.clock.multiplier = 60;
+
+            mainViewer.timeline.zoomTo(startTime, stopTime);
+
+            // Populate satellite selector
+            const select = document.getElementById('satelliteSelect');
+            satelliteData.satellites.forEach((sat, idx) => {
+                const option = document.createElement('option');
+                option.value = idx;
+                option.textContent = `${sat.name} (Alt: ${sat.altitude_km.toFixed(0)}km, FOV: ${sat.fov_deg.toFixed(0)}°)`;
+                select.appendChild(option);
+            });
+
+            // Create satellite entities
+            createSatelliteEntities(startTime, dt);
+
+            // Set initial view
+            mainViewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-90),
+                    roll: 0
+                }
+            });
+
+            // Update loop
+            mainViewer.clock.onTick.addEventListener(onTick);
+
+            // Select first satellite
+            selectSatellite(0);
+
+            console.log('Visualization setup complete');
+            console.log('Satellites loaded:', satelliteData.satellites.length);
+            console.log('First satellite:', satelliteData.satellites[0]);
+
+            // Force initial sensor view update
+            setTimeout(() => {
+                onTick(mainViewer.clock);
+            }, 1000);
+        }
+
+        function createSatelliteEntities(startTime, dt) {
+            satelliteData.satellites.forEach((sat, idx) => {
+                // Position property
+                const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+
+                sat.trajectory.forEach(p => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, p.t, new Cesium.JulianDate());
+                    const position = new Cesium.Cartesian3(p.x, p.y, p.z);
+                    positionProperty.addSample(time, position);
+                });
+
+                positionProperty.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                // Satellite point
+                const entity = mainViewer.entities.add({
+                    name: sat.name,
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 10,
+                        color: Cesium.Color.CYAN,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: sat.name,
+                        font: '12px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(0, -20),
+                        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 15000000)
+                    },
+                    properties: {
+                        satData: sat,
+                        satIndex: idx
+                    }
+                });
+
+                satelliteEntities.push(entity);
+
+                // Cone length (from satellite to ground)
+                const coneLength = sat.altitude_km * 1000;
+
+                // Wide FOV cone - position offset to center cone between sat and ground
+                const wideConePositionProperty = new Cesium.CallbackProperty((time) => {
+                    const satPos = positionProperty.getValue(time);
+                    if (!satPos) return satPos;
+
+                    // Offset position toward Earth by half the cone length
+                    const normal = Cesium.Cartesian3.normalize(satPos, new Cesium.Cartesian3());
+                    const offset = Cesium.Cartesian3.multiplyByScalar(normal, -coneLength / 2, new Cesium.Cartesian3());
+                    return Cesium.Cartesian3.add(satPos, offset, new Cesium.Cartesian3());
+                }, false);
+
+                // Orientation property for nadir-pointing cone
+                const coneOrientationProperty = new Cesium.CallbackProperty((time) => {
+                    const pos = positionProperty.getValue(time);
+                    if (!pos) return Cesium.Quaternion.IDENTITY;
+
+                    // Nadir direction (toward Earth center)
+                    const down = Cesium.Cartesian3.normalize(
+                        Cesium.Cartesian3.negate(pos, new Cesium.Cartesian3()),
+                        new Cesium.Cartesian3()
+                    );
+
+                    // Create orthonormal basis for rotation
+                    // Pick an "up" reference that's not parallel to down
+                    let ref = Cesium.Cartesian3.UNIT_Z;
+                    if (Math.abs(Cesium.Cartesian3.dot(down, ref)) > 0.99) {
+                        ref = Cesium.Cartesian3.UNIT_Y;
+                    }
+
+                    // East = ref x down (normalized)
+                    const east = Cesium.Cartesian3.normalize(
+                        Cesium.Cartesian3.cross(ref, down, new Cesium.Cartesian3()),
+                        new Cesium.Cartesian3()
+                    );
+                    // North = down x east
+                    const north = Cesium.Cartesian3.cross(down, east, new Cesium.Cartesian3());
+
+                    // Rotation matrix with columns [east, north, down]
+                    const rotationMatrix = new Cesium.Matrix3(
+                        east.x, north.x, down.x,
+                        east.y, north.y, down.y,
+                        east.z, north.z, down.z
+                    );
+
+                    return Cesium.Quaternion.fromRotationMatrix(rotationMatrix);
+                }, false);
+
+                // Calculate bottom radius from FOV
+                const wideBottomRadius = coneLength * Math.tan(sat.fov_deg / 2 * Math.PI / 180);
+
+                const wideConeEntity = mainViewer.entities.add({
+                    name: sat.name + ' Wide FOV',
+                    position: wideConePositionProperty,
+                    cylinder: {
+                        length: coneLength,
+                        topRadius: wideBottomRadius,  // Wide end at ground (toward Earth/+Z)
+                        bottomRadius: 0,              // Apex at satellite (away from Earth/-Z)
+                        material: Cesium.Color.CYAN.withAlpha(coneOpacity),
+                        outline: true,
+                        outlineColor: Cesium.Color.CYAN.withAlpha(0.6),
+                        numberOfVerticalLines: 16
+                    },
+                    orientation: coneOrientationProperty
+                });
+
+                coneEntities.push(wideConeEntity);
+
+                // Narrow FOV cone (high-res sensor) - 0.5 degree FOV for Maxar-like imagery
+                // At 600km altitude, 0.5° FOV gives ~5.2km swath, capable of ~0.3-0.5m GSD
+                const narrowFov = 0.5;  // degrees - high-res imaging sensor
+                const narrowConePositionProperty = new Cesium.CallbackProperty((time) => {
+                    const satPos = positionProperty.getValue(time);
+                    if (!satPos) return satPos;
+
+                    const normal = Cesium.Cartesian3.normalize(satPos, new Cesium.Cartesian3());
+                    const offset = Cesium.Cartesian3.multiplyByScalar(normal, -coneLength / 2, new Cesium.Cartesian3());
+                    return Cesium.Cartesian3.add(satPos, offset, new Cesium.Cartesian3());
+                }, false);
+
+                // Calculate narrow bottom radius
+                const narrowBottomRadius = coneLength * Math.tan(narrowFov / 2 * Math.PI / 180);
+
+                const narrowConeEntity = mainViewer.entities.add({
+                    name: sat.name + ' Narrow FOV',
+                    position: narrowConePositionProperty,
+                    cylinder: {
+                        length: coneLength,
+                        topRadius: narrowBottomRadius,  // Wide end at ground
+                        bottomRadius: 0,                // Apex at satellite
+                        material: Cesium.Color.YELLOW.withAlpha(coneOpacity + 0.1),
+                        outline: true,
+                        outlineColor: Cesium.Color.YELLOW.withAlpha(0.8),
+                        numberOfVerticalLines: 8
+                    },
+                    orientation: coneOrientationProperty,  // Same orientation as wide cone
+                    show: false  // Hidden by default
+                });
+
+                narrowConeEntities.push(narrowConeEntity);
+
+                // Orbit path (initially hidden)
+                const orbitEntity = mainViewer.entities.add({
+                    name: sat.name + ' Orbit',
+                    polyline: {
+                        positions: new Cesium.CallbackProperty(() => {
+                            return sat.trajectory.map(p => new Cesium.Cartesian3(p.x, p.y, p.z));
+                        }, true),
+                        width: 1,
+                        material: Cesium.Color.CYAN.withAlpha(0.3)
+                    },
+                    show: false
+                });
+
+                orbitEntities.push(orbitEntity);
+            });
+        }
+
+        function selectSatellite(idx) {
+            selectedSatelliteId = idx;
+            const sat = satelliteData.satellites[idx];
+
+            document.getElementById('selectedName').textContent = sat.name;
+            document.getElementById('sensorSatName').textContent = sat.name;
+            document.getElementById('infoAlt').textContent = sat.altitude_km.toFixed(1) + ' km';
+            document.getElementById('infoFov').textContent = sat.fov_deg.toFixed(1) + '°';
+            document.getElementById('infoSwath').textContent = sat.swath_km.toFixed(0) + ' km';
+
+            document.getElementById('satelliteSelect').value = idx;
+
+            // Highlight selected satellite
+            satelliteEntities.forEach((entity, i) => {
+                if (i === idx) {
+                    entity.point.color = Cesium.Color.YELLOW;
+                    entity.point.pixelSize = 14;
+                } else {
+                    entity.point.color = Cesium.Color.CYAN;
+                    entity.point.pixelSize = 10;
+                }
+            });
+
+            // Highlight selected cone (wide)
+            coneEntities.forEach((entity, i) => {
+                if (i === idx) {
+                    entity.cylinder.material = Cesium.Color.YELLOW.withAlpha(coneOpacity + 0.2);
+                    entity.cylinder.outlineColor = Cesium.Color.YELLOW.withAlpha(0.8);
+                } else {
+                    entity.cylinder.material = Cesium.Color.CYAN.withAlpha(coneOpacity);
+                    entity.cylinder.outlineColor = Cesium.Color.CYAN.withAlpha(0.6);
+                }
+            });
+
+            // Highlight selected cone (narrow)
+            narrowConeEntities.forEach((entity, i) => {
+                if (i === idx) {
+                    entity.cylinder.material = Cesium.Color.ORANGE.withAlpha(coneOpacity + 0.3);
+                    entity.cylinder.outlineColor = Cesium.Color.ORANGE.withAlpha(0.9);
+                } else {
+                    entity.cylinder.material = Cesium.Color.YELLOW.withAlpha(coneOpacity + 0.1);
+                    entity.cylinder.outlineColor = Cesium.Color.YELLOW.withAlpha(0.8);
+                }
+            });
+
+            // Update sensor info display
+            updateSensorInfo();
+        }
+
+        function warpToSatellite() {
+            const entity = satelliteEntities[selectedSatelliteId];
+            const pos = entity.position.getValue(mainViewer.clock.currentTime);
+            if (!pos) return;
+
+            // Get position in Cartographic
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+
+            mainViewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(lon, lat, carto.height + 500000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-45),
+                    roll: 0
+                }
+            });
+        }
+
+        function toggleTracking() {
+            isTracking = !isTracking;
+            document.getElementById('trackBtn').classList.toggle('active', isTracking);
+
+            if (isTracking) {
+                mainViewer.trackedEntity = satelliteEntities[selectedSatelliteId];
+            } else {
+                mainViewer.trackedEntity = undefined;
+            }
+        }
+
+        // Compute sun position for lighting
+        function getSunPosition(time) {
+            const julianDate = Cesium.JulianDate.toDate(time);
+            const dayOfYear = Math.floor((julianDate - new Date(julianDate.getFullYear(), 0, 0)) / 86400000);
+            const hourUTC = julianDate.getUTCHours() + julianDate.getUTCMinutes() / 60;
+
+            // Approximate sun position
+            const declination = -23.45 * Math.cos(2 * Math.PI * (dayOfYear + 10) / 365);
+            const hourAngle = (hourUTC - 12) * 15;  // degrees
+
+            const sunLat = declination;
+            const sunLon = -hourAngle;
+
+            return { lat: sunLat, lon: sunLon };
+        }
+
+        function onTick(clock) {
+            if (!satelliteData) return;
+
+            const time = clock.currentTime;
+            const entity = satelliteEntities[selectedSatelliteId];
+            const sat = satelliteData.satellites[selectedSatelliteId];
+            const pos = entity.position.getValue(time);
+
+            if (!pos) {
+                console.log('No position for satellite', selectedSatelliteId);
+                return;
+            }
+
+            // Get sub-satellite point
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const alt = carto.height / 1000;
+
+            document.getElementById('infoSubSat').textContent =
+                `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+
+            // Update sensor view to look at sub-satellite point
+            // Calculate ground swath based on active sensor
+            let groundSwath;
+            let activeFovDeg;
+            if (useNarrowSensor) {
+                activeFovDeg = NARROW_FOV_DEG;
+                groundSwath = 2 * sat.altitude_km * 1000 * Math.tan(NARROW_FOV_DEG / 2 * Math.PI / 180);
+            } else {
+                activeFovDeg = sat.fov_deg;
+                groundSwath = sat.swath_km * 1000;  // meters
+            }
+
+            // For narrow sensor, use very low altitude for Maxar-like detail
+            // ~5km swath viewed from ~800m gives excellent detail
+            let viewAltitude;
+            if (useNarrowSensor) {
+                // High-res sensor: very low altitude for sub-meter detail simulation
+                // groundSwath is ~5km, view from ~800m to see building-level detail
+                viewAltitude = Math.max(500, groundSwath / 6);
+            } else {
+                viewAltitude = groundSwath / 2;
+            }
+
+            // Cap between 500m (high-res) and 500km (wide view)
+            const clampedAltitude = Math.max(500, Math.min(viewAltitude, 500000));
+
+            sensorViewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(lon, lat, clampedAltitude),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-90),  // Looking straight down
+                    roll: 0
+                }
+            });
+
+            // Set FOV to show the ground swath from this altitude
+            // FOV = 2 * atan(swath/2 / altitude)
+            const effectiveFov = 2 * Math.atan(groundSwath / (2 * clampedAltitude));
+            sensorViewer.camera.frustum.fov = Math.min(Math.max(effectiveFov, 0.3), 2.5);  // Clamp between ~17 and ~143 degrees
+
+            // Update debug info
+            document.getElementById('infoViewAlt').textContent = (clampedAltitude / 1000).toFixed(0) + ' km';
+
+            // Check imagery layer count
+            const layerCount = sensorViewer.imageryLayers.length;
+            document.getElementById('infoImagery').textContent = layerCount > 0 ? 'Loaded (' + layerCount + ' layers)' : 'No imagery';
+
+            // Compute solar illumination
+            const sunPos = getSunPosition(time);
+            const sunVec = Cesium.Cartesian3.fromDegrees(sunPos.lon, sunPos.lat, 150000000);
+            Cesium.Cartesian3.normalize(sunVec, sunVec);
+
+            // Calculate solar angle at sub-satellite point
+            const satSurfaceNormal = Cesium.Cartesian3.normalize(
+                Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+                new Cesium.Cartesian3()
+            );
+
+            const solarAngle = Math.acos(Cesium.Cartesian3.dot(satSurfaceNormal, sunVec));
+            const solarAngleDeg = solarAngle * 180 / Math.PI;
+            const solarElevation = 90 - solarAngleDeg;
+
+            // Update night overlay based on solar elevation
+            const nightOverlay = document.getElementById('nightOverlay');
+            const sunIndicator = document.getElementById('sunIndicator');
+
+            let illumination = '';
+            let nightDarkness = 0;
+
+            if (solarElevation > 10) {
+                // Full daylight
+                nightDarkness = 0;
+                illumination = 'Full Sun';
+                sunIndicator.className = 'sun-day';
+                sunIndicator.textContent = '☀ DAYLIGHT';
+            } else if (solarElevation > -6) {
+                // Civil twilight / terminator
+                nightDarkness = (10 - solarElevation) / 16 * 0.7;
+                illumination = 'Twilight';
+                sunIndicator.className = 'sun-terminator';
+                sunIndicator.textContent = '◐ TERMINATOR';
+            } else if (solarElevation > -18) {
+                // Nautical/astronomical twilight
+                nightDarkness = 0.7 + (-6 - solarElevation) / 12 * 0.25;
+                illumination = 'Dark Twilight';
+                sunIndicator.className = 'sun-night';
+                sunIndicator.textContent = '☾ NIGHT';
+            } else {
+                // Full night - nearly pitch black
+                nightDarkness = 0.95;
+                illumination = 'Night';
+                sunIndicator.className = 'sun-night';
+                sunIndicator.textContent = '● NIGHT (No Visibility)';
+            }
+
+            nightOverlay.style.background = `rgba(0, 0, 0, ${nightDarkness})`;
+            document.getElementById('infoSolar').textContent =
+                `${illumination} (${solarElevation.toFixed(1)}°)`;
+        }
+
+        // Event handlers
+        document.getElementById('satelliteSelect').addEventListener('change', function() {
+            selectSatellite(parseInt(this.value));
+        });
+
+        document.getElementById('warpBtn').addEventListener('click', warpToSatellite);
+        document.getElementById('trackBtn').addEventListener('click', toggleTracking);
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            let newIdx = selectedSatelliteId - 1;
+            if (newIdx < 0) newIdx = satelliteData.satellites.length - 1;
+            selectSatellite(newIdx);
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            let newIdx = selectedSatelliteId + 1;
+            if (newIdx >= satelliteData.satellites.length) newIdx = 0;
+            selectSatellite(newIdx);
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', function() {
+            mainViewer.clock.multiplier = parseInt(this.value);
+            document.getElementById('speedValue').textContent = this.value + 'x';
+        });
+
+        document.getElementById('coneOpacitySlider').addEventListener('input', function() {
+            coneOpacity = parseInt(this.value) / 100;
+            document.getElementById('coneOpacityValue').textContent = this.value + '%';
+
+            // Update wide cones
+            coneEntities.forEach((entity, i) => {
+                if (i === selectedSatelliteId) {
+                    entity.cylinder.material = Cesium.Color.YELLOW.withAlpha(coneOpacity + 0.2);
+                } else {
+                    entity.cylinder.material = Cesium.Color.CYAN.withAlpha(coneOpacity);
+                }
+            });
+
+            // Update narrow cones
+            narrowConeEntities.forEach((entity, i) => {
+                if (i === selectedSatelliteId) {
+                    entity.cylinder.material = Cesium.Color.ORANGE.withAlpha(coneOpacity + 0.3);
+                } else {
+                    entity.cylinder.material = Cesium.Color.YELLOW.withAlpha(coneOpacity + 0.1);
+                }
+            });
+        });
+
+        document.getElementById('showAllCones').addEventListener('change', function() {
+            coneEntities.forEach((entity, i) => {
+                entity.show = this.checked || i === selectedSatelliteId;
+            });
+        });
+
+        document.getElementById('showOrbits').addEventListener('change', function() {
+            orbitEntities.forEach(entity => {
+                entity.show = this.checked;
+            });
+        });
+
+        // Narrow cone toggle
+        document.getElementById('showNarrowCones').addEventListener('change', function() {
+            narrowConeEntities.forEach(entity => {
+                entity.show = this.checked;
+            });
+        });
+
+        // Sensor mode buttons
+        document.getElementById('wideBtn').addEventListener('click', function() {
+            useNarrowSensor = false;
+            this.classList.add('active');
+            document.getElementById('narrowBtn').classList.remove('active');
+            updateSensorInfo();
+        });
+
+        document.getElementById('narrowBtn').addEventListener('click', function() {
+            useNarrowSensor = true;
+            this.classList.add('active');
+            document.getElementById('wideBtn').classList.remove('active');
+            updateSensorInfo();
+        });
+
+        function updateSensorInfo() {
+            if (!satelliteData) return;
+            const sat = satelliteData.satellites[selectedSatelliteId];
+            if (useNarrowSensor) {
+                document.getElementById('infoFov').textContent = NARROW_FOV_DEG.toFixed(1) + '° (Hi-Res)';
+                // Narrow swath calculation
+                const narrowSwath = 2 * sat.altitude_km * Math.tan(NARROW_FOV_DEG / 2 * Math.PI / 180);
+                document.getElementById('infoSwath').textContent = narrowSwath.toFixed(2) + ' km';
+                // Estimate GSD: assuming 16K pixel detector (like Maxar WorldView)
+                const gsdMeters = (narrowSwath * 1000) / 16000;
+                document.getElementById('infoAlt').textContent = sat.altitude_km.toFixed(1) + ' km (GSD: ' + gsdMeters.toFixed(2) + 'm)';
+            } else {
+                document.getElementById('infoFov').textContent = sat.fov_deg.toFixed(1) + '° (Wide)';
+                document.getElementById('infoSwath').textContent = sat.swath_km.toFixed(0) + ' km';
+                // Wide sensor GSD estimate (assume 4K detector for survey imaging)
+                const gsdMeters = (sat.swath_km * 1000) / 4000;
+                document.getElementById('infoAlt').textContent = sat.altitude_km.toFixed(1) + ' km (GSD: ' + gsdMeters.toFixed(0) + 'm)';
+            }
+        }
+
+        // Sensor effect toggles
+        document.getElementById('enableBW').addEventListener('change', function() {
+            sensorViewer.canvas.style.filter = this.checked ? 'grayscale(100%) contrast(1.1)' : 'none';
+        });
+
+        document.getElementById('enableNoise').addEventListener('change', function() {
+            noiseCanvas.style.display = this.checked ? 'block' : 'none';
+        });
+
+        document.getElementById('enableNight').addEventListener('change', function() {
+            document.getElementById('nightOverlay').style.display = this.checked ? 'block' : 'none';
+        });
+
+        // Click to select satellite
+        mainViewer.screenSpaceEventHandler.setInputAction(function(click) {
+            const pickedObject = mainViewer.scene.pick(click.position);
+            if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
+                const props = pickedObject.id.properties;
+                if (props.satIndex) {
+                    selectSatellite(props.satIndex.getValue());
+                }
+            }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    </script>
+</body>
+</html>

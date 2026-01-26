@@ -48,6 +48,7 @@ add_subdirectory(src/utils)
 add_subdirectory(src/targeting)
 add_subdirectory(src/debris)
 add_subdirectory(src/tactics)
+add_subdirectory(src/data)
 
 # Main simulation executable
 add_executable(sim_engine
@@ -174,6 +175,16 @@ target_link_libraries(collision_demo
     propagators
     targeting
     debris
+)
+
+# LEO Imaging Satellite Constellation demo
+add_executable(leo_imager_demo
+    src/leo_imager_demo.cpp
+)
+
+target_link_libraries(leo_imager_demo
+    core
+    physics
 )
 
 # Testing
