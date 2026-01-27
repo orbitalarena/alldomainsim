@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ORD-JFK Flight Viewer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #flightInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            z-index: 1000;
+            min-width: 280px;
+        }
+        #flightInfo h2 {
+            margin: 0 0 15px 0;
+            color: #00a8ff;
+            font-size: 18px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+        .route-header {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 15px;
+        }
+        .route-header .arrow { color: #00a8ff; margin: 0 10px; }
+        .info-grid {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: 8px 15px;
+        }
+        .info-label { color: #888; font-size: 12px; }
+        .info-value { color: #fff; font-size: 14px; font-weight: 500; }
+        .info-value.highlight { color: #00ff88; }
+        .phase-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .phase-taxi { background: #555; }
+        .phase-takeoff { background: #ff6600; }
+        .phase-climb { background: #00aaff; }
+        .phase-cruise { background: #00cc66; }
+        .phase-descent { background: #ffaa00; }
+        .phase-approach { background: #ff6666; }
+        .phase-landing { background: #cc00ff; }
+        .phase-landed { background: #666; }
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 1000;
+        }
+        #controls button {
+            padding: 8px 16px;
+            cursor: pointer;
+            background: #2196F3;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        #controls button:hover { background: #1976D2; }
+        #controls button.active { background: #4CAF50; }
+        #speedControl {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+        #speedControl label { font-size: 13px; }
+        #speedValue { color: #00ff88; font-weight: bold; min-width: 50px; }
+        #legend {
+            position: absolute;
+            bottom: 100px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        .legend-item { display: flex; align-items: center; margin: 5px 0; }
+        .legend-color {
+            width: 30px; height: 4px; margin-right: 10px; border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="flightInfo">
+        <h2>Flight Information</h2>
+        <div class="route-header">
+            <span id="departure">ORD</span>
+            <span class="arrow">→</span>
+            <span id="arrival">JFK</span>
+        </div>
+        <div class="info-grid">
+            <span class="info-label">Aircraft:</span>
+            <span class="info-value" id="aircraft">--</span>
+
+            <span class="info-label">Callsign:</span>
+            <span class="info-value" id="callsign">--</span>
+
+            <span class="info-label">Altitude:</span>
+            <span class="info-value highlight" id="altitude">-- ft</span>
+
+            <span class="info-label">Ground Speed:</span>
+            <span class="info-value highlight" id="groundspeed">-- kts</span>
+
+            <span class="info-label">Heading:</span>
+            <span class="info-value" id="heading">--°</span>
+
+            <span class="info-label">Mach:</span>
+            <span class="info-value" id="mach">--</span>
+
+            <span class="info-label">Fuel Remaining:</span>
+            <span class="info-value" id="fuel">-- kg</span>
+
+            <span class="info-label">Wind:</span>
+            <span class="info-value" id="wind">-- kts @ --°</span>
+
+            <span class="info-label">Elapsed Time:</span>
+            <span class="info-value" id="elapsed">--:--:--</span>
+
+            <span class="info-label">Distance to Dest:</span>
+            <span class="info-value" id="distance">-- km</span>
+        </div>
+        <div class="phase-badge phase-cruise" id="phaseBadge">LOADING</div>
+    </div>
+
+    <div id="controls">
+        <button onclick="togglePlay()" id="playBtn">⏸ Pause</button>
+        <button onclick="resetFlight()">↺ Reset</button>
+        <button onclick="followAircraft()" id="followBtn">📍 Follow</button>
+        <div id="speedControl">
+            <label>Speed:</label>
+            <input type="range" id="speedSlider" min="0" max="5" value="2"
+                   onchange="updateSpeed(this.value)">
+            <span id="speedValue">100x</span>
+        </div>
+    </div>
+
+    <div id="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00aaff;"></div>
+            <span>Climb</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #00ff88;"></div>
+            <span>Cruise</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ffaa00;"></div>
+            <span>Descent</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ff4444;"></div>
+            <span>Approach</span>
+        </div>
+    </div>
+
+    <script>
+        const speedMultipliers = [1, 10, 100, 500, 1000, 3000];
+        const speedLabels = ['1x', '10x', '100x', '500x', '1000x', '3000x'];
+        const phaseNames = ['PARKED', 'TAXI', 'TAKEOFF', 'CLIMB', 'CRUISE', 'DESCENT', 'APPROACH', 'LANDING', 'LANDED'];
+        const phaseColors = {
+            0: 'phase-taxi', 1: 'phase-taxi', 2: 'phase-takeoff', 3: 'phase-climb',
+            4: 'phase-cruise', 5: 'phase-descent', 6: 'phase-approach',
+            7: 'phase-landing', 8: 'phase-landed'
+        };
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: true,
+            timeline: true,
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true,
+            selectionIndicator: true,
+            sceneModePicker: true,
+            navigationHelpButton: false        });
+
+        addArcGISProviders(viewer);
+
+        let flightData = null;
+        let aircraftEntity = null;
+        let pathEntity = null;
+        let startTime = null;
+        let isFollowing = false;
+        let isPlaying = true;
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            viewer.clock.shouldAnimate = isPlaying;
+            document.getElementById('playBtn').textContent = isPlaying ? '⏸ Pause' : '▶ Play';
+        }
+
+        function resetFlight() {
+            if (startTime) {
+                viewer.clock.currentTime = startTime.clone();
+            }
+        }
+
+        function followAircraft() {
+            if (aircraftEntity) {
+                isFollowing = !isFollowing;
+                if (isFollowing) {
+                    viewer.trackedEntity = aircraftEntity;
+                    document.getElementById('followBtn').classList.add('active');
+                } else {
+                    viewer.trackedEntity = undefined;
+                    document.getElementById('followBtn').classList.remove('active');
+                }
+            }
+        }
+
+        function updateSpeed(value) {
+            const multiplier = speedMultipliers[value];
+            document.getElementById('speedValue').textContent = speedLabels[value];
+            viewer.clock.multiplier = multiplier;
+        }
+
+        // Haversine distance
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        async function loadFlightData() {
+            try {
+                const response = await fetch('./ord_jfk_flight.json?' + Date.now());
+                flightData = await response.json();
+
+                const meta = flightData.metadata;
+                document.getElementById('aircraft').textContent = meta.aircraft;
+                document.getElementById('callsign').textContent = meta.callsign;
+                document.getElementById('departure').textContent = meta.departure;
+                document.getElementById('arrival').textContent = meta.arrival;
+
+                // Setup timeline
+                const duration = meta.flight_time_hours * 3600;
+                startTime = Cesium.JulianDate.now();
+                const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+                viewer.clock.startTime = startTime.clone();
+                viewer.clock.stopTime = stopTime.clone();
+                viewer.clock.currentTime = startTime.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+                viewer.clock.multiplier = 100;
+                viewer.timeline.zoomTo(startTime, stopTime);
+
+                // Create aircraft position property
+                const positionProperty = new Cesium.SampledPositionProperty();
+                positionProperty.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                // Create orientation property for aircraft heading/pitch
+                const orientationProperty = new Cesium.SampledProperty(Cesium.Quaternion);
+
+                // Path positions for polyline
+                const pathPositions = [];
+
+                flightData.trajectory.forEach(point => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, point.time, new Cesium.JulianDate());
+                    const position = Cesium.Cartesian3.fromDegrees(point.lon, point.lat, point.alt);
+                    positionProperty.addSample(time, position);
+                    pathPositions.push(position);
+
+                    // Compute orientation from heading and pitch
+                    const heading = Cesium.Math.toRadians(point.heading);
+                    const pitch = Cesium.Math.toRadians(point.pitch);
+                    const roll = Cesium.Math.toRadians(point.bank);
+                    const hpr = new Cesium.HeadingPitchRoll(heading, pitch, roll);
+                    const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
+                    orientationProperty.addSample(time, orientation);
+                });
+
+                // Create flight path polyline with altitude coloring
+                pathEntity = viewer.entities.add({
+                    name: 'Flight Path',
+                    polyline: {
+                        positions: pathPositions,
+                        width: 3,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.2,
+                            color: Cesium.Color.CYAN
+                        }),
+                        clampToGround: false
+                    }
+                });
+
+                // Create aircraft entity (using a simple model or point)
+                aircraftEntity = viewer.entities.add({
+                    name: meta.callsign + ' - ' + meta.aircraft,
+                    position: positionProperty,
+                    orientation: orientationProperty,
+                    // Use a billboard (2D icon) if no 3D model available
+                    billboard: {
+                        image: createAircraftIcon(),
+                        scale: 0.5,
+                        rotation: new Cesium.CallbackProperty(() => {
+                            // Rotate billboard to match heading
+                            const time = viewer.clock.currentTime;
+                            const pos = positionProperty.getValue(time);
+                            if (!pos) return 0;
+                            // Find nearest trajectory point for heading
+                            const elapsed = Cesium.JulianDate.secondsDifference(time, startTime);
+                            const idx = Math.min(Math.floor(elapsed / flightData.metadata.record_interval_s),
+                                                 flightData.trajectory.length - 1);
+                            if (idx >= 0 && flightData.trajectory[idx]) {
+                                return -Cesium.Math.toRadians(flightData.trajectory[idx].heading);
+                            }
+                            return 0;
+                        }, false),
+                        alignedAxis: Cesium.Cartesian3.UNIT_Z
+                    },
+                    path: {
+                        leadTime: 0,
+                        trailTime: 600, // 10 minute trail
+                        width: 4,
+                        material: new Cesium.ColorMaterialProperty(Cesium.Color.LIME.withAlpha(0.8))
+                    },
+                    label: {
+                        text: meta.callsign,
+                        font: 'bold 14px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(30, -30),
+                        showBackground: true,
+                        backgroundColor: Cesium.Color.BLACK.withAlpha(0.7)
+                    }
+                });
+
+                // Add airport markers
+                addAirportMarker(meta.departure, meta.departure_name,
+                                flightData.flight_plan[0].lat, flightData.flight_plan[0].lon);
+                addAirportMarker(meta.arrival, meta.arrival_name,
+                                flightData.flight_plan[flightData.flight_plan.length-1].lat,
+                                flightData.flight_plan[flightData.flight_plan.length-1].lon);
+
+                // Add waypoint markers
+                flightData.flight_plan.forEach((wp, idx) => {
+                    if (idx > 0 && idx < flightData.flight_plan.length - 1) {
+                        viewer.entities.add({
+                            name: wp.name,
+                            position: Cesium.Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt_m),
+                            point: {
+                                pixelSize: 8,
+                                color: Cesium.Color.YELLOW,
+                                outlineColor: Cesium.Color.BLACK,
+                                outlineWidth: 1
+                            },
+                            label: {
+                                text: wp.name,
+                                font: '12px sans-serif',
+                                fillColor: Cesium.Color.YELLOW,
+                                pixelOffset: new Cesium.Cartesian2(0, -20),
+                                scale: 0.8
+                            }
+                        });
+                    }
+                });
+
+                // Update display on clock tick
+                viewer.clock.onTick.addEventListener(updateFlightInfo);
+
+                // Set initial view
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(-81, 41, 2000000),
+                    orientation: {
+                        heading: Cesium.Math.toRadians(90),
+                        pitch: Cesium.Math.toRadians(-45),
+                        roll: 0
+                    },
+                    duration: 2
+                });
+
+            } catch (error) {
+                console.error('Failed to load flight data:', error);
+                document.getElementById('phaseBadge').textContent = 'ERROR: ' + error.message;
+            }
+        }
+
+        function addAirportMarker(code, name, lat, lon) {
+            viewer.entities.add({
+                name: code + ' - ' + name,
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+                point: {
+                    pixelSize: 15,
+                    color: Cesium.Color.RED,
+                    outlineColor: Cesium.Color.WHITE,
+                    outlineWidth: 2
+                },
+                label: {
+                    text: code,
+                    font: 'bold 16px sans-serif',
+                    fillColor: Cesium.Color.WHITE,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    pixelOffset: new Cesium.Cartesian2(0, -30)
+                }
+            });
+        }
+
+        function createAircraftIcon() {
+            // Create a simple aircraft icon using canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+
+            // Aircraft shape (pointing up)
+            ctx.fillStyle = '#00ff88';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            // Fuselage
+            ctx.moveTo(32, 5);   // Nose
+            ctx.lineTo(28, 25);
+            ctx.lineTo(28, 50);
+            ctx.lineTo(25, 58);  // Tail
+            ctx.lineTo(32, 55);
+            ctx.lineTo(39, 58);
+            ctx.lineTo(36, 50);
+            ctx.lineTo(36, 25);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Wings
+            ctx.beginPath();
+            ctx.moveTo(28, 28);
+            ctx.lineTo(5, 38);
+            ctx.lineTo(5, 42);
+            ctx.lineTo(28, 35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(36, 28);
+            ctx.lineTo(59, 38);
+            ctx.lineTo(59, 42);
+            ctx.lineTo(36, 35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Horizontal stabilizer
+            ctx.beginPath();
+            ctx.moveTo(28, 52);
+            ctx.lineTo(18, 57);
+            ctx.lineTo(18, 59);
+            ctx.lineTo(28, 55);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(36, 52);
+            ctx.lineTo(46, 57);
+            ctx.lineTo(46, 59);
+            ctx.lineTo(36, 55);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            return canvas.toDataURL();
+        }
+
+        function updateFlightInfo() {
+            if (!flightData || !startTime) return;
+
+            const elapsed = Cesium.JulianDate.secondsDifference(viewer.clock.currentTime, startTime);
+            if (elapsed < 0) return;
+
+            // Find current trajectory point
+            const interval = flightData.metadata.record_interval_s;
+            const idx = Math.min(Math.floor(elapsed / interval), flightData.trajectory.length - 1);
+
+            if (idx < 0 || !flightData.trajectory[idx]) return;
+
+            const point = flightData.trajectory[idx];
+
+            // Update display
+            document.getElementById('altitude').textContent = Math.round(point.alt / 0.3048).toLocaleString() + ' ft';
+            document.getElementById('groundspeed').textContent = Math.round(point.groundspeed / 0.514444) + ' kts';
+            document.getElementById('heading').textContent = Math.round(point.heading) + '°';
+            document.getElementById('mach').textContent = point.mach.toFixed(2);
+            document.getElementById('fuel').textContent = Math.round(point.fuel).toLocaleString() + ' kg';
+            document.getElementById('wind').textContent =
+                Math.round(point.wind_speed / 0.514444) + ' kts @ ' + Math.round(point.wind_dir) + '°';
+
+            // Elapsed time
+            const hours = Math.floor(elapsed / 3600);
+            const mins = Math.floor((elapsed % 3600) / 60);
+            const secs = Math.floor(elapsed % 60);
+            document.getElementById('elapsed').textContent =
+                `${hours.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+
+            // Distance to destination
+            const destLat = flightData.flight_plan[flightData.flight_plan.length-1].lat;
+            const destLon = flightData.flight_plan[flightData.flight_plan.length-1].lon;
+            const dist = haversineDistance(point.lat, point.lon, destLat, destLon);
+            document.getElementById('distance').textContent = Math.round(dist) + ' km';
+
+            // Phase badge
+            const phase = point.phase;
+            const badge = document.getElementById('phaseBadge');
+            badge.textContent = phaseNames[phase] || 'UNKNOWN';
+            badge.className = 'phase-badge ' + (phaseColors[phase] || 'phase-cruise');
+        }
+
+        // Initialize
+        loadFlightData();
+    </script>
+</body>
+</html>

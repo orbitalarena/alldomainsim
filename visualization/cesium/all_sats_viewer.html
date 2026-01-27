@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>All Satellites Viewer - 572 from SATCAT</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: sans-serif;
+            z-index: 1000;
+        }
+        #info h3 { margin: 0 0 10px 0; color: #4CAF50; }
+        .count { font-size: 24px; color: #00FF00; font-weight: bold; }
+        .legend { margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; margin: 5px 0; }
+        .legend-color { width: 16px; height: 16px; border-radius: 50%; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <div id="info">
+        <h3>SATCAT Visualization</h3>
+        <div>Total Satellites: <span class="count" id="count">Loading...</span></div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background: #FF4444;"></span> GEO (35,786 km)</div>
+            <div class="legend-item"><span class="legend-color" style="background: #44FF44;"></span> MEO (2,000-35,000 km)</div>
+            <div class="legend-item"><span class="legend-color" style="background: #4444FF;"></span> LEO (&lt;2,000 km)</div>
+        </div>
+        <div id="status" style="margin-top: 10px; color: #aaa; font-size: 12px;">Loading...</div>
+    </div>
+
+    <script>
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            timeline: false,
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true,
+            selectionIndicator: true,
+            sceneModePicker: true,
+            navigationHelpButton: false        });
+
+        // Reset view to see Earth from distance
+        addArcGISProviders(viewer);
+        viewer.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(0, 0, 80000000),
+            orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 }
+        });
+
+        async function loadSatellites() {
+            const status = document.getElementById('status');
+            status.textContent = 'Fetching data...';
+
+            try {
+                const response = await fetch('./all_sats.json?' + Date.now());
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                document.getElementById('count').textContent = data.count;
+                status.textContent = 'Rendering ' + data.count + ' satellites...';
+
+                let geoCount = 0, meoCount = 0, leoCount = 0;
+
+                data.satellites.forEach((sat, idx) => {
+                    // Color by orbit type
+                    let color;
+                    if (sat.type === 'GEO') {
+                        color = Cesium.Color.RED;
+                        geoCount++;
+                    } else if (sat.type === 'MEO') {
+                        color = Cesium.Color.LIME;
+                        meoCount++;
+                    } else {
+                        color = Cesium.Color.CYAN;
+                        leoCount++;
+                    }
+
+                    viewer.entities.add({
+                        name: sat.name,
+                        position: Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.alt),
+                        point: {
+                            pixelSize: sat.type === 'GEO' ? 8 : 6,
+                            color: color,
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 1
+                        },
+                        label: {
+                            text: sat.name,
+                            font: '11px sans-serif',
+                            fillColor: color,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 1,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            pixelOffset: new Cesium.Cartesian2(10, 0),
+                            show: false  // Labels off by default (too many)
+                        },
+                        description: `
+                            <h3>${sat.name}</h3>
+                            <p><b>NORAD ID:</b> ${sat.norad}</p>
+                            <p><b>Orbit Type:</b> ${sat.type}</p>
+                            <p><b>Altitude:</b> ${(sat.alt/1000).toFixed(0)} km</p>
+                            <p><b>Latitude:</b> ${sat.lat.toFixed(2)}°</p>
+                            <p><b>Longitude:</b> ${sat.lon.toFixed(2)}°</p>
+                        `
+                    });
+                });
+
+                status.textContent = `GEO: ${geoCount} | MEO: ${meoCount} | LEO: ${leoCount}`;
+
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        loadSatellites();
+    </script>
+</body>
+</html>

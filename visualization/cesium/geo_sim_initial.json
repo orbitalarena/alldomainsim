@@ -1,0 +1,33 @@
+{
+  "mode": "sim",
+  "metadata": {
+    "scenario": "GEO Interactive Simulation",
+    "geo_radius_m": 42164000.0000000000,
+    "geo_mean_motion": 0.0000729216,
+    "geo_velocity_ms": 3074.6662841277,
+    "duration_days": 7,
+    "separation_deg": 1.0000000000,
+    "earth_mu": 398600441800000.0000000000
+  },
+  "chase": {
+    "name": "Chase",
+    "position_eci_m": [42164000.0000000000, 0.0000000000, 0.0000000000],
+    "velocity_eci_ms": [-0.0000000000, 3074.6662841277, 0.0000000000],
+    "model": "models/webb.glb",
+    "color": "#00FF00"
+  },
+  "target": {
+    "name": "Target",
+    "position_eci_m": [42157578.2185740843, 735863.2650216219, 0.0000000000],
+    "velocity_eci_ms": [-53.6603256496, 3074.1979975601, 0.0000000000],
+    "model": "models/webb.glb",
+    "color": "#FF0000"
+  },
+  "burn_budget_ms": 50.0,
+  "initial_ric": {
+    "R_m": -6421.7814259239,
+    "I_m": -735863.2650216219,
+    "C_m": 0.0000000000,
+    "range_m": 735891.2855068771
+  }
+}

@@ -1,4 +1,5 @@
 #include "physics/nonlinear_rendezvous.hpp"
+#include "physics/gravity_utils.hpp"
 #include <cmath>
 #include <iostream>
 #include <iomanip>
@@ -14,51 +15,26 @@ NonlinearRendezvousSolver::NonlinearRendezvousSolver(
     : force_config_(force_config), solver_config_(solver_config) {}
 
 Vec3 NonlinearRendezvousSolver::compute_acceleration(const Vec3& pos) const {
-    double r = pos.norm();
-    double r3 = r * r * r;
+    // Use consolidated gravity utilities
+    Vec3 acc = gravity::two_body_acceleration(pos, force_config_.mu);
 
-    Vec3 acc;
-    // Two-body gravity
-    acc.x = -force_config_.mu * pos.x / r3;
-    acc.y = -force_config_.mu * pos.y / r3;
-    acc.z = -force_config_.mu * pos.z / r3;
-
-    // J2 perturbation
     if (force_config_.include_j2) {
-        double r2 = r * r;
-        double r5 = r2 * r3;
-        double Re2 = force_config_.body_radius * force_config_.body_radius;
-        double z2 = pos.z * pos.z;
-        double factor = 1.5 * force_config_.j2 * force_config_.mu * Re2 / r5;
-
-        acc.x += factor * pos.x * (5.0 * z2 / r2 - 1.0);
-        acc.y += factor * pos.y * (5.0 * z2 / r2 - 1.0);
-        acc.z += factor * pos.z * (5.0 * z2 / r2 - 3.0);
+        Vec3 j2_acc = gravity::j2_perturbation(
+            pos, force_config_.mu, force_config_.j2, force_config_.body_radius);
+        acc.x += j2_acc.x;
+        acc.y += j2_acc.y;
+        acc.z += j2_acc.z;
     }
 
     return acc;
 }
 
 void NonlinearRendezvousSolver::compute_gravity_gradient(const Vec3& pos, double G[3][3]) const {
-    double r = pos.norm();
-    double r2 = r * r;
-    double r3 = r2 * r;
-    double r5 = r2 * r3;
-    double mu = force_config_.mu;
+    // Use consolidated gravity gradient utility
+    gravity::gravity_gradient(pos, force_config_.mu, G);
 
-    // Gradient of two-body gravity: G_ij = -mu/r^3 * (delta_ij - 3*r_i*r_j/r^2)
-    G[0][0] = -mu / r3 * (1.0 - 3.0 * pos.x * pos.x / r2);
-    G[0][1] = -mu / r3 * (-3.0 * pos.x * pos.y / r2);
-    G[0][2] = -mu / r3 * (-3.0 * pos.x * pos.z / r2);
-    G[1][0] = G[0][1];
-    G[1][1] = -mu / r3 * (1.0 - 3.0 * pos.y * pos.y / r2);
-    G[1][2] = -mu / r3 * (-3.0 * pos.y * pos.z / r2);
-    G[2][0] = G[0][2];
-    G[2][1] = G[1][2];
-    G[2][2] = -mu / r3 * (1.0 - 3.0 * pos.z * pos.z / r2);
-
-    // J2 contribution to gradient would go here for higher fidelity
-    // (omitted for clarity - adds significant complexity)
+    // Note: J2 contribution to gradient could be added for higher fidelity
+    // but is omitted as it adds significant complexity for marginal benefit
 }
 
 ExtendedState NonlinearRendezvousSolver::rk4_step_extended(const ExtendedState& es, double dt) const {

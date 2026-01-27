@@ -8,6 +8,7 @@ add_library(physics
     lunar_ephemeris.cpp
     multi_body_gravity.cpp
     aerobraking.cpp
+    launch_trajectory_solver.cpp
 )
 
 target_include_directories(physics PUBLIC
@@ -17,4 +18,5 @@ target_include_directories(physics PUBLIC
 target_link_libraries(physics
     core
     propagators
+    targeting
 )

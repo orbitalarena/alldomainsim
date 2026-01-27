@@ -288,19 +288,34 @@ RendezvousPlan ManeuverPlanner::plan_rendezvous(const StateVector& chaser_state,
     // First burn: prograde (or retrograde for lowering orbit)
     double v_chaser = chaser_state.velocity.norm();
     Vec3 prograde;
-    prograde.x = chaser_state.velocity.x / v_chaser;
-    prograde.y = chaser_state.velocity.y / v_chaser;
-    prograde.z = chaser_state.velocity.z / v_chaser;
+    if (v_chaser > 1.0) {
+        prograde.x = chaser_state.velocity.x / v_chaser;
+        prograde.y = chaser_state.velocity.y / v_chaser;
+        prograde.z = chaser_state.velocity.z / v_chaser;
+    } else {
+        // Fallback if velocity is near zero
+        prograde.x = 1.0; prograde.y = 0.0; prograde.z = 0.0;
+    }
 
     plan.delta_v1.x = plan.transfer.delta_v1 * prograde.x;
     plan.delta_v1.y = plan.transfer.delta_v1 * prograde.y;
     plan.delta_v1.z = plan.transfer.delta_v1 * prograde.z;
 
-    // Second burn will be computed at the transfer orbit apoapsis
-    // For now, store magnitude
-    plan.delta_v2.x = plan.transfer.delta_v2 * prograde.x;
-    plan.delta_v2.y = plan.transfer.delta_v2 * prograde.y;
-    plan.delta_v2.z = plan.transfer.delta_v2 * prograde.z;
+    // Second burn: use target velocity direction as approximation
+    // (At rendezvous, we want to match target's velocity)
+    double v_target = target_state.velocity.norm();
+    Vec3 target_prograde;
+    if (v_target > 1.0) {
+        target_prograde.x = target_state.velocity.x / v_target;
+        target_prograde.y = target_state.velocity.y / v_target;
+        target_prograde.z = target_state.velocity.z / v_target;
+    } else {
+        target_prograde = prograde;
+    }
+
+    plan.delta_v2.x = plan.transfer.delta_v2 * target_prograde.x;
+    plan.delta_v2.y = plan.transfer.delta_v2 * target_prograde.y;
+    plan.delta_v2.z = plan.transfer.delta_v2 * target_prograde.z;
 
     std::cout << "Rendezvous Plan:" << std::endl;
     std::cout << "  Phase angle: " << plan.phase_angle * 180.0 / PI << " deg" << std::endl;

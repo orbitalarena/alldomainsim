@@ -297,12 +297,15 @@ void LaunchVehicle::update_orbital(double dt) {
     execute_maneuvers(dt);
 
     // Gravity only propagation (use GravityModel for J2)
+    // Note: compute_derivatives stores acceleration in .position and velocity in .velocity
     auto derivatives = GravityModel::compute_derivatives(state_, true);
 
-    state_.velocity.x += derivatives.velocity.x * dt;
-    state_.velocity.y += derivatives.velocity.y * dt;
-    state_.velocity.z += derivatives.velocity.z * dt;
+    // Update velocity with acceleration (stored in derivatives.position)
+    state_.velocity.x += derivatives.position.x * dt;
+    state_.velocity.y += derivatives.position.y * dt;
+    state_.velocity.z += derivatives.position.z * dt;
 
+    // Update position with velocity (can also use derivatives.velocity for Euler-Cromer)
     state_.position.x += state_.velocity.x * dt;
     state_.position.y += state_.velocity.y * dt;
     state_.position.z += state_.velocity.z * dt;
@@ -478,16 +481,23 @@ void LaunchVehicle::execute_maneuvers(double dt) {
         if (state_.time >= maneuver.start_time &&
             state_.time < maneuver.start_time + maneuver.duration) {
 
-            // Execute maneuver (apply delta-V over duration)
+            // Get delta-V magnitude and apply in current prograde direction
+            double dv_mag = maneuver.delta_v.norm();
             double dv_fraction = dt / maneuver.duration;
-            state_.velocity.x += maneuver.delta_v.x * dv_fraction;
-            state_.velocity.y += maneuver.delta_v.y * dv_fraction;
-            state_.velocity.z += maneuver.delta_v.z * dv_fraction;
+
+            // Current velocity direction (prograde)
+            double v_mag = state_.velocity.norm();
+            if (v_mag > 1.0) {
+                double dv_apply = dv_mag * dv_fraction;
+                state_.velocity.x += (state_.velocity.x / v_mag) * dv_apply;
+                state_.velocity.y += (state_.velocity.y / v_mag) * dv_apply;
+                state_.velocity.z += (state_.velocity.z / v_mag) * dv_apply;
+            }
 
             if (phase_ != FlightPhase::MANEUVER) {
                 phase_ = FlightPhase::MANEUVER;
-                std::cout << "T+" << state_.time << "s: Executing maneuver, dV = "
-                          << maneuver.delta_v.norm() << " m/s" << std::endl;
+                std::cout << "T+" << state_.time << "s: Executing prograde maneuver, dV = "
+                          << dv_mag << " m/s" << std::endl;
             }
         }
 

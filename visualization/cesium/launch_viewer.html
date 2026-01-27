@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Launch Trajectory Viewer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: sans-serif;
+            z-index: 1000;
+            min-width: 220px;
+        }
+        #controls h3 { margin: 0 0 10px 0; font-size: 16px; color: #FF6600; }
+        #controls button {
+            padding: 8px 15px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            background: #2196F3;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            font-size: 14px;
+        }
+        #controls button:hover { background: #1976D2; }
+        #controls label { display: block; margin: 10px 0 5px 0; font-size: 13px; }
+        #controls input[type="range"] { width: 100%; }
+        .checkbox-label { display: flex; align-items: center; margin: 8px 0; cursor: pointer; }
+        #controls input[type="checkbox"] { margin-right: 8px; }
+        #status { margin-top: 10px; font-size: 12px; color: #aaa; }
+        #speedValue { color: #4CAF50; font-weight: bold; }
+        #missionInfo {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: monospace;
+            font-size: 13px;
+            z-index: 1000;
+            min-width: 260px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #missionInfo h4 { margin: 0 0 8px 0; font-family: sans-serif; }
+        #missionInfo .section { margin: 10px 0; padding-top: 8px; border-top: 1px solid #555; }
+        #missionInfo .section h4 { color: #FF6600; }
+        .row { margin: 3px 0; }
+        .label { color: #aaa; }
+        .value { color: #00FF00; }
+        .phase-s1 { color: #FF6600; }
+        .phase-s2 { color: #FFCC00; }
+        .phase-coast { color: #00CCFF; }
+        .phase-s3 { color: #FF0066; }
+        .phase-orbit { color: #00FF66; }
+        .event-list { list-style: none; padding: 0; margin: 5px 0; }
+        .event-list li {
+            padding: 3px 0;
+            font-size: 12px;
+            border-left: 3px solid #FF6600;
+            padding-left: 8px;
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="controls">
+        <h3>Launch Trajectory</h3>
+        <button onclick="loadData()">Reload Data</button>
+        <button onclick="resetView()">Reset View</button>
+        <button onclick="viewFromSide()">Side View</button>
+
+        <label>Speed: <span id="speedValue">10x</span></label>
+        <input type="range" id="speedSlider" min="0" max="5" value="1" step="1" onchange="updateSpeed(this.value)">
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="showGroundTrack" checked onchange="toggleGroundTrack()">
+            Show Ground Track
+        </label>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="showLabels" checked onchange="toggleLabels()">
+            Show Labels
+        </label>
+
+        <label class="checkbox-label">
+            <input type="checkbox" id="showLaunchSite" checked onchange="toggleLaunchSite()">
+            Show Launch Site
+        </label>
+
+        <div id="status">Ready...</div>
+    </div>
+
+    <div id="missionInfo">
+        <h4 style="color: #FF6600;">Mission Data</h4>
+        <div class="row">
+            <span class="label">Phase:</span>
+            <span class="value" id="currentPhase">--</span>
+        </div>
+        <div class="row">
+            <span class="label">Time:</span>
+            <span class="value" id="simTime">T+00:00:00</span>
+        </div>
+        <div class="row">
+            <span class="label">Altitude:</span>
+            <span class="value" id="altValue">-- km</span>
+        </div>
+        <div class="row">
+            <span class="label">Velocity:</span>
+            <span class="value" id="velValue">-- m/s</span>
+        </div>
+
+        <div class="section" id="eventsSection" style="display:none;">
+            <h4>Events</h4>
+            <ul class="event-list" id="eventList"></ul>
+        </div>
+
+        <div class="section" id="orbitSection" style="display:none;">
+            <h4>Final Orbit</h4>
+            <div id="orbitInfo"></div>
+        </div>
+
+        <div class="section" id="dvSection" style="display:none;">
+            <h4>Delta-V Budget</h4>
+            <div id="dvInfo"></div>
+        </div>
+
+        <div class="section">
+            <h4 style="color: #aaa; font-size: 12px;">Phase Colors</h4>
+            <div style="font-size: 11px;">
+                <span class="phase-s1">&#9679;</span> S1 Ascent&nbsp;
+                <span class="phase-s2">&#9679;</span> S2 Ascent&nbsp;
+                <span class="phase-coast">&#9679;</span> Coast&nbsp;
+                <span class="phase-s3">&#9679;</span> S3 Burn&nbsp;
+                <span class="phase-orbit">&#9679;</span> Orbit
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const speedMultipliers = [1, 10, 60, 300, 600, 3600];
+        const speedLabels = ['1x', '10x', '1min/s', '5min/s', '10min/s', '1hr/s'];
+
+        const phaseColors = {
+            0: Cesium.Color.fromCssColorString('#FF6600'),  // S1
+            1: Cesium.Color.fromCssColorString('#FFCC00'),  // S2
+            2: Cesium.Color.fromCssColorString('#00CCFF'),  // Coast
+            3: Cesium.Color.fromCssColorString('#FF0066'),  // S3
+            4: Cesium.Color.fromCssColorString('#00FF66')   // Orbit
+        };
+        const phaseNames = ['S1 Ascent', 'S2 Ascent', 'Coast', 'S3 Burn', 'Orbit'];
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: true,
+            timeline: true,
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true,
+            selectionIndicator: false,
+            sceneModePicker: false,
+            navigationHelpButton: false
+        });
+
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+        addArcGISProviders(viewer);
+
+        let vehicleEntity = null;
+        let groundTrackEntities = [];
+        let phasePolylines = [];
+        let launchSiteEntity = null;
+        let eventEntities = [];
+        let orbitData = null;
+        let startTime = null;
+        let positionData = null;  // for real-time readout
+
+        function resetView() {
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(-60, 10, 25000000),
+                orientation: {
+                    heading: 0,
+                    pitch: -Cesium.Math.PI_OVER_TWO * 0.85,
+                    roll: 0
+                }
+            });
+        }
+
+        function viewFromSide() {
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(-80, 28, 40000000),
+                orientation: {
+                    heading: Cesium.Math.toRadians(90),
+                    pitch: Cesium.Math.toRadians(-15),
+                    roll: 0
+                }
+            });
+        }
+
+        function updateSpeed(value) {
+            const multiplier = speedMultipliers[value];
+            document.getElementById('speedValue').textContent = speedLabels[value];
+            viewer.clock.multiplier = multiplier;
+        }
+
+        function toggleGroundTrack() {
+            const show = document.getElementById('showGroundTrack').checked;
+            groundTrackEntities.forEach(e => { e.show = show; });
+        }
+
+        function toggleLabels() {
+            const show = document.getElementById('showLabels').checked;
+            if (vehicleEntity && vehicleEntity.label) vehicleEntity.label.show = show;
+            eventEntities.forEach(e => { if (e.label) e.label.show = show; });
+        }
+
+        function toggleLaunchSite() {
+            if (launchSiteEntity) launchSiteEntity.show = document.getElementById('showLaunchSite').checked;
+        }
+
+        function updateDisplay() {
+            if (!startTime || !positionData) return;
+
+            const currentTime = viewer.clock.currentTime;
+            const elapsed = Cesium.JulianDate.secondsDifference(currentTime, startTime);
+            if (elapsed < 0) return;
+
+            // Find closest data point
+            let closest = positionData[0];
+            let minDiff = Infinity;
+            for (let i = 0; i < positionData.length; i++) {
+                const diff = Math.abs(positionData[i].time - elapsed);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    closest = positionData[i];
+                }
+            }
+
+            // Update time
+            const hrs = Math.floor(elapsed / 3600);
+            const mins = Math.floor((elapsed % 3600) / 60);
+            const secs = Math.floor(elapsed % 60);
+            document.getElementById('simTime').textContent =
+                `T+${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+
+            // Update phase
+            const phaseEl = document.getElementById('currentPhase');
+            phaseEl.textContent = phaseNames[closest.phase] || '--';
+            phaseEl.className = 'value phase-' + ['s1','s2','coast','s3','orbit'][closest.phase];
+
+            // Update altitude and velocity from geo data
+            if (closest.geo) {
+                document.getElementById('altValue').textContent =
+                    (closest.geo.alt / 1000).toFixed(1) + ' km';
+            }
+
+            // Compute velocity from ECI differences (approximate)
+            const idx = positionData.indexOf(closest);
+            if (idx > 0 && closest.eci) {
+                const prev = positionData[idx - 1];
+                const dt = closest.time - prev.time;
+                if (dt > 0 && prev.eci) {
+                    const vx = (closest.eci.x - prev.eci.x) / dt;
+                    const vy = (closest.eci.y - prev.eci.y) / dt;
+                    const vz = (closest.eci.z - prev.eci.z) / dt;
+                    const vel = Math.sqrt(vx*vx + vy*vy + vz*vz);
+                    document.getElementById('velValue').textContent = vel.toFixed(0) + ' m/s';
+                }
+            }
+        }
+
+        async function loadData() {
+            const status = document.getElementById('status');
+            status.textContent = 'Loading...';
+
+            try {
+                let response = await fetch('../../gravity_turn_data.json?' + Date.now());
+                if (!response.ok) {
+                    response = await fetch('gravity_turn_data.json?' + Date.now());
+                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                orbitData = await response.json();
+
+                // Clear existing
+                if (vehicleEntity) viewer.entities.remove(vehicleEntity);
+                groundTrackEntities.forEach(e => viewer.entities.remove(e));
+                phasePolylines.forEach(e => viewer.entities.remove(e));
+                eventEntities.forEach(e => viewer.entities.remove(e));
+                if (launchSiteEntity) viewer.entities.remove(launchSiteEntity);
+                groundTrackEntities = [];
+                phasePolylines = [];
+                eventEntities = [];
+
+                const metadata = orbitData.metadata;
+                const duration = metadata.duration;
+                const satellite = orbitData.satellites[0];
+                positionData = satellite.positions;
+
+                // Setup clock
+                startTime = Cesium.JulianDate.now();
+                const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+                viewer.clock.startTime = startTime.clone();
+                viewer.clock.stopTime = stopTime.clone();
+                viewer.clock.currentTime = startTime.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+                viewer.clock.multiplier = 10;
+                viewer.timeline.zoomTo(startTime, stopTime);
+
+                // Create vehicle position property (INERTIAL = ECI frame)
+                const positionProperty = new Cesium.SampledPositionProperty(Cesium.ReferenceFrame.INERTIAL);
+                positionProperty.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                // Build phase-grouped positions for colored polylines
+                const phasePositions = {0: [], 1: [], 2: [], 3: [], 4: []};
+                const groundTrackPositions = [];
+
+                satellite.positions.forEach(pos => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, pos.time, new Cesium.JulianDate());
+
+                    let x, y, z;
+                    if (pos.eci) {
+                        x = pos.eci.x; y = pos.eci.y; z = pos.eci.z;
+                    } else {
+                        x = pos.x; y = pos.y; z = pos.z;
+                    }
+
+                    const eciPos = new Cesium.Cartesian3(x, y, z);
+                    positionProperty.addSample(time, eciPos);
+
+                    // Group by phase
+                    if (pos.phase !== undefined) {
+                        phasePositions[pos.phase].push(eciPos);
+                    }
+
+                    // Ground track
+                    if (pos.geo) {
+                        groundTrackPositions.push({
+                            pos: Cesium.Cartesian3.fromDegrees(pos.geo.lon, pos.geo.lat, 0),
+                            lon: pos.geo.lon
+                        });
+                    }
+                });
+
+                // Create vehicle entity
+                vehicleEntity = viewer.entities.add({
+                    name: 'Launch Vehicle',
+                    position: positionProperty,
+                    point: {
+                        pixelSize: 14,
+                        color: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.fromCssColorString('#FF6600'),
+                        outlineWidth: 3,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    path: {
+                        leadTime: 0,
+                        trailTime: duration,
+                        width: 2,
+                        material: new Cesium.ColorMaterialProperty(
+                            Cesium.Color.fromCssColorString('#FF6600').withAlpha(0.5)
+                        ),
+                        resolution: 30
+                    },
+                    label: {
+                        text: 'Launch Vehicle',
+                        font: '14px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(15, 0),
+                        showBackground: true,
+                        backgroundColor: Cesium.Color.BLACK.withAlpha(0.6),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        show: document.getElementById('showLabels').checked
+                    }
+                });
+
+                // Ground track polylines (split at antimeridian)
+                if (groundTrackPositions.length > 1) {
+                    const segments = [];
+                    let currentSegment = [groundTrackPositions[0].pos];
+
+                    for (let i = 1; i < groundTrackPositions.length; i++) {
+                        const lonDiff = Math.abs(groundTrackPositions[i].lon - groundTrackPositions[i-1].lon);
+                        if (lonDiff > 180) {
+                            if (currentSegment.length > 1) segments.push(currentSegment);
+                            currentSegment = [];
+                        }
+                        currentSegment.push(groundTrackPositions[i].pos);
+                    }
+                    if (currentSegment.length > 1) segments.push(currentSegment);
+
+                    segments.forEach((seg, idx) => {
+                        const e = viewer.entities.add({
+                            name: 'Ground Track ' + (idx + 1),
+                            polyline: {
+                                positions: seg,
+                                width: 2,
+                                material: Cesium.Color.fromCssColorString('#FF6600').withAlpha(0.4),
+                                clampToGround: true
+                            },
+                            show: document.getElementById('showGroundTrack').checked
+                        });
+                        groundTrackEntities.push(e);
+                    });
+                }
+
+                // Launch site marker
+                if (metadata.launch_site) {
+                    launchSiteEntity = viewer.entities.add({
+                        name: metadata.launch_site.name || 'Launch Site',
+                        position: Cesium.Cartesian3.fromDegrees(
+                            metadata.launch_site.lon,
+                            metadata.launch_site.lat,
+                            0
+                        ),
+                        point: {
+                            pixelSize: 10,
+                            color: Cesium.Color.RED,
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2
+                        },
+                        label: {
+                            text: metadata.launch_site.name || 'Launch Site',
+                            font: '12px sans-serif',
+                            fillColor: Cesium.Color.RED,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 2,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            pixelOffset: new Cesium.Cartesian2(12, 0),
+                            showBackground: true,
+                            backgroundColor: Cesium.Color.BLACK.withAlpha(0.6)
+                        },
+                        show: document.getElementById('showLaunchSite').checked
+                    });
+                }
+
+                // Events display
+                if (metadata.events && metadata.events.length > 0) {
+                    const eventList = document.getElementById('eventList');
+                    eventList.innerHTML = '';
+                    metadata.events.forEach(evt => {
+                        const mins = Math.floor(evt.time / 60);
+                        const secs = Math.floor(evt.time % 60);
+                        const timeStr = `T+${mins}:${secs.toString().padStart(2,'0')}`;
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span class="label">${timeStr}</span> ${evt.name}`;
+                        if (evt.alt_km !== undefined) {
+                            li.innerHTML += ` <span class="label">(${evt.alt_km.toFixed(0)} km)</span>`;
+                        }
+                        eventList.appendChild(li);
+                    });
+                    document.getElementById('eventsSection').style.display = 'block';
+                }
+
+                // Orbit info
+                if (metadata.final_orbit) {
+                    const o = metadata.final_orbit;
+                    document.getElementById('orbitInfo').innerHTML = `
+                        <div class="row"><span class="label">SMA:</span> <span class="value">${o.sma_km.toFixed(0)} km</span></div>
+                        <div class="row"><span class="label">Ecc:</span> <span class="value">${o.eccentricity.toFixed(4)}</span></div>
+                        <div class="row"><span class="label">Inc:</span> <span class="value">${o.inclination_deg.toFixed(1)}&deg;</span></div>
+                        <div class="row"><span class="label">Peri:</span> <span class="value">${o.periapsis_km.toFixed(0)} km</span></div>
+                        <div class="row"><span class="label">Apo:</span> <span class="value">${o.apoapsis_km.toFixed(0)} km</span></div>
+                    `;
+                    document.getElementById('orbitSection').style.display = 'block';
+                }
+
+                // Delta-V info
+                if (metadata.delta_v) {
+                    const dv = metadata.delta_v;
+                    document.getElementById('dvInfo').innerHTML = `
+                        <div class="row"><span class="label">Ascent:</span> <span class="value">${dv.ascent_thrust.toFixed(0)} m/s</span></div>
+                        <div class="row"><span class="label">Grav loss:</span> <span class="value">-${dv.gravity_loss.toFixed(0)} m/s</span></div>
+                        <div class="row"><span class="label">Drag loss:</span> <span class="value">-${dv.drag_loss.toFixed(0)} m/s</span></div>
+                        <div class="row"><span class="label">S3 burn:</span> <span class="value">${dv.s3_burn.toFixed(0)} m/s</span></div>
+                        <div class="row"><span class="label">Total:</span> <span class="value" style="font-weight:bold;">${dv.total.toFixed(0)} m/s</span></div>
+                    `;
+                    document.getElementById('dvSection').style.display = 'block';
+                }
+
+                // Update display on clock tick
+                viewer.clock.onTick.addEventListener(updateDisplay);
+
+                status.textContent = `Loaded: ${satellite.positions.length} points, ${(duration/3600).toFixed(1)}h`;
+                resetView();
+
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        resetView();
+        setTimeout(loadData, 500);
+    </script>
+</body>
+</html>

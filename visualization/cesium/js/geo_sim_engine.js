@@ -1,8 +1,12 @@
 /**
  * GEO Simulation Engine
  *
- * Real-time propagation using Clohessy-Wiltshire equations
+ * Real-time propagation with full nonlinear dynamics
  * Supports state history, rewind, burn preview, and orientation control
+ *
+ * Physics models:
+ * - Two-body gravity (always enabled)
+ * - J2 oblateness perturbation (optional, disabled by default for GEO)
  */
 
 class GeoSimEngine {
@@ -12,6 +16,14 @@ class GeoSimEngine {
         this.n = initialState.metadata.geo_mean_motion;
         this.geoRadius = initialState.metadata.geo_radius_m;
         this.v_geo = initialState.metadata.geo_velocity_ms || Math.sqrt(this.MU / this.geoRadius);
+
+        // Earth constants for J2 perturbation
+        this.EARTH_RADIUS = 6378137.0;  // meters
+        this.EARTH_J2 = 1.08262668e-3;  // J2 coefficient
+
+        // J2 perturbation: disabled by default for GEO (effect is ~0.001%)
+        // Enable for LEO scenarios where J2 causes ~7 deg/day nodal precession
+        this.includeJ2 = initialState.metadata.include_j2 || false;
 
         // Earth rotation rate (rad/s) for ECI to ECEF conversion
         this.EARTH_OMEGA = 7.2921159e-5;
@@ -511,16 +523,52 @@ class GeoSimEngine {
     // ========================================
 
     /**
-     * Compute gravitational acceleration
+     * Compute gravitational acceleration (two-body + optional J2)
+     *
+     * Two-body: a = -mu * r / |r|³
+     * J2: adds oblateness perturbation for non-spherical Earth
+     *
+     * @param {Array} pos - Position [x, y, z] in meters
+     * @param {boolean} includeJ2Override - Optional override for J2 inclusion
+     * @returns {Array} Acceleration [ax, ay, az] in m/s²
      */
-    computeAcceleration(pos) {
+    computeAcceleration(pos, includeJ2Override = null) {
         const r = Math.sqrt(pos[0]**2 + pos[1]**2 + pos[2]**2);
         const r3 = r * r * r;
-        return [
+
+        // Two-body gravity
+        const acc = [
             -this.MU * pos[0] / r3,
             -this.MU * pos[1] / r3,
             -this.MU * pos[2] / r3
         ];
+
+        // J2 perturbation (if enabled)
+        const useJ2 = includeJ2Override !== null ? includeJ2Override : this.includeJ2;
+        if (useJ2) {
+            const r2 = r * r;
+            const r5 = r2 * r3;
+            const z2 = pos[2] * pos[2];
+
+            // J2 formula: a_J2 = (3/2) * J2 * mu * R²/r⁵ * [(5z²/r² - 1)*x, (5z²/r² - 1)*y, (5z²/r² - 3)*z]
+            const j2_coeff = 1.5 * this.EARTH_J2 * this.MU * this.EARTH_RADIUS * this.EARTH_RADIUS / r5;
+            const z_factor = 5.0 * z2 / r2;
+
+            acc[0] += j2_coeff * pos[0] * (z_factor - 1.0);
+            acc[1] += j2_coeff * pos[1] * (z_factor - 1.0);
+            acc[2] += j2_coeff * pos[2] * (z_factor - 3.0);
+        }
+
+        return acc;
+    }
+
+    /**
+     * Toggle J2 perturbation
+     * @param {boolean} enabled - Whether to include J2
+     */
+    setJ2Enabled(enabled) {
+        this.includeJ2 = enabled;
+        console.log(`J2 perturbation ${enabled ? 'enabled' : 'disabled'}`);
     }
 
     /**

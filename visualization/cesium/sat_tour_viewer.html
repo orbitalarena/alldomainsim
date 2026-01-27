@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Satellite Tour Viewer - Dense Cluster Rendezvous</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: sans-serif;
+            z-index: 1000;
+            max-width: 300px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #controls h3 { margin: 0 0 10px 0; font-size: 16px; color: #4CAF50; }
+        #controls button {
+            padding: 8px 12px;
+            margin: 3px 3px 3px 0;
+            cursor: pointer;
+            background: #2196F3;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            font-size: 13px;
+        }
+        #controls button:hover { background: #1976D2; }
+        #controls button.active { background: #4CAF50; }
+        #status { margin-top: 10px; font-size: 12px; color: #aaa; }
+        #hopList {
+            max-height: 350px;
+            overflow-y: auto;
+            margin-top: 10px;
+            font-size: 11px;
+            font-family: monospace;
+        }
+        .hop-item {
+            padding: 5px 8px;
+            border-bottom: 1px solid #444;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hop-item:hover { background: #555; }
+        .hop-item.active { background: #2196F3; }
+        .hop-item.visited { background: rgba(76, 175, 80, 0.3); }
+        .hop-num { color: #888; width: 25px; }
+        .hop-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hop-dv { color: #4CAF50; font-weight: bold; margin-left: 8px; }
+        #summary {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(42, 42, 42, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            z-index: 1000;
+            min-width: 220px;
+        }
+        #summary h4 { margin: 0 0 10px 0; color: #4CAF50; font-family: sans-serif; }
+        .summary-row { margin: 5px 0; }
+        .summary-label { color: #aaa; }
+        .summary-value { color: #00FF00; font-weight: bold; }
+        .checkbox-row { margin: 8px 0; display: flex; align-items: center; }
+        .checkbox-row input { margin-right: 8px; }
+        .slider-row { margin: 10px 0; }
+        .slider-row label { display: block; margin-bottom: 5px; }
+        #speedValue { color: #4CAF50; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="controls">
+        <h3>30-Satellite Tour</h3>
+        <div>
+            <button onclick="loadTourData()">Reload</button>
+            <button onclick="resetView()">Reset View</button>
+            <button onclick="followChase()" id="followBtn">Follow Chase</button>
+            <button onclick="zoomToFirstTarget()" style="background:#FF5722;">Zoom to Target 1</button>
+        </div>
+
+        <div class="slider-row">
+            <label>Speed: <span id="speedValue">100x</span></label>
+            <input type="range" id="speedSlider" min="0" max="5" value="2" step="1"
+                   onchange="updateSpeed(this.value)" style="width: 100%;">
+        </div>
+
+        <div class="checkbox-row">
+            <input type="checkbox" id="showTargets" checked onchange="toggleTargets()">
+            <label for="showTargets">Show Target Satellites</label>
+        </div>
+        <div class="checkbox-row">
+            <input type="checkbox" id="showPath" checked onchange="togglePath()">
+            <label for="showPath">Show Chase Path</label>
+        </div>
+        <div class="checkbox-row">
+            <input type="checkbox" id="showLabels" checked onchange="toggleLabels()">
+            <label for="showLabels">Show Labels</label>
+        </div>
+        <div class="checkbox-row">
+            <input type="checkbox" id="showAllSats" onchange="toggleAllSats()">
+            <label for="showAllSats">Show All 572 Satellites</label>
+        </div>
+
+        <div id="legend" style="margin-top:10px;font-size:11px;display:none;">
+            <div style="color:#FF4444;">● GEO (35,786 km)</div>
+            <div style="color:#44FF44;">● MEO (2,000-35,000 km)</div>
+            <div style="color:#4444FF;">● LEO (&lt;2,000 km)</div>
+            <div style="color:#FFD700;">● Visited Targets</div>
+        </div>
+
+        <div id="hopList"></div>
+        <div id="status">Ready...</div>
+    </div>
+
+    <div id="summary">
+        <h4>Mission Summary</h4>
+        <div class="summary-row">
+            <span class="summary-label">Targets:</span>
+            <span class="summary-value" id="numTargets">--</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Total Delta-V:</span>
+            <span class="summary-value" id="totalDv">-- m/s</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Duration:</span>
+            <span class="summary-value" id="duration">-- days</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Current Hop:</span>
+            <span class="summary-value" id="currentHop">--</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Current Target:</span>
+            <span class="summary-value" id="currentTarget">--</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Elapsed:</span>
+            <span class="summary-value" id="elapsedTime">--:--:--</span>
+        </div>
+    </div>
+
+    <script>
+        const speedMultipliers = [1, 10, 100, 500, 1000, 5000];
+        const speedLabels = ['1x', '10x', '100x', '500x', '1000x', '5000x'];
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: true,
+            timeline: true,
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            infoBox: true,
+            selectionIndicator: true,
+            sceneModePicker: true,
+            navigationHelpButton: false        });
+
+        let chaseEntity = null;
+        let tourData = null;
+        let targetEntities = [];
+        let allSatEntities = [];
+        let pathEntity = null;
+        let startTime = null;
+        let isFollowing = false;
+
+        function resetView() {
+            isFollowing = false;
+            document.getElementById('followBtn').classList.remove('active');
+            viewer.trackedEntity = undefined;
+        addArcGISProviders(viewer);
+            viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 120000000),
+                orientation: {
+                    heading: 0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0
+                }
+            });
+        }
+
+        function updateSpeed(value) {
+            const multiplier = speedMultipliers[value];
+            document.getElementById('speedValue').textContent = speedLabels[value];
+            viewer.clock.multiplier = multiplier;
+        }
+
+        function followChase() {
+            if (chaseEntity) {
+                isFollowing = !isFollowing;
+                if (isFollowing) {
+                    viewer.trackedEntity = chaseEntity;
+                    document.getElementById('followBtn').classList.add('active');
+                } else {
+                    viewer.trackedEntity = undefined;
+                    document.getElementById('followBtn').classList.remove('active');
+                }
+            }
+        }
+
+        function toggleTargets() {
+            const show = document.getElementById('showTargets').checked;
+            targetEntities.forEach(e => { e.show = show; });
+        }
+
+        function togglePath() {
+            const show = document.getElementById('showPath').checked;
+            if (pathEntity) pathEntity.show = show;
+            if (chaseEntity && chaseEntity.path) {
+                chaseEntity.path.show = show;
+            }
+        }
+
+        function toggleLabels() {
+            const show = document.getElementById('showLabels').checked;
+            targetEntities.forEach(e => { if (e.label) e.label.show = show; });
+            if (chaseEntity && chaseEntity.label) chaseEntity.label.show = show;
+        }
+
+        function toggleAllSats() {
+            const show = document.getElementById('showAllSats').checked;
+            document.getElementById('legend').style.display = show ? 'block' : 'none';
+            allSatEntities.forEach(e => { e.show = show; });
+        }
+
+        function zoomToFirstTarget() {
+            if (!tourData || !tourData.hops || tourData.hops.length === 0) {
+                alert('No tour data loaded');
+                return;
+            }
+
+            const hop = tourData.hops[0];
+            if (!hop.target_geo) {
+                alert('No geodetic data for first target');
+                return;
+            }
+
+            const lat = hop.target_geo.lat;
+            const lon = hop.target_geo.lon;
+            const alt = hop.target_geo.alt;
+
+            console.log(`Zooming to ${hop.target}: lat=${lat}, lon=${lon}, alt=${alt/1000} km`);
+
+            // Fly to a position looking at the satellite
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(lon, lat, alt + 5000000), // 5000km above target
+                orientation: {
+                    heading: 0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0
+                },
+                duration: 2
+            });
+
+            // Also log if we have any target entities
+            console.log('Target entities count:', targetEntities.length);
+            if (targetEntities.length > 0) {
+                console.log('First target entity:', targetEntities[0]);
+                console.log('First target entity show:', targetEntities[0].show);
+                console.log('First target entity position:', targetEntities[0].position);
+            }
+        }
+
+        async function loadTourData() {
+            const status = document.getElementById('status');
+            status.textContent = 'Loading...';
+
+            try {
+                const cacheBust = Date.now() + '_' + Math.random();
+                console.log('Fetching with cache bust:', cacheBust);
+                // Try local file first, then parent directory
+                let response = await fetch('./sat_tour_data.json?' + cacheBust);
+                if (!response.ok) {
+                    console.log('Local fetch failed, trying parent...');
+                    response = await fetch('../../sat_tour_data.json?' + cacheBust);
+                }
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                tourData = await response.json();
+
+                console.log('Loaded tour data:', tourData);
+                console.log('First hop:', tourData.hops[0]);
+                console.log('First hop target_geo:', tourData.hops[0].target_geo);
+
+                // Clear existing entities
+                viewer.entities.removeAll();
+                targetEntities = [];
+                allSatEntities = [];
+                chaseEntity = null;
+                pathEntity = null;
+
+                const meta = tourData.metadata;
+                const duration = meta.total_duration_hours * 3600;
+
+                // Update summary
+                document.getElementById('numTargets').textContent = meta.num_targets;
+                document.getElementById('totalDv').textContent = meta.total_delta_v_ms.toFixed(1) + ' m/s';
+                document.getElementById('duration').textContent = (meta.total_duration_hours / 24).toFixed(2) + ' days';
+
+                // Setup timeline
+                startTime = Cesium.JulianDate.now();
+                const stopTime = Cesium.JulianDate.addSeconds(startTime, duration, new Cesium.JulianDate());
+
+                viewer.clock.startTime = startTime.clone();
+                viewer.clock.stopTime = stopTime.clone();
+                viewer.clock.currentTime = startTime.clone();
+                viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+                viewer.clock.multiplier = 100;
+                viewer.timeline.zoomTo(startTime, stopTime);
+
+                // Create chase trajectory using geodetic coordinates (FIXED/ECEF frame)
+                const chasePositions = new Cesium.SampledPositionProperty();
+                chasePositions.setInterpolationOptions({
+                    interpolationDegree: 3,
+                    interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
+                });
+
+                tourData.chase_trajectory.forEach(pos => {
+                    const time = Cesium.JulianDate.addSeconds(startTime, pos.time, new Cesium.JulianDate());
+                    // Use geodetic coordinates (same frame as targets)
+                    const position = Cesium.Cartesian3.fromDegrees(pos.lon, pos.lat, pos.alt);
+                    chasePositions.addSample(time, position);
+                });
+
+                // Create chase entity
+                chaseEntity = viewer.entities.add({
+                    name: 'Chase Vehicle',
+                    position: chasePositions,
+                    point: {
+                        pixelSize: 16,
+                        color: Cesium.Color.LIME,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 3
+                    },
+                    path: {
+                        leadTime: 0,
+                        trailTime: 7200,
+                        width: 3,
+                        material: new Cesium.ColorMaterialProperty(Cesium.Color.LIME.withAlpha(0.7)),
+                        show: document.getElementById('showPath').checked
+                    },
+                    label: {
+                        text: 'CHASE',
+                        font: 'bold 14px sans-serif',
+                        fillColor: Cesium.Color.LIME,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(20, 0),
+                        showBackground: true,
+                        backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+                        show: document.getElementById('showLabels').checked
+                    }
+                });
+
+                // Create target satellites at their rendezvous positions
+                const hopDuration = meta.tof_per_hop_hours * 3600;
+
+                console.log('Creating targets, hops count:', tourData.hops.length);
+
+                tourData.hops.forEach((hop, idx) => {
+                    if (!hop.target_geo) {
+                        console.log('No target_geo for hop', idx);
+                        return;
+                    }
+
+                    // Color based on delta-V (red = expensive, green = cheap)
+                    const maxDv = 500;
+                    const dvRatio = Math.min(hop.total_dv / maxDv, 1.0);
+                    const color = Cesium.Color.fromHsl(
+                        (1 - dvRatio) * 0.33,  // Hue: green (0.33) to red (0)
+                        1.0,
+                        0.5
+                    );
+
+                    // Use geodetic coordinates from C++ (already computed correctly)
+                    const lat = hop.target_geo.lat;
+                    const lon = hop.target_geo.lon;
+                    const alt = hop.target_geo.alt;
+
+                    console.log(`Target ${hop.hop}: lat=${lat.toFixed(2)}, lon=${lon.toFixed(2)}, alt=${(alt/1000).toFixed(0)} km`);
+
+                    const targetEntity = viewer.entities.add({
+                        name: `${hop.hop}. ${hop.target}`,
+                        position: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+                        point: {
+                            pixelSize: 12,
+                            color: color,
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2
+                        },
+                        label: {
+                            text: `${hop.hop}`,
+                            font: 'bold 14px sans-serif',
+                            fillColor: Cesium.Color.WHITE,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 2,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            pixelOffset: new Cesium.Cartesian2(15, -15),
+                            show: document.getElementById('showLabels').checked
+                        },
+                        description: `
+                            <h3>${hop.target}</h3>
+                            <p><b>Hop #:</b> ${hop.hop}</p>
+                            <p><b>NORAD ID:</b> ${hop.norad_id}</p>
+                            <p><b>Intercept burn:</b> ${hop.dv1.toFixed(2)} m/s</p>
+                            <p><b>Braking burn:</b> ${hop.dv2.toFixed(2)} m/s</p>
+                            <p><b>Total Delta-V:</b> ${hop.total_dv.toFixed(2)} m/s</p>
+                            <p><b>Rendezvous time:</b> ${(hop.rendezvous_time/3600).toFixed(2)} hours</p>
+                        `,
+                        show: document.getElementById('showTargets').checked
+                    });
+                    targetEntities.push(targetEntity);
+                });
+
+                // Build hop list UI
+                const hopList = document.getElementById('hopList');
+                hopList.innerHTML = '<div style="color:#4CAF50;margin-bottom:5px;font-size:12px;">Click to jump to hop:</div>';
+
+                tourData.hops.forEach((hop, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'hop-item';
+                    div.id = `hop-${idx}`;
+                    div.innerHTML = `
+                        <span class="hop-num">${hop.hop}.</span>
+                        <span class="hop-name">${hop.target}</span>
+                        <span class="hop-dv">${hop.total_dv.toFixed(0)}</span>
+                    `;
+                    div.onclick = () => jumpToHop(idx);
+                    hopList.appendChild(div);
+                });
+
+                // Create all satellite entities (initially hidden)
+                if (tourData.all_satellites) {
+                    console.log('Loading all', tourData.all_satellites.length, 'satellites');
+
+                    tourData.all_satellites.forEach((sat, idx) => {
+                        // Color by orbit type
+                        let color;
+                        if (sat.visited) {
+                            color = Cesium.Color.GOLD; // Visited targets highlighted
+                        } else if (sat.type === 'GEO') {
+                            color = Cesium.Color.RED.withAlpha(0.6);
+                        } else if (sat.type === 'MEO') {
+                            color = Cesium.Color.LIME.withAlpha(0.6);
+                        } else {
+                            color = Cesium.Color.CYAN.withAlpha(0.6);
+                        }
+
+                        const satEntity = viewer.entities.add({
+                            name: sat.name,
+                            position: Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.alt),
+                            point: {
+                                pixelSize: sat.visited ? 10 : 5,
+                                color: color,
+                                outlineColor: sat.visited ? Cesium.Color.WHITE : Cesium.Color.TRANSPARENT,
+                                outlineWidth: sat.visited ? 2 : 0
+                            },
+                            description: `
+                                <h3>${sat.name}</h3>
+                                <p><b>NORAD ID:</b> ${sat.norad_id}</p>
+                                <p><b>Orbit Type:</b> ${sat.type}</p>
+                                <p><b>Altitude:</b> ${(sat.alt/1000).toFixed(0)} km</p>
+                                <p><b>Latitude:</b> ${sat.lat.toFixed(2)}°</p>
+                                <p><b>Longitude:</b> ${sat.lon.toFixed(2)}°</p>
+                                ${sat.visited ? '<p style="color:gold;"><b>★ TOUR TARGET</b></p>' : ''}
+                            `,
+                            show: false // Hidden by default
+                        });
+                        allSatEntities.push(satEntity);
+                    });
+
+                    console.log('Created', allSatEntities.length, 'satellite entities');
+                }
+
+                // Update display on clock tick
+                viewer.clock.onTick.addEventListener(updateDisplay);
+
+                status.textContent = `Loaded: ${meta.num_targets} targets, ${allSatEntities.length} total sats`;
+                resetView();
+
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        function updateDisplay() {
+            if (!tourData || !startTime) return;
+
+            const elapsed = Cesium.JulianDate.secondsDifference(
+                viewer.clock.currentTime, startTime);
+
+            if (elapsed < 0) return;
+
+            const hopDuration = tourData.metadata.tof_per_hop_hours * 3600;
+            const currentHopIdx = Math.floor(elapsed / hopDuration);
+            const currentHop = Math.min(currentHopIdx + 1, tourData.metadata.num_targets);
+
+            // Update summary
+            document.getElementById('currentHop').textContent =
+                currentHop + ' / ' + tourData.metadata.num_targets;
+
+            if (currentHopIdx < tourData.hops.length) {
+                document.getElementById('currentTarget').textContent =
+                    tourData.hops[currentHopIdx].target.substring(0, 20);
+            }
+
+            // Elapsed time
+            const hours = Math.floor(elapsed / 3600);
+            const mins = Math.floor((elapsed % 3600) / 60);
+            const secs = Math.floor(elapsed % 60);
+            document.getElementById('elapsedTime').textContent =
+                `${hours.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+
+            // Highlight current hop in list and mark visited
+            const items = document.querySelectorAll('.hop-item');
+            items.forEach((item, idx) => {
+                item.classList.remove('active');
+                item.classList.remove('visited');
+                if (idx === currentHopIdx) {
+                    item.classList.add('active');
+                } else if (idx < currentHopIdx) {
+                    item.classList.add('visited');
+                }
+            });
+        }
+
+        function jumpToHop(hopIndex) {
+            if (!tourData || !startTime) return;
+            const hopDuration = tourData.metadata.tof_per_hop_hours * 3600;
+            const targetTime = Cesium.JulianDate.addSeconds(
+                startTime, hopIndex * hopDuration, new Cesium.JulianDate());
+            viewer.clock.currentTime = targetTime;
+        }
+
+        // Initialize
+        resetView();
+        setTimeout(loadTourData, 500);
+    </script>
+</body>
+</html>

@@ -236,6 +236,41 @@ target_link_libraries(geo_sim_demo
     propagators
 )
 
+# Launch-to-Intercept Trajectory Solver demo
+add_executable(launch_intercept_demo
+    src/launch_intercept_demo.cpp
+)
+
+target_link_libraries(launch_intercept_demo
+    core
+    physics
+    coordinate
+    propagators
+)
+
+# Launch profile sweep (diagnostic)
+add_executable(launch_sweep
+    src/launch_sweep.cpp
+)
+
+target_link_libraries(launch_sweep
+    core
+    physics
+    coordinate
+    propagators
+)
+
+# Simple gravity turn diagnostic
+add_executable(simple_gravity_turn
+    src/simple_gravity_turn.cpp
+)
+
+target_link_libraries(simple_gravity_turn
+    core
+    physics
+    coordinate
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)

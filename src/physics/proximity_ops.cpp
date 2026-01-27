@@ -32,17 +32,17 @@ RelativeState ProximityOps::inertial_to_lvlh(const StateVector& chaser_state,
     dv.y = v_c.y - v_t.y;
     dv.z = v_c.z - v_t.z;
 
-    // LVLH unit vectors
+    // RIC (Radial-Intrack-Crosstrack) unit vectors
     double r_mag = r_t.norm();
     double v_mag = v_t.norm();
 
-    // X: Radial (outward)
+    // R: Radial (outward from central body)
     Vec3 x_hat;
     x_hat.x = r_t.x / r_mag;
     x_hat.y = r_t.y / r_mag;
     x_hat.z = r_t.z / r_mag;
 
-    // Z: Cross-track (r x v, angular momentum direction)
+    // C: Cross-track (r x v, angular momentum / orbit normal direction)
     Vec3 h;
     h.x = r_t.y * v_t.z - r_t.z * v_t.y;
     h.y = r_t.z * v_t.x - r_t.x * v_t.z;
@@ -54,19 +54,18 @@ RelativeState ProximityOps::inertial_to_lvlh(const StateVector& chaser_state,
     z_hat.y = h.y / h_mag;
     z_hat.z = h.z / h_mag;
 
-    // Y: Along-track (z x x)
+    // I: In-track (C x R, approximately along velocity)
     Vec3 y_hat;
     y_hat.x = z_hat.y * x_hat.z - z_hat.z * x_hat.y;
     y_hat.y = z_hat.z * x_hat.x - z_hat.x * x_hat.z;
     y_hat.z = z_hat.x * x_hat.y - z_hat.y * x_hat.x;
 
-    // Transform position to LVLH
+    // Transform position to RIC (x=R, y=I, z=C)
     rel.position.x = dr.x * x_hat.x + dr.y * x_hat.y + dr.z * x_hat.z;
     rel.position.y = dr.x * y_hat.x + dr.y * y_hat.y + dr.z * y_hat.z;
     rel.position.z = dr.x * z_hat.x + dr.y * z_hat.y + dr.z * z_hat.z;
 
-    // Transform velocity to LVLH (need to account for rotating frame)
-    // For simplicity, just transform the velocity difference
+    // Transform velocity to RIC (inertial, not accounting for frame rotation)
     rel.velocity.x = dv.x * x_hat.x + dv.y * x_hat.y + dv.z * x_hat.z;
     rel.velocity.y = dv.x * y_hat.x + dv.y * y_hat.y + dv.z * y_hat.z;
     rel.velocity.z = dv.x * z_hat.x + dv.y * z_hat.y + dv.z * z_hat.z;
@@ -81,8 +80,8 @@ Vec3 ProximityOps::lvlh_to_inertial_dv(const Vec3& dv_lvlh,
 
     double r_mag = r_t.norm();
 
-    // LVLH unit vectors
-    Vec3 x_hat;
+    // RIC unit vectors (R=radial, I=in-track, C=cross-track)
+    Vec3 x_hat;  // R
     x_hat.x = r_t.x / r_mag;
     x_hat.y = r_t.y / r_mag;
     x_hat.z = r_t.z / r_mag;
@@ -93,17 +92,17 @@ Vec3 ProximityOps::lvlh_to_inertial_dv(const Vec3& dv_lvlh,
     h.z = r_t.x * v_t.y - r_t.y * v_t.x;
     double h_mag = h.norm();
 
-    Vec3 z_hat;
+    Vec3 z_hat;  // C
     z_hat.x = h.x / h_mag;
     z_hat.y = h.y / h_mag;
     z_hat.z = h.z / h_mag;
 
-    Vec3 y_hat;
+    Vec3 y_hat;  // I = C x R
     y_hat.x = z_hat.y * x_hat.z - z_hat.z * x_hat.y;
     y_hat.y = z_hat.z * x_hat.x - z_hat.x * x_hat.z;
     y_hat.z = z_hat.x * x_hat.y - z_hat.y * x_hat.x;
 
-    // Transform back to ECI
+    // Transform RIC to ECI
     Vec3 dv_eci;
     dv_eci.x = dv_lvlh.x * x_hat.x + dv_lvlh.y * y_hat.x + dv_lvlh.z * z_hat.x;
     dv_eci.y = dv_lvlh.x * x_hat.y + dv_lvlh.y * y_hat.y + dv_lvlh.z * z_hat.y;
@@ -115,67 +114,32 @@ Vec3 ProximityOps::lvlh_to_inertial_dv(const Vec3& dv_lvlh,
 RelativeState ProximityOps::propagate_cw(const RelativeState& initial,
                                           double n, double dt) {
     RelativeState result;
-
-    double x0 = initial.position.x;
-    double y0 = initial.position.y;
-    double z0 = initial.position.z;
-    double vx0 = initial.velocity.x;
-    double vy0 = initial.velocity.y;
-    double vz0 = initial.velocity.z;
-
-    double nt = n * dt;
-    double cos_nt = std::cos(nt);
-    double sin_nt = std::sin(nt);
-
-    // CW equations for position
-    result.position.x = (4.0 - 3.0*cos_nt)*x0 + sin_nt/n*vx0 + 2.0/n*(1.0 - cos_nt)*vy0;
-    result.position.y = 6.0*(sin_nt - nt)*x0 + y0 - 2.0/n*(1.0 - cos_nt)*vx0 + (4.0*sin_nt/n - 3.0*dt)*vy0;
-    result.position.z = z0*cos_nt + vz0/n*sin_nt;
-
-    // CW equations for velocity
-    result.velocity.x = 3.0*n*sin_nt*x0 + cos_nt*vx0 + 2.0*sin_nt*vy0;
-    result.velocity.y = 6.0*n*(cos_nt - 1.0)*x0 - 2.0*sin_nt*vx0 + (4.0*cos_nt - 3.0)*vy0;
-    result.velocity.z = -z0*n*sin_nt + vz0*cos_nt;
-
+    // Delegate to CWTargeting's STM-based propagation
+    CWTargeting::propagate_relative_state(
+        initial.position, initial.velocity, n, dt,
+        result.position, result.velocity);
     return result;
 }
 
 std::pair<Vec3, Vec3> ProximityOps::cw_transfer(const Vec3& r0, const Vec3& rf,
                                                  double tof, double n) {
-    double nt = n * tof;
-    double cos_nt = std::cos(nt);
-    double sin_nt = std::sin(nt);
+    // Use CWTargeting's STM for the underlying CW math
+    CWStateMatrix m = CWTargeting::compute_state_matrix(n, tof);
 
-    // CW state transition matrix components for position-to-velocity
-    // We need to solve for v0 given r0 and rf
+    // Solve: rf = Phi_rr * r0 + Phi_rv * v0
+    // =>     Phi_rv * v0 = rf - Phi_rr * r0
+    Vec3 rhs;
+    rhs.x = rf.x - (m.Phi_rr[0][0] * r0.x + m.Phi_rr[0][1] * r0.y + m.Phi_rr[0][2] * r0.z);
+    rhs.y = rf.y - (m.Phi_rr[1][0] * r0.x + m.Phi_rr[1][1] * r0.y + m.Phi_rr[1][2] * r0.z);
+    rhs.z = rf.z - (m.Phi_rr[2][0] * r0.x + m.Phi_rr[2][1] * r0.y + m.Phi_rr[2][2] * r0.z);
 
-    // Phi_rv (position part of STM that depends on velocity)
-    double phi_11 = sin_nt / n;
-    double phi_12 = 2.0 * (1.0 - cos_nt) / n;
-    double phi_21 = -2.0 * (1.0 - cos_nt) / n;
-    double phi_22 = (4.0 * sin_nt - 3.0 * n * tof) / n;
-    double phi_33 = sin_nt / n;
-
-    // Phi_rr (position part of STM that depends on position)
-    double psi_11 = 4.0 - 3.0 * cos_nt;
-    double psi_12 = 0.0;
-    double psi_21 = 6.0 * (sin_nt - n * tof);
-    double psi_22 = 1.0;
-    double psi_33 = cos_nt;
-
-    // Target position after subtracting position propagation from r0
-    Vec3 rf_adj;
-    rf_adj.x = rf.x - (psi_11 * r0.x + psi_12 * r0.y);
-    rf_adj.y = rf.y - (psi_21 * r0.x + psi_22 * r0.y);
-    rf_adj.z = rf.z - psi_33 * r0.z;
-
-    // Solve 2x2 system for in-plane velocities
-    double det = phi_11 * phi_22 - phi_12 * phi_21;
+    // Solve 2x2 in-plane system (R, I) + decoupled cross-track (C)
+    double det = m.Phi_rv[0][0] * m.Phi_rv[1][1] - m.Phi_rv[0][1] * m.Phi_rv[1][0];
 
     Vec3 v0;
-    v0.x = (phi_22 * rf_adj.x - phi_12 * rf_adj.y) / det;
-    v0.y = (-phi_21 * rf_adj.x + phi_11 * rf_adj.y) / det;
-    v0.z = rf_adj.z / phi_33;
+    v0.x = (m.Phi_rv[1][1] * rhs.x - m.Phi_rv[0][1] * rhs.y) / det;
+    v0.y = (-m.Phi_rv[1][0] * rhs.x + m.Phi_rv[0][0] * rhs.y) / det;
+    v0.z = rhs.z / m.Phi_rv[2][2];
 
     // Final velocity from CW propagation
     RelativeState initial;
@@ -183,17 +147,13 @@ std::pair<Vec3, Vec3> ProximityOps::cw_transfer(const Vec3& r0, const Vec3& rf,
     initial.velocity = v0;
     RelativeState final_state = propagate_cw(initial, n, tof);
 
-    Vec3 vf = final_state.velocity;
-
-    // Delta-V at start: v0 (we assumed starting from rest relative to natural motion)
-    // For general case, would subtract initial velocity
+    // dv1 = required initial velocity (assumes starting from rest)
+    // dv2 = stop burn at arrival
     Vec3 dv1 = v0;
-
-    // Delta-V at end: to stop at the waypoint
     Vec3 dv2;
-    dv2.x = -vf.x;
-    dv2.y = -vf.y;
-    dv2.z = -vf.z;
+    dv2.x = -final_state.velocity.x;
+    dv2.y = -final_state.velocity.y;
+    dv2.z = -final_state.velocity.z;
 
     return std::make_pair(dv1, dv2);
 }
@@ -206,7 +166,7 @@ ProxOpsTrajectory ProximityOps::plan_circumnavigation(const Vec3& start_pos,
     traj.total_delta_v = 0.0;
     traj.total_time = 0.0;
 
-    // Generate waypoints in a circle in the LVLH X-Y plane (radial-alongtrack)
+    // Generate waypoints in a circle in the R-I plane (radial-intrack)
     double angle_step = TWO_PI / num_waypoints;
 
     // Time between waypoints (fraction of orbital period)

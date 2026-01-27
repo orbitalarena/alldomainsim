@@ -1,81 +1,32 @@
 /**
  * Multi-Body Gravity Implementation
+ *
+ * Uses consolidated gravity utilities from gravity_utils.hpp
  */
 
 #include "multi_body_gravity.hpp"
+#include "physics/gravity_utils.hpp"
 #include <cmath>
 
 namespace sim {
 
 Vec3 MultiBodyGravity::compute_two_body(const Vec3& position, double mu) {
-    double r = position.norm();
-    if (r < 1.0) {
-        // Prevent division by zero at center
-        return Vec3{0.0, 0.0, 0.0};
-    }
-
-    double r3 = r * r * r;
-    double coeff = -mu / r3;
-
-    return Vec3{
-        coeff * position.x,
-        coeff * position.y,
-        coeff * position.z
-    };
+    // Delegate to consolidated utility
+    return gravity::two_body_acceleration(position, mu);
 }
 
 Vec3 MultiBodyGravity::compute_j2_perturbation(
     const Vec3& position, double mu, double j2, double radius) {
-
-    double r = position.norm();
-    if (r < radius) {
-        return Vec3{0.0, 0.0, 0.0};
-    }
-
-    double r2 = r * r;
-    double r5 = r2 * r2 * r;
-    double z2 = position.z * position.z;
-
-    // J2 perturbation formula
-    double j2_coeff = 1.5 * j2 * mu * radius * radius / r5;
-    double z_factor = 5.0 * z2 / r2;
-
-    Vec3 a_j2;
-    a_j2.x = j2_coeff * position.x * (z_factor - 1.0);
-    a_j2.y = j2_coeff * position.y * (z_factor - 1.0);
-    a_j2.z = j2_coeff * position.z * (z_factor - 3.0);
-
-    return a_j2;
+    // Delegate to consolidated utility
+    return gravity::j2_perturbation(position, mu, j2, radius);
 }
 
 Vec3 MultiBodyGravity::compute_third_body_perturbation(
     const Vec3& pos_rel_primary,
     const Vec3& third_body_pos,
     double mu_third) {
-
-    // Vector from spacecraft to third body
-    Vec3 r_s3;
-    r_s3.x = third_body_pos.x - pos_rel_primary.x;
-    r_s3.y = third_body_pos.y - pos_rel_primary.y;
-    r_s3.z = third_body_pos.z - pos_rel_primary.z;
-
-    double d_s3 = r_s3.norm();
-    double d_p3 = third_body_pos.norm();  // Distance from primary to third body
-
-    if (d_s3 < 1.0 || d_p3 < 1.0) {
-        return Vec3{0.0, 0.0, 0.0};
-    }
-
-    double d_s3_3 = d_s3 * d_s3 * d_s3;
-    double d_p3_3 = d_p3 * d_p3 * d_p3;
-
-    // Third-body perturbation: mu * (r_s3/|r_s3|³ - r_p3/|r_p3|³)
-    Vec3 a_third;
-    a_third.x = mu_third * (r_s3.x / d_s3_3 - third_body_pos.x / d_p3_3);
-    a_third.y = mu_third * (r_s3.y / d_s3_3 - third_body_pos.y / d_p3_3);
-    a_third.z = mu_third * (r_s3.z / d_s3_3 - third_body_pos.z / d_p3_3);
-
-    return a_third;
+    // Delegate to consolidated utility
+    return gravity::third_body_perturbation(pos_rel_primary, third_body_pos, mu_third);
 }
 
 Vec3 MultiBodyGravity::compute_acceleration(
