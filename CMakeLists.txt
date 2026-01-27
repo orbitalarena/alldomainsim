@@ -224,6 +224,18 @@ target_link_libraries(leo_sensor_revisit
     coordinate
 )
 
+# GEO Interactive Simulation demo
+add_executable(geo_sim_demo
+    src/geo_sim_demo.cpp
+)
+
+target_link_libraries(geo_sim_demo
+    core
+    physics
+    coordinate
+    propagators
+)
+
 # Testing
 enable_testing()
 add_subdirectory(tests)

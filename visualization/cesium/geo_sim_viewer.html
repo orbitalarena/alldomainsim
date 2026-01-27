@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>GEO Interactive Simulation</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="js/ric_frame.js?v=4"></script>
+    <script src="js/geo_sim_engine.js?v=4"></script>
+    <script src="js/burn_manager.js?v=4"></script>
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(30, 30, 30, 0.95);
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-size: 13px;
+        }
+
+        .panel h3 {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #4CAF50;
+            border-bottom: 1px solid #444;
+            padding-bottom: 6px;
+        }
+
+        .panel h4 {
+            margin: 8px 0 6px 0;
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #controls { top: 10px; left: 10px; width: 240px; }
+        #telemetry { top: 10px; right: 10px; width: 200px; font-family: 'Courier New', monospace; }
+        #burnPlanner { top: 10px; left: 270px; width: 320px; display: none; }
+        #interceptPlanner { top: 10px; left: 270px; width: 360px; display: none; }
+        #orientationPanel { bottom: 120px; left: 10px; width: 240px; }
+
+        button {
+            padding: 6px 10px;
+            margin: 2px;
+            cursor: pointer;
+            background: #2196F3;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #1976D2; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        button.active { background: #4CAF50; }
+        button.danger { background: #f44336; }
+        button.danger:hover { background: #d32f2f; }
+        button.warning { background: #FF9800; }
+
+        select, input[type="number"] {
+            padding: 5px 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #333;
+            color: white;
+            font-size: 12px;
+        }
+        select { width: 100%; }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .row { display: flex; justify-content: space-between; margin: 4px 0; }
+        .row .label { color: #888; }
+        .row .value { color: #00FF00; font-weight: bold; }
+        .row .value.warning { color: #FF9800; }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin: 8px 0;
+        }
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 10px; color: #888; margin-bottom: 2px; }
+        .input-group input { width: 100%; box-sizing: border-box; }
+
+        .radio-row, .checkbox-row {
+            display: flex; align-items: center; margin: 4px 0; cursor: pointer;
+        }
+        .radio-row input, .checkbox-row input { margin-right: 6px; }
+
+        #timeDisplay {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4CAF50;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 6px;
+        }
+
+        #speedControl { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+        #speedControl input { flex: 1; }
+        #speedLabel { min-width: 45px; color: #4CAF50; font-weight: bold; font-size: 12px; }
+
+        #rewindControl { margin: 10px 0; padding-top: 8px; border-top: 1px solid #444; }
+        #rewindTime { color: #FF9800; font-family: 'Courier New', monospace; }
+
+        #fuelBar {
+            height: 6px; background: #333; border-radius: 3px; margin-top: 6px; overflow: hidden;
+        }
+        #fuelBarFill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #8BC34A);
+            transition: width 0.3s;
+        }
+
+        #previewInfo {
+            background: rgba(0,0,0,0.3);
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        #previewInfo .highlight { color: #4CAF50; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 1001; display: none;
+        }
+        #crosshair svg { width: 80px; height: 80px; }
+
+        .sensor-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none; z-index: 999; display: none;
+        }
+        .sensor-overlay.active {
+            display: block;
+            background: radial-gradient(circle at center, transparent 30%, rgba(0,0,0,0.3) 70%);
+        }
+
+        #status {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(30, 30, 30, 0.9);
+            padding: 6px 10px; border-radius: 4px;
+            color: #888; font-size: 11px; z-index: 1000;
+        }
+
+        #burnLog {
+            position: absolute; bottom: 50px; right: 10px;
+            max-width: 260px; max-height: 180px; overflow-y: auto;
+            display: none;
+        }
+        .burn-entry { padding: 4px 0; border-bottom: 1px solid #333; font-size: 11px; }
+        .burn-entry:last-child { border-bottom: none; }
+
+        .mode-indicator {
+            display: inline-block; padding: 2px 6px; border-radius: 3px;
+            font-size: 10px; margin-left: 8px;
+        }
+        .mode-indicator.sim { background: #4CAF50; }
+
+        .section { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #333; }
+        .section:last-child { border-bottom: none; margin-bottom: 0; }
+
+        .btn-row { display: flex; gap: 4px; flex-wrap: wrap; }
+
+        #tofChart {
+            height: 80px; background: #222; border-radius: 4px;
+            margin: 8px 0; position: relative; overflow: hidden;
+        }
+        #tofChart canvas { width: 100%; height: 100%; }
+        .tof-marker {
+            position: absolute; top: 0; bottom: 0; width: 2px;
+            background: #4CAF50; pointer-events: none;
+        }
+        .solution-box {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+            border-radius: 4px; padding: 8px;
+            margin: 8px 0; font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        .solution-box.error {
+            background: rgba(244, 67, 54, 0.2);
+            border-color: #f44336;
+        }
+        .solution-box .label { color: #888; }
+        .solution-box .value { color: #4CAF50; font-weight: bold; }
+        .solution-box.error .value { color: #f44336; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- Main Controls -->
+    <div id="controls" class="panel">
+        <h3>GEO Sim <span id="modeIndicator" class="mode-indicator sim">SIM</span></h3>
+
+        <div class="section">
+            <div id="timeDisplay">T+00:00:00</div>
+            <div id="speedControl">
+                <button id="pauseBtn" onclick="togglePause()">| |</button>
+                <input type="range" id="speedSlider" min="0" max="5" value="1" onchange="updateSpeed(this.value)">
+                <span id="speedLabel">1x</span>
+            </div>
+        </div>
+
+        <div class="section" id="rewindControl">
+            <h4>Rewind</h4>
+            <input type="range" id="rewindSlider" min="0" max="100" value="100" step="1">
+            <div style="display:flex; justify-content:space-between; font-size:11px;">
+                <span>T+0</span>
+                <span id="rewindTime">--</span>
+            </div>
+            <button onclick="applyRewind()" class="warning" style="width:100%; margin-top:4px;">Go to Time</button>
+        </div>
+
+        <div class="section">
+            <h4>View Mode</h4>
+            <select id="viewMode" onchange="setViewMode(this.value)">
+                <option value="globe">Globe View</option>
+                <option value="sensor">Sensor View</option>
+                <option value="chase">Follow Chase</option>
+                <option value="target">Follow Target</option>
+            </select>
+        </div>
+
+        <div class="section">
+            <h4>Traces</h4>
+            <div style="display:flex; gap:10px; margin-bottom:6px;">
+                <label class="radio-row"><input type="radio" name="traceFrame" value="ECI" checked onchange="setTraceFrame('ECI')"> ECI</label>
+                <label class="radio-row"><input type="radio" name="traceFrame" value="ECEF" onchange="setTraceFrame('ECEF')"> ECEF</label>
+                <label class="radio-row"><input type="radio" name="traceFrame" value="none" onchange="setTraceFrame('none')"> Off</label>
+            </div>
+            <label class="checkbox-row"><input type="checkbox" id="showRelative" checked> Relative Trail</label>
+            <label class="checkbox-row"><input type="checkbox" id="showPreview" checked> Show Preview</label>
+        </div>
+
+        <div class="section">
+            <h4>RIC Burn</h4>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>R (m/s)</label>
+                    <input type="number" id="burnR" value="0" step="0.1" oninput="updatePreview()">
+                </div>
+                <div class="input-group">
+                    <label>I (m/s)</label>
+                    <input type="number" id="burnI" value="0" step="0.1" oninput="updatePreview()">
+                </div>
+                <div class="input-group">
+                    <label>C (m/s)</label>
+                    <input type="number" id="burnC" value="0" step="0.1" oninput="updatePreview()">
+                </div>
+            </div>
+            <div class="btn-row">
+                <button onclick="showBurnPlanner()" style="flex:1;">Manual...</button>
+                <button onclick="showInterceptPlanner()" style="flex:1;">Intercept...</button>
+            </div>
+            <div class="btn-row" style="margin-top:4px;">
+                <button onclick="executeBurn()" style="flex:2;" class="active">Execute</button>
+            </div>
+            <div class="btn-row" style="margin-top:4px;">
+                <button onclick="quickBurn(1,0,0)">+R</button>
+                <button onclick="quickBurn(-1,0,0)">-R</button>
+                <button onclick="quickBurn(0,1,0)">+I</button>
+                <button onclick="quickBurn(0,-1,0)">-I</button>
+                <button onclick="quickBurn(0,0,1)">+C</button>
+                <button onclick="quickBurn(0,0,-1)">-C</button>
+            </div>
+        </div>
+
+        <button onclick="resetSimulation()" class="danger" style="width:100%;">Reset Simulation</button>
+    </div>
+
+    <!-- Telemetry -->
+    <div id="telemetry" class="panel">
+        <h3>Telemetry</h3>
+        <div class="row"><span class="label">Range:</span><span class="value" id="rangeValue">--</span></div>
+        <div class="row"><span class="label">Range Rate:</span><span class="value" id="rangeRateValue">--</span></div>
+        <div class="row"><span class="label">R:</span><span class="value" id="rValue">--</span></div>
+        <div class="row"><span class="label">I:</span><span class="value" id="iValue">--</span></div>
+        <div class="row"><span class="label">C:</span><span class="value" id="cValue">--</span></div>
+        <div style="border-top:1px solid #444; margin-top:8px; padding-top:8px;">
+            <div class="row"><span class="label">Fuel:</span><span class="value" id="fuelValue">--</span></div>
+            <div id="fuelBar"><div id="fuelBarFill"></div></div>
+            <div class="row" style="margin-top:6px;"><span class="label">Burns:</span><span class="value" id="burnCount">0</span></div>
+        </div>
+    </div>
+
+    <!-- Burn Planner -->
+    <div id="burnPlanner" class="panel">
+        <h3>Burn Planner <button onclick="hideBurnPlanner()" style="float:right;padding:2px 8px;">X</button></h3>
+
+        <div class="section">
+            <h4>Burn Parameters</h4>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>R (m/s)</label>
+                    <input type="number" id="planR" value="0" step="0.1" oninput="updatePlanPreview()">
+                </div>
+                <div class="input-group">
+                    <label>I (m/s)</label>
+                    <input type="number" id="planI" value="0" step="0.1" oninput="updatePlanPreview()">
+                </div>
+                <div class="input-group">
+                    <label>C (m/s)</label>
+                    <input type="number" id="planC" value="0" step="0.1" oninput="updatePlanPreview()">
+                </div>
+            </div>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>Preview (hrs)</label>
+                    <input type="number" id="previewHours" value="24" min="1" max="168" step="1" oninput="updatePlanPreview()">
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Preview Frame</h4>
+            <div style="display:flex; gap:8px;">
+                <label class="radio-row"><input type="radio" name="previewFrame" value="ECI" checked> ECI</label>
+                <label class="radio-row"><input type="radio" name="previewFrame" value="ECEF"> ECEF</label>
+                <label class="radio-row"><input type="radio" name="previewFrame" value="RIC"> RIC</label>
+            </div>
+        </div>
+
+        <div id="previewInfo">
+            <div>dV: <span class="highlight" id="previewDV">0.00</span> m/s</div>
+            <div>Closest: <span class="highlight" id="previewClosest">--</span> km</div>
+            <div>@ T+<span class="highlight" id="previewClosestTime">--</span></div>
+        </div>
+
+        <div class="btn-row">
+            <button onclick="updatePlanPreview()" style="flex:1;">Refresh Preview</button>
+            <button onclick="executePlannedBurn()" style="flex:1;" class="active">Execute</button>
+        </div>
+    </div>
+
+    <!-- Intercept Planner -->
+    <div id="interceptPlanner" class="panel">
+        <h3>Intercept Planner <button onclick="hideInterceptPlanner()" style="float:right;padding:2px 8px;">X</button></h3>
+
+        <div class="section">
+            <h4>Target RIC Position (km)</h4>
+            <div class="input-grid">
+                <div class="input-group">
+                    <label>R (km)</label>
+                    <input type="number" id="targetR" value="0" step="1" oninput="updateInterceptSolution()">
+                </div>
+                <div class="input-group">
+                    <label>I (km)</label>
+                    <input type="number" id="targetI" value="0" step="1" oninput="updateInterceptSolution()">
+                </div>
+                <div class="input-group">
+                    <label>C (km)</label>
+                    <input type="number" id="targetC" value="0" step="1" oninput="updateInterceptSolution()">
+                </div>
+            </div>
+            <div style="margin-top:6px;">
+                <button onclick="setInterceptTarget(0,0,0)" style="font-size:10px;">Target Origin</button>
+                <button onclick="setInterceptTarget(0,-10,0)" style="font-size:10px;">10km Behind</button>
+                <button onclick="setInterceptTarget(1,0,0)" style="font-size:10px;">1km Above</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h4>Time of Flight</h4>
+            <div class="input-grid" style="grid-template-columns:2fr 1fr;">
+                <div class="input-group">
+                    <label>TOF (hours)</label>
+                    <input type="number" id="interceptTOF" value="12" min="1" max="168" step="1" oninput="updateInterceptSolution()">
+                </div>
+                <div class="input-group">
+                    <label>Mode</label>
+                    <select id="interceptMode" onchange="updateInterceptSolution()">
+                        <option value="rendezvous">Rendezvous</option>
+                        <option value="intercept">Intercept</option>
+                    </select>
+                </div>
+            </div>
+            <div id="tofChart">
+                <canvas id="tofCanvas"></canvas>
+                <div class="tof-marker" id="tofMarker"></div>
+            </div>
+            <button onclick="sweepTOF()" style="width:100%;">Find Optimal TOF</button>
+        </div>
+
+        <div id="interceptSolution" class="solution-box">
+            <div><span class="label">Status:</span> <span class="value" id="solStatus">--</span></div>
+            <div><span class="label">Iterations:</span> <span class="value" id="solIter">--</span></div>
+            <div><span class="label">Burn 1 (R,I,C):</span> <span class="value" id="solDV1">--</span></div>
+            <div><span class="label">Burn 2 (R,I,C):</span> <span class="value" id="solDV2">--</span></div>
+            <div><span class="label">Total dV:</span> <span class="value" id="solTotalDV">--</span></div>
+            <div><span class="label">Fuel OK:</span> <span class="value" id="solFuelOK">--</span></div>
+        </div>
+
+        <div class="section">
+            <h4>Preview Frame</h4>
+            <div style="display:flex; gap:8px;">
+                <label class="radio-row"><input type="radio" name="interceptFrame" value="ECI" checked> ECI</label>
+                <label class="radio-row"><input type="radio" name="interceptFrame" value="ECEF"> ECEF</label>
+                <label class="radio-row"><input type="radio" name="interceptFrame" value="RIC"> RIC</label>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button onclick="previewInterceptBurn()" style="flex:1;">Preview</button>
+            <button onclick="executeInterceptBurn()" style="flex:1;" class="active" id="execInterceptBtn" disabled>Execute Burn 1</button>
+        </div>
+    </div>
+
+    <!-- Orientation Panel -->
+    <div id="orientationPanel" class="panel">
+        <h3>Chase Orientation</h3>
+        <div style="margin-bottom:8px;">
+            <label class="radio-row"><input type="radio" name="orientation" value="target" checked onchange="setOrientation('target')"> Point at Target</label>
+            <label class="radio-row"><input type="radio" name="orientation" value="nadir" onchange="setOrientation('nadir')"> Point at Nadir</label>
+            <label class="radio-row"><input type="radio" name="orientation" value="custom" onchange="setOrientation('custom')"> Custom</label>
+        </div>
+        <div id="customOrientInputs" style="display:none;">
+            <div class="input-grid" style="grid-template-columns:1fr 1fr;">
+                <div class="input-group">
+                    <label>Theta (R-I) deg</label>
+                    <input type="number" id="orientTheta" value="0" step="5" oninput="updateCustomOrientation()">
+                </div>
+                <div class="input-group">
+                    <label>Phi (C) deg</label>
+                    <input type="number" id="orientPhi" value="0" step="5" oninput="updateCustomOrientation()">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crosshair for sensor view -->
+    <div id="crosshair">
+        <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="#00FF00" stroke-width="1" opacity="0.5"/>
+            <circle cx="50" cy="50" r="20" fill="none" stroke="#00FF00" stroke-width="1" opacity="0.7"/>
+            <line x1="50" y1="5" x2="50" y2="35" stroke="#00FF00" stroke-width="1"/>
+            <line x1="50" y1="65" x2="50" y2="95" stroke="#00FF00" stroke-width="1"/>
+            <line x1="5" y1="50" x2="35" y2="50" stroke="#00FF00" stroke-width="1"/>
+            <line x1="65" y1="50" x2="95" y2="50" stroke="#00FF00" stroke-width="1"/>
+            <circle cx="50" cy="50" r="3" fill="#00FF00"/>
+        </svg>
+    </div>
+
+    <div class="sensor-overlay" id="sensorOverlay"></div>
+
+    <div id="burnLog" class="panel">
+        <h3>Burn Log</h3>
+        <div id="burnLogContent"></div>
+    </div>
+
+    <div id="status">Loading...</div>
+
+    <script>
+        // Constants
+        const speedMultipliers = [0, 1, 10, 100, 1000, 3600];
+        const speedLabels = ['||', '1x', '10x', '100x', '1000x', '1h/s'];
+        const EARTH_OMEGA = 7.2921159e-5;
+
+        // State
+        let viewer = null;
+        let simEngine = null;
+        let initialState = null;
+        let isPaused = false;
+        let timeMultiplier = 1;
+        let currentViewMode = 'globe';
+        let currentTraceFrame = 'ECI';
+        let followOffset = null;
+        let currentPreview = null;
+
+        // Entities
+        let chaseEntity = null;
+        let targetEntity = null;
+        let chaseOrbitECI = null, chaseOrbitECEF = null;
+        let targetOrbitECI = null, targetOrbitECEF = null;
+        let relativeTrailEntity = null;
+        let lineToTarget = null;
+        let previewEntity = null;
+        let previewRICEntity = null;
+
+        // Visualization recording
+        let lastRecordTime = 0;
+        const recordInterval = 10;
+
+        // Create viewer
+        viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false, timeline: false, baseLayerPicker: true,
+            geocoder: false, homeButton: false, infoBox: false,
+            selectionIndicator: false, sceneModePicker: false,
+            navigationHelpButton: false, fullscreenButton: false
+        });
+        viewer.scene.globe.depthTestAgainstTerrain = false;
+
+        // Grayscale post-process for sensor view
+        const grayscaleStage = viewer.scene.postProcessStages.add(
+            Cesium.PostProcessStageLibrary.createBlackAndWhiteStage()
+        );
+        grayscaleStage.enabled = false;
+        grayscaleStage.uniforms.gradations = 256.0;
+
+        async function loadInitialState() {
+            document.getElementById('status').textContent = 'Loading...';
+            try {
+                const response = await fetch('geo_sim_initial.json?' + Date.now());
+                if (!response.ok) throw new Error('Run ./build/bin/geo_sim_demo --sim first');
+                initialState = await response.json();
+
+                simEngine = new GeoSimEngine(initialState);
+                createEntities();
+                viewer.clock.onTick.addEventListener(onTick);
+
+                document.getElementById('status').textContent = 'Loaded: ' + initialState.metadata.scenario;
+                resetView();
+            } catch (error) {
+                document.getElementById('status').textContent = 'Error: ' + error.message;
+                console.error(error);
+            }
+        }
+
+        function createEntities() {
+            // Chase satellite
+            chaseEntity = viewer.entities.add({
+                name: 'Chase',
+                position: new Cesium.Cartesian3(...simEngine.chase.pos),
+                orientation: new Cesium.CallbackProperty(() => getChaseQuaternion(), false),
+                model: {
+                    uri: simEngine.chase.model,
+                    minimumPixelSize: 64,
+                    maximumScale: 50000,
+                    silhouetteColor: Cesium.Color.LIME,
+                    silhouetteSize: 2
+                },
+                label: {
+                    text: 'Chase',
+                    font: '14px sans-serif',
+                    fillColor: Cesium.Color.LIME,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    outlineWidth: 2,
+                    pixelOffset: new Cesium.Cartesian2(0, -40),
+                    showBackground: true,
+                    backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            // Target satellite
+            targetEntity = viewer.entities.add({
+                name: 'Target',
+                position: new Cesium.Cartesian3(...simEngine.target.pos),
+                model: {
+                    uri: simEngine.target.model,
+                    minimumPixelSize: 64,
+                    maximumScale: 50000,
+                    silhouetteColor: Cesium.Color.RED,
+                    silhouetteSize: 2
+                },
+                label: {
+                    text: 'Target',
+                    font: '14px sans-serif',
+                    fillColor: Cesium.Color.RED,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    outlineWidth: 2,
+                    pixelOffset: new Cesium.Cartesian2(0, -40),
+                    showBackground: true,
+                    backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            // Orbit traces using CallbackProperty
+            chaseOrbitECI = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getOrbitPositions('chase', 'ECI'), false),
+                    width: 2,
+                    material: Cesium.Color.LIME.withAlpha(0.6)
+                }
+            });
+            targetOrbitECI = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getOrbitPositions('target', 'ECI'), false),
+                    width: 2,
+                    material: Cesium.Color.RED.withAlpha(0.6)
+                }
+            });
+            chaseOrbitECEF = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getOrbitPositions('chase', 'ECEF'), false),
+                    width: 2,
+                    material: Cesium.Color.CYAN.withAlpha(0.6)
+                }
+            });
+            targetOrbitECEF = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getOrbitPositions('target', 'ECEF'), false),
+                    width: 2,
+                    material: Cesium.Color.ORANGE.withAlpha(0.6)
+                }
+            });
+
+            // Relative trail
+            relativeTrailEntity = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getRelativeTrailPositions(), false),
+                    width: 3,
+                    material: new Cesium.PolylineGlowMaterialProperty({
+                        glowPower: 0.3,
+                        color: Cesium.Color.YELLOW
+                    })
+                }
+            });
+
+            // Line to target
+            lineToTarget = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => {
+                        if (!simEngine) return [];
+                        const s = simEngine.getState();
+                        return [
+                            new Cesium.Cartesian3(...s.chase.posECEF),
+                            new Cesium.Cartesian3(...s.target.posECEF)
+                        ];
+                    }, false),
+                    width: 1,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.WHITE.withAlpha(0.5),
+                        dashLength: 16
+                    })
+                }
+            });
+
+            // Preview trajectory
+            previewEntity = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => getPreviewPositions(), false),
+                    width: 2,
+                    material: new Cesium.PolylineDashMaterialProperty({
+                        color: Cesium.Color.MAGENTA,
+                        dashLength: 8
+                    })
+                }
+            });
+        }
+
+        function getChaseQuaternion() {
+            if (!simEngine) return Cesium.Quaternion.IDENTITY;
+            const orient = simEngine.getChaseOrientationVectors();
+            const state = simEngine.getState();
+
+            // Convert ECI direction/up to ECEF
+            const theta = simEngine.simTime * EARTH_OMEGA;
+            const c = Math.cos(-theta), s = Math.sin(-theta);
+
+            const dirECEF = new Cesium.Cartesian3(
+                orient.direction[0]*c - orient.direction[1]*s,
+                orient.direction[0]*s + orient.direction[1]*c,
+                orient.direction[2]
+            );
+            const upECEF = new Cesium.Cartesian3(
+                orient.up[0]*c - orient.up[1]*s,
+                orient.up[0]*s + orient.up[1]*c,
+                orient.up[2]
+            );
+
+            Cesium.Cartesian3.normalize(dirECEF, dirECEF);
+            Cesium.Cartesian3.normalize(upECEF, upECEF);
+
+            // Create rotation matrix
+            const right = Cesium.Cartesian3.cross(dirECEF, upECEF, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(right, right);
+            const correctedUp = Cesium.Cartesian3.cross(right, dirECEF, new Cesium.Cartesian3());
+
+            const rotMat = new Cesium.Matrix3(
+                right.x, correctedUp.x, -dirECEF.x,
+                right.y, correctedUp.y, -dirECEF.y,
+                right.z, correctedUp.z, -dirECEF.z
+            );
+
+            return Cesium.Quaternion.fromRotationMatrix(rotMat);
+        }
+
+        function getOrbitPositions(sat, frame) {
+            if (!simEngine || currentTraceFrame !== frame) return [];
+            const history = sat === 'chase' ?
+                (frame === 'ECI' ? simEngine.chaseECIHistory : simEngine.chaseECEFHistory) :
+                (frame === 'ECI' ? simEngine.targetECIHistory : simEngine.targetECEFHistory);
+
+            if (history.length < 2) return [];
+
+            if (frame === 'ECI') {
+                // Convert ECI to current ECEF for display
+                const theta = simEngine.simTime * EARTH_OMEGA;
+                const c = Math.cos(-theta), s = Math.sin(-theta);
+                return history.map(p => new Cesium.Cartesian3(
+                    p[0]*c - p[1]*s, p[0]*s + p[1]*c, p[2]
+                ));
+            }
+            return history.map(p => new Cesium.Cartesian3(p[0], p[1], p[2]));
+        }
+
+        function getRelativeTrailPositions() {
+            if (!simEngine || !document.getElementById('showRelative').checked) return [];
+            return simEngine.chaseECEFHistory.map(p => new Cesium.Cartesian3(p[0], p[1], p[2]));
+        }
+
+        function getPreviewPositions() {
+            if (!currentPreview || !document.getElementById('showPreview').checked) return [];
+
+            const frameRadios = document.querySelectorAll('input[name="previewFrame"]');
+            let frame = 'ECI';
+            for (const r of frameRadios) {
+                if (r.checked) { frame = r.value; break; }
+            }
+
+            if (frame === 'RIC') {
+                // RIC preview - show as offset from current target position
+                const targetECEF = simEngine.getState().target.posECEF;
+                const ricFrame = RICFrame.computeFrame(simEngine.target);
+                const scale = 100; // Scale up for visibility
+
+                return currentPreview.ric.map(p => {
+                    const offset = [
+                        (p.R * ricFrame.R[0] + p.I * ricFrame.I[0] + p.C * ricFrame.C[0]) * scale / simEngine.geoRadius + targetECEF[0],
+                        (p.R * ricFrame.R[1] + p.I * ricFrame.I[1] + p.C * ricFrame.C[1]) * scale / simEngine.geoRadius + targetECEF[1],
+                        (p.R * ricFrame.R[2] + p.I * ricFrame.I[2] + p.C * ricFrame.C[2]) * scale / simEngine.geoRadius + targetECEF[2]
+                    ];
+                    return new Cesium.Cartesian3(offset[0], offset[1], offset[2]);
+                });
+            }
+
+            const positions = frame === 'ECEF' ? currentPreview.chase_ecef : currentPreview.chase_eci;
+
+            if (frame === 'ECI') {
+                const theta = simEngine.simTime * EARTH_OMEGA;
+                const c = Math.cos(-theta), s = Math.sin(-theta);
+                return positions.map(p => new Cesium.Cartesian3(
+                    p[0]*c - p[1]*s, p[0]*s + p[1]*c, p[2]
+                ));
+            }
+            return positions.map(p => new Cesium.Cartesian3(p[0], p[1], p[2]));
+        }
+
+        let lastTickTime = null;
+
+        function onTick() {
+            if (!simEngine || isPaused) return;
+
+            const now = Date.now();
+            if (lastTickTime === null) { lastTickTime = now; return; }
+
+            const realDt = (now - lastTickTime) / 1000;
+            lastTickTime = now;
+            const dt = Math.min(realDt, 0.1) * timeMultiplier;
+
+            if (dt > 0) {
+                simEngine.step(dt);
+                if (simEngine.simTime - lastRecordTime >= recordInterval) {
+                    simEngine.recordVisualizationState();
+                    lastRecordTime = simEngine.simTime;
+                }
+            }
+
+            updateEntities();
+            updateTelemetry();
+            updateTimeDisplay();
+            updateRewindSlider();
+
+            if (currentViewMode === 'sensor') {
+                updateSensorCamera();
+            } else if (currentViewMode === 'chase' || currentViewMode === 'target') {
+                updateFollowCamera();
+            }
+        }
+
+        function updateEntities() {
+            const state = simEngine.getState();
+            chaseEntity.position = new Cesium.Cartesian3(...state.chase.posECEF);
+            targetEntity.position = new Cesium.Cartesian3(...state.target.posECEF);
+        }
+
+        function updateTelemetry() {
+            const state = simEngine.getState();
+            const ric = state.ric;
+
+            document.getElementById('rangeValue').textContent = (ric.range / 1000).toFixed(3) + ' km';
+            document.getElementById('rangeRateValue').textContent = ric.rangeRate.toFixed(2) + ' m/s';
+            document.getElementById('rValue').textContent = (ric.R / 1000).toFixed(3) + ' km';
+            document.getElementById('iValue').textContent = (ric.I / 1000).toFixed(3) + ' km';
+            document.getElementById('cValue').textContent = (ric.C / 1000).toFixed(4) + ' km';
+            document.getElementById('fuelValue').textContent =
+                `${state.fuelRemaining.toFixed(1)}/${state.fuelBudget.toFixed(1)}`;
+            document.getElementById('burnCount').textContent = state.burnCount;
+
+            const pct = (state.fuelRemaining / state.fuelBudget) * 100;
+            document.getElementById('fuelBarFill').style.width = pct + '%';
+            document.getElementById('fuelBarFill').style.background =
+                pct < 20 ? 'linear-gradient(90deg, #f44336, #ff5722)' :
+                pct < 50 ? 'linear-gradient(90deg, #FF9800, #FFC107)' :
+                'linear-gradient(90deg, #4CAF50, #8BC34A)';
+        }
+
+        function updateTimeDisplay() {
+            const t = Math.floor(simEngine.simTime);
+            const d = Math.floor(t / 86400);
+            const h = Math.floor((t % 86400) / 3600);
+            const m = Math.floor((t % 3600) / 60);
+            const s = t % 60;
+            document.getElementById('timeDisplay').textContent = d > 0 ?
+                `D${d} ${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` :
+                `T+${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        }
+
+        function updateRewindSlider() {
+            const range = simEngine.getRewindRange();
+            const slider = document.getElementById('rewindSlider');
+            slider.max = Math.max(1, range.max);
+            slider.value = simEngine.simTime;
+
+            const t = Math.floor(parseFloat(slider.value));
+            const h = Math.floor(t / 3600);
+            const m = Math.floor((t % 3600) / 60);
+            document.getElementById('rewindTime').textContent =
+                `T+${h}:${m.toString().padStart(2,'0')}`;
+        }
+
+        function applyRewind() {
+            const targetTime = parseFloat(document.getElementById('rewindSlider').value);
+            if (simEngine.rewindTo(targetTime)) {
+                lastRecordTime = simEngine.simTime;
+                currentPreview = null;
+                updateEntities();
+                updateTelemetry();
+                updateTimeDisplay();
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            document.getElementById('pauseBtn').textContent = isPaused ? '>' : '| |';
+            document.getElementById('pauseBtn').classList.toggle('active', isPaused);
+            if (!isPaused) lastTickTime = Date.now();
+        }
+
+        function updateSpeed(value) {
+            const idx = parseInt(value);
+            timeMultiplier = speedMultipliers[idx];
+            document.getElementById('speedLabel').textContent = speedLabels[idx];
+            if (idx === 0 && !isPaused) togglePause();
+            else if (isPaused && idx > 0) { isPaused = false; lastTickTime = Date.now(); document.getElementById('pauseBtn').textContent = '| |'; }
+        }
+
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            viewer.trackedEntity = undefined;
+            followOffset = null;
+
+            const sensor = document.getElementById('sensorOverlay');
+            const cross = document.getElementById('crosshair');
+
+            if (mode === 'sensor') {
+                grayscaleStage.enabled = true;
+                sensor.classList.add('active');
+                cross.style.display = 'block';
+                // Hide Chase model so it doesn't block its own camera
+                if (chaseEntity) {
+                    chaseEntity.model.show = false;
+                    chaseEntity.label.show = false;
+                }
+            } else {
+                grayscaleStage.enabled = false;
+                sensor.classList.remove('active');
+                cross.style.display = 'none';
+                // Show Chase model again
+                if (chaseEntity) {
+                    chaseEntity.model.show = true;
+                    chaseEntity.label.show = true;
+                }
+                if (mode === 'globe') resetView();
+            }
+        }
+
+        function updateSensorCamera() {
+            const s = simEngine.getState();
+            const chasePos = new Cesium.Cartesian3(...s.chase.posECEF);
+            const targetPos = new Cesium.Cartesian3(...s.target.posECEF);
+
+            // Get chase velocity in ECEF for offset direction
+            const theta = simEngine.simTime * EARTH_OMEGA;
+            const c = Math.cos(-theta), st = Math.sin(-theta);
+            const velECI = simEngine.chase.vel;
+            const velECEF = new Cesium.Cartesian3(
+                velECI[0]*c - velECI[1]*st,
+                velECI[0]*st + velECI[1]*c,
+                velECI[2]
+            );
+            Cesium.Cartesian3.normalize(velECEF, velECEF);
+
+            // Offset camera slightly along velocity vector (100m ahead of model center)
+            const cameraOffset = 100;
+            const cameraPos = new Cesium.Cartesian3(
+                chasePos.x + velECEF.x * cameraOffset,
+                chasePos.y + velECEF.y * cameraOffset,
+                chasePos.z + velECEF.z * cameraOffset
+            );
+
+            const dir = Cesium.Cartesian3.subtract(targetPos, cameraPos, new Cesium.Cartesian3());
+            Cesium.Cartesian3.normalize(dir, dir);
+
+            // Use radial as up direction
+            const up = Cesium.Cartesian3.normalize(chasePos, new Cesium.Cartesian3());
+
+            viewer.camera.setView({ destination: cameraPos, orientation: { direction: dir, up: up } });
+        }
+
+        function updateFollowCamera() {
+            const s = simEngine.getState();
+            const pos = currentViewMode === 'chase' ? s.chase.posECEF : s.target.posECEF;
+            const target = new Cesium.Cartesian3(...pos);
+
+            if (!followOffset) {
+                // Initialize offset on first call
+                followOffset = new Cesium.HeadingPitchRange(
+                    viewer.camera.heading,
+                    viewer.camera.pitch,
+                    Cesium.Cartesian3.magnitude(viewer.camera.position) > 1e8 ? 5000000 :
+                    Cesium.Cartesian3.distance(viewer.camera.position, target)
+                );
+            }
+
+            // Allow user to adjust but keep looking at target
+            viewer.camera.lookAt(target, followOffset);
+        }
+
+        // Allow camera adjustment in follow mode
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction((movement) => {
+            if ((currentViewMode === 'chase' || currentViewMode === 'target') && followOffset) {
+                followOffset.heading -= movement.endPosition.x * 0.005;
+            }
+        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE, Cesium.KeyboardEventModifier.SHIFT);
+
+        handler.setInputAction((delta) => {
+            if ((currentViewMode === 'chase' || currentViewMode === 'target') && followOffset) {
+                followOffset.range *= (1 - delta * 0.0001);
+                followOffset.range = Math.max(100000, Math.min(50000000, followOffset.range));
+            }
+        }, Cesium.ScreenSpaceEventType.WHEEL);
+
+        function setTraceFrame(frame) {
+            currentTraceFrame = frame;
+        }
+
+        function setOrientation(mode) {
+            document.getElementById('customOrientInputs').style.display = mode === 'custom' ? 'block' : 'none';
+            if (simEngine) {
+                if (mode === 'custom') {
+                    updateCustomOrientation();
+                } else {
+                    simEngine.setChaseOrientation(mode);
+                }
+            }
+        }
+
+        function updateCustomOrientation() {
+            if (!simEngine) return;
+            const theta = parseFloat(document.getElementById('orientTheta').value) || 0;
+            const phi = parseFloat(document.getElementById('orientPhi').value) || 0;
+            simEngine.setChaseOrientation('custom', { theta, phi });
+        }
+
+        function updatePreview() {
+            if (!simEngine || !document.getElementById('showPreview').checked) return;
+            const dv = {
+                R: parseFloat(document.getElementById('burnR').value) || 0,
+                I: parseFloat(document.getElementById('burnI').value) || 0,
+                C: parseFloat(document.getElementById('burnC').value) || 0
+            };
+            if (dv.R === 0 && dv.I === 0 && dv.C === 0) {
+                currentPreview = null;
+                return;
+            }
+            currentPreview = simEngine.previewBurn(dv, 24 * 3600, 300);
+        }
+
+        function showBurnPlanner() {
+            document.getElementById('burnPlanner').style.display = 'block';
+            document.getElementById('planR').value = document.getElementById('burnR').value;
+            document.getElementById('planI').value = document.getElementById('burnI').value;
+            document.getElementById('planC').value = document.getElementById('burnC').value;
+            updatePlanPreview();
+        }
+
+        function hideBurnPlanner() {
+            document.getElementById('burnPlanner').style.display = 'none';
+        }
+
+        function updatePlanPreview() {
+            if (!simEngine) return;
+            const dv = {
+                R: parseFloat(document.getElementById('planR').value) || 0,
+                I: parseFloat(document.getElementById('planI').value) || 0,
+                C: parseFloat(document.getElementById('planC').value) || 0
+            };
+            const hours = parseFloat(document.getElementById('previewHours').value) || 24;
+
+            currentPreview = simEngine.previewBurn(dv, hours * 3600, 300);
+
+            document.getElementById('previewDV').textContent = currentPreview.dv_mag.toFixed(2);
+            document.getElementById('previewClosest').textContent = (currentPreview.closestApproach.range / 1000).toFixed(2);
+            const t = currentPreview.closestApproach.time;
+            const h = Math.floor(t / 3600);
+            const m = Math.floor((t % 3600) / 60);
+            document.getElementById('previewClosestTime').textContent = `${h}h ${m}m`;
+        }
+
+        function executePlannedBurn() {
+            document.getElementById('burnR').value = document.getElementById('planR').value;
+            document.getElementById('burnI').value = document.getElementById('planI').value;
+            document.getElementById('burnC').value = document.getElementById('planC').value;
+            executeBurn();
+            hideBurnPlanner();
+        }
+
+        function executeBurn() {
+            if (!simEngine) return;
+            const dv = {
+                R: parseFloat(document.getElementById('burnR').value) || 0,
+                I: parseFloat(document.getElementById('burnI').value) || 0,
+                C: parseFloat(document.getElementById('burnC').value) || 0
+            };
+            if (simEngine.applyBurn(dv)) {
+                addBurnLogEntry(dv);
+                document.getElementById('burnR').value = '0';
+                document.getElementById('burnI').value = '0';
+                document.getElementById('burnC').value = '0';
+                currentPreview = null;
+            }
+        }
+
+        function quickBurn(r, i, c) {
+            if (!simEngine) return;
+            if (simEngine.applyBurn({ R: r, I: i, C: c })) {
+                addBurnLogEntry({ R: r, I: i, C: c });
+            }
+        }
+
+        function addBurnLogEntry(dv) {
+            const log = document.getElementById('burnLog');
+            const content = document.getElementById('burnLogContent');
+            log.style.display = 'block';
+
+            const mag = Math.sqrt(dv.R**2 + dv.I**2 + dv.C**2);
+            const time = document.getElementById('timeDisplay').textContent;
+
+            const entry = document.createElement('div');
+            entry.className = 'burn-entry';
+            entry.innerHTML = `<strong>${time}</strong> R:${dv.R.toFixed(1)} I:${dv.I.toFixed(1)} C:${dv.C.toFixed(1)} (${mag.toFixed(2)} m/s)`;
+            content.insertBefore(entry, content.firstChild);
+
+            while (content.children.length > 10) content.removeChild(content.lastChild);
+        }
+
+        function resetSimulation() {
+            if (!simEngine) return;
+            simEngine.reset();
+            lastRecordTime = 0;
+            currentPreview = null;
+            document.getElementById('burnLogContent').innerHTML = '';
+            document.getElementById('burnLog').style.display = 'none';
+            setViewMode('globe');
+            document.getElementById('viewMode').value = 'globe';
+            updateTelemetry();
+            updateTimeDisplay();
+        }
+
+        function resetView() {
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 120000000),
+                orientation: { heading: 0, pitch: -Cesium.Math.PI_OVER_TWO, roll: 0 },
+                duration: 0.5
+            });
+        }
+
+        // ============================================
+        // Intercept Planner Functions
+        // ============================================
+
+        let currentInterceptSolution = null;
+        let tofSweepData = null;
+
+        function showInterceptPlanner() {
+            document.getElementById('burnPlanner').style.display = 'none';
+            document.getElementById('interceptPlanner').style.display = 'block';
+
+            // Pre-populate with current target (origin means intercept the target itself)
+            const ric = simEngine.getRICState();
+            // Suggest going to origin (target satellite)
+            document.getElementById('targetR').value = '0';
+            document.getElementById('targetI').value = '0';
+            document.getElementById('targetC').value = '0';
+
+            updateInterceptSolution();
+        }
+
+        function hideInterceptPlanner() {
+            document.getElementById('interceptPlanner').style.display = 'none';
+            currentInterceptSolution = null;
+        }
+
+        function setInterceptTarget(r, i, c) {
+            document.getElementById('targetR').value = r;
+            document.getElementById('targetI').value = i;
+            document.getElementById('targetC').value = c;
+            updateInterceptSolution();
+        }
+
+        function updateInterceptSolution() {
+            if (!simEngine) return;
+
+            const targetRIC = {
+                R: parseFloat(document.getElementById('targetR').value) * 1000 || 0,  // km to m
+                I: parseFloat(document.getElementById('targetI').value) * 1000 || 0,
+                C: parseFloat(document.getElementById('targetC').value) * 1000 || 0
+            };
+            const tof = parseFloat(document.getElementById('interceptTOF').value) * 3600 || 12 * 3600;  // hours to seconds
+            const mode = document.getElementById('interceptMode').value;
+
+            const solution = simEngine.solveInterceptBurn(targetRIC, tof, {
+                matchVelocity: mode === 'rendezvous'
+            });
+
+            currentInterceptSolution = solution;
+
+            const solBox = document.getElementById('interceptSolution');
+            const execBtn = document.getElementById('execInterceptBtn');
+
+            if (solution.valid) {
+                solBox.classList.remove('error');
+                document.getElementById('solStatus').textContent = 'Converged (' + solution.method + ')';
+                document.getElementById('solIter').textContent = solution.iterations || '--';
+                document.getElementById('solDV1').textContent =
+                    `${solution.dv1_ric.R.toFixed(2)}, ${solution.dv1_ric.I.toFixed(2)}, ${solution.dv1_ric.C.toFixed(2)} m/s`;
+                document.getElementById('solDV2').textContent =
+                    solution.dv2_mag > 0.01 ?
+                    `${solution.dv2_ric.R.toFixed(2)}, ${solution.dv2_ric.I.toFixed(2)}, ${solution.dv2_ric.C.toFixed(2)} m/s` :
+                    'N/A';
+                document.getElementById('solTotalDV').textContent = solution.total_dv.toFixed(3) + ' m/s';
+                document.getElementById('solFuelOK').textContent = solution.hasFuel ? 'YES' : 'NO (insufficient)';
+                document.getElementById('solFuelOK').style.color = solution.hasFuel ? '#4CAF50' : '#f44336';
+
+                execBtn.disabled = !solution.hasFuel;
+            } else {
+                solBox.classList.add('error');
+                document.getElementById('solStatus').textContent = 'Failed';
+                document.getElementById('solIter').textContent = solution.iterations || '--';
+                document.getElementById('solDV1').textContent = solution.error || 'No solution';
+                document.getElementById('solDV2').textContent = '--';
+                document.getElementById('solTotalDV').textContent = '--';
+                document.getElementById('solFuelOK').textContent = '--';
+                execBtn.disabled = true;
+            }
+
+            // Update TOF marker position if we have sweep data
+            updateTOFMarker(tof);
+        }
+
+        function sweepTOF() {
+            if (!simEngine) return;
+
+            const targetRIC = {
+                R: parseFloat(document.getElementById('targetR').value) * 1000 || 0,
+                I: parseFloat(document.getElementById('targetI').value) * 1000 || 0,
+                C: parseFloat(document.getElementById('targetC').value) * 1000 || 0
+            };
+
+            // Sweep from 1 hour to 48 hours
+            const tofMin = 3600;      // 1 hour
+            const tofMax = 48 * 3600; // 48 hours
+            const sweep = simEngine.sweepInterceptTOF(targetRIC, tofMin, tofMax, 100);
+
+            tofSweepData = sweep;
+
+            // Draw the chart
+            drawTOFChart(sweep.all, tofMin, tofMax);
+
+            // If we found a best solution, set the TOF slider to it
+            if (sweep.best) {
+                const bestHours = sweep.best.tof / 3600;
+                document.getElementById('interceptTOF').value = bestHours.toFixed(1);
+                updateInterceptSolution();
+            }
+        }
+
+        function drawTOFChart(data, tofMin, tofMax) {
+            const canvas = document.getElementById('tofCanvas');
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (data.length < 2) return;
+
+            // Find min/max dV for scaling
+            let minDV = Infinity, maxDV = 0;
+            for (const d of data) {
+                if (d.total_dv < minDV) minDV = d.total_dv;
+                if (d.total_dv > maxDV) maxDV = d.total_dv;
+            }
+
+            // Cap maxDV for display
+            maxDV = Math.min(maxDV, simEngine.fuelBudget * 2);
+
+            const padding = 5;
+            const w = canvas.width - padding * 2;
+            const h = canvas.height - padding * 2;
+
+            // Draw fuel limit line
+            if (simEngine.fuelRemaining < maxDV) {
+                const fuelY = padding + h - (simEngine.fuelRemaining - minDV) / (maxDV - minDV) * h;
+                ctx.strokeStyle = '#f44336';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(padding, fuelY);
+                ctx.lineTo(canvas.width - padding, fuelY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw dV curve
+            ctx.strokeStyle = '#4CAF50';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (data[i].tof - tofMin) / (tofMax - tofMin) * w;
+                const y = padding + h - (Math.min(data[i].total_dv, maxDV) - minDV) / (maxDV - minDV) * h;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Mark minimum
+            let minIdx = 0;
+            for (let i = 1; i < data.length; i++) {
+                if (data[i].total_dv < data[minIdx].total_dv) minIdx = i;
+            }
+            const minX = padding + (data[minIdx].tof - tofMin) / (tofMax - tofMin) * w;
+            const minY = padding + h - (data[minIdx].total_dv - minDV) / (maxDV - minDV) * h;
+
+            ctx.fillStyle = '#FFEB3B';
+            ctx.beginPath();
+            ctx.arc(minX, minY, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Labels
+            ctx.fillStyle = '#888';
+            ctx.font = '9px sans-serif';
+            ctx.fillText((tofMin/3600).toFixed(0) + 'h', padding, canvas.height - 2);
+            ctx.fillText((tofMax/3600).toFixed(0) + 'h', canvas.width - 20, canvas.height - 2);
+            ctx.fillText(minDV.toFixed(1), 2, h);
+        }
+
+        function updateTOFMarker(tof) {
+            if (!tofSweepData) return;
+            const marker = document.getElementById('tofMarker');
+            const tofMin = 3600;
+            const tofMax = 48 * 3600;
+            const pct = (tof - tofMin) / (tofMax - tofMin) * 100;
+            marker.style.left = Math.max(0, Math.min(98, pct)) + '%';
+        }
+
+        function previewInterceptBurn() {
+            if (!currentInterceptSolution || !currentInterceptSolution.valid) return;
+
+            // Copy the burn to the manual fields for preview visualization
+            document.getElementById('burnR').value = currentInterceptSolution.dv1_ric.R.toFixed(3);
+            document.getElementById('burnI').value = currentInterceptSolution.dv1_ric.I.toFixed(3);
+            document.getElementById('burnC').value = currentInterceptSolution.dv1_ric.C.toFixed(3);
+
+            // Generate preview
+            const tof = currentInterceptSolution.tof;
+            currentPreview = simEngine.previewBurn(currentInterceptSolution.dv1_ric, tof * 1.5, Math.max(60, tof / 200));
+
+            // Copy frame selection
+            const frameRadios = document.querySelectorAll('input[name="interceptFrame"]');
+            const burnFrameRadios = document.querySelectorAll('input[name="previewFrame"]');
+            for (let i = 0; i < frameRadios.length; i++) {
+                burnFrameRadios[i].checked = frameRadios[i].checked;
+            }
+        }
+
+        function executeInterceptBurn() {
+            if (!currentInterceptSolution || !currentInterceptSolution.valid || !currentInterceptSolution.hasFuel) return;
+
+            // Execute the first burn
+            const dv = currentInterceptSolution.dv1_ric;
+            if (simEngine.applyBurn(dv)) {
+                addBurnLogEntry(dv);
+
+                // Store info about the planned second burn
+                const tof = currentInterceptSolution.tof;
+                const scheduledBurn2 = {
+                    time: simEngine.simTime + tof,
+                    dv_ric: currentInterceptSolution.dv2_ric,
+                    tof: tof
+                };
+
+                // Log scheduled burn 2 if it's significant
+                if (currentInterceptSolution.dv2_mag > 0.01) {
+                    console.log(`Burn 2 scheduled for T+${((simEngine.simTime + tof)/3600).toFixed(1)}h:`,
+                        currentInterceptSolution.dv2_ric);
+                    alert(`Burn 1 executed!\n\nBurn 2 (${currentInterceptSolution.dv2_mag.toFixed(2)} m/s) needed at T+${(tof/3600).toFixed(1)}h to match velocity.`);
+                }
+
+                hideInterceptPlanner();
+                currentPreview = null;
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            switch(e.key) {
+                case ' ': togglePause(); e.preventDefault(); break;
+                case 'r': case 'R': resetView(); break;
+                case '1': setViewMode('globe'); document.getElementById('viewMode').value = 'globe'; break;
+                case '2': setViewMode('sensor'); document.getElementById('viewMode').value = 'sensor'; break;
+                case '3': setViewMode('chase'); document.getElementById('viewMode').value = 'chase'; break;
+                case '4': setViewMode('target'); document.getElementById('viewMode').value = 'target'; break;
+                case 'p': case 'P': showBurnPlanner(); break;
+                case 'i': case 'I': showInterceptPlanner(); break;
+            }
+        });
+
+        // Initialize
+        loadInitialState();
+    </script>
+</body>
+</html>
