@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F-16 Fighter Simulator - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+        }
+
+        #hudCanvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(10, 15, 10, 0.85);
+            border: 1px solid #00aa00;
+            border-radius: 4px;
+            padding: 10px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        #flightDataPanel {
+            top: 70px; left: 10px; width: 200px;
+        }
+
+        #systemsPanel {
+            top: 70px; right: 10px; width: 210px;
+        }
+
+        #controlsHelp {
+            bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            max-width: 700px;
+            display: none;
+        }
+
+        #statusBar {
+            top: 5px; left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .panel h3 {
+            color: #00ff88;
+            font-size: 11px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #005500;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .data-label { color: #00aa00; }
+        .data-value { color: #00ff00; text-align: right; }
+        .data-value.warn { color: #ffff00; }
+        .data-value.alert { color: #ff3333; }
+
+        .key-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 2px 10px;
+        }
+
+        .key { color: #00ffff; font-weight: bold; }
+        .key-desc { color: #00aa00; }
+
+        #startOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+        }
+
+        #startOverlay h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 100, 0.5);
+        }
+
+        #startOverlay .subtitle {
+            font-size: 16px;
+            color: #00aa00;
+            margin-bottom: 30px;
+        }
+
+        .start-btn {
+            padding: 12px 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            background: rgba(0, 100, 0, 0.5);
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            cursor: pointer;
+            margin: 5px;
+            border-radius: 4px;
+        }
+
+        .start-btn:hover {
+            background: rgba(0, 200, 0, 0.3);
+        }
+
+        #msgOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <canvas id="hudCanvas"></canvas>
+
+    <!-- Status Bar -->
+    <div id="statusBar" class="panel">
+        F-15 EAGLE | <span id="simTime">0:00</span> |
+        <span id="timeWarpDisplay">1x</span> |
+        <span id="pauseStatus">RUNNING</span>
+    </div>
+
+    <!-- Flight Data Panel (Left) -->
+    <div id="flightDataPanel" class="panel">
+        <h3>Flight Data</h3>
+        <div class="data-row"><span class="data-label">IAS</span><span class="data-value" id="fdIAS">0 KT</span></div>
+        <div class="data-row"><span class="data-label">TAS</span><span class="data-value" id="fdTAS">0 KT</span></div>
+        <div class="data-row"><span class="data-label">Mach</span><span class="data-value" id="fdMach">0.00</span></div>
+        <div class="data-row"><span class="data-label">ALT MSL</span><span class="data-value" id="fdAlt">0 FT</span></div>
+        <div class="data-row"><span class="data-label">ALT AGL</span><span class="data-value" id="fdAGL">0 FT</span></div>
+        <div class="data-row"><span class="data-label">HDG</span><span class="data-value" id="fdHdg">000°</span></div>
+        <div class="data-row"><span class="data-label">VS</span><span class="data-value" id="fdVS">0 FPM</span></div>
+        <div class="data-row"><span class="data-label">G-Load</span><span class="data-value" id="fdG">1.0</span></div>
+        <div class="data-row"><span class="data-label">AoA</span><span class="data-value" id="fdAoA">0.0°</span></div>
+        <div class="data-row"><span class="data-label">Throttle</span><span class="data-value" id="fdThr">0%</span></div>
+        <div class="data-row"><span class="data-label">Fuel</span><span class="data-value" id="fdFuel">0 LB</span></div>
+        <div class="data-row"><span class="data-label">Lat</span><span class="data-value" id="fdLat">0.0000</span></div>
+        <div class="data-row"><span class="data-label">Lon</span><span class="data-value" id="fdLon">0.0000</span></div>
+    </div>
+
+    <!-- Systems Panel (Right) -->
+    <div id="systemsPanel" class="panel">
+        <h3>Systems</h3>
+        <div class="data-row"><span class="data-label">Engine</span><span class="data-value" id="sysEngine">OFF</span></div>
+        <div class="data-row"><span class="data-label">Gear</span><span class="data-value" id="sysGear">DOWN</span></div>
+        <div class="data-row"><span class="data-label">Flaps</span><span class="data-value" id="sysFlaps">UP</span></div>
+        <div class="data-row"><span class="data-label">Brakes</span><span class="data-value" id="sysBrakes">OFF</span></div>
+
+        <h3 style="margin-top:10px">Autopilot</h3>
+        <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="apStatus">OFF</span></div>
+        <div class="data-row"><span class="data-label">Mode</span><span class="data-value" id="apMode">---</span></div>
+        <div class="data-row"><span class="data-label">Target ALT</span><span class="data-value" id="apAlt">---</span></div>
+        <div class="data-row"><span class="data-label">Target HDG</span><span class="data-value" id="apHdg">---</span></div>
+        <div class="data-row"><span class="data-label">Target SPD</span><span class="data-value" id="apSpd">---</span></div>
+
+        <h3 style="margin-top:10px">Waypoint</h3>
+        <div class="data-row"><span class="data-label">WP</span><span class="data-value" id="wpName">---</span></div>
+        <div class="data-row"><span class="data-label">Dist</span><span class="data-value" id="wpDist">---</span></div>
+        <div class="data-row"><span class="data-label">Bearing</span><span class="data-value" id="wpBrg">---</span></div>
+
+        <h3 style="margin-top:10px">Weapons</h3>
+        <div class="data-row"><span class="data-label">Selected</span><span class="data-value" id="wpnSel">AIM-120</span></div>
+        <div class="data-row"><span class="data-label">AIM-120</span><span class="data-value" id="wpnAmraam">4</span></div>
+        <div class="data-row"><span class="data-label">AIM-9</span><span class="data-value" id="wpnSidewinder">2</span></div>
+        <div class="data-row"><span class="data-label">Target</span><span class="data-value" id="wpnTarget">NONE</span></div>
+        <div class="data-row"><span class="data-label">Range</span><span class="data-value" id="wpnRange">---</span></div>
+
+        <h3 style="margin-top:10px">Camera</h3>
+        <div class="data-row"><span class="data-label">Mode</span><span class="data-value" id="camMode">CHASE</span></div>
+    </div>
+
+    <!-- Controls Help (Bottom, toggled) -->
+    <div id="controlsHelp" class="panel">
+        <h3>Controls (Press H to hide)</h3>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="key-grid">
+                <span class="key">W / S</span><span class="key-desc">Throttle up/down</span>
+                <span class="key">Down / Up</span><span class="key-desc">Pitch up/down (stick)</span>
+                <span class="key">Left / Right</span><span class="key-desc">Roll left/right</span>
+                <span class="key">Ctrl+L/R</span><span class="key-desc">Yaw left/right</span>
+                <span class="key">E</span><span class="key-desc">Engine start/stop</span>
+                <span class="key">G</span><span class="key-desc">Toggle gear</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">F</span><span class="key-desc">Toggle flaps</span>
+                <span class="key">B</span><span class="key-desc">Wheel brakes</span>
+                <span class="key">Space</span><span class="key-desc">Pause</span>
+                <span class="key">A</span><span class="key-desc">Toggle autopilot</span>
+                <span class="key">N</span><span class="key-desc">Waypoint nav / next WP</span>
+                <span class="key">C</span><span class="key-desc">Cycle camera</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">T</span><span class="key-desc">Lock/cycle target</span>
+                <span class="key">X</span><span class="key-desc">Fire weapon</span>
+                <span class="key">1 / 2</span><span class="key-desc">Select AIM-120 / AIM-9</span>
+                <span class="key">+ / -</span><span class="key-desc">Time warp</span>
+                <span class="key">H</span><span class="key-desc">Toggle controls help</span>
+                <span class="key">R</span><span class="key-desc">Reset aircraft</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Overlay -->
+    <div id="startOverlay">
+        <h1>F-16 FIGHTER SIMULATOR</h1>
+        <div class="subtitle">All-Domain Simulation Environment</div>
+        <div style="margin-bottom: 20px; color: #00aa00;">
+            Edwards AFB, California | Runway 22L
+        </div>
+        <div>
+            <button class="start-btn" onclick="startAirborne()">[ 1 ] START AIRBORNE (5000m, 200 m/s)</button>
+        </div>
+        <div>
+            <button class="start-btn" onclick="startRunway()">[ 2 ] START ON RUNWAY</button>
+        </div>
+        <div style="margin-top:20px; color: #00ff00; font-size: 14px;">
+            Press <span style="color:#00ffff">1</span> for Airborne &nbsp;|&nbsp; Press <span style="color:#00ffff">2</span> for Runway
+        </div>
+        <div style="margin-top:10px; color: #008800; font-size: 11px;">
+            Press H in-game for controls reference
+        </div>
+    </div>
+
+    <!-- Temporary Message Overlay -->
+    <div id="msgOverlay"></div>
+
+    <!-- Early start-screen keyboard handler (before Cesium loads) -->
+    <script>
+    var _simStarted = false;
+    window.addEventListener('keydown', function(e) {
+        if (_simStarted) return;
+        if (e.code === 'Digit1' || e.code === 'Numpad1') {
+            e.preventDefault(); e.stopPropagation();
+            if (typeof startAirborne === 'function') startAirborne();
+        }
+        if (e.code === 'Digit2' || e.code === 'Numpad2') {
+            e.preventDefault(); e.stopPropagation();
+            if (typeof startRunway === 'function') startRunway();
+        }
+    }, true); // capture phase - fires before Cesium
+    </script>
+
+    <!-- Scripts: dependencies first, then engine modules, then main -->
+    <script src="cesium_config.js"></script>
+    <script src="js/fighter_atmosphere.js"></script>
+    <script src="js/fighter_sim_engine.js"></script>
+    <script src="js/fighter_hud.js"></script>
+    <script src="js/fighter_autopilot.js"></script>
+    <script src="js/fighter_weapons.js"></script>
+    <script src="js/fighter_ai.js"></script>
+
+    <script>
+    // =========================================================================
+    // MAIN APPLICATION
+    // =========================================================================
+    'use strict';
+
+    const DEG = FighterSimEngine.DEG;
+    const RAD = FighterSimEngine.RAD;
+    const MPS_TO_KNOTS = 1.94384;
+    const M_TO_FT = 3.28084;
+    // Heading offset to align the F-15 glb model nose with flight direction
+    // Adjust if model still faces wrong way (+PI/2 = 90° CW, -PI/2 = 90° CCW)
+    const MODEL_HDG_OFFSET = Math.PI / 2;
+
+    // ---- State ----
+    let aircraftState = null;
+    let autopilotState = null;
+    let weaponsState = null;
+    let aiDrones = [];
+    let isPaused = false;
+    let timeWarp = 1;
+    let lastTickTime = null;
+    let simElapsed = 0;
+    let cameraMode = 'chase'; // chase, cockpit, free
+    let started = false;
+
+    // Keyboard state
+    const keys = {};
+
+    // Cesium entities
+    let viewer, playerEntity, runwayEntity;
+    let droneEntities = {};
+    let missileEntities = {};
+    let trailPositions = [];
+    let playerTrail = [];
+    let trailCounter = 0;
+
+    // HUD canvas
+    let hudCanvas;
+
+    // ---- Cesium Viewer Init ----
+    try {
+        viewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: false,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+            vrButton: false,
+            infoBox: false,
+            selectionIndicator: false,
+            shadows: false,
+            shouldAnimate: true,
+        });
+
+        // Terrain (async, non-blocking)
+        Cesium.createWorldTerrainAsync().then(function(terrain) {
+            viewer.terrainProvider = terrain;
+        }).catch(function(e) {
+            console.warn('World terrain unavailable:', e);
+        });
+
+        addArcGISProviders(viewer);
+        viewer.scene.globe.enableLighting = true;
+
+        // Disable Cesium's default keyboard event handling so it doesn't eat our keys
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+    } catch(e) {
+        console.error('Cesium init error:', e);
+        // Fallback: still allow start
+        document.getElementById('startOverlay').innerHTML +=
+            '<div style="color:#ff3333;margin-top:10px;">Cesium error: ' + e.message + '</div>';
+    }
+
+    // HUD canvas setup
+    hudCanvas = document.getElementById('hudCanvas');
+    hudCanvas.width = hudCanvas.clientWidth;
+    hudCanvas.height = hudCanvas.clientHeight;
+    FighterHUD.init(hudCanvas);
+
+    window.addEventListener('resize', () => {
+        hudCanvas.width = hudCanvas.clientWidth;
+        hudCanvas.height = hudCanvas.clientHeight;
+        FighterHUD.resize();
+    });
+
+    // ---- Runway Entity ----
+    function createRunway() {
+        const rwy = FighterSimEngine.EDWARDS;
+        const rwyPos = Cesium.Cartesian3.fromRadians(rwy.lon, rwy.lat, rwy.alt);
+        const hdgDeg = rwy.heading * RAD;
+
+        // Runway surface
+        runwayEntity = viewer.entities.add({
+            position: rwyPos,
+            orientation: Cesium.Transforms.headingPitchRollQuaternion(
+                rwyPos,
+                new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(hdgDeg), 0, 0)
+            ),
+            box: {
+                dimensions: new Cesium.Cartesian3(rwy.width, rwy.length, 0.5),
+                material: Cesium.Color.DARKGRAY.withAlpha(0.8),
+                outline: true,
+                outlineColor: Cesium.Color.WHITE,
+            },
+        });
+
+        // Runway label
+        viewer.entities.add({
+            position: rwyPos,
+            label: {
+                text: 'KEDW RWY 22L',
+                font: '12px monospace',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -15),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        });
+    }
+
+    // ---- Player Entity ----
+    function createPlayerEntity() {
+        const trailColor = Cesium.Color.CYAN.withAlpha(0.6);
+
+        playerEntity = viewer.entities.add({
+            name: 'F-15 Eagle',
+            position: new Cesium.CallbackProperty(() => {
+                if (!aircraftState) return Cesium.Cartesian3.fromDegrees(0, 0, 0);
+                return Cesium.Cartesian3.fromRadians(
+                    aircraftState.lon, aircraftState.lat, aircraftState.alt
+                );
+            }, false),
+            orientation: new Cesium.CallbackProperty(() => {
+                if (!aircraftState) return Cesium.Quaternion.IDENTITY;
+                const pos = Cesium.Cartesian3.fromRadians(
+                    aircraftState.lon, aircraftState.lat, aircraftState.alt
+                );
+                // Model heading offset: glb model nose may not face Cesium's expected axis
+                return Cesium.Transforms.headingPitchRollQuaternion(
+                    pos,
+                    new Cesium.HeadingPitchRoll(
+                        aircraftState.heading + MODEL_HDG_OFFSET,
+                        aircraftState.pitch,
+                        aircraftState.roll
+                    )
+                );
+            }, false),
+            model: {
+                uri: 'models/f15.glb',
+                minimumPixelSize: 64,
+                maximumScale: 1,
+                silhouetteColor: Cesium.Color.LIME,
+                silhouetteSize: 1,
+            },
+        });
+
+        // Separate trail entity (polyline can't coexist with model on same entity reliably)
+        viewer.entities.add({
+            name: 'Player Trail',
+            polyline: {
+                positions: new Cesium.CallbackProperty(() => playerTrail, false),
+                width: 2,
+                material: trailColor,
+            },
+        });
+    }
+
+    // ---- Drone Entities ----
+    function createDroneEntities() {
+        for (const drone of aiDrones) {
+            const entity = viewer.entities.add({
+                name: drone.name,
+                position: new Cesium.CallbackProperty(() => {
+                    return Cesium.Cartesian3.fromRadians(drone.lon, drone.lat, drone.alt);
+                }, false),
+                orientation: new Cesium.CallbackProperty(() => {
+                    const pos = Cesium.Cartesian3.fromRadians(drone.lon, drone.lat, drone.alt);
+                    return Cesium.Transforms.headingPitchRollQuaternion(
+                        pos,
+                        new Cesium.HeadingPitchRoll(drone.heading, 0, drone.roll)
+                    );
+                }, false),
+                box: {
+                    dimensions: new Cesium.Cartesian3(14, 11, 4),
+                    material: new Cesium.ColorMaterialProperty(
+                        new Cesium.CallbackProperty(() => {
+                            if (drone.aiState === 'DESTROYED') return Cesium.Color.RED.withAlpha(0.3);
+                            if (drone.aiState === 'EVADE') return Cesium.Color.YELLOW;
+                            return Cesium.Color.RED;
+                        }, false)
+                    ),
+                },
+                label: {
+                    text: new Cesium.CallbackProperty(() => {
+                        if (drone.aiState === 'DESTROYED') return drone.name + ' [DESTROYED]';
+                        return drone.name;
+                    }, false),
+                    font: '11px monospace',
+                    fillColor: Cesium.Color.RED,
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -15),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+            });
+            droneEntities[drone.id] = entity;
+        }
+    }
+
+    // ---- Missile Entities ----
+    function updateMissileEntities() {
+        if (!weaponsState) return;
+
+        for (const missile of weaponsState.activeMissiles) {
+            if (!missileEntities[missile.id]) {
+                // Create entity for new missile
+                missileEntities[missile.id] = viewer.entities.add({
+                    name: 'Missile ' + missile.type,
+                    position: new Cesium.CallbackProperty(() => {
+                        return Cesium.Cartesian3.fromRadians(
+                            missile.lon, missile.lat, missile.alt
+                        );
+                    }, false),
+                    point: {
+                        pixelSize: 4,
+                        color: Cesium.Color.YELLOW,
+                    },
+                });
+            }
+
+            // Remove entity for completed missiles
+            if (missile.state === 'HIT' || missile.state === 'MISS') {
+                if (missile.removeTimer !== undefined && missile.removeTimer <= 0) {
+                    const ent = missileEntities[missile.id];
+                    if (ent) {
+                        viewer.entities.remove(ent);
+                        delete missileEntities[missile.id];
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- Camera ----
+    // Chase cam offsets (adjustable via mouse)
+    let camHeadingOffset = 0;   // rad, offset from aircraft heading
+    let camPitch = -0.3;        // rad, negative = looking down
+    let camRange = 150;         // m, distance from aircraft
+    let camDragging = false;
+    let camDragStart = { x: 0, y: 0 };
+
+    // Mouse controls for camera orbit/zoom
+    document.getElementById('cesiumContainer').addEventListener('mousedown', (e) => {
+        if (cameraMode !== 'chase') return;
+        if (e.shiftKey || e.button === 2) { // shift+click or right-click
+            camDragging = true;
+            camDragStart = { x: e.clientX, y: e.clientY };
+            e.preventDefault();
+        }
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!camDragging) return;
+        const dx = e.clientX - camDragStart.x;
+        const dy = e.clientY - camDragStart.y;
+        camDragStart = { x: e.clientX, y: e.clientY };
+        camHeadingOffset += dx * 0.005;
+        camPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(0.3, camPitch - dy * 0.005));
+    });
+    window.addEventListener('mouseup', () => { camDragging = false; });
+    document.getElementById('cesiumContainer').addEventListener('wheel', (e) => {
+        if (cameraMode !== 'chase') return;
+        camRange *= (1 + e.deltaY * 0.001);
+        camRange = Math.max(20, Math.min(5000, camRange));
+        e.preventDefault();
+    }, { passive: false });
+    // Prevent right-click context menu on viewer
+    document.getElementById('cesiumContainer').addEventListener('contextmenu', (e) => {
+        if (cameraMode === 'chase') e.preventDefault();
+    });
+
+    function updateCamera() {
+        if (!aircraftState || cameraMode === 'free') return;
+
+        const pos = Cesium.Cartesian3.fromRadians(
+            aircraftState.lon, aircraftState.lat, aircraftState.alt
+        );
+
+        if (cameraMode === 'chase') {
+            // Chase camera: orbitable around aircraft
+            viewer.camera.lookAt(
+                pos,
+                new Cesium.HeadingPitchRange(
+                    aircraftState.heading + camHeadingOffset,
+                    camPitch,
+                    camRange
+                )
+            );
+        } else if (cameraMode === 'cockpit') {
+            // Cockpit: compute body axes explicitly from ENU frame + HPR
+            // No quaternion ambiguity - pure rotation math
+
+            // Step 1: Get ENU axes in ECEF at aircraft position
+            const enuT = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
+            const em = Cesium.Matrix4.getMatrix3(enuT, new Cesium.Matrix3());
+            // ENU columns: col0=East, col1=North, col2=Up (in ECEF)
+            const E = new Cesium.Cartesian3(em[0], em[1], em[2]);  // East
+            const N = new Cesium.Cartesian3(em[3], em[4], em[5]);  // North
+            const U = new Cesium.Cartesian3(em[6], em[7], em[8]);  // Up
+
+            // Helper: a*v1 + b*v2 → result
+            function lc(a, v1, b, v2) {
+                const r = new Cesium.Cartesian3();
+                Cesium.Cartesian3.add(
+                    Cesium.Cartesian3.multiplyByScalar(v1, a, new Cesium.Cartesian3()),
+                    Cesium.Cartesian3.multiplyByScalar(v2, b, new Cesium.Cartesian3()),
+                    r);
+                return r;
+            }
+
+            const h = aircraftState.heading;
+            const p = aircraftState.pitch;
+            const r = -aircraftState.roll; // negate: camera roll convention opposite to body roll
+
+            // Step 2: Apply heading (rotate around Up, CW from North toward East)
+            // forward = sin(h)*East + cos(h)*North
+            // right   = cos(h)*East - sin(h)*North
+            let fwd = lc(Math.sin(h), E, Math.cos(h), N);
+            let rgt = lc(Math.cos(h), E, -Math.sin(h), N);
+            let up  = Cesium.Cartesian3.clone(U);
+
+            // Step 3: Apply pitch (rotate around right axis, positive = nose up)
+            const fwd2 = lc(Math.cos(p), fwd, Math.sin(p), up);
+            const up2  = lc(-Math.sin(p), fwd, Math.cos(p), up);
+            fwd = fwd2;
+            up  = up2;
+
+            // Step 4: Apply roll (rotate around forward axis, positive = right wing down)
+            const rgt2 = lc(Math.cos(r), rgt, Math.sin(r), up);
+            const up3  = lc(-Math.sin(r), rgt, Math.cos(r), up);
+            rgt = rgt2;
+            up  = up3;
+
+            // Camera at nose: 20m forward + 2m up from CG
+            const camPos = Cesium.Cartesian3.clone(pos);
+            Cesium.Cartesian3.add(camPos,
+                Cesium.Cartesian3.multiplyByScalar(fwd, 20, new Cesium.Cartesian3()), camPos);
+            Cesium.Cartesian3.add(camPos,
+                Cesium.Cartesian3.multiplyByScalar(up, 2, new Cesium.Cartesian3()), camPos);
+
+            // Release any lookAt lock then set camera directly
+            viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            viewer.camera.position  = camPos;
+            viewer.camera.direction = Cesium.Cartesian3.normalize(fwd, fwd);
+            viewer.camera.up        = Cesium.Cartesian3.normalize(up, up);
+            viewer.camera.right     = Cesium.Cartesian3.normalize(rgt, rgt);
+        }
+    }
+
+    function cycleCamera() {
+        const modes = ['chase', 'cockpit', 'free'];
+        const idx = modes.indexOf(cameraMode);
+        // Release any lookAtTransform lock before switching
+        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        cameraMode = modes[(idx + 1) % modes.length];
+        // Disable Cesium camera controls in cockpit (we drive camera manually)
+        viewer.scene.screenSpaceCameraController.enableInputs = (cameraMode !== 'cockpit');
+        // Hide model in cockpit mode so it doesn't block the view
+        if (playerEntity) {
+            playerEntity.show = (cameraMode !== 'cockpit');
+        }
+        if (cameraMode === 'chase') {
+            // Reset orbit to default behind view
+            camHeadingOffset = 0;
+            camPitch = -0.3;
+            camRange = 150;
+        }
+        document.getElementById('camMode').textContent = cameraMode.toUpperCase();
+        showMessage('Camera: ' + cameraMode.toUpperCase());
+    }
+
+    // ---- Keyboard Handling ----
+    // Use capture phase so we get events before Cesium
+    window.addEventListener('keydown', (e) => {
+        if (!started) return; // handled by early listener
+
+        keys[e.code] = true;
+
+        // Discrete key events (non-repeating)
+        if (e.repeat) return;
+
+        switch (e.code) {
+            case 'Space':
+                isPaused = !isPaused;
+                document.getElementById('pauseStatus').textContent = isPaused ? 'PAUSED' : 'RUNNING';
+                showMessage(isPaused ? 'PAUSED' : 'RESUMED');
+                if (!isPaused) lastTickTime = null;
+                break;
+
+            case 'KeyE':
+                if (aircraftState) {
+                    aircraftState.engineOn = !aircraftState.engineOn;
+                    showMessage(aircraftState.engineOn ? 'ENGINE START' : 'ENGINE STOP');
+                }
+                break;
+
+            case 'KeyG':
+                if (aircraftState) {
+                    aircraftState.gearDown = !aircraftState.gearDown;
+                    aircraftState.gearTransition = FighterSimEngine.F16_CONFIG.gear_transition_time;
+                    showMessage(aircraftState.gearDown ? 'GEAR DOWN' : 'GEAR UP');
+                }
+                break;
+
+            case 'KeyF':
+                if (aircraftState) {
+                    aircraftState.flapsDown = !aircraftState.flapsDown;
+                    showMessage(aircraftState.flapsDown ? 'FLAPS DOWN' : 'FLAPS UP');
+                }
+                break;
+
+            case 'KeyB':
+                if (aircraftState) {
+                    aircraftState.brakesOn = !aircraftState.brakesOn;
+                    showMessage(aircraftState.brakesOn ? 'BRAKES ON' : 'BRAKES OFF');
+                }
+                break;
+
+            case 'KeyA':
+                if (autopilotState && aircraftState) {
+                    FighterAutopilot.toggle(autopilotState, aircraftState);
+                    showMessage(autopilotState.enabled ? 'AUTOPILOT ON' : 'AUTOPILOT OFF');
+                }
+                break;
+
+            case 'KeyN':
+                if (autopilotState) {
+                    if (!autopilotState.wpNav) {
+                        FighterAutopilot.enableWpNav(autopilotState);
+                        showMessage('WAYPOINT NAV ON');
+                    } else {
+                        FighterAutopilot.nextWaypoint(autopilotState);
+                        const wp = autopilotState.waypoints[autopilotState.currentWpIndex];
+                        showMessage('NEXT WP: ' + (wp ? wp.name : '---'));
+                    }
+                }
+                break;
+
+            case 'KeyT':
+                if (weaponsState) {
+                    FighterWeapons.cycleTarget(weaponsState);
+                    const tgt = FighterWeapons.getLockedTarget(weaponsState);
+                    showMessage(tgt ? 'LOCKED: ' + tgt.name : 'NO TARGET');
+                }
+                break;
+
+            case 'KeyX':
+                if (weaponsState && aircraftState) {
+                    const missile = FighterWeapons.fire(weaponsState, aircraftState);
+                    if (missile) {
+                        showMessage(missile.type + ' AWAY!');
+                    } else {
+                        showMessage('CANNOT FIRE');
+                    }
+                }
+                break;
+
+            case 'Digit1':
+                if (weaponsState) {
+                    FighterWeapons.selectWeapon(weaponsState, 'AIM-120');
+                    showMessage('SELECTED: AIM-120 AMRAAM');
+                }
+                break;
+
+            case 'Digit2':
+                if (weaponsState) {
+                    FighterWeapons.selectWeapon(weaponsState, 'AIM-9');
+                    showMessage('SELECTED: AIM-9 SIDEWINDER');
+                }
+                break;
+
+            case 'KeyC':
+                cycleCamera();
+                break;
+
+            case 'KeyH':
+                const help = document.getElementById('controlsHelp');
+                help.style.display = help.style.display === 'none' ? 'block' : 'none';
+                break;
+
+            case 'Equal': // + key
+            case 'NumpadAdd':
+                timeWarp = Math.min(timeWarp * 2, 16);
+                document.getElementById('timeWarpDisplay').textContent = timeWarp + 'x';
+                showMessage('TIME WARP: ' + timeWarp + 'x');
+                break;
+
+            case 'Minus':
+            case 'NumpadSubtract':
+                timeWarp = Math.max(timeWarp / 2, 0.25);
+                document.getElementById('timeWarpDisplay').textContent = timeWarp + 'x';
+                showMessage('TIME WARP: ' + timeWarp + 'x');
+                break;
+
+            case 'KeyR':
+                resetAircraft();
+                break;
+        }
+    }, true); // capture phase
+
+    window.addEventListener('keyup', (e) => {
+        keys[e.code] = false;
+    }, true);
+
+    /**
+     * Build control commands from current key state
+     */
+    function getControlCommands() {
+        const controls = {};
+
+        // Throttle
+        controls.throttleUp = keys['KeyW'];
+        controls.throttleDown = keys['KeyS'];
+
+        // Pitch (down arrow = pull back = pitch up, like a real stick)
+        if (keys['ArrowDown']) controls.pitch = 1;
+        else if (keys['ArrowUp']) controls.pitch = -1;
+        else controls.pitch = 0;
+
+        // Roll (left arrow = roll left = negative)
+        if (keys['ArrowLeft'] && !keys['ControlLeft'] && !keys['ControlRight']) controls.roll = -1;
+        else if (keys['ArrowRight'] && !keys['ControlLeft'] && !keys['ControlRight']) controls.roll = 1;
+        else controls.roll = 0;
+
+        // Yaw (Ctrl + arrows)
+        if ((keys['ControlLeft'] || keys['ControlRight']) && keys['ArrowLeft']) controls.yaw = -1;
+        else if ((keys['ControlLeft'] || keys['ControlRight']) && keys['ArrowRight']) controls.yaw = 1;
+        else controls.yaw = 0;
+
+        // Engine toggle handled in keydown
+
+        return controls;
+    }
+
+    // ---- Game Loop ----
+    viewer.clock.onTick.addEventListener(function() {
+        if (!started || !aircraftState) return;
+        if (isPaused) { lastTickTime = null; return; }
+
+        const now = Date.now();
+        if (lastTickTime === null) { lastTickTime = now; return; }
+
+        let realDt = (now - lastTickTime) / 1000;
+        lastTickTime = now;
+
+        // Cap dt
+        realDt = Math.min(realDt, 0.1);
+        const dt = realDt * timeWarp;
+
+        simElapsed += dt;
+
+        // 1. Get player controls
+        let controls = getControlCommands();
+
+        // 2. Autopilot (overrides manual controls if enabled)
+        if (autopilotState && autopilotState.enabled) {
+            const apControls = FighterAutopilot.update(autopilotState, aircraftState, dt);
+            if (apControls.pitch !== undefined) controls.pitch = apControls.pitch;
+            if (apControls.roll !== undefined) controls.roll = apControls.roll;
+            if (apControls.throttleSet !== undefined) controls.throttleSet = apControls.throttleSet;
+        }
+
+        // 3. Step aircraft physics
+        FighterSimEngine.step(aircraftState, controls, dt);
+
+        // 3b. Update player trail (every ~10 frames)
+        trailCounter++;
+        if (trailCounter % 10 === 0) {
+            playerTrail.push(Cesium.Cartesian3.fromRadians(
+                aircraftState.lon, aircraftState.lat, aircraftState.alt
+            ));
+            // Keep last 500 points (~80 seconds of trail)
+            if (playerTrail.length > 500) playerTrail.shift();
+        }
+
+        // 4. Update AI drones
+        FighterAI.updateAll(aiDrones, aircraftState,
+                           weaponsState ? weaponsState.activeMissiles : [], dt);
+
+        // 5. Update weapons targets list
+        if (weaponsState) {
+            weaponsState.targets = FighterAI.getTargetList(aiDrones);
+
+            // Update locked target's closure rate
+            const tgt = FighterWeapons.getLockedTarget(weaponsState);
+            if (tgt) {
+                tgt.closureRate = FighterWeapons.closureRate(aircraftState, tgt);
+            }
+
+            // Check launch envelope
+            FighterWeapons.checkLaunchEnvelope(weaponsState, aircraftState);
+
+            // Update missiles
+            FighterWeapons.updateMissiles(weaponsState, dt);
+        }
+
+        // 6. Update missile entities
+        updateMissileEntities();
+
+        // 7. Check for destroyed drones
+        for (const drone of aiDrones) {
+            if (drone.aiState === 'DESTROYED' && droneEntities[drone.id]) {
+                // Entity will update via CallbackProperty (color changes)
+            }
+        }
+
+        // 8. Update camera
+        updateCamera();
+
+        // 9. Render HUD
+        const tgt = weaponsState ? FighterWeapons.getLockedTarget(weaponsState) : null;
+        const hudTarget = tgt ? {
+            ...tgt,
+            locked: true,
+            closureRate: tgt.closureRate || 0,
+        } : null;
+
+        const hudWeapons = weaponsState ? {
+            selectedWeapon: weaponsState.selectedWeapon,
+            getCount: (name) => FighterWeapons.getCount(weaponsState, name),
+            inRange: weaponsState.inRange,
+        } : null;
+
+        FighterHUD.render(aircraftState, autopilotState, hudWeapons, hudTarget);
+
+        // 10. Update UI panels
+        updateFlightDataPanel();
+        updateSystemsPanel();
+        updateTimeDisplay();
+    });
+
+    // ---- UI Updates ----
+    function updateFlightDataPanel() {
+        if (!aircraftState) return;
+
+        const ias = Atmosphere.tasToCas(aircraftState.speed, aircraftState.alt) * MPS_TO_KNOTS;
+        const tas = aircraftState.speed * MPS_TO_KNOTS;
+        const altFt = aircraftState.alt * M_TO_FT;
+        const aglFt = (aircraftState.alt - FighterSimEngine.EDWARDS.alt) * M_TO_FT;
+        const hdgDeg = aircraftState.heading * RAD;
+        const vsFpm = aircraftState.speed * Math.sin(aircraftState.gamma) * 196.85;
+        const aoaDeg = aircraftState.alpha * RAD;
+        const thrPct = Math.round(aircraftState.throttle * 100);
+        const fuelLbs = Math.round(aircraftState.fuel * 2.205);
+
+        setText('fdIAS', Math.round(ias) + ' KT');
+        setText('fdTAS', Math.round(tas) + ' KT');
+        setText('fdMach', aircraftState.mach.toFixed(2));
+        setText('fdAlt', Math.round(altFt) + ' FT');
+        setText('fdAGL', Math.round(aglFt) + ' FT');
+        setText('fdHdg', Math.round(hdgDeg >= 0 ? hdgDeg : hdgDeg + 360).toString().padStart(3, '0') + '°');
+        setText('fdVS', (vsFpm >= 0 ? '+' : '') + Math.round(vsFpm) + ' FPM');
+        setTextWithClass('fdG', aircraftState.g_load.toFixed(1),
+                        Math.abs(aircraftState.g_load) > 7 ? 'alert' : Math.abs(aircraftState.g_load) > 5 ? 'warn' : '');
+        setText('fdAoA', aoaDeg.toFixed(1) + '°');
+        setText('fdThr', thrPct + '%' + (aircraftState.throttle > 0.85 ? ' AB' : ''));
+        setText('fdFuel', fuelLbs + ' LB');
+        setText('fdLat', (aircraftState.lat * RAD).toFixed(4) + '°');
+        setText('fdLon', (aircraftState.lon * RAD).toFixed(4) + '°');
+    }
+
+    function updateSystemsPanel() {
+        if (!aircraftState) return;
+
+        setTextWithClass('sysEngine', aircraftState.engineOn ? 'ON' : 'OFF',
+                        aircraftState.engineOn ? '' : 'alert');
+        setText('sysGear', aircraftState.gearDown ? 'DOWN' : 'UP');
+        setText('sysFlaps', aircraftState.flapsDown ? 'DOWN' : 'UP');
+        setText('sysBrakes', aircraftState.brakesOn ? 'ON' : 'OFF');
+
+        // Autopilot
+        if (autopilotState) {
+            setTextWithClass('apStatus', autopilotState.enabled ? 'ON' : 'OFF',
+                            autopilotState.enabled ? '' : '');
+
+            if (autopilotState.enabled) {
+                let modes = [];
+                if (autopilotState.altHold) modes.push('ALT');
+                if (autopilotState.hdgHold) modes.push('HDG');
+                if (autopilotState.spdHold) modes.push('SPD');
+                if (autopilotState.wpNav) modes.push('NAV');
+                setText('apMode', modes.join('+') || '---');
+                setText('apAlt', Math.round(autopilotState.targetAlt * M_TO_FT) + ' FT');
+                setText('apHdg', Math.round(autopilotState.targetHdg * RAD) + '°');
+                setText('apSpd', Math.round(autopilotState.targetSpeed * MPS_TO_KNOTS) + ' KT');
+            } else {
+                setText('apMode', '---');
+                setText('apAlt', '---');
+                setText('apHdg', '---');
+                setText('apSpd', '---');
+            }
+
+            // Waypoint info
+            const wpInfo = FighterAutopilot.getWaypointInfo(autopilotState, aircraftState);
+            if (wpInfo) {
+                setText('wpName', `${wpInfo.index + 1}/${wpInfo.total} ${wpInfo.name}`);
+                setText('wpDist', wpInfo.distanceNm.toFixed(1) + ' NM');
+                setText('wpBrg', Math.round(wpInfo.bearingDeg) + '°');
+            } else {
+                setText('wpName', '---');
+                setText('wpDist', '---');
+                setText('wpBrg', '---');
+            }
+        }
+
+        // Weapons
+        if (weaponsState) {
+            setText('wpnSel', weaponsState.selectedWeapon);
+            setText('wpnAmraam', FighterWeapons.getCount(weaponsState, 'AIM-120').toString());
+            setText('wpnSidewinder', FighterWeapons.getCount(weaponsState, 'AIM-9').toString());
+
+            const tgt = FighterWeapons.getLockedTarget(weaponsState);
+            if (tgt) {
+                const range = FighterSimEngine.distance(aircraftState.lat, aircraftState.lon,
+                                                         tgt.lat, tgt.lon);
+                setText('wpnTarget', tgt.name);
+                setTextWithClass('wpnRange', (range / 1852).toFixed(1) + ' NM',
+                               weaponsState.inRange ? '' : 'warn');
+            } else {
+                setText('wpnTarget', 'NONE');
+                setText('wpnRange', '---');
+            }
+        }
+    }
+
+    function updateTimeDisplay() {
+        const mins = Math.floor(simElapsed / 60);
+        const secs = Math.floor(simElapsed % 60);
+        document.getElementById('simTime').textContent =
+            mins + ':' + secs.toString().padStart(2, '0');
+    }
+
+    // ---- Helpers ----
+    function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    function setTextWithClass(id, text, cls) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = text;
+            el.className = 'data-value' + (cls ? ' ' + cls : '');
+        }
+    }
+
+    let msgTimeout = null;
+    function showMessage(text) {
+        const el = document.getElementById('msgOverlay');
+        el.textContent = text;
+        el.style.opacity = '1';
+        if (msgTimeout) clearTimeout(msgTimeout);
+        msgTimeout = setTimeout(() => {
+            el.style.opacity = '0';
+        }, 1500);
+    }
+
+    // ---- Start Functions ----
+    function initSim(airborne) {
+        // Create aircraft
+        aircraftState = FighterSimEngine.createAircraftState({ airborne });
+        aircraftState.weaponMass = 152 * 4 + 85 * 2; // missile mass
+        aircraftState.infiniteFuel = true;
+
+        // Create autopilot
+        autopilotState = FighterAutopilot.createAutopilotState();
+
+        // Create weapons
+        weaponsState = FighterWeapons.createWeaponsState();
+        weaponsState.infiniteWeapons = true;
+
+        // Create AI drones
+        aiDrones = FighterAI.createDrones();
+
+        // Create Cesium entities
+        createRunway();
+        createPlayerEntity();
+        createDroneEntities();
+
+        // Position camera
+        if (airborne) {
+            // Look at aircraft from behind
+            const pos = Cesium.Cartesian3.fromRadians(
+                aircraftState.lon, aircraftState.lat, aircraftState.alt
+            );
+            viewer.camera.lookAt(pos,
+                new Cesium.HeadingPitchRange(aircraftState.heading, -0.3, 200));
+        } else {
+            // Look at runway
+            const rwy = FighterSimEngine.EDWARDS;
+            const pos = Cesium.Cartesian3.fromRadians(rwy.lon, rwy.lat, rwy.alt + 50);
+            viewer.camera.lookAt(pos,
+                new Cesium.HeadingPitchRange(rwy.heading, -0.2, 300));
+        }
+
+        // Hide start overlay
+        document.getElementById('startOverlay').style.display = 'none';
+        started = true;
+        _simStarted = true; // sync early listener flag
+        lastTickTime = null;
+    }
+
+    function resetAircraft() {
+        // Remove old entities
+        viewer.entities.removeAll();
+        droneEntities = {};
+        missileEntities = {};
+        playerTrail = [];
+        trailCounter = 0;
+
+        // Reinitialize (keep current mode preference)
+        const wasAirborne = aircraftState ?
+            (aircraftState.phase !== 'PARKED' && aircraftState.phase !== 'LANDED') : true;
+        simElapsed = 0;
+        lastTickTime = null;
+        initSim(wasAirborne);
+        showMessage('AIRCRAFT RESET');
+    }
+
+    // Exposed to start buttons
+    window.startAirborne = function() { initSim(true); };
+    window.startRunway = function() { initSim(false); };
+
+    </script>
+</body>
+</html>
