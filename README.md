@@ -1,163 +1,161 @@
 # All-Domain Simulation Environment
 
-## Project Vision
-An integrated Earth-Air-Space simulation environment capable of modeling multi-domain scenarios from ground operations through atmospheric flight to orbital mechanics and beyond. Think KSP meets STK meets AFSIM with full 3D visualization.
+An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-## Success Criteria (The "We Crushed It" Scenario)
+**Team**: Human + Claude | **Status**: Interactive sims operational
+
+## Quick Start
+
+No build step needed for the interactive sims — just serve and open in a browser:
+
+```bash
+cd visualization/cesium
+python3 -m http.server 8000
+```
+
+Then open: **http://localhost:8000/**
+
+### Featured Sims
+
+| Sim | URL | Description |
+|-----|-----|-------------|
+| **Spaceplane** | `/spaceplane_viewer.html` | Atmosphere-to-orbit flight. KSP-style orbital mechanics, maneuver nodes, 3 propulsion modes. Start on the runway or in orbit. |
+| **Fighter** | `/fighter_sim_viewer.html` | F-16 flight sim with full HUD, weapons (AIM-9/AIM-120/bombs/gun), AI adversaries. |
+| **Satellite Tour** | `/sat_tour_viewer.html` | Animated 3D tour of satellite constellations on Cesium globe. |
+| **GEO Sim** | `/geo_sim_viewer.html` | GEO rendezvous with Newton-Raphson intercept planner. |
+| **Launch Trajectory** | `/launch_viewer.html` | Gravity turn rocket launch with multiple scenario demos. |
+| **Orbit Viewer** | `/orbit_viewer.html` | TLE-based orbit visualization with ground tracks. |
+
+## Spaceplane Sim
+
+Fly from the runway to orbit and back. Full 3-DOF flight physics with smooth atmosphere-to-vacuum transition.
+
+### Controls
+```
+W/S or Up/Down    Throttle
+A/D or Left/Right Roll (bank)
+Pitch             Up/Down arrows
+Q/E               Yaw (heading rotation in space)
+P                 Cycle propulsion: AIR → HYPERSONIC → ROCKET
+Space             Pause
+E                 Engine on/off
+M                 Toggle orbital planner mode
+N                 Create maneuver node
+Enter             Execute maneuver node
++/-               Time warp (up to 1024x)
+C                 Cycle camera
+H                 Show all controls
+```
+
+### Start Modes
+1. **Airborne** — 5km altitude, 200 m/s
+2. **Runway** — Edwards AFB, standing start
+3. **Suborbital** — 80km, Mach 10, climbing
+4. **Orbital** — 400km circular orbit, 7700 m/s
+
+### Physics
+- Inverse-square gravity with centrifugal V²/R term (real orbits)
+- US Standard Atmosphere extended to thermosphere (exponential decay above 84km)
+- Smooth aero-to-vacuum blend based on dynamic pressure
+- Three propulsion modes: AIR (160kN turbofan), HYPERSONIC (400kN), ROCKET (2 MN)
+- Free rotation in vacuum (pitch, roll, yaw unclamped)
+- KSP-style orbital markers on HUD (prograde, retrograde, normal, radial)
+- Maneuver node planner with predicted orbit visualization
+
+## Fighter Sim
+
+Full F-16 simulation with realistic flight dynamics.
+
+- Pitch ladder, speed/altitude tapes, heading, G meter
+- AIM-9 Sidewinder, AIM-120 AMRAAM, bombs, gun
+- AI wingmen and adversary aircraft
+- Autopilot (altitude, heading, speed hold)
+- Gear, flaps, brakes, afterburner
+
+## C++ Backend
+
+For offline orbit computation and data generation:
+
+```bash
+# Build
+cd build && cmake .. && make -j$(nproc)
+
+# Generate TLE orbit data
+./build/bin/demo data/tles/satcat.txt
+
+# Run rendezvous scenario
+./build/bin/rendezvous_demo
+```
+
+### C++ Architecture
+```
+src/
+├── core/          Simulation engine, state vectors
+├── physics/       Gravity (J2), orbital elements, atmosphere,
+│                  Hohmann/Lambert transfers, CW equations
+├── entities/      Satellite (TLE), launch vehicle (multi-stage)
+├── coordinate/    ECI/ECEF/Geodetic transforms, GMST
+├── propagators/   RK4 integrator
+└── io/            TLE parser
+```
+
+### JavaScript Sim Modules
+```
+visualization/cesium/js/
+├── fighter_sim_engine.js    3-DOF flight physics engine
+├── fighter_atmosphere.js    US Standard Atmosphere + thermosphere
+├── fighter_hud.js           Canvas HUD with pitch ladder & orbital markers
+├── fighter_autopilot.js     Altitude/heading/speed hold
+├── fighter_weapons.js       Air-to-air/air-to-ground weapons
+├── fighter_ai.js            AI adversary tactics
+├── spaceplane_orbital.js    Orbital mechanics (elements, Kepler, regimes)
+├── spaceplane_planner.js    Maneuver node system
+└── spaceplane_hud.js        Planner mode HUD & navball
+```
+
+## The "We Crushed It" Scenario
+
+The end goal — all in one continuous simulation:
+
 1. Launch a space shuttle with multi-stage rocket physics
 2. Achieve orbit using orbital propagation
-3. Rendezvous with a satellite from a TLE catalog (thousands of objects)
-4. Satellite captures synthetic imagery of shuttle's .obj model
-5. Shuttle performs rendezvous maneuvers around target satellite
+3. Rendezvous with a satellite from a TLE catalog
+4. Satellite captures synthetic imagery of shuttle
+5. Shuttle performs proximity maneuvers around target
 6. Re-entry using aerodynamic flight model
-7. Navigate atmospheric flight to runway landing
-8. Taxi into hangar using ground physics
+7. Navigate atmospheric flight to runway
+8. Land and taxi into hangar
 9. Full 3D visualization in Cesium
 
-## Architecture Overview
+### Milestone Progress
+- [x] M0: Project skeleton, build system
+- [x] M1: TLE parsing, orbit propagation
+- [x] M2: Cesium 3D visualization
+- [x] M3: Coordinate transforms, animation, ground tracks
+- [x] M4: Launch vehicle physics, rendezvous planning
+- [x] M5: GEO rendezvous dynamics, multi-sat tours
+- [x] M6: LEO imaging constellation
+- [x] M7: Multi-body gravity, aerobraking
+- [x] **Interactive**: Fighter sim (F-16 with weapons, AI, full HUD)
+- [x] **Interactive**: Spaceplane sim (atmosphere-to-orbit, KSP-style)
+- [ ] M8: Runway landing + ground taxi
+- [ ] M9: Full scenario integration
 
-### Execution Modes
-- **Model Mode**: Maximum speed computation for data generation/analysis
-- **Simulation Mode**: Real-time (or scaled time) execution with human/AI in-the-loop capability
+## Dependencies
 
-### Physics Domains (Modular)
-1. **Ground Physics**: Taxi, runway operations
-2. **Aerodynamics**: 6DOF atmospheric flight (eventual joystick control)
-3. **Rocket Physics**: Multi-stage launch vehicles
-4. **Orbital Mechanics**: Multi-body dynamics with J-effects, full force model
-5. **Domain Transitions**: Altitude-based switching (~50km threshold for aero/orbital)
-
-### Coordinate Frames
-- **TEME**: Two-Line Element propagation
-- **J2000 ECI**: Multi-body dynamics
-- **ECEF/WGS84**: Cesium visualization
-- **Transformation Pipeline**: Built-in conversions between all frames
-
-### Visualization
-- **Phase 1**: CesiumJS (web-based)
-- **Phase 2**: Migration to mature 3D engine (Unity/Unreal) if needed
-- **Synthetic Imagery**: Dual Cesium instances for camera simulation with B&W filters and noise
-
-### Data Flow
-- C++ engine outputs state vectors (ECI positions/velocities)
-- Communication via HLA/DIS/JSON protocol
-- Cesium polls or receives pushed updates each sim-tick
-
-### External Data
-- TLE catalog from CelesTrak (satcat.txt, user-provided)
-- TLE → Classical Orbital Elements conversion for unified physics engine
-- .obj models for 3D entities
-
-## Technology Stack
-
-### Core Language
-- C++ (primary simulation engine)
-
-### Build System
-- CMake with Ninja generator
-- Linux-only development environment
-
-### Dependencies (Open Source)
-- SGP4: TLE propagation
-- Eigen: Linear algebra
-- Additional libraries TBD as needed
-
-### Version Control
-- Git with automated hooks
-- Checkpoint commits for each milestone
-- CMakeLists.txt tracked in repository
-
-## Development Philosophy
-
-### Incremental Validation
-- Baby-step approach: validate each subsystem independently
-- First milestone: Single TLE orbit propagation → Cesium visualization
-- Avoid scenario-specific code; build generic physics that scales
-
-### Code Delivery
-- Each build step is copy-paste terminal commands
-- Use `cat` or heredoc for file creation/patching
-- No manual file editing required
-
-### Team
-- Just us two: Human + Claude
-
-## Design Decisions Log
-
-### Q: Real-time vs Batch?
-**A**: Both. Model Mode for fast computation, Sim Mode for interactive scenarios.
-
-### Q: Monolithic vs Modular?
-**A**: Modular physics domains that activate based on flight regime.
-
-### Q: Cesium Integration?
-**A**: CesiumJS initially, with C++ pushing ECI state via HLA/DIS/JSON.
-
-### Q: Orbital Mechanics Fidelity?
-**A**: Full multi-body with J-effects. Goal: Moon landings, Mars missions, asteroid inspections.
-
-### Q: Aerodynamics Fidelity?
-**A**: 6DOF eventual target with joystick support. Lookup tables acceptable.
-
-### Q: TLE Handling?
-**A**: Convert TLE → classical elements, use unified physics engine (not SGP4 directly in sim).
-
-### Q: Synthetic Camera?
-**A**: Dual Cesium instances, one camera-manipulated for satellite POV, post-process with B&W + noise.
-
-### Q: State Transitions?
-**A**: Altitude-based thresholds (e.g., 50km for aero/orbital boundary). Smooth handoffs preferred but not critical for v1.
-
-### Q: Coordinate Frames Strategy?
-**A**: Build transformation pipeline from start. TEME for TLE input, J2000 for physics, ECEF for visualization.
-
-## Project Structure
-```
-all-domain-sim/
-├── README.md                 # This file
-├── docs/                     # Design documents, API specs
-├── src/
-│   ├── core/                 # Main simulation engine
-│   ├── physics/              # Physics modules (rocket, orbital, aero, ground)
-│   ├── entities/             # Spacecraft, satellites, aircraft definitions
-│   ├── coordinate/           # Frame transformations (TEME, ECI, ECEF)
-│   ├── propagators/          # State propagators (SGP4, multi-body)
-│   ├── io/                   # TLE parsing, HLA/DIS/JSON output
-│   └── utils/                # Common utilities
-├── visualization/
-│   └── cesium/               # Cesium web client
-├── data/
-│   ├── tles/                 # TLE catalog files
-│   ├── models/               # .obj 3D models
-│   └── config/               # Simulation configurations
-├── tests/                    # Unit and integration tests
-├── scripts/                  # Build and deployment scripts
-└── CMakeLists.txt            # Root build configuration
-```
-
-## Getting Started
-(To be populated with build instructions)
-
-## Milestones
-- [x] Milestone 0: Project skeleton, build system, Git setup
-- [x] Milestone 1: TLE parsing + single orbit propagation
-- [x] Milestone 2: Cesium visualization of propagated orbit (including RK4/J2)
-- [x] Milestone 3: Mode switching (Model/Sim) with time control
-- [x] Milestone 4: Multi-entity simulation (shuttle + satellite from TLE)
-- [x] Milestone 5: Basic rendezvous dynamics (GEO & multi-sat tours)
-- [x] Milestone 6: Synthetic camera implementation (LEO imaging constellation)
-- [x] Milestone 7: Atmospheric re-entry physics (multi-body gravity, aerobraking)
-- [ ] Milestone 8: Runway landing + ground taxi
-- [ ] Milestone 9: Full "crushed it" scenario integration
+- **C++ backend**: CMake 3.20+, C++17
+- **Interactive sims**: Python3 (HTTP server), modern browser with WebGL
+- **No npm/node** — Cesium loaded from CDN
 
 ## References
-- KSP (Kerbal Space Program): Game-like multi-domain physics
-- STK (Systems Tool Kit): Professional orbital analysis
-- AFSIM (Advanced Framework for Simulation): Multi-domain modeling
-- CelesTrak: TLE data source
-- SGP4: Simplified perturbations model for TLE propagation
+
+- [Kerbal Space Program](https://www.kerbalspaceprogram.com/) — Game-like multi-domain physics
+- [STK (Systems Tool Kit)](https://www.agi.com/products/stk) — Professional orbital analysis
+- [AFSIM](https://www.afsim.com/) — Multi-domain modeling framework
+- [CelesTrak](https://celestrak.org/) — TLE data source
+- [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-01-26
+*Last Updated*: 2026-01-27
 *Team*: Human + Claude
-*Status*: Milestone 7 Complete - Multi-body physics & aerobraking
+*Status*: Interactive flight sims operational — Spaceplane with KSP-style orbital mechanics

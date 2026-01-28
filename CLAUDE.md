@@ -4,25 +4,29 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Milestone 4 Complete
+## Current Status: Interactive Sims Operational
 
-### Completed Milestones:
+### C++ Backend (Milestones 0-4):
 - **M0**: Project skeleton, CMake build system, Git setup
 - **M1**: TLE parsing, single orbit propagation
 - **M2**: Cesium 3D visualization of orbits
 - **M3**: Coordinate transformations (ECI/ECEF/Geodetic), animation, ground tracks
 - **M4**: Launch vehicle physics, orbital elements, rendezvous planning
 
-### Remaining Milestones:
-- **M5**: Basic rendezvous dynamics (refine proximity ops)
-- **M6**: Synthetic camera implementation
-- **M7**: Atmospheric re-entry physics
-- **M8**: Runway landing + ground taxi
-- **M9**: Full "crushed it" scenario integration
+### JavaScript Interactive Sims (visualization/cesium/):
+These are standalone browser-based simulations — no C++ backend needed.
+
+- **Satellite Tour** (`sat_tour_viewer.html`) — Animated tour of satellite constellations
+- **GEO Sim** (`geo_sim_viewer.html`) — GEO rendezvous with Newton-Raphson intercept
+- **LEO Sensor** — LEO imaging constellation revisit visualization
+- **GPS PDOP** — Position dilution of precision grid calculator
+- **Launch Trajectory** (`launch_viewer.html`) — Gravity turn rocket launch demos
+- **Fighter Sim** (`fighter_sim_viewer.html`) — Full F-16 flight sim with HUD, weapons, AI
+- **Spaceplane Sim** (`spaceplane_viewer.html`) — **Atmosphere-to-orbit KSP-style sim**
 
 ## Architecture
 
-### Core Components (src/):
+### C++ Core (src/):
 ```
 core/           - SimulationEngine, StateVector, PhysicsDomain
 physics/        - GravityModel (J2), OrbitalElements, AtmosphereModel,
@@ -33,96 +37,136 @@ propagators/    - RK4Integrator
 io/             - TLEParser
 ```
 
+### JavaScript Sim Modules (visualization/cesium/js/):
+```
+fighter_sim_engine.js   - 3-DOF flight physics (F-16 + spaceplane configs)
+                          Gravity, aero, thrust, control, ground handling
+fighter_atmosphere.js   - US Standard Atmosphere + thermosphere extension above 84km
+fighter_hud.js          - Canvas HUD: pitch ladder, speed/alt tapes, heading,
+                          G meter, weapons, target reticle, orbital markers
+fighter_autopilot.js    - Altitude/heading/speed hold, waypoint nav
+fighter_weapons.js      - AIM-9/AIM-120/bombs/gun with ballistics
+fighter_ai.js           - AI wingmen and adversary tactics
+
+spaceplane_orbital.js   - Geodetic→ECI, orbital elements, Kepler propagation,
+                          orbit path prediction, flight regime detection
+spaceplane_planner.js   - KSP-style maneuver nodes (create/edit/execute)
+spaceplane_hud.js       - Planner mode HUD, navball, orbital overlay
+```
+
 ### Executables:
-- `demo` - TLE catalog visualization (all satellites, 24hr)
-- `rendezvous_demo` - Launch from Cape Canaveral, orbit insertion, transfer to target
+- `demo` — TLE catalog visualization (generates orbit_data.json)
+- `rendezvous_demo` — Launch from Cape Canaveral, orbit insertion, transfer
 
-### Visualization:
-- `visualization/cesium/orbit_viewer.html` - Cesium viewer with animation, ground tracks
-- Uses built-in NaturalEarthII imagery (no Ion token required)
-- Reads `orbit_data.json` from project root
+### Visualization HTML pages:
+All served from `visualization/cesium/` via `python3 -m http.server 8000`
 
-## Build Commands
+## Build & Run
+
+### C++ Backend
 ```bash
 cd build && cmake .. && make -j$(nproc)
-```
-
-## Run Commands
-```bash
-# TLE orbit visualization (generates orbit_data.json)
 ./build/bin/demo data/tles/satcat.txt
-
-# Rendezvous scenario (generates rendezvous_data.json)
 ./build/bin/rendezvous_demo
-cp rendezvous_data.json orbit_data.json
+```
 
-# Visualization server
+### Interactive Sims (no build needed)
+```bash
+cd visualization/cesium
 python3 -m http.server 8000
-# Open: http://localhost:8000/visualization/cesium/orbit_viewer.html
+# Then open in browser:
+# http://localhost:8000/spaceplane_viewer.html    — Spaceplane sim
+# http://localhost:8000/fighter_sim_viewer.html    — Fighter sim
+# http://localhost:8000/orbit_viewer.html          — Orbit viz
+# http://localhost:8000/                           — Directory listing
 ```
 
-## Key Technical Details
+## Spaceplane Sim — Technical Details
 
-### Coordinate Frames:
-- J2000_ECI: Primary physics frame
-- ECEF: Earth-fixed (via GMST rotation)
-- Geodetic: WGS84 lat/lon/alt for ground tracks
+### Physics Engine (fighter_sim_engine.js)
+- **3-DOF point-mass**: dV/dt (speed), dγ/dt (flight path angle), dψ/dt (heading)
+- **Gravity**: `g = μ/(R+alt)²` for spaceplane, constant 9.80665 for fighter
+- **Centrifugal term**: `V²/(R_EARTH + alt)` in dGamma — sustains orbit at 7.8 km/s
+- **Aero blend**: Log-linear on dynamic pressure (q>100Pa → full aero, q<1Pa → vacuum)
+- **Propulsion modes** (P key toggle):
+  - AIR: 160kN with density lapse (atmosphere only)
+  - HYPERSONIC: 400kN flat (anywhere)
+  - ROCKET: 2 MN flat (anywhere)
+- **Vacuum rotation**: All clamps/damping removed when aeroBlend < 0.5
+  - Roll: free 360°, no damping
+  - Pitch (alpha): free rotation, no trim
+  - Yaw: directly rotates heading via RCS
+  - Gamma: wraps instead of clamping
+- **Sub-stepping**: Up to 500 steps of 0.05s each for time warp stability
 
-### Launch Vehicle Physics:
-- Multi-stage with thrust, Isp (sea level & vacuum), mass flow
-- Gravity turn: gradual pitch based on altitude (0-80km)
-- Automatic orbit insertion detection (periapsis > 100km, e < 0.5)
-- Located at Cape Canaveral (28.5623°N, 80.5774°W)
-
-### Orbital Mechanics:
-- Classical elements <-> ECI state conversion
-- Kepler's equation solver (Newton-Raphson)
-- Hohmann transfer calculator
-- Lambert solver for general transfers
-- CW/Hill equations for relative motion
-
-### Current Rocket Config (rendezvous_demo):
-- Stage 1: 5 MN thrust, 300t propellant, Isp 290/320s
-- Stage 2: 500 kN thrust, 30t propellant, Isp 320/360s
-- Payload: 5t
-- Achieves ~140x320 km orbit (needs tuning for 400km circular)
-
-## Known Issues to Address
-
-1. **Orbit insertion altitude**: Currently 140x320 km, should target 400 km circular
-2. **Proximity ops NaN**: LVLH transform has edge case when vehicles overlap
-3. **Data density**: Recording interval too sparse for smooth viz
-4. **Maneuver execution**: Burns happen but range doesn't converge perfectly
-
-## JSON Output Format
-```json
-{
-  "metadata": {
-    "epoch_jd": 2460335.0,
-    "epoch_iso": "2024-01-25T12:00:00Z",
-    "time_step": 10.0,
-    "duration": 600.0
-  },
-  "satellites": [{
-    "name": "...",
-    "id": 0,
-    "positions": [{
-      "time": 10,
-      "eci": {"x": ..., "y": ..., "z": ...},
-      "geo": {"lat": ..., "lon": ..., "alt": ...}
-    }]
-  }]
-}
+### Key Constants
+```javascript
+MU_EARTH = 3.986004418e14   // m³/s²
+R_EARTH  = 6371000           // m
+OMEGA_EARTH = 7.2921159e-5   // rad/s
+SPACEPLANE mass = 15,000 kg, fuel = Infinity
 ```
+
+### Orbital Mechanics (spaceplane_orbital.js)
+- **geodeticToECI()**: lat/lon/alt + speed/heading/gamma → ECI state (includes Earth rotation)
+- **computeOrbitalElements()**: Classical elements from r,v vectors
+  - Guards against NaN (degenerate inputs, near-zero angular momentum)
+- **predictOrbitPath()**: 360-point Kepler propagation
+  - Skips pathological orbits (periapsis < 0.5 R_EARTH)
+  - NaN-filtered Cartesian3 output
+- **detectFlightRegime()**: ATMOSPHERIC / SUBORBITAL / ORBIT / ESCAPE
+- Update interval: every 15 frames (performance optimization)
+
+### Cockpit HUD Orbital Markers (fighter_hud.js)
+Above 80km, KSP-style markers appear on the pitch ladder:
+- Prograde (green), Retrograde (red), Normal (purple), Anti-normal,
+  Radial-out (cyan), Radial-in
+- Computed from ECI velocity/position → ENU → bearing/elevation → pitch ladder coords
+- Requires `simTime` passed as 5th arg to `FighterHUD.render()`
+
+### Keyboard Controls (spaceplane_viewer.html)
+```
+WASD / Arrows  — Throttle, pitch, roll
+Q/E            — Yaw (heading rotation in vacuum)
+Space          — Pause
+E              — Engine on/off
+P              — Cycle propulsion: AIR → HYPERSONIC → ROCKET
+M              — Toggle planner mode
+N              — Create maneuver node
+Enter          — Execute maneuver node
+Delete         — Delete maneuver node
++/-            — Time warp (up to 1024x)
+C              — Cycle camera
+H              — Controls help
+```
+
+### Start Modes
+1. Airborne (5km, 200 m/s)
+2. Runway (Edwards AFB)
+3. Suborbital (80km, Mach 10, 35° gamma)
+4. Orbital (400km, 7700 m/s, circular)
+
+## Fighter Sim — Technical Details
+
+Same physics engine with F-16 config:
+- Realistic F-16 aero (wing area, Cl/Cd curves, Oswald efficiency)
+- AB thrust 130kN, TSFC modeled, 3200kg fuel
+- Weapons: AIM-9, AIM-120, bombs, gun with ballistic prediction
+- AI adversaries with basic tactics
+- Full HUD: pitch ladder, speed/alt tapes, heading, G meter, warnings
+
+## Known Issues
+1. **C++ orbit insertion**: 140x320km, should target 400km circular
+2. **Proximity ops NaN**: LVLH edge case when vehicles overlap
+3. **Spaceplane orbit viz**: Only appears when periapsis > 0.5 R_EARTH (by design)
+4. **Model**: Removed (using point marker) — can be re-added with any .glb
 
 ## Dependencies
-- CMake 3.20+
-- C++17
-- Eigen3 (optional, for future use)
-- Python3 (for HTTP server)
-- Modern browser with WebGL (for Cesium)
+- CMake 3.20+, C++17 (for C++ backend)
+- Python3 (HTTP server)
+- Modern browser with WebGL (Cesium)
+- No npm/node — Cesium loaded from CDN
 
 ## Git Conventions
 - Commit messages: imperative mood, describe what changes do
 - Co-author: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
-- Milestone commits summarize all changes in that milestone
