@@ -167,6 +167,25 @@ Same physics engine with F-16 config:
 - Modern browser with WebGL (Cesium)
 - No npm/node — Cesium loaded from CDN
 
+## Working Style
+
+- **Bias toward action**: When the user gives direction, implement it fully. Don't ask
+  clarifying questions when the intent is clear — just build it.
+- **Investigate root causes**: When a bug is reported, trace through the actual code path
+  to find the real issue. Don't slap a try/catch on it.
+- **Ship complete features**: A new feature means the physics, the UI, the keyboard
+  bindings, the display updates, and the edge case guards. Not just the core logic.
+- **Commit only when asked**: Don't commit or push unless the user explicitly says to.
+- **The user gives high-level direction**: "Add yaw rotation in space" or "the planner
+  buttons don't work." Figure out which files, which functions, what the fix is.
+- **Read before you edit**: Always read the current state of a file before modifying it.
+  The codebase evolves fast and assumptions from earlier in the session may be stale.
+- **Performance matters**: These run in the browser at 60fps. Guard against per-frame
+  allocations, NaN propagation to Cesium, and unbounded loops. The orbital prediction
+  freeze was caused by NaN Cartesian3 values reaching Cesium's renderer.
+- **Keep the HTTP server running**: `cd visualization/cesium && python3 -m http.server 8000`
+  The user tests changes by refreshing the browser (Ctrl+F5 for hard refresh).
+
 ## Git Conventions
 - Commit messages: imperative mood, describe what changes do
 - Co-author: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
