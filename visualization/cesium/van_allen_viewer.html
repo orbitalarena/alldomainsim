@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Van Allen Belts &amp; Starfish Prime - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(5, 10, 20, 0.88);
+            border: 1px solid #1a3a6a;
+            border-radius: 6px;
+            padding: 12px 14px;
+            color: #88bbff;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        .panel h3 {
+            color: #55aaff;
+            font-size: 11px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #1a3060;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Controls panel - top left */
+        #controls {
+            top: 10px; left: 10px; width: 240px;
+        }
+
+        #controls button {
+            display: inline-block;
+            background: #0a1a30;
+            border: 1px solid #2050a0;
+            border-radius: 4px;
+            color: #66aaff;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 4px 10px;
+            cursor: pointer;
+            margin: 2px 1px;
+            transition: background 0.15s;
+        }
+        #controls button:hover { background: #102850; }
+        #controls button.active { background: #1a4080; border-color: #4488ff; color: #aaddff; }
+        #controls button.danger {
+            border-color: #aa2020;
+            color: #ff6644;
+        }
+        #controls button.danger:hover { background: #301010; }
+        #controls button.danger.active {
+            background: #401515;
+            border-color: #ff4422;
+            color: #ff8866;
+            animation: pulse-red 1.5s infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 4px rgba(255,50,20,0.3); }
+            50% { box-shadow: 0 0 12px rgba(255,50,20,0.6); }
+        }
+
+        .ctrl-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 4px 0;
+        }
+
+        .ctrl-label { color: #4488bb; font-size: 10px; }
+        .ctrl-value { color: #88ccff; }
+
+        /* Telemetry panel - right side */
+        #telemetry {
+            top: 10px; right: 10px; width: 230px;
+            max-height: calc(100vh - 30px);
+            overflow-y: auto;
+        }
+
+        .sat-block {
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #0d1f3a;
+        }
+        .sat-block:last-child { border-bottom: none; }
+
+        .sat-name {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 1px 0;
+            line-height: 1.4;
+        }
+        .data-label { color: #4477aa; }
+        .data-value { color: #88ccff; text-align: right; }
+        .data-value.warn { color: #ffcc44; }
+        .data-value.alert { color: #ff5533; }
+
+        .dose-bar {
+            height: 4px;
+            background: #0a1525;
+            border-radius: 2px;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+        .dose-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        /* Cross-section canvas - bottom left */
+        #crossSectionWrap {
+            position: absolute;
+            bottom: 10px; left: 10px;
+            z-index: 20;
+        }
+        #crossSectionLabel {
+            color: #55aaff;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        #crossSection {
+            border: 1px solid #1a3a6a;
+            border-radius: 4px;
+            background: #000;
+        }
+
+        /* Event log - bottom right */
+        #eventLog {
+            bottom: 10px; right: 10px; width: 340px;
+            max-height: 180px;
+            overflow-y: auto;
+            font-size: 10px;
+        }
+        #eventLog .log-entry {
+            margin: 2px 0;
+            line-height: 1.3;
+        }
+        .log-time { color: #336699; }
+        .log-msg { color: #77aabb; }
+        .log-msg.alert { color: #ff8844; }
+        .log-msg.starfish { color: #ff5533; }
+
+        /* Status bar - top center */
+        #statusBar {
+            position: absolute;
+            top: 8px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(5, 10, 20, 0.85);
+            border: 1px solid #1a3a6a;
+            border-radius: 4px;
+            padding: 5px 18px;
+            color: #88ccff;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            font-weight: bold;
+            z-index: 20;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* Keyboard help overlay */
+        #helpOverlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(5, 10, 25, 0.95);
+            border: 1px solid #2060b0;
+            border-radius: 8px;
+            padding: 20px 30px;
+            color: #88ccff;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 100;
+            display: none;
+            min-width: 400px;
+        }
+        #helpOverlay h2 {
+            color: #55aaff;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .help-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+        }
+        .help-key {
+            color: #ffcc44;
+            min-width: 80px;
+        }
+        .help-desc { color: #77aabb; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <!-- Status bar -->
+    <div id="statusBar">VAN ALLEN BELTS</div>
+
+    <!-- Controls panel -->
+    <div id="controls" class="panel">
+        <h3>Controls</h3>
+        <div class="ctrl-row">
+            <button id="btnPause">&#9654; Play</button>
+            <button id="btnReset">Reset</button>
+        </div>
+        <div class="ctrl-row">
+            <span class="ctrl-label">WARP</span>
+            <span>
+                <button id="btnWarpDn">-</button>
+                <span id="warpDisplay" class="ctrl-value">1x</span>
+                <button id="btnWarpUp">+</button>
+            </span>
+        </div>
+        <div style="margin-top:8px;">
+            <button id="btnStarfish" class="danger">STARFISH PRIME</button>
+        </div>
+        <div style="margin-top:6px;">
+            <label style="cursor:pointer; color:#4488bb; font-size:10px;">
+                <input type="checkbox" id="chkFieldLines" checked> Field Lines
+            </label>
+        </div>
+        <div>
+            <label style="cursor:pointer; color:#4488bb; font-size:10px;">
+                <input type="checkbox" id="chkBeltCloud" checked> Belt Cloud
+            </label>
+        </div>
+        <div class="ctrl-row" style="margin-top:6px;">
+            <span class="ctrl-label">SIM TIME</span>
+            <span id="simTimeDisplay" class="ctrl-value">0d 00:00:00</span>
+        </div>
+        <div class="ctrl-row" id="detonationTimeRow" style="display:none;">
+            <span class="ctrl-label">T+ DETONATE</span>
+            <span id="detonationTimeDisplay" class="ctrl-value" style="color:#ff8844;">—</span>
+        </div>
+    </div>
+
+    <!-- Telemetry panel -->
+    <div id="telemetry" class="panel">
+        <h3>Satellite Telemetry</h3>
+        <div id="telemetryContent"></div>
+    </div>
+
+    <!-- Cross-section -->
+    <div id="crossSectionWrap">
+        <div id="crossSectionLabel">Meridional Cross-Section (Log Flux)</div>
+        <canvas id="crossSection" width="400" height="300"></canvas>
+    </div>
+
+    <!-- Event log -->
+    <div id="eventLog" class="panel">
+        <h3>Event Log</h3>
+        <div id="eventLogContent"></div>
+    </div>
+
+    <!-- Help overlay -->
+    <div id="helpOverlay">
+        <h2>KEYBOARD CONTROLS</h2>
+        <div class="help-row"><span class="help-key">Space</span><span class="help-desc">Pause / Resume</span></div>
+        <div class="help-row"><span class="help-key">+ / -</span><span class="help-desc">Time warp up / down</span></div>
+        <div class="help-row"><span class="help-key">S</span><span class="help-desc">Trigger Starfish Prime</span></div>
+        <div class="help-row"><span class="help-key">R</span><span class="help-desc">Reset simulation</span></div>
+        <div class="help-row"><span class="help-key">F</span><span class="help-desc">Toggle field lines</span></div>
+        <div class="help-row"><span class="help-key">B</span><span class="help-desc">Toggle belt cloud</span></div>
+        <div class="help-row"><span class="help-key">1-6</span><span class="help-desc">Focus camera on satellite</span></div>
+        <div class="help-row"><span class="help-key">H</span><span class="help-desc">Toggle this help</span></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="cesium_config.js"></script>
+    <script src="js/van_allen_model.js?v=1"></script>
+    <script src="js/starfish_prime.js?v=1"></script>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // --- Constants ---
+        var R_E = VanAllenModel.R_EARTH;
+        var DEG = VanAllenModel.DEG;
+        var RAD = VanAllenModel.RAD;
+
+        // --- Cesium Viewer ---
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            animation: false,
+            timeline: false,
+            fullscreenButton: false,
+            vrButton: false,
+            geocoder: false,
+            homeButton: false,
+            navigationHelpButton: false,
+            sceneModePicker: false,
+            baseLayerPicker: true,
+            infoBox: false,
+            selectionIndicator: false
+        });
+
+        // Dark globe
+        viewer.scene.globe.enableLighting = false;
+        viewer.scene.backgroundColor = Cesium.Color.BLACK;
+        viewer.scene.screenSpaceCameraController.minimumZoomDistance = R_E * 0.1;
+        viewer.scene.screenSpaceCameraController.maximumZoomDistance = R_E * 20;
+
+        // Initial camera: view Earth from distance showing belts
+        viewer.camera.setView({
+            destination: new Cesium.Cartesian3(0, -R_E * 6, R_E * 4),
+            orientation: {
+                direction: new Cesium.Cartesian3(0, 0.83, -0.55),
+                up: new Cesium.Cartesian3(0, 0.55, 0.83)
+            }
+        });
+
+        // --- Satellite Definitions ---
+        var COLORS = {
+            CYAN:    { css: '#00ffff', cesium: Cesium.Color.CYAN },
+            GREEN:   { css: '#00ff88', cesium: Cesium.Color.LIME },
+            YELLOW:  { css: '#ffff00', cesium: Cesium.Color.YELLOW },
+            ORANGE:  { css: '#ff8800', cesium: Cesium.Color.ORANGE },
+            MAGENTA: { css: '#ff44ff', cesium: Cesium.Color.MAGENTA },
+            WHITE:   { css: '#ffffff', cesium: Cesium.Color.WHITE }
+        };
+
+        // Compute transfer orbit eccentricities
+        var r_leo = R_E + 500e3;
+        var r_meo = R_E + 20200e3;
+        var r_geo = R_E + 35786e3;
+
+        var a_leoMeo = (r_leo + r_meo) / 2;
+        var e_leoMeo = (r_meo - r_leo) / (r_meo + r_leo);
+        var a_gto = (r_leo + r_geo) / 2;
+        var e_gto = (r_geo - r_leo) / (r_geo + r_leo);
+        var a_meoGeo = (r_meo + r_geo) / 2;
+        var e_meoGeo = (r_geo - r_meo) / (r_geo + r_meo);
+
+        var SAT_DEFS = [
+            { name: 'LEO-1',        color: COLORS.CYAN,    a: r_leo,    e: 0.001,    i: 51.6, raan: 0,   argp: 0,   M0: 0   },
+            { name: 'MEO-GPS',      color: COLORS.GREEN,   a: r_meo,    e: 0.001,    i: 55.0, raan: 60,  argp: 0,   M0: 45  },
+            { name: 'MEO-Transfer', color: COLORS.YELLOW,  a: a_leoMeo, e: e_leoMeo, i: 51.6, raan: 30,  argp: 0,   M0: 0   },
+            { name: 'GTO',          color: COLORS.ORANGE,  a: a_gto,    e: e_gto,    i: 28.5, raan: 90,  argp: 180, M0: 0   },
+            { name: 'MGTO',         color: COLORS.MAGENTA, a: a_meoGeo, e: e_meoGeo, i: 28.5, raan: 120, argp: 180, M0: 90  },
+            { name: 'GEO-1',        color: COLORS.WHITE,   a: r_geo,    e: 0.001,    i: 0.1,  raan: 0,   argp: 0,   M0: 120 }
+        ];
+
+        // --- Simulation State ---
+        var simTime = 0;
+        var paused = true;
+        var warpLevels = [1, 10, 60, 3600, 86400, 604800];
+        var warpIndex = 0;
+        var lastWallTime = performance.now();
+        var frameCount = 0;
+
+        // Per-satellite state
+        var satellites = [];
+        for (var si = 0; si < SAT_DEFS.length; si++) {
+            var def = SAT_DEFS[si];
+            satellites.push({
+                name: def.name,
+                color: def.color,
+                orbit: VanAllenModel.createOrbit(def.a, def.e, def.i, def.raan, def.argp, def.M0),
+                pos: [0, 0, 0],
+                vel: [0, 0, 0],
+                geo: { lat: 0, lon: 0, alt: 0 },
+                flux: { proton10: 0, proton100: 0, electron05: 0, electron1: 0, L: 1, B: 0, B_B0: 1, doseRate: 0 },
+                totalDose: 0,
+                entity: null,
+                orbitEntity: null
+            });
+        }
+
+        // --- Create Cesium Entities ---
+
+        // Satellite point entities
+        for (var i = 0; i < satellites.length; i++) {
+            (function(idx) {
+                var sat = satellites[idx];
+                var state = VanAllenModel.propagateOrbit(sat.orbit, 0);
+                sat.pos = state.pos;
+                sat.vel = state.vel;
+
+                sat.entity = viewer.entities.add({
+                    name: sat.name,
+                    position: new Cesium.CallbackProperty(function() {
+                        var ecef = VanAllenModel.eciToECEF(satellites[idx].pos, simTime);
+                        return new Cesium.Cartesian3(ecef[0], ecef[1], ecef[2]);
+                    }, false),
+                    point: {
+                        pixelSize: 10,
+                        color: sat.color.cesium,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: new Cesium.CallbackProperty(function() {
+                            var s = satellites[idx];
+                            var fluxStr = s.flux.electron05 > 1 ? s.flux.electron05.toExponential(1) : '0';
+                            return s.name + '\nL=' + s.flux.L.toFixed(2) + ' e-:' + fluxStr;
+                        }, false),
+                        font: '11px Courier New',
+                        fillColor: sat.color.cesium,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        pixelOffset: new Cesium.Cartesian2(12, -8),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        scale: 0.9
+                    }
+                });
+            })(i);
+        }
+
+        // Orbit polylines (static, rebuilt on demand)
+        function buildOrbitPolylines() {
+            for (var i = 0; i < satellites.length; i++) {
+                if (satellites[i].orbitEntity) {
+                    viewer.entities.remove(satellites[i].orbitEntity);
+                }
+                var path = VanAllenModel.getOrbitPath(satellites[i].orbit, 360);
+                var positions = [];
+                for (var p = 0; p < path.length; p++) {
+                    var ecef = VanAllenModel.eciToECEF(path[p], simTime);
+                    positions.push(new Cesium.Cartesian3(ecef[0], ecef[1], ecef[2]));
+                }
+                // Close the loop
+                if (positions.length > 0) {
+                    positions.push(positions[0]);
+                }
+
+                satellites[i].orbitEntity = viewer.entities.add({
+                    polyline: {
+                        positions: positions,
+                        width: 1.5,
+                        material: satellites[i].color.cesium.withAlpha(0.4),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                });
+            }
+        }
+        buildOrbitPolylines();
+
+        // --- Field Lines ---
+        var fieldLineEntities = [];
+        var fieldLinesVisible = true;
+        var FIELD_L_VALUES = [1.5, 2.0, 3.0, 4.0, 5.0, 6.5];
+        var FIELD_NUM_LONS = 12;
+
+        function buildFieldLines() {
+            // Remove existing
+            for (var fl = 0; fl < fieldLineEntities.length; fl++) {
+                viewer.entities.remove(fieldLineEntities[fl]);
+            }
+            fieldLineEntities = [];
+
+            if (!fieldLinesVisible) return;
+
+            var lines = VanAllenModel.generateFieldLines(FIELD_L_VALUES, FIELD_NUM_LONS, simTime);
+            for (var li = 0; li < lines.length; li++) {
+                var line = lines[li];
+                var positions = [];
+                var hasNaN = false;
+                for (var p = 0; p < line.positions.length; p++) {
+                    var pos = line.positions[p];
+                    if (isNaN(pos[0]) || isNaN(pos[1]) || isNaN(pos[2])) {
+                        hasNaN = true;
+                        break;
+                    }
+                    positions.push(new Cesium.Cartesian3(pos[0], pos[1], pos[2]));
+                }
+                if (hasNaN || positions.length < 3) continue;
+
+                // Color by flux at this L-shell
+                var flux = VanAllenModel.getFluxAtLB(line.L, 1.0);
+                var logFlux = Math.log10(Math.max(1, flux.total));
+                var t = Math.min(1, logFlux / 7); // 0..1 mapped from log10(1)..log10(1e7)
+                var r = t;
+                var g = Math.max(0, 1 - 2 * Math.abs(t - 0.5));
+                var b = 1 - t;
+                var alpha = 0.15 + 0.2 * t;
+
+                fieldLineEntities.push(viewer.entities.add({
+                    polyline: {
+                        positions: positions,
+                        width: 1.0,
+                        material: new Cesium.Color(r, g, b, alpha),
+                        arcType: Cesium.ArcType.NONE
+                    }
+                }));
+            }
+        }
+        buildFieldLines();
+
+        // --- Belt Point Cloud ---
+        var beltPoints = null;
+        var beltCloudVisible = true;
+        var BELT_NUM_POINTS = 5000;
+        var beltPointData = []; // { L, magColat, lon, r }
+
+        function initBeltCloud() {
+            // Pre-generate random sample points in belt volume
+            beltPointData = [];
+            for (var bp = 0; bp < BELT_NUM_POINTS; bp++) {
+                // Sample L uniformly between 1.1 and 7
+                var L = 1.1 + Math.random() * 5.9;
+                // Sample magnetic latitude: concentrate near equator (cos distribution)
+                var magLat = (Math.random() - 0.5) * 2 * 60 * DEG;
+                var magColat = Math.PI / 2 - magLat;
+                var cosLat = Math.cos(magLat);
+                // Radial distance on field line at this latitude
+                var r = L * R_E * cosLat * cosLat;
+                // Random longitude
+                var lon = Math.random() * 2 * Math.PI;
+
+                if (r < R_E * 1.05) continue; // skip below surface
+                beltPointData.push({ L: L, magColat: magColat, magLat: magLat, lon: lon, r: r });
+            }
+
+            // Create point primitive collection
+            if (beltPoints) {
+                viewer.scene.primitives.remove(beltPoints);
+            }
+            beltPoints = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+
+            for (var k = 0; k < beltPointData.length; k++) {
+                var pd = beltPointData[k];
+                beltPoints.add({
+                    position: Cesium.Cartesian3.ZERO,
+                    pixelSize: 2,
+                    color: Cesium.Color.BLUE
+                });
+            }
+        }
+
+        function updateBeltCloud() {
+            if (!beltPoints || !beltCloudVisible) return;
+
+            var gmst = VanAllenModel.OMEGA_EARTH * simTime;
+            var cosG = Math.cos(gmst);
+            var sinG = Math.sin(gmst);
+
+            for (var k = 0; k < beltPointData.length; k++) {
+                var pd = beltPointData[k];
+                var pt = beltPoints.get(k);
+
+                // Approximate geographic position from magnetic coordinates
+                var geoLat = pd.magLat;
+                var geoLon = pd.lon;
+                var r = pd.r;
+
+                var cosLat = Math.cos(geoLat);
+                var sinLat = Math.sin(geoLat);
+                var cosLon = Math.cos(geoLon);
+                var sinLon = Math.sin(geoLon);
+
+                // ECEF
+                var xe = r * cosLat * cosLon;
+                var ye = r * cosLat * sinLon;
+                var ze = r * sinLat;
+
+                // ECEF → ECI
+                var xi = xe * cosG - ye * sinG;
+                var yi = xe * sinG + ye * cosG;
+
+                pt.position = new Cesium.Cartesian3(xi, yi, ze);
+
+                // Color by flux
+                var flux = VanAllenModel.getFluxAtLB(pd.L, 1.0);
+                var totalFlux = flux.total;
+
+                // Add Starfish enhancement
+                if (StarfishPrime.isActive()) {
+                    var tSince = StarfishPrime.getTimeSinceDetonation(simTime);
+                    var enhancement = StarfishPrime.getInjectedFlux(pd.L, tSince);
+                    totalFlux += enhancement.electron05_enhancement;
+                }
+
+                var logF = Math.log10(Math.max(1, totalFlux));
+                var t = Math.min(1, logF / 7);
+
+                pt.color = new Cesium.Color(
+                    t,
+                    Math.max(0, 1 - 2 * Math.abs(t - 0.5)),
+                    1 - t,
+                    0.15 + 0.6 * t
+                );
+            }
+        }
+
+        initBeltCloud();
+
+        // --- Detonation Visual ---
+        var detonationEntity = null;
+        var flashEntity = null;
+
+        function showDetonation() {
+            // Location: Johnston Atoll at 2000km altitude
+            var lat = StarfishPrime.LAT * DEG;
+            var lon = StarfishPrime.LON * DEG;
+            var alt = StarfishPrime.ALTITUDE;
+            var pos = Cesium.Cartesian3.fromRadians(lon, lat, alt);
+
+            // Flash billboard
+            flashEntity = viewer.entities.add({
+                position: pos,
+                point: {
+                    pixelSize: 80,
+                    color: Cesium.Color.WHITE.withAlpha(1.0),
+                    outlineColor: Cesium.Color.ORANGERED,
+                    outlineWidth: 4,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            // Expanding sphere via ellipsoid
+            detonationEntity = viewer.entities.add({
+                position: pos,
+                ellipsoid: {
+                    radii: new Cesium.CallbackProperty(function() {
+                        if (!StarfishPrime.isActive()) return new Cesium.Cartesian3(1, 1, 1);
+                        var t = StarfishPrime.getTimeSinceDetonation(simTime);
+                        var radius = Math.min(500000, 10000 + t * 50000); // expands then stops
+                        var alpha = Math.max(0, 1 - t / 30);
+                        return new Cesium.Cartesian3(radius, radius, radius);
+                    }, false),
+                    material: new Cesium.ColorMaterialProperty(
+                        new Cesium.CallbackProperty(function() {
+                            if (!StarfishPrime.isActive()) return Cesium.Color.TRANSPARENT;
+                            var t = StarfishPrime.getTimeSinceDetonation(simTime);
+                            var alpha = Math.max(0, 1 - t / 20);
+                            return new Cesium.Color(1, 0.3, 0.1, alpha * 0.4);
+                        }, false)
+                    )
+                }
+            });
+        }
+
+        // --- Cross-Section Canvas ---
+        var csCanvas = document.getElementById('crossSection');
+        var csCtx = csCanvas.getContext('2d');
+        // Internal render resolution
+        var CS_W = 200;
+        var CS_H = 150;
+        var csImageData = csCtx.createImageData(CS_W, CS_H);
+
+        function drawCrossSection() {
+            // Render at low resolution
+            var data = csImageData.data;
+            var rMin = 1.0;  // R_E
+            var rMax = 8.0;  // R_E
+            var latMin = -75 * DEG;
+            var latMax = 75 * DEG;
+
+            for (var py = 0; py < CS_H; py++) {
+                var magLat = latMax - (latMax - latMin) * py / (CS_H - 1);
+                var magColat = Math.PI / 2 - magLat;
+                var sinColat = Math.sin(magColat);
+                var sin2 = sinColat * sinColat;
+
+                for (var px = 0; px < CS_W; px++) {
+                    var rRe = rMin + (rMax - rMin) * px / (CS_W - 1);
+                    var r = rRe * R_E;
+                    var idx = (py * CS_W + px) * 4;
+
+                    // Below Earth surface?
+                    if (rRe < 1.0) {
+                        // Earth interior: dark blue-gray
+                        data[idx] = 15;
+                        data[idx + 1] = 20;
+                        data[idx + 2] = 30;
+                        data[idx + 3] = 255;
+                        continue;
+                    }
+
+                    // Compute L at this position
+                    var L = (sin2 > 0.01) ? rRe / sin2 : 1000;
+
+                    // Compute B/B0
+                    var cosColat = Math.cos(magColat);
+                    var B_rel = Math.sqrt(1 + 3 * cosColat * cosColat) / (sinColat * sinColat * sinColat);
+                    // B/B0 for dipole at colatitude theta on L-shell
+                    var B_B0 = Math.max(1, B_rel);
+
+                    var flux = VanAllenModel.getFluxAtLB(L, B_B0);
+                    var totalFlux = flux.total;
+
+                    // Add Starfish enhancement
+                    if (StarfishPrime.isActive()) {
+                        var tSince = StarfishPrime.getTimeSinceDetonation(simTime);
+                        var enh = StarfishPrime.getInjectedFlux(L, tSince);
+                        totalFlux += enh.electron05_enhancement;
+                    }
+
+                    // Color map: log10(flux) → blue→green→yellow→red
+                    var logF = Math.log10(Math.max(1, totalFlux));
+                    var t = Math.min(1, logF / 7); // normalize to [0,1]
+
+                    // Colormap
+                    var cr, cg, cb;
+                    if (t < 0.25) {
+                        cr = 0;
+                        cg = 0;
+                        cb = Math.floor(40 + 180 * (t / 0.25));
+                    } else if (t < 0.5) {
+                        var tt = (t - 0.25) / 0.25;
+                        cr = 0;
+                        cg = Math.floor(200 * tt);
+                        cb = Math.floor(220 * (1 - tt));
+                    } else if (t < 0.75) {
+                        var tt2 = (t - 0.5) / 0.25;
+                        cr = Math.floor(255 * tt2);
+                        cg = 200;
+                        cb = 0;
+                    } else {
+                        var tt3 = (t - 0.75) / 0.25;
+                        cr = 255;
+                        cg = Math.floor(200 * (1 - tt3));
+                        cb = 0;
+                    }
+
+                    data[idx] = cr;
+                    data[idx + 1] = cg;
+                    data[idx + 2] = cb;
+                    data[idx + 3] = 255;
+                }
+            }
+
+            // Scale up to canvas size
+            // Draw at internal resolution first
+            var tempCanvas = document.createElement('canvas');
+            tempCanvas.width = CS_W;
+            tempCanvas.height = CS_H;
+            var tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(csImageData, 0, 0);
+
+            csCtx.imageSmoothingEnabled = false;
+            csCtx.drawImage(tempCanvas, 0, 0, 400, 300);
+
+            // Overlay: axes
+            csCtx.strokeStyle = '#335577';
+            csCtx.lineWidth = 0.5;
+            csCtx.font = '10px Courier New';
+            csCtx.fillStyle = '#446688';
+
+            // Radial distance labels
+            for (var rr = 1; rr <= 8; rr++) {
+                var xp = ((rr - rMin) / (rMax - rMin)) * 400;
+                csCtx.beginPath();
+                csCtx.moveTo(xp, 0);
+                csCtx.lineTo(xp, 300);
+                csCtx.stroke();
+                csCtx.fillText(rr + 'Re', xp + 2, 295);
+            }
+
+            // Equator line
+            var yEq = 300 / 2;
+            csCtx.strokeStyle = '#556677';
+            csCtx.setLineDash([4, 4]);
+            csCtx.beginPath();
+            csCtx.moveTo(0, yEq);
+            csCtx.lineTo(400, yEq);
+            csCtx.stroke();
+            csCtx.setLineDash([]);
+            csCtx.fillText('0°', 2, yEq - 3);
+
+            // L-shell curves (dashed)
+            csCtx.strokeStyle = '#445566';
+            csCtx.lineWidth = 0.7;
+            csCtx.setLineDash([3, 3]);
+            var Ls = [1.5, 2, 3, 4, 5, 6];
+            for (var lsi = 0; lsi < Ls.length; lsi++) {
+                var Lv = Ls[lsi];
+                csCtx.beginPath();
+                var started = false;
+                for (var yy = 0; yy < CS_H; yy++) {
+                    var mLat = latMax - (latMax - latMin) * yy / (CS_H - 1);
+                    var cosL = Math.cos(mLat);
+                    var rL = Lv * cosL * cosL; // in R_E
+                    if (rL < rMin || rL > rMax) { started = false; continue; }
+                    var xPlot = ((rL - rMin) / (rMax - rMin)) * 400;
+                    var yPlot = (yy / CS_H) * 300;
+                    if (!started) { csCtx.moveTo(xPlot, yPlot); started = true; }
+                    else csCtx.lineTo(xPlot, yPlot);
+                }
+                csCtx.stroke();
+                // Label
+                var rEq = Lv;
+                if (rEq >= rMin && rEq <= rMax) {
+                    var xLabel = ((rEq - rMin) / (rMax - rMin)) * 400;
+                    csCtx.fillStyle = '#667788';
+                    csCtx.fillText('L=' + Lv, xLabel + 2, yEq + 12);
+                }
+            }
+            csCtx.setLineDash([]);
+
+            // Satellite positions on cross-section
+            for (var si2 = 0; si2 < satellites.length; si2++) {
+                var sat = satellites[si2];
+                var rPlotRe = (R_E + sat.geo.alt) / R_E;
+                if (rPlotRe < rMin || rPlotRe > rMax) continue;
+                var satMagLat = Math.PI / 2 - VanAllenModel.geoToGeomagnetic(sat.geo.lat, sat.geo.lon).magColat;
+                if (Math.abs(satMagLat) > 75 * DEG) continue;
+
+                var xSat = ((rPlotRe - rMin) / (rMax - rMin)) * 400;
+                var ySat = ((latMax - satMagLat) / (latMax - latMin)) * 300;
+
+                csCtx.fillStyle = sat.color.css;
+                csCtx.beginPath();
+                csCtx.arc(xSat, ySat, 4, 0, 2 * Math.PI);
+                csCtx.fill();
+                csCtx.fillText(sat.name, xSat + 6, ySat + 3);
+            }
+        }
+
+        // --- Telemetry Panel ---
+        var telemetryDiv = document.getElementById('telemetryContent');
+
+        function buildTelemetryHTML() {
+            var html = '';
+            for (var i = 0; i < satellites.length; i++) {
+                var sat = satellites[i];
+                var f = sat.flux;
+                var altKm = sat.geo.alt / 1000;
+                var doseClass = (f.doseRate > 0.01) ? 'alert' : (f.doseRate > 0.001) ? 'warn' : '';
+                var doseStr = (f.doseRate > 0.001) ?
+                    (f.doseRate * 1000).toFixed(2) + ' mrad/s' :
+                    (f.doseRate * 1e6).toFixed(1) + ' urad/s';
+
+                // Dose bar: log scale, max ~ 1 rad/s
+                var logDose = Math.log10(Math.max(1e-9, f.doseRate));
+                var barPct = Math.min(100, Math.max(0, ((logDose + 9) / 9) * 100));
+                var barColor = (barPct > 70) ? '#ff4422' : (barPct > 40) ? '#ffaa22' : '#2288ff';
+
+                html += '<div class="sat-block">';
+                html += '<div class="sat-name" style="color:' + sat.color.css + '">' + sat.name + '</div>';
+                html += '<div class="data-row"><span class="data-label">Alt</span><span class="data-value">' + altKm.toFixed(0) + ' km</span></div>';
+                html += '<div class="data-row"><span class="data-label">L</span><span class="data-value">' + f.L.toFixed(2) + '</span></div>';
+                html += '<div class="data-row"><span class="data-label">|B|</span><span class="data-value">' + f.B.toExponential(1) + ' T</span></div>';
+                html += '<div class="data-row"><span class="data-label">p+ >10</span><span class="data-value">' + f.proton10.toExponential(1) + '</span></div>';
+                html += '<div class="data-row"><span class="data-label">e- >0.5</span><span class="data-value">' + f.electron05.toExponential(1) + '</span></div>';
+                html += '<div class="data-row"><span class="data-label">Dose</span><span class="data-value ' + doseClass + '">' + doseStr + '</span></div>';
+                html += '<div class="data-row"><span class="data-label">TID</span><span class="data-value">' + formatDose(sat.totalDose) + '</span></div>';
+                html += '<div class="dose-bar"><div class="dose-bar-fill" style="width:' + barPct.toFixed(0) + '%;background:' + barColor + ';"></div></div>';
+                html += '</div>';
+            }
+            telemetryDiv.innerHTML = html;
+        }
+
+        function formatDose(dose) {
+            if (dose > 1000) return (dose / 1000).toFixed(1) + ' krad';
+            if (dose > 1) return dose.toFixed(1) + ' rad';
+            if (dose > 0.001) return (dose * 1000).toFixed(1) + ' mrad';
+            return (dose * 1e6).toFixed(0) + ' urad';
+        }
+
+        // --- Event Log ---
+        var logDiv = document.getElementById('eventLogContent');
+        var logEntries = [];
+
+        function addLogEntry(msg, cssClass) {
+            var timeStr = formatSimTime(simTime);
+            cssClass = cssClass || '';
+            logEntries.push({ time: timeStr, msg: msg, css: cssClass });
+            if (logEntries.length > 100) logEntries.shift();
+
+            var html = '';
+            for (var le = logEntries.length - 1; le >= Math.max(0, logEntries.length - 50); le--) {
+                var e = logEntries[le];
+                html += '<div class="log-entry"><span class="log-time">' + e.time + '</span> <span class="log-msg ' + e.css + '">' + e.msg + '</span></div>';
+            }
+            logDiv.innerHTML = html;
+        }
+
+        function formatSimTime(t) {
+            var days = Math.floor(t / 86400);
+            var rem = t - days * 86400;
+            var hrs = Math.floor(rem / 3600);
+            rem -= hrs * 3600;
+            var mins = Math.floor(rem / 60);
+            var secs = Math.floor(rem - mins * 60);
+            return days + 'd ' + pad2(hrs) + ':' + pad2(mins) + ':' + pad2(secs);
+        }
+
+        function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+        addLogEntry('Simulation initialized. 6 satellites in LEO/MEO/GTO/GEO orbits.');
+        addLogEntry('Press SPACE to start, S to trigger Starfish Prime.');
+
+        // --- Alert Thresholds ---
+        var lastAlertTime = {};
+        var ALERT_DOSE_RATE = 0.005; // rad/s
+        var ALERT_COOLDOWN = 600;    // seconds sim time between repeated alerts
+
+        function checkAlerts() {
+            for (var i = 0; i < satellites.length; i++) {
+                var sat = satellites[i];
+                if (sat.flux.doseRate > ALERT_DOSE_RATE) {
+                    var lastAlert = lastAlertTime[sat.name] || -99999;
+                    if (simTime - lastAlert > ALERT_COOLDOWN) {
+                        lastAlertTime[sat.name] = simTime;
+                        addLogEntry(sat.name + ': HIGH DOSE RATE ' + (sat.flux.doseRate * 1000).toFixed(1) + ' mrad/s (L=' + sat.flux.L.toFixed(2) + ')', 'alert');
+                    }
+                }
+            }
+        }
+
+        // --- Status Bar ---
+        var statusBar = document.getElementById('statusBar');
+
+        function updateStatusBar() {
+            var text = 'VAN ALLEN BELTS';
+            if (StarfishPrime.isActive()) {
+                text += '  |  STARFISH PRIME ACTIVE';
+            }
+            if (paused) {
+                text += '  [PAUSED]';
+            } else {
+                text += '  [' + warpLevels[warpIndex] + 'x]';
+            }
+            statusBar.textContent = text;
+
+            if (StarfishPrime.isActive()) {
+                statusBar.style.borderColor = '#aa3020';
+                statusBar.style.color = '#ff8866';
+            } else {
+                statusBar.style.borderColor = '#1a3a6a';
+                statusBar.style.color = '#88ccff';
+            }
+        }
+
+        // --- UI Controls ---
+        var btnPause = document.getElementById('btnPause');
+        var btnReset = document.getElementById('btnReset');
+        var btnWarpDn = document.getElementById('btnWarpDn');
+        var btnWarpUp = document.getElementById('btnWarpUp');
+        var btnStarfish = document.getElementById('btnStarfish');
+        var warpDisplay = document.getElementById('warpDisplay');
+        var simTimeDisplay = document.getElementById('simTimeDisplay');
+        var detonationTimeRow = document.getElementById('detonationTimeRow');
+        var detonationTimeDisplay = document.getElementById('detonationTimeDisplay');
+        var chkFieldLines = document.getElementById('chkFieldLines');
+        var chkBeltCloud = document.getElementById('chkBeltCloud');
+
+        btnPause.addEventListener('click', function() { togglePause(); });
+        btnReset.addEventListener('click', function() { resetSim(); });
+        btnWarpDn.addEventListener('click', function() { changeWarp(-1); });
+        btnWarpUp.addEventListener('click', function() { changeWarp(1); });
+        btnStarfish.addEventListener('click', function() { triggerStarfish(); });
+        chkFieldLines.addEventListener('change', function() { toggleFieldLines(); });
+        chkBeltCloud.addEventListener('change', function() { toggleBeltCloud(); });
+
+        function togglePause() {
+            paused = !paused;
+            btnPause.textContent = paused ? '\u25B6 Play' : '\u23F8 Pause';
+            lastWallTime = performance.now();
+            updateStatusBar();
+        }
+
+        function changeWarp(dir) {
+            warpIndex = Math.max(0, Math.min(warpLevels.length - 1, warpIndex + dir));
+            warpDisplay.textContent = warpLevels[warpIndex] + 'x';
+            updateStatusBar();
+        }
+
+        function triggerStarfish() {
+            if (StarfishPrime.isActive()) return;
+            StarfishPrime.detonate(simTime);
+            btnStarfish.classList.add('active');
+            detonationTimeRow.style.display = 'flex';
+            showDetonation();
+            addLogEntry('STARFISH PRIME detonated at 2000 km over Johnston Atoll (1.4 MT)', 'starfish');
+            addLogEntry('Artificial radiation belt injected at L=1.2-1.6', 'starfish');
+            updateStatusBar();
+            // Rebuild field lines with updated colors after brief delay
+            setTimeout(function() { buildFieldLines(); }, 100);
+        }
+
+        function resetSim() {
+            simTime = 0;
+            paused = true;
+            StarfishPrime.reset();
+            btnStarfish.classList.remove('active');
+            btnPause.textContent = '\u25B6 Play';
+            detonationTimeRow.style.display = 'none';
+            for (var i = 0; i < satellites.length; i++) {
+                satellites[i].totalDose = 0;
+            }
+            lastAlertTime = {};
+            logEntries = [];
+            logDiv.innerHTML = '';
+            addLogEntry('Simulation reset.');
+            addLogEntry('Press SPACE to start, S to trigger Starfish Prime.');
+
+            // Remove detonation entities
+            if (detonationEntity) { viewer.entities.remove(detonationEntity); detonationEntity = null; }
+            if (flashEntity) { viewer.entities.remove(flashEntity); flashEntity = null; }
+
+            buildOrbitPolylines();
+            buildFieldLines();
+            updateStatusBar();
+        }
+
+        function toggleFieldLines() {
+            fieldLinesVisible = chkFieldLines.checked;
+            buildFieldLines();
+        }
+
+        function toggleBeltCloud() {
+            beltCloudVisible = chkBeltCloud.checked;
+            if (beltPoints) beltPoints.show = beltCloudVisible;
+        }
+
+        // --- Keyboard ---
+        document.addEventListener('keydown', function(e) {
+            if (e.target.tagName === 'INPUT') return;
+
+            switch(e.key) {
+                case ' ':
+                    e.preventDefault();
+                    togglePause();
+                    break;
+                case '+': case '=':
+                    changeWarp(1);
+                    break;
+                case '-': case '_':
+                    changeWarp(-1);
+                    break;
+                case 's': case 'S':
+                    triggerStarfish();
+                    break;
+                case 'r': case 'R':
+                    resetSim();
+                    break;
+                case 'f': case 'F':
+                    chkFieldLines.checked = !chkFieldLines.checked;
+                    toggleFieldLines();
+                    break;
+                case 'b': case 'B':
+                    chkBeltCloud.checked = !chkBeltCloud.checked;
+                    toggleBeltCloud();
+                    break;
+                case 'h': case 'H':
+                    var help = document.getElementById('helpOverlay');
+                    help.style.display = help.style.display === 'block' ? 'none' : 'block';
+                    break;
+                case '1': case '2': case '3': case '4': case '5': case '6':
+                    var satIdx = parseInt(e.key) - 1;
+                    if (satIdx >= 0 && satIdx < satellites.length) {
+                        focusOnSatellite(satIdx);
+                    }
+                    break;
+            }
+        });
+
+        function focusOnSatellite(idx) {
+            var sat = satellites[idx];
+            var ecef = VanAllenModel.eciToECEF(sat.pos, simTime);
+            var target = new Cesium.Cartesian3(ecef[0], ecef[1], ecef[2]);
+            var offset = new Cesium.HeadingPitchRange(0, -Math.PI / 4, sat.orbit.a * 0.5);
+            viewer.camera.lookAt(target, offset);
+            // Release the camera lock after a moment
+            setTimeout(function() {
+                viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            }, 100);
+            addLogEntry('Camera focused on ' + sat.name);
+        }
+
+        // --- Flash Decay ---
+        function updateFlash() {
+            if (!flashEntity || !StarfishPrime.isActive()) return;
+            var t = StarfishPrime.getTimeSinceDetonation(simTime);
+            var emp = StarfishPrime.getEMPIntensity(t);
+            if (emp < 0.01) {
+                if (flashEntity) {
+                    viewer.entities.remove(flashEntity);
+                    flashEntity = null;
+                }
+                return;
+            }
+            flashEntity.point.pixelSize = 20 + 60 * emp;
+            flashEntity.point.color = Cesium.Color.WHITE.withAlpha(emp);
+        }
+
+        // --- Main Simulation Loop ---
+        viewer.clock.onTick.addEventListener(function() {
+            var now = performance.now();
+            var wallDt = (now - lastWallTime) / 1000;
+            lastWallTime = now;
+            frameCount++;
+
+            // Advance simulation time
+            if (!paused) {
+                var dt = wallDt * warpLevels[warpIndex];
+                // Cap at 1 week per frame to avoid instability
+                dt = Math.min(dt, 604800);
+                simTime += dt;
+
+                // Accumulate dose
+                for (var si = 0; si < satellites.length; si++) {
+                    satellites[si].totalDose += satellites[si].flux.doseRate * dt;
+                }
+            }
+
+            // Update satellite positions every frame
+            for (var i = 0; i < satellites.length; i++) {
+                var sat = satellites[i];
+                var state = VanAllenModel.propagateOrbit(sat.orbit, simTime);
+                sat.pos = state.pos;
+                sat.vel = state.vel;
+
+                // Geographic position
+                sat.geo = VanAllenModel.eciToGeographic(sat.pos, simTime);
+
+                // Radiation flux
+                var r = R_E + sat.geo.alt;
+                sat.flux = VanAllenModel.getFlux(r, sat.geo.lat, sat.geo.lon, simTime);
+
+                // Starfish enhancement
+                if (StarfishPrime.isActive()) {
+                    var tSince = StarfishPrime.getTimeSinceDetonation(simTime);
+                    var enh = StarfishPrime.getInjectedFlux(sat.flux.L, tSince);
+                    sat.flux.electron05 += enh.electron05_enhancement;
+                    sat.flux.electron1 += enh.electron1_enhancement;
+                    // Recalculate dose rate with enhancement
+                    sat.flux.doseRate = sat.flux.proton10 * 2.0e-9 + sat.flux.electron05 * 3.0e-10;
+                }
+            }
+
+            // Telemetry panel: update every 30 frames
+            if (frameCount % 30 === 0) {
+                buildTelemetryHTML();
+            }
+
+            // Time displays: every 15 frames
+            if (frameCount % 15 === 0) {
+                simTimeDisplay.textContent = formatSimTime(simTime);
+                if (StarfishPrime.isActive()) {
+                    detonationTimeDisplay.textContent = formatSimTime(StarfishPrime.getTimeSinceDetonation(simTime));
+                }
+            }
+
+            // Cross-section: every 60 frames
+            if (frameCount % 60 === 0) {
+                drawCrossSection();
+            }
+
+            // Belt cloud: every 60 frames
+            if (frameCount % 60 === 0 && beltCloudVisible) {
+                updateBeltCloud();
+            }
+
+            // Field line rebuild: every 120 frames (for Starfish color changes)
+            if (frameCount % 120 === 0 && StarfishPrime.isActive()) {
+                buildFieldLines();
+            }
+
+            // Alerts: every 60 frames
+            if (frameCount % 60 === 0) {
+                checkAlerts();
+            }
+
+            // Flash decay
+            updateFlash();
+        });
+
+        // Initial state
+        updateStatusBar();
+        drawCrossSection();
+        buildTelemetryHTML();
+
+    })();
+    </script>
+</body>
+</html>
