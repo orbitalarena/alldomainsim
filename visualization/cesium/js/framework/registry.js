@@ -74,11 +74,50 @@ const ComponentRegistry = (function() {
         return !!(_components[category] && _components[category][typeName]);
     }
 
+    /**
+     * Get all registered component types, grouped by category.
+     * @returns {object}  { category: [typeName, ...], ... }
+     */
+    function getAll() {
+        const result = {};
+        for (const category in _components) {
+            result[category] = Object.keys(_components[category]);
+        }
+        return result;
+    }
+
+    /**
+     * Get the editor schema for a component type (if defined).
+     * Components can define a static editorSchema() method returning field defs.
+     * @param {string} category
+     * @param {string} typeName
+     * @returns {Array|null}
+     */
+    function getEditorSchema(category, typeName) {
+        const cat = _components[category];
+        if (!cat) return null;
+        const Cls = cat[typeName];
+        if (!Cls) return null;
+        if (typeof Cls.editorSchema === 'function') return Cls.editorSchema();
+        return null;
+    }
+
+    /**
+     * Get all registered config preset names.
+     * @returns {string[]}
+     */
+    function getConfigNames() {
+        return Object.keys(_configs);
+    }
+
     return {
         register: register,
         registerConfig: registerConfig,
         getConfig: getConfig,
         create: create,
-        has: has
+        has: has,
+        getAll: getAll,
+        getEditorSchema: getEditorSchema,
+        getConfigNames: getConfigNames
     };
 })();

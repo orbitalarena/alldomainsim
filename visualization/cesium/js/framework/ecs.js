@@ -86,18 +86,29 @@ const ECS = (function() {
             this.events = [];               // event definitions (for future EventSystem)
             this.camera = {};               // camera config from scenario JSON
             this._lastTickTime = null;
+            this._componentIndex = {};      // componentName -> Set<entityId>
         }
 
         addEntity(entity) {
             this.entities.set(entity.id, entity);
+            // Index components for fast entitiesWith() lookups
+            for (var name in entity.components) {
+                if (!this._componentIndex[name]) {
+                    this._componentIndex[name] = new Set();
+                }
+                this._componentIndex[name].add(entity.id);
+            }
         }
 
         removeEntity(id) {
             const entity = this.entities.get(id);
             if (entity) {
-                // Cleanup components
+                // Cleanup components and remove from index
                 for (const name in entity.components) {
                     entity.components[name].cleanup(this);
+                    if (this._componentIndex[name]) {
+                        this._componentIndex[name].delete(id);
+                    }
                 }
                 this.entities.delete(id);
             }
@@ -109,12 +120,29 @@ const ECS = (function() {
 
         /** Return array of entities that have ALL listed component names. */
         entitiesWith(/* ...names */) {
-            const names = arguments;
-            const result = [];
-            this.entities.forEach(function(entity) {
-                if (!entity.active) return;
-                for (let i = 0; i < names.length; i++) {
-                    if (!entity.components[names[i]]) return;
+            var names = arguments;
+            if (names.length === 0) return [];
+
+            // Find the smallest index set for fast intersection
+            var smallest = null;
+            var smallestSize = Infinity;
+            for (var i = 0; i < names.length; i++) {
+                var set = this._componentIndex[names[i]];
+                if (!set || set.size === 0) return [];
+                if (set.size < smallestSize) {
+                    smallest = set;
+                    smallestSize = set.size;
+                }
+            }
+
+            // Iterate smallest set, verify all components present
+            var result = [];
+            var self = this;
+            smallest.forEach(function(id) {
+                var entity = self.entities.get(id);
+                if (!entity || !entity.active) return;
+                for (var j = 0; j < names.length; j++) {
+                    if (!entity.components[names[j]]) return;
                 }
                 result.push(entity);
             });
@@ -167,5 +195,82 @@ const ECS = (function() {
         }
     }
 
-    return { Entity: Entity, Component: Component, World: World };
+    // -----------------------------------------------------------------------
+    // Serialization helpers (for builder save/load)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Serialize an entity to a plain object matching the scenario JSON schema.
+     * @param {Entity} entity
+     * @returns {object} scenario-compatible entity definition
+     */
+    function serializeEntity(entity) {
+        const RAD = 180 / Math.PI;
+        const s = entity.state;
+        const def = {
+            id: entity.id,
+            name: entity.name,
+            type: entity.type,
+            team: entity.team,
+            initialState: {
+                lat: (s.lat || 0) * RAD,
+                lon: (s.lon || 0) * RAD,
+                alt: s.alt || 0,
+                speed: s.speed || 0,
+                heading: (s.heading || 0) * RAD,
+                gamma: (s.gamma || 0) * RAD,
+                throttle: s.throttle !== undefined ? s.throttle : 0.6,
+                engineOn: s.engineOn !== undefined ? s.engineOn : true,
+                gearDown: !!s.gearDown,
+                infiniteFuel: s.infiniteFuel !== undefined ? s.infiniteFuel : true
+            },
+            components: {}
+        };
+
+        // Serialize component specs (store the original config used to create them)
+        for (const category in entity.components) {
+            const comp = entity.components[category];
+            if (comp && comp.config) {
+                def.components[category] = Object.assign({}, comp.config);
+            }
+        }
+
+        // Preserve TLE data if present
+        if (s.tle_line1) def.initialState.tle_line1 = s.tle_line1;
+        if (s.tle_line2) def.initialState.tle_line2 = s.tle_line2;
+
+        return def;
+    }
+
+    /**
+     * Serialize the entire world to a scenario JSON object.
+     * @param {World} world
+     * @returns {object} full scenario JSON
+     */
+    function serializeWorld(world) {
+        const entities = [];
+        world.entities.forEach(function(entity) {
+            entities.push(serializeEntity(entity));
+        });
+
+        return {
+            metadata: world.scenarioMeta || {
+                name: 'Untitled Scenario',
+                description: '',
+                version: '2.0'
+            },
+            environment: world.environment || {},
+            entities: entities,
+            events: world.events || [],
+            camera: world.camera || {}
+        };
+    }
+
+    return {
+        Entity: Entity,
+        Component: Component,
+        World: World,
+        serializeEntity: serializeEntity,
+        serializeWorld: serializeWorld
+    };
 })();

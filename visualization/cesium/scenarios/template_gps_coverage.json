@@ -1,0 +1,301 @@
+{
+  "metadata": {
+    "name": "GPS Coverage Analysis",
+    "description": "6 GPS satellites across 3 orbital planes with ground receivers in New York, London, and Tokyo. Includes a LEO imaging satellite in sun-synchronous orbit and Schriever AFB ground control station.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["gps", "coverage", "constellation", "pdop"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "gps_plane_a_1",
+      "name": "GPS IIA-01",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 0.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_plane_a_2",
+      "name": "GPS IIA-02",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 0.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 180.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_plane_b_1",
+      "name": "GPS IIB-01",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 120.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 60.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_plane_b_2",
+      "name": "GPS IIB-02",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 120.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 240.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_plane_c_1",
+      "name": "GPS IIC-01",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 240.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 120.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_plane_c_2",
+      "name": "GPS IIC-02",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26559700,
+          "ecc": 0.001,
+          "inc": 55.0,
+          "raan": 240.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 300.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "rx_new_york",
+      "name": "GPS Receiver - New York",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 40.7128,
+        "lon": -74.006,
+        "alt": 10
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "NYC RX",
+          "sensorRange_m": 50000,
+          "sensorColor": "rgba(0,255,136,0.05)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "rx_london",
+      "name": "GPS Receiver - London",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 51.5074,
+        "lon": -0.1278,
+        "alt": 11
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "LDN RX",
+          "sensorRange_m": 50000,
+          "sensorColor": "rgba(0,255,136,0.05)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "rx_tokyo",
+      "name": "GPS Receiver - Tokyo",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.6762,
+        "lon": 139.6503,
+        "alt": 40
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "TYO RX",
+          "sensorRange_m": 50000,
+          "sensorColor": "rgba(0,255,136,0.05)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "leo_imager",
+      "name": "WorldView-X Imager",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6871000,
+          "ecc": 0.001,
+          "inc": 97.4,
+          "raan": 45.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gs_schriever",
+      "name": "Schriever SFB",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 38.8059,
+        "lon": -104.5258,
+        "alt": 1838
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Schriever SFB",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,136,255,0.05)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "free",
+    "range": 20000000
+  }
+}

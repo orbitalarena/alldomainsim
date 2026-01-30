@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenario Builder - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+    <style>
+        /* ================================================================
+           RESET & BASE
+           ================================================================ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            color: #e0e8f0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: 13px;
+        }
+
+        /* ================================================================
+           CSS GRID LAYOUT
+           ================================================================ */
+        #appLayout {
+            display: grid;
+            width: 100%; height: 100%;
+            grid-template-columns: 240px 1fr 280px;
+            grid-template-rows: 44px 1fr 180px;
+            grid-template-areas:
+                "toolbar  toolbar      toolbar"
+                "left     globe        right"
+                "bottom   bottom       bottom";
+        }
+
+        /* ================================================================
+           TOOLBAR (top bar)
+           ================================================================ */
+        #toolbar {
+            grid-area: toolbar;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(8, 12, 22, 0.98);
+            border-bottom: 1px solid #1a2a44;
+            padding: 0 12px;
+            z-index: 50;
+            user-select: none;
+        }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            height: 24px;
+            background: #1a2a44;
+            margin: 0 8px;
+        }
+
+        .toolbar-btn {
+            background: rgba(30, 44, 68, 0.8);
+            border: 1px solid #1a2a44;
+            color: #a0b0c8;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .toolbar-btn:hover {
+            background: rgba(50, 70, 100, 0.9);
+            border-color: #4a9eff;
+            color: #e0e8f0;
+            box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
+        }
+        .toolbar-btn:active {
+            background: rgba(74, 158, 255, 0.3);
+        }
+        .toolbar-btn.primary {
+            background: rgba(40, 80, 140, 0.6);
+            border-color: #4a9eff;
+            color: #e0e8f0;
+        }
+        .toolbar-btn.primary:hover {
+            background: rgba(74, 158, 255, 0.4);
+            box-shadow: 0 0 12px rgba(74, 158, 255, 0.3);
+        }
+        .toolbar-btn.danger {
+            border-color: #663333;
+            color: #cc8888;
+        }
+        .toolbar-btn.danger:hover {
+            background: rgba(140, 40, 40, 0.6);
+            border-color: #ff4444;
+            color: #ff8888;
+            box-shadow: 0 0 8px rgba(255, 68, 68, 0.2);
+        }
+        .toolbar-btn.success {
+            border-color: #336633;
+            color: #88cc88;
+        }
+        .toolbar-btn.success:hover {
+            background: rgba(40, 140, 40, 0.6);
+            border-color: #44ff44;
+            color: #88ff88;
+            box-shadow: 0 0 8px rgba(68, 255, 68, 0.2);
+        }
+
+        #modeBadge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        #modeBadge.build {
+            background: rgba(74, 158, 255, 0.2);
+            border: 1px solid #4a9eff;
+            color: #4a9eff;
+        }
+        #modeBadge.run {
+            background: rgba(68, 255, 68, 0.2);
+            border: 1px solid #44ff44;
+            color: #44ff44;
+        }
+        #modeBadge.analyze {
+            background: rgba(255, 200, 68, 0.2);
+            border: 1px solid #ffc844;
+            color: #ffc844;
+        }
+
+        #simTimeDisplay {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #88ccff;
+            letter-spacing: 1px;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        #timeWarpDisplay {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #66aa88;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* ================================================================
+           LEFT SIDEBAR - OBJECT PALETTE
+           ================================================================ */
+        #leftSidebar {
+            grid-area: left;
+            background: rgba(12, 18, 30, 0.95);
+            border-right: 1px solid #1a2a44;
+            overflow-y: auto;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.25s ease;
+        }
+        #leftSidebar.collapsed {
+            margin-left: -240px;
+        }
+
+        .sidebar-header {
+            padding: 10px 12px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #4a9eff;
+            border-bottom: 1px solid #1a2a44;
+            flex-shrink: 0;
+        }
+
+        .palette-section {
+            border-bottom: 1px solid #0f1826;
+        }
+
+        .palette-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #8098b8;
+            transition: background 0.15s ease;
+            user-select: none;
+        }
+        .palette-section-header:hover {
+            background: rgba(74, 158, 255, 0.06);
+            color: #a0c0e0;
+        }
+        .palette-section-header .chevron {
+            font-size: 10px;
+            transition: transform 0.2s ease;
+            color: #4a6888;
+        }
+        .palette-section-header.open .chevron {
+            transform: rotate(90deg);
+        }
+
+        .palette-section-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.25s ease;
+        }
+        .palette-section-body.open {
+            max-height: 400px;
+        }
+
+        .palette-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px 6px 20px;
+            cursor: pointer;
+            transition: background 0.12s ease;
+            user-select: none;
+        }
+        .palette-item:hover {
+            background: rgba(74, 158, 255, 0.08);
+        }
+        .palette-item.selected {
+            background: rgba(74, 158, 255, 0.15);
+            border-left: 2px solid #4a9eff;
+            padding-left: 18px;
+        }
+
+        .palette-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .palette-item-info {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .palette-item-name {
+            font-size: 12px;
+            color: #c0d0e0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .palette-item-desc {
+            font-size: 10px;
+            color: #506880;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #placementStatus {
+            flex-shrink: 0;
+            padding: 8px 12px;
+            background: rgba(74, 158, 255, 0.1);
+            border-top: 1px solid #1a2a44;
+            color: #4a9eff;
+            font-size: 11px;
+            text-align: center;
+            display: none;
+        }
+        #placementStatus.active {
+            display: block;
+        }
+
+        /* ================================================================
+           RIGHT SIDEBAR - PROPERTY INSPECTOR
+           ================================================================ */
+        #rightSidebar {
+            grid-area: right;
+            background: rgba(12, 18, 30, 0.95);
+            border-left: 1px solid #1a2a44;
+            overflow-y: auto;
+            z-index: 40;
+            display: flex;
+            flex-direction: column;
+            transition: margin-right 0.25s ease;
+        }
+        #rightSidebar.collapsed {
+            margin-right: -280px;
+        }
+
+        .inspector-header {
+            padding: 10px 12px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #4a9eff;
+            border-bottom: 1px solid #1a2a44;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #inspectorEmpty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            color: #3a5070;
+            font-size: 12px;
+            font-style: italic;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #inspectorContent {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+        }
+        #inspectorContent.active {
+            display: block;
+        }
+
+        .inspector-section {
+            border-bottom: 1px solid #0f1826;
+            padding: 10px 12px;
+        }
+
+        .inspector-section-title {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #506880;
+            margin-bottom: 8px;
+        }
+
+        .inspector-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .inspector-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .inspector-label {
+            font-size: 11px;
+            color: #7088a8;
+            flex-shrink: 0;
+            min-width: 60px;
+        }
+
+        .inspector-input {
+            background: rgba(8, 14, 26, 0.9);
+            border: 1px solid #1a2a44;
+            border-radius: 3px;
+            color: #c0d8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 3px 6px;
+            width: 120px;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        .inspector-input:focus {
+            border-color: #4a9eff;
+            box-shadow: 0 0 4px rgba(74, 158, 255, 0.15);
+        }
+        .inspector-input:read-only {
+            color: #506880;
+            background: rgba(8, 14, 26, 0.5);
+        }
+
+        .inspector-input.wide {
+            width: 150px;
+        }
+
+        .inspector-select {
+            background: rgba(8, 14, 26, 0.9);
+            border: 1px solid #1a2a44;
+            border-radius: 3px;
+            color: #c0d8f0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 12px;
+            padding: 3px 6px;
+            width: 120px;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+        .inspector-select:focus {
+            border-color: #4a9eff;
+        }
+        .inspector-select option {
+            background: #0a0e17;
+            color: #c0d8f0;
+        }
+
+        .inspector-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .inspector-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: #1a2a44;
+            border-radius: 2px;
+            outline: none;
+        }
+        .inspector-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #4a9eff;
+            cursor: pointer;
+            border: none;
+        }
+        .inspector-slider::-moz-range-thumb {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #4a9eff;
+            cursor: pointer;
+            border: none;
+        }
+
+        .inspector-slider-value {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #88aacc;
+            min-width: 36px;
+            text-align: right;
+        }
+
+        .inspector-component-section {
+            border-bottom: 1px solid #0f1826;
+        }
+
+        .inspector-component-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: #607898;
+            transition: background 0.12s ease;
+            user-select: none;
+        }
+        .inspector-component-header:hover {
+            background: rgba(74, 158, 255, 0.04);
+        }
+        .inspector-component-header .comp-chevron {
+            font-size: 9px;
+            transition: transform 0.2s ease;
+            color: #4a6888;
+        }
+        .inspector-component-header.open .comp-chevron {
+            transform: rotate(90deg);
+        }
+
+        .inspector-component-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease;
+            padding: 0 12px;
+        }
+        .inspector-component-body.open {
+            max-height: 300px;
+            padding: 6px 12px 10px;
+        }
+
+        .inspector-comp-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 11px;
+        }
+        .inspector-comp-label {
+            color: #506880;
+        }
+        .inspector-comp-value {
+            font-family: 'Courier New', monospace;
+            color: #88aacc;
+        }
+
+        /* ================================================================
+           CENTER - CESIUM GLOBE
+           ================================================================ */
+        #cesiumContainer {
+            grid-area: globe;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Hide Cesium default UI elements we don't need */
+        .cesium-viewer-toolbar,
+        .cesium-viewer-geocoderContainer,
+        .cesium-viewer-animationContainer,
+        .cesium-viewer-timelineContainer,
+        .cesium-viewer-fullscreenContainer,
+        .cesium-viewer-bottom {
+            display: none !important;
+        }
+
+        /* ================================================================
+           BOTTOM PANEL - ENTITY TREE + TIMELINE
+           ================================================================ */
+        #bottomPanel {
+            grid-area: bottom;
+            background: rgba(12, 18, 30, 0.95);
+            border-top: 1px solid #1a2a44;
+            display: flex;
+            z-index: 40;
+            transition: margin-bottom 0.25s ease;
+        }
+        #bottomPanel.collapsed {
+            margin-bottom: -180px;
+        }
+
+        /* Entity Tree (left half) */
+        #entityTreeContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #1a2a44;
+            min-width: 0;
+        }
+
+        .tree-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #4a9eff;
+            border-bottom: 1px solid #0f1826;
+            flex-shrink: 0;
+        }
+
+        .tree-header .entity-count {
+            font-weight: 400;
+            color: #506880;
+            font-size: 10px;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        #entityTreeTable {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tree-row {
+            display: grid;
+            grid-template-columns: 24px 1fr 80px 140px;
+            align-items: center;
+            padding: 4px 12px;
+            cursor: pointer;
+            transition: background 0.1s ease;
+            border-bottom: 1px solid rgba(15, 24, 38, 0.5);
+            font-size: 12px;
+            user-select: none;
+        }
+        .tree-row:hover {
+            background: rgba(74, 158, 255, 0.06);
+        }
+        .tree-row.selected {
+            background: rgba(74, 158, 255, 0.14);
+            border-left: 2px solid #4a9eff;
+        }
+
+        .tree-header-row {
+            display: grid;
+            grid-template-columns: 24px 1fr 80px 140px;
+            padding: 3px 12px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #506880;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #0f1826;
+            flex-shrink: 0;
+        }
+
+        .tree-team-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            justify-self: center;
+        }
+
+        .tree-name {
+            color: #c0d0e0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-type {
+            color: #607898;
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-position {
+            font-family: 'Courier New', monospace;
+            color: #506880;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tree-empty-msg {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #3a5070;
+            font-size: 12px;
+            font-style: italic;
+        }
+
+        /* Timeline (right half) */
+        #timelineContainer {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #4a9eff;
+            border-bottom: 1px solid #0f1826;
+            flex-shrink: 0;
+        }
+
+        #timelineCanvas {
+            flex: 1;
+            width: 100%;
+            background: rgba(6, 10, 18, 0.8);
+        }
+
+        .timeline-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #3a5070;
+            font-size: 12px;
+            gap: 6px;
+        }
+        .timeline-placeholder .ph-icon {
+            font-size: 20px;
+            color: #263040;
+        }
+        .timeline-placeholder .ph-text {
+            font-style: italic;
+        }
+
+        /* ================================================================
+           PANEL TOGGLE BUTTONS
+           ================================================================ */
+        .panel-toggle {
+            position: absolute;
+            z-index: 45;
+            width: 20px; height: 40px;
+            background: rgba(12, 18, 30, 0.95);
+            border: 1px solid #1a2a44;
+            color: #4a6888;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+        .panel-toggle:hover {
+            color: #4a9eff;
+            border-color: #4a9eff;
+        }
+
+        #toggleLeft {
+            top: 50%;
+            left: 240px;
+            transform: translateY(-50%);
+            border-radius: 0 4px 4px 0;
+            border-left: none;
+            transition: left 0.25s ease;
+        }
+        #toggleLeft.shifted { left: 0; }
+
+        #toggleRight {
+            top: 50%;
+            right: 280px;
+            transform: translateY(-50%);
+            border-radius: 4px 0 0 4px;
+            border-right: none;
+            transition: right 0.25s ease;
+        }
+        #toggleRight.shifted { right: 0; }
+
+        #toggleBottom {
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px; height: 20px;
+            border-radius: 4px 4px 0 0;
+            border-bottom: none;
+            transition: bottom 0.25s ease;
+        }
+        #toggleBottom.shifted { bottom: 0; }
+
+        /* ================================================================
+           MESSAGE OVERLAY (toast notifications)
+           ================================================================ */
+        #messageOverlay {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(12, 18, 30, 0.95);
+            border: 1px solid #1a2a44;
+            border-radius: 6px;
+            padding: 8px 18px;
+            color: #e0e8f0;
+            font-size: 13px;
+            pointer-events: auto;
+            animation: toastIn 0.25s ease, toastOut 0.4s ease 2.6s forwards;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+        .toast.info { border-color: #4a9eff; }
+        .toast.success { border-color: #44cc66; }
+        .toast.warn { border-color: #ffaa44; color: #ffd088; }
+        .toast.error { border-color: #ff4444; color: #ff8888; }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; }
+            to   { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* ================================================================
+           LOADING OVERLAY
+           ================================================================ */
+        #loadingOverlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0e17;
+            z-index: 500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            transition: opacity 0.5s ease;
+        }
+        #loadingOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-spinner {
+            width: 40px; height: 40px;
+            border: 3px solid #1a2a44;
+            border-top-color: #4a9eff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #4a9eff;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .loading-status {
+            font-size: 12px;
+            color: #506880;
+        }
+
+        /* ================================================================
+           SCROLLBAR STYLING
+           ================================================================ */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(6, 10, 18, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1a2a44;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2a3a58;
+        }
+
+        /* ================================================================
+           TEAM COLOR UTILITIES
+           ================================================================ */
+        .team-blue { background-color: #4488ff; }
+        .team-red { background-color: #ff4444; }
+        .team-neutral { background-color: #88ff88; }
+        .team-blue-text { color: #4488ff; }
+        .team-red-text { color: #ff4444; }
+        .team-neutral-text { color: #88ff88; }
+
+        /* ================================================================
+           DELETE CONFIRM BAR (in inspector)
+           ================================================================ */
+        #inspectorDeleteBar {
+            flex-shrink: 0;
+            padding: 8px 12px;
+            border-top: 1px solid #1a2a44;
+            display: none;
+        }
+        #inspectorDeleteBar.active {
+            display: block;
+        }
+        #deleteEntityBtn {
+            width: 100%;
+            background: rgba(80, 20, 20, 0.6);
+            border: 1px solid #552222;
+            color: #cc6666;
+            padding: 5px 0;
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        #deleteEntityBtn:hover {
+            background: rgba(140, 40, 40, 0.6);
+            border-color: #ff4444;
+            color: #ff8888;
+        }
+
+        /* ================================================================
+           FILE INPUT (hidden)
+           ================================================================ */
+        #fileInput, #tleFileInput {
+            display: none;
+        }
+
+        /* ================================================================
+           DEMO DROPDOWN
+           ================================================================ */
+        .demo-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .demo-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: rgba(12, 18, 30, 0.98);
+            border: 1px solid #1a2a44;
+            border-radius: 6px;
+            min-width: 260px;
+            z-index: 100;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            padding: 4px 0;
+        }
+        .demo-dropdown-menu.open {
+            display: block;
+        }
+        .demo-dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 8px 14px;
+            background: transparent;
+            border: none;
+            color: #a0b0c8;
+            font-size: 12px;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.12s ease;
+        }
+        .demo-dropdown-item:hover {
+            background: rgba(74, 158, 255, 0.12);
+            color: #e0e8f0;
+        }
+        .demo-dropdown-item .demo-item-name {
+            font-weight: 600;
+            color: #c0d0e0;
+        }
+        .demo-dropdown-item .demo-item-desc {
+            font-size: 10px;
+            color: #506880;
+            margin-top: 2px;
+        }
+        .demo-dropdown-sep {
+            height: 1px;
+            background: #1a2a44;
+            margin: 4px 0;
+        }
+
+        /* ================================================================
+           SATELLITE COE DIALOG
+           ================================================================ */
+        .sat-dialog-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sat-dialog {
+            background: #0d1a0d;
+            border: 1px solid #00aa00;
+            border-radius: 8px;
+            padding: 20px 24px;
+            min-width: 340px;
+            max-width: 420px;
+            color: #00ff00;
+            font-family: monospace;
+            box-shadow: 0 8px 32px rgba(0, 170, 0, 0.2);
+        }
+        .sat-dialog-title {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            text-align: center;
+            color: #00ff00;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        .sat-dialog-form {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .sat-dialog-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sat-dialog-label {
+            flex: 0 0 170px;
+            color: #88aa88;
+            font-size: 12px;
+        }
+        .sat-dialog-input {
+            flex: 1;
+            background: #1a2a1a;
+            border: 1px solid #334433;
+            border-radius: 3px;
+            color: #00ff00;
+            font-family: monospace;
+            font-size: 13px;
+            padding: 5px 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .sat-dialog-input:focus {
+            border-color: #00ff00;
+        }
+        .sat-dialog-computed {
+            margin-top: 12px;
+            padding: 10px;
+            background: #0a140a;
+            border: 1px solid #223322;
+            border-radius: 4px;
+        }
+        .sat-dialog-disp-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+        .sat-dialog-disp-label {
+            color: #668866;
+            font-size: 11px;
+        }
+        .sat-dialog-disp-value {
+            color: #00cc00;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .sat-dialog-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+        .sat-dialog-btn {
+            padding: 8px 18px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #334433;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sat-dialog-btn-cancel {
+            background: #1a1a1a;
+            color: #888;
+        }
+        .sat-dialog-btn-cancel:hover {
+            background: #2a2a2a;
+            color: #aaa;
+        }
+        .sat-dialog-btn-confirm {
+            background: #0a3a0a;
+            color: #00ff00;
+            border-color: #00aa00;
+        }
+        .sat-dialog-btn-confirm:hover {
+            background: #0a5a0a;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ================================================================
+     LOADING OVERLAY
+     ================================================================ -->
+<div id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-title">Scenario Builder</div>
+    <div class="loading-status" id="loadingStatus">Initializing Cesium...</div>
+</div>
+
+<!-- ================================================================
+     MESSAGE OVERLAY (toast notifications)
+     ================================================================ -->
+<div id="messageOverlay"></div>
+
+<!-- ================================================================
+     HIDDEN FILE INPUTS
+     ================================================================ -->
+<input type="file" id="fileInput" accept=".json">
+<input type="file" id="tleFileInput" accept=".txt,.tle">
+
+<!-- ================================================================
+     MAIN APP LAYOUT
+     ================================================================ -->
+<div id="appLayout">
+
+    <!-- ============================================================
+         TOOLBAR
+         ============================================================ -->
+    <div id="toolbar">
+        <!-- Left group: File operations -->
+        <div class="toolbar-group">
+            <button class="toolbar-btn" id="btnNew" title="New Scenario (Ctrl+N)">New</button>
+            <button class="toolbar-btn" id="btnOpen" title="Open Scenario (Ctrl+O)">Open</button>
+            <button class="toolbar-btn" id="btnSave" title="Save Scenario (Ctrl+S)">Save</button>
+            <div class="demo-dropdown">
+                <button class="toolbar-btn" id="btnExport" title="Export scenario" style="color:#00cc88;">Export &#9660;</button>
+                <div class="demo-dropdown-menu" id="exportDropdownMenu">
+                    <button class="demo-dropdown-item" id="btnExportSim">
+                        <div class="demo-item-name" style="color:#00cc88;">Export Sim</div>
+                        <div class="demo-item-desc">Live ECS physics in viewer (real-time)</div>
+                    </button>
+                    <button class="demo-dropdown-item" id="btnExportModel">
+                        <div class="demo-item-name" style="color:#ffaa00;">Export Model</div>
+                        <div class="demo-item-desc">Headless run → CZML rapid playback (no physics overhead)</div>
+                    </button>
+                </div>
+            </div>
+            <div class="toolbar-separator"></div>
+            <button class="toolbar-btn" id="btnImportTLE" title="Import satellites from TLE file">Import TLE</button>
+            <div class="toolbar-separator"></div>
+            <div class="demo-dropdown">
+                <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
+                <div class="demo-dropdown-menu" id="demoDropdownMenu">
+                    <button class="demo-dropdown-item" data-scenario="demo_multi_domain">
+                        <div class="demo-item-name">Multi-Domain Awareness</div>
+                        <div class="demo-item-desc">LEO/MEO/GEO sats, ground stations, aircraft</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="demo_iads_engagement">
+                        <div class="demo-item-name">IADS Engagement</div>
+                        <div class="demo-item-desc">Blue strike vs red SAM network, AI patrol, kill chain</div>
+                    </button>
+                    <div class="demo-dropdown-sep"></div>
+                    <button class="demo-dropdown-item" data-scenario="template_gps_coverage">
+                        <div class="demo-item-name">GPS Coverage Analysis</div>
+                        <div class="demo-item-desc">6 GPS sats, 3 receivers, DOP analysis</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_contested_orbit">
+                        <div class="demo-item-name">Contested Orbit</div>
+                        <div class="demo-item-desc">SSA scenario: co-orbital threats, GEO inspector</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_strike_package">
+                        <div class="demo-item-name">Strike Package</div>
+                        <div class="demo-item-desc">Middle East theater: F-16s vs SA-20 IADS</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center group: Mode / Time / Warp -->
+        <div class="toolbar-group">
+            <span id="modeBadge" class="build">BUILD</span>
+            <div class="toolbar-separator"></div>
+            <span id="simTimeDisplay">00:00:00</span>
+            <div class="toolbar-separator"></div>
+            <span id="timeWarpDisplay">1x</span>
+        </div>
+
+        <!-- Right group: Sim controls -->
+        <div class="toolbar-group">
+            <button class="toolbar-btn success" id="btnRun" title="Run Simulation">Run</button>
+            <button class="toolbar-btn" id="btnPause" title="Pause Simulation">Pause</button>
+            <button class="toolbar-btn" id="btnAnalyze" title="Analyze Results">Analyze</button>
+            <button class="toolbar-btn danger" id="btnReset" title="Reset to Build">Reset</button>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         LEFT SIDEBAR - OBJECT PALETTE
+         ============================================================ -->
+    <div id="leftSidebar">
+        <div class="sidebar-header">Object Palette</div>
+
+        <!-- Aircraft Section -->
+        <div class="palette-section" id="paletteAircraft">
+            <div class="palette-section-header open" data-section="aircraft">
+                Aircraft
+                <span class="chevron">&#9654;</span>
+            </div>
+            <div class="palette-section-body open" id="paletteSectionAircraft">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f16" data-team="blue">
+                    <div class="palette-dot team-blue"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">F-16C Fighting Falcon</div>
+                        <div class="palette-item-desc">Multi-role fighter, 9G capable</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="mig29" data-team="red">
+                    <div class="palette-dot team-red"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">MiG-29 Fulcrum</div>
+                        <div class="palette-item-desc">Air superiority fighter, 9G</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="spaceplane" data-team="blue">
+                    <div class="palette-dot" style="background-color: #44ffff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">X-37S Spaceplane</div>
+                        <div class="palette-item-desc">Atmo-to-orbit, multi-mode thrust</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spacecraft Section -->
+        <div class="palette-section" id="paletteSpacecraft">
+            <div class="palette-section-header open" data-section="spacecraft">
+                Spacecraft
+                <span class="chevron">&#9654;</span>
+            </div>
+            <div class="palette-section-body open" id="paletteSectionSpacecraft">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="leo_sat" data-team="blue">
+                    <div class="palette-dot" style="background-color: #88aaff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">LEO Satellite</div>
+                        <div class="palette-item-desc">Low Earth orbit, 400km alt</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="gps_sat" data-team="neutral">
+                    <div class="palette-dot" style="background-color: #ffdd44;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">GPS Satellite</div>
+                        <div class="palette-item-desc">MEO navigation, 20200km alt</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="geo_comms" data-team="neutral">
+                    <div class="palette-dot" style="background-color: #ff88ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">GEO Comms Sat</div>
+                        <div class="palette-item-desc">Geostationary communications</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ground Section -->
+        <div class="palette-section" id="paletteGround">
+            <div class="palette-section-header open" data-section="ground">
+                Ground
+                <span class="chevron">&#9654;</span>
+            </div>
+            <div class="palette-section-body open" id="paletteSectionGround">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ground_station" data-team="blue">
+                    <div class="palette-dot" style="background-color: #44ff88;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Ground Station</div>
+                        <div class="palette-item-desc">TT&C with radar + sensor cone</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="sam_battery" data-team="red">
+                    <div class="palette-dot team-red"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">SAM Battery</div>
+                        <div class="palette-item-desc">SA-20 radar + kill chain + missiles</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="ew_radar" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff8800;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">EW Radar</div>
+                        <div class="palette-item-desc">Early warning, 300km range</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="gps_receiver" data-team="neutral">
+                    <div class="palette-dot team-neutral"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">GPS Receiver</div>
+                        <div class="palette-item-desc">Position fix from GPS constellation</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Placement status indicator (shown when an item is selected) -->
+        <div id="placementStatus">Click globe to place entity</div>
+    </div>
+
+    <!-- ============================================================
+         CESIUM GLOBE (center)
+         ============================================================ -->
+    <div id="cesiumContainer"></div>
+
+    <!-- ============================================================
+         RIGHT SIDEBAR - PROPERTY INSPECTOR
+         ============================================================ -->
+    <div id="rightSidebar">
+        <div class="inspector-header">
+            <span>Property Inspector</span>
+            <span id="inspectorEntityType" style="font-size:10px; color:#506880; font-weight:400; letter-spacing:0;"></span>
+        </div>
+
+        <!-- Empty state -->
+        <div id="inspectorEmpty">Select an entity to edit properties</div>
+
+        <!-- Content (shown when entity selected) -->
+        <div id="inspectorContent">
+
+            <!-- IDENTITY section -->
+            <div class="inspector-section">
+                <div class="inspector-section-title">Identity</div>
+
+                <div class="inspector-row">
+                    <span class="inspector-label">Name</span>
+                    <input type="text" class="inspector-input wide" id="inspName" placeholder="Entity name">
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">ID</span>
+                    <input type="text" class="inspector-input" id="inspId" readonly>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Type</span>
+                    <input type="text" class="inspector-input" id="inspType" readonly>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Team</span>
+                    <select class="inspector-select" id="inspTeam">
+                        <option value="blue">Blue</option>
+                        <option value="red">Red</option>
+                        <option value="neutral">Neutral</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- POSITION section -->
+            <div class="inspector-section">
+                <div class="inspector-section-title">Position</div>
+
+                <div class="inspector-row">
+                    <span class="inspector-label">Lat</span>
+                    <input type="number" class="inspector-input" id="inspLat" step="0.001" placeholder="0.000">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">&#176;</span>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Lon</span>
+                    <input type="number" class="inspector-input" id="inspLon" step="0.001" placeholder="0.000">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">&#176;</span>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Alt</span>
+                    <input type="number" class="inspector-input" id="inspAlt" step="100" placeholder="0">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">m</span>
+                </div>
+            </div>
+
+            <!-- STATE section -->
+            <div class="inspector-section">
+                <div class="inspector-section-title">State</div>
+
+                <div class="inspector-row">
+                    <span class="inspector-label">Speed</span>
+                    <input type="number" class="inspector-input" id="inspSpeed" step="10" placeholder="0">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">m/s</span>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Heading</span>
+                    <input type="number" class="inspector-input" id="inspHeading" step="1" min="0" max="360" placeholder="0">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">&#176;</span>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Gamma</span>
+                    <input type="number" class="inspector-input" id="inspGamma" step="1" min="-90" max="90" placeholder="0">
+                    <span style="color:#506880; font-size:10px; margin-left:4px;">&#176;</span>
+                </div>
+                <div class="inspector-row">
+                    <span class="inspector-label">Throttle</span>
+                    <div class="inspector-slider-row" style="width:120px;">
+                        <input type="range" class="inspector-slider" id="inspThrottle" min="0" max="1" step="0.01" value="0.6">
+                        <span class="inspector-slider-value" id="inspThrottleValue">60%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMPONENTS section (dynamic, filled by JS) -->
+            <div id="inspectorComponents">
+                <!-- Component sections are populated dynamically by property_inspector.js -->
+            </div>
+        </div>
+
+        <!-- Delete bar (shown when entity selected) -->
+        <div id="inspectorDeleteBar">
+            <button id="deleteEntityBtn">Delete Entity</button>
+        </div>
+    </div>
+
+    <!-- ============================================================
+         BOTTOM PANEL - ENTITY TREE + TIMELINE
+         ============================================================ -->
+    <div id="bottomPanel">
+
+        <!-- Entity Tree (left half) -->
+        <div id="entityTreeContainer">
+            <div class="tree-header">
+                <span>Entities</span>
+                <span class="entity-count" id="entityCount">0 entities</span>
+            </div>
+            <div class="tree-header-row">
+                <span></span>
+                <span>Name</span>
+                <span>Type</span>
+                <span>Position</span>
+            </div>
+            <div id="entityTreeTable">
+                <div class="tree-empty-msg" id="treeEmptyMsg">
+                    No entities in scenario. Use the Object Palette to add entities.
+                </div>
+                <!-- Entity rows are populated dynamically by entity_tree.js -->
+            </div>
+        </div>
+
+        <!-- Timeline (right half) -->
+        <div id="timelineContainer">
+            <div class="timeline-header">
+                <span>Timeline</span>
+                <span style="font-size:10px; color:#506880; font-weight:400; letter-spacing:0; text-transform:none;">Phase 1</span>
+            </div>
+            <div class="timeline-placeholder" id="timelinePlaceholder">
+                <span class="ph-icon">&#9202;</span>
+                <span class="ph-text">Timeline active in Run mode</span>
+                <span style="font-size:10px; color:#263040;">Events and waypoints will appear here</span>
+            </div>
+            <canvas id="timelineCanvas" style="display:none;"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ================================================================
+     PANEL TOGGLE BUTTONS
+     ================================================================ -->
+<button class="panel-toggle" id="toggleLeft" title="Toggle Object Palette">&#9664;</button>
+<button class="panel-toggle" id="toggleRight" title="Toggle Property Inspector">&#9654;</button>
+<button class="panel-toggle" id="toggleBottom" title="Toggle Bottom Panel">&#9660;</button>
+
+
+<!-- ================================================================
+     SCRIPT LOADING
+     ================================================================ -->
+
+<!-- Cesium configuration (access token, imagery providers) -->
+<script src="cesium_config.js"></script>
+
+<!-- Sim engine dependencies (for aircraft/spaceplane physics) -->
+<script src="js/fighter_atmosphere.js"></script>
+<script src="js/fighter_sim_engine.js"></script>
+
+<!-- ECS framework -->
+<script src="js/framework/constants.js"></script>
+<script src="js/framework/ecs.js"></script>
+<script src="js/framework/registry.js"></script>
+<script src="js/framework/sensor_system.js"></script>
+<script src="js/framework/weapon_system.js"></script>
+<script src="js/framework/event_system.js"></script>
+<script src="js/framework/systems.js"></script>
+<script src="js/framework/tle_parser.js"></script>
+<script src="js/framework/loader.js"></script>
+
+<!-- Components: Physics -->
+<script src="js/components/physics/flight3dof.js"></script>
+<script src="js/components/physics/orbital_2body.js"></script>
+
+<!-- Components: Control -->
+<script src="js/components/control/player_input.js"></script>
+
+<!-- Components: AI -->
+<script src="js/components/ai/waypoint_patrol.js"></script>
+<script src="js/components/ai/intercept.js"></script>
+
+<!-- Components: Sensors -->
+<script src="js/components/sensors/radar.js"></script>
+
+<!-- Components: Weapons -->
+<script src="js/components/weapons/sam_battery.js"></script>
+
+<!-- Components: Visual -->
+<script src="js/components/visual/cesium_entity.js"></script>
+<script src="js/components/visual/satellite_visual.js"></script>
+<script src="js/components/visual/ground_station.js"></script>
+<script src="js/components/visual/radar_coverage.js"></script>
+
+<!-- Builder modules -->
+<script src="js/builder/satellite_dialog.js"></script>
+<script src="js/builder/builder_app.js"></script>
+<script src="js/builder/scenario_io.js"></script>
+<script src="js/builder/globe_interaction.js"></script>
+<script src="js/builder/object_palette.js"></script>
+<script src="js/builder/property_inspector.js"></script>
+<script src="js/builder/entity_tree.js"></script>
+<script src="js/builder/timeline_panel.js"></script>
+<script src="js/builder/analysis_overlay.js"></script>
+
+<!-- ================================================================
+     BOOTSTRAP
+     ================================================================ -->
+<script>
+(function() {
+    'use strict';
+    // Initialize satellite dialog before builder (needs DOM)
+    if (typeof SatelliteDialog !== 'undefined') {
+        SatelliteDialog.init();
+    }
+    // Wait for all scripts to load, then init
+    BuilderApp.init('cesiumContainer');
+})();
+</script>
+
+</body>
+</html>

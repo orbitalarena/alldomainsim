@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Viewer - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        #statusBar {
+            position: absolute;
+            top: 5px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 15, 10, 0.9);
+            border: 1px solid #00aa00;
+            border-radius: 4px;
+            padding: 6px 18px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 20;
+        }
+
+        #speedControls {
+            position: absolute;
+            top: 45px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 15, 10, 0.85);
+            border: 1px solid #005500;
+            border-radius: 4px;
+            padding: 5px 12px;
+            color: #00aa00;
+            font-family: monospace;
+            font-size: 12px;
+            z-index: 20;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .speed-btn {
+            background: #0a1a0a;
+            border: 1px solid #334433;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 3px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .speed-btn:hover { background: #1a3a1a; }
+        .speed-btn.active { border-color: #00ff00; background: #0a3a0a; }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 100;
+            color: #00ff00; font-family: 'Courier New', monospace;
+        }
+        #loadingOverlay h1 {
+            font-size: 28px; color: #00ff88;
+            text-shadow: 0 0 20px rgba(0,255,100,0.5);
+            margin-bottom: 10px;
+        }
+        #loadingOverlay .subtitle { font-size: 14px; color: #00aa00; }
+        #loadingOverlay .error { color: #ff4444; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="statusBar">
+        <span id="modelName">MODEL PLAYBACK</span> |
+        <span id="modelEntities">--</span> entities |
+        <span id="modelSpeed">10x</span>
+    </div>
+
+    <div id="speedControls">
+        Speed:
+        <button class="speed-btn" data-speed="1">1x</button>
+        <button class="speed-btn" data-speed="5">5x</button>
+        <button class="speed-btn active" data-speed="10">10x</button>
+        <button class="speed-btn" data-speed="50">50x</button>
+        <button class="speed-btn" data-speed="100">100x</button>
+        <button class="speed-btn" data-speed="500">500x</button>
+    </div>
+
+    <div id="loadingOverlay">
+        <h1>MODEL PLAYBACK VIEWER</h1>
+        <div class="subtitle" id="loadingStatus">Loading CZML data...</div>
+        <div class="error" id="loadingError" style="display:none;"></div>
+    </div>
+
+    <script src="cesium_config.js"></script>
+
+    <script>
+    'use strict';
+
+    (async function() {
+        var params = new URLSearchParams(window.location.search);
+        var czmlUrl = params.get('czml');
+
+        if (!czmlUrl) {
+            showError('No CZML specified. Use ?czml=scenarios/name_czml.json');
+            return;
+        }
+
+        document.getElementById('loadingStatus').textContent = 'Loading: ' + czmlUrl;
+
+        // Init Cesium with timeline and animation controls for playback
+        var viewer;
+        try {
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: true,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: true,
+                timeline: true,
+                fullscreenButton: false,
+                vrButton: false,
+                infoBox: true,
+                selectionIndicator: true,
+                shadows: false,
+                shouldAnimate: true
+            });
+
+            Cesium.createWorldTerrainAsync().then(function(terrain) {
+                viewer.terrainProvider = terrain;
+            }).catch(function() {});
+
+            if (typeof addArcGISProviders === 'function') {
+                addArcGISProviders(viewer);
+            }
+
+            viewer.scene.globe.enableLighting = true;
+        } catch (e) {
+            showError('Cesium init failed: ' + e.message);
+            return;
+        }
+
+        // Load CZML
+        try {
+            var response = await fetch(czmlUrl);
+            if (!response.ok) throw new Error('File not found: ' + czmlUrl);
+            var czmlData = await response.json();
+
+            // Count entities (subtract 1 for document packet)
+            var entityCount = czmlData.length - 1;
+
+            // Load into Cesium
+            var dataSource = await Cesium.CzmlDataSource.load(czmlData);
+            viewer.dataSources.add(dataSource);
+
+            // Update UI
+            var docPacket = czmlData[0];
+            var modelName = docPacket.name || 'Model Playback';
+            document.title = modelName + ' - All Domain Sim';
+            document.getElementById('modelName').textContent = modelName.toUpperCase();
+            document.getElementById('modelEntities').textContent = entityCount;
+
+            // Set initial clock multiplier
+            viewer.clock.multiplier = 10;
+
+            // Zoom to entities
+            viewer.zoomTo(dataSource);
+
+        } catch (e) {
+            showError('CZML load failed: ' + e.message);
+            console.error(e);
+            return;
+        }
+
+        // Hide loading
+        document.getElementById('loadingOverlay').style.display = 'none';
+
+        // Speed control buttons
+        var btns = document.querySelectorAll('.speed-btn');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].addEventListener('click', function() {
+                var speed = parseFloat(this.getAttribute('data-speed'));
+                viewer.clock.multiplier = speed;
+                document.getElementById('modelSpeed').textContent = speed + 'x';
+                // Update active state
+                for (var j = 0; j < btns.length; j++) btns[j].classList.remove('active');
+                this.classList.add('active');
+            });
+        }
+
+        // Keyboard: space = pause, +/- = speed
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ') {
+                e.preventDefault();
+                viewer.clock.shouldAnimate = !viewer.clock.shouldAnimate;
+            } else if (e.key === '+' || e.key === '=') {
+                viewer.clock.multiplier = Math.min(viewer.clock.multiplier * 2, 1000);
+                document.getElementById('modelSpeed').textContent = viewer.clock.multiplier + 'x';
+            } else if (e.key === '-') {
+                viewer.clock.multiplier = Math.max(viewer.clock.multiplier / 2, 1);
+                document.getElementById('modelSpeed').textContent = viewer.clock.multiplier + 'x';
+            }
+        });
+
+        console.log('Model loaded:', czmlData[0].name, '| Entities:', czmlData.length - 1);
+    })();
+
+    function showError(msg) {
+        document.getElementById('loadingStatus').textContent = 'Error';
+        var el = document.getElementById('loadingError');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+    </script>
+</body>
+</html>

@@ -235,13 +235,35 @@
     <script src="js/framework/constants.js"></script>
     <script src="js/framework/ecs.js"></script>
     <script src="js/framework/registry.js"></script>
+    <script src="js/framework/sensor_system.js"></script>
+    <script src="js/framework/weapon_system.js"></script>
+    <script src="js/framework/event_system.js"></script>
     <script src="js/framework/systems.js"></script>
+    <script src="js/framework/tle_parser.js"></script>
     <script src="js/framework/loader.js"></script>
 
-    <!-- Components -->
+    <!-- Components: Physics -->
     <script src="js/components/physics/flight3dof.js"></script>
+    <script src="js/components/physics/orbital_2body.js"></script>
+
+    <!-- Components: Control -->
     <script src="js/components/control/player_input.js"></script>
+
+    <!-- Components: AI -->
+    <script src="js/components/ai/waypoint_patrol.js"></script>
+    <script src="js/components/ai/intercept.js"></script>
+
+    <!-- Components: Sensors -->
+    <script src="js/components/sensors/radar.js"></script>
+
+    <!-- Components: Weapons -->
+    <script src="js/components/weapons/sam_battery.js"></script>
+
+    <!-- Components: Visual -->
     <script src="js/components/visual/cesium_entity.js"></script>
+    <script src="js/components/visual/satellite_visual.js"></script>
+    <script src="js/components/visual/ground_station.js"></script>
+    <script src="js/components/visual/radar_coverage.js"></script>
 
     <script>
     // =========================================================================

@@ -217,7 +217,7 @@
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot"></div>
-                20 scenarios loaded
+                21 scenarios + builder
             </div>
             <div class="status-item">
                 <div class="status-dot"></div>
@@ -231,6 +231,33 @@
     </header>
 
     <main>
+        <!-- Scenario Builder -->
+        <div class="category featured">
+            <div class="category-header">
+                <h2>Scenario Builder</h2>
+                <div class="category-line"></div>
+            </div>
+            <div class="grid">
+                <a class="card" href="scenario_builder.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#128736;</div>
+                        <div class="card-badge interactive">Builder</div>
+                    </div>
+                    <h3>Scenario Builder</h3>
+                    <p>Compose multi-domain scenarios: place aircraft, satellites, ground stations, SAM batteries on the globe. Configure sensors, weapons, AI patrol routes, and engagement rules. Run simulations with the full ECS engine.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">ECS</span>
+                            <span class="tag">Multi-Domain</span>
+                            <span class="tag">IADS</span>
+                            <span class="tag">Orbital</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
         <!-- Interactive Flight Sims -->
         <div class="category featured">
             <div class="category-header">
@@ -664,6 +691,7 @@
     <script>
         // Keyboard shortcut: number keys 1-9 launch featured sims
         const quickLaunch = {
+            '0': 'scenario_builder.html',
             '1': 'spaceplane_viewer.html',
             '2': 'fighter_sim_viewer.html',
             '3': 'geo_sim_viewer.html',

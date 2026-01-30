@@ -29,7 +29,10 @@
             this._trailEntity = null;
             this._trail = [];
             this._trailCounter = 0;
+            this._trailHead = 0;       // circular buffer write index
+            this._trailFull = false;    // whether buffer has wrapped
             this._isPlayer = false;
+            this._cachedPosition = null; // reuse Cartesian3
         }
 
         init(world) {
@@ -46,11 +49,13 @@
             // Determine if this is the player entity (for camera tracking)
             this._isPlayer = (entity === world._playerEntity);
 
-            // Create Cesium entity with CallbackProperty position
+            // Create Cesium entity with cached CallbackProperty position
+            const self = this;
+            this._cachedPosition = Cesium.Cartesian3.fromRadians(state.lon, state.lat, state.alt);
             const entityOpts = {
                 name: entity.name,
                 position: new Cesium.CallbackProperty(function() {
-                    return Cesium.Cartesian3.fromRadians(state.lon, state.lat, state.alt);
+                    return self._cachedPosition;
                 }, false),
                 point: {
                     pixelSize: cfg.pixelSize || 10,
@@ -83,13 +88,17 @@
                 const trailColor = cfg.trailColor
                     ? Cesium.Color.fromCssColorString(cfg.trailColor)
                     : color.withAlpha(0.6);
-                const self = this;
 
                 this._trailEntity = viewer.entities.add({
                     name: entity.name + ' Trail',
                     polyline: {
                         positions: new Cesium.CallbackProperty(function() {
-                            return self._trail;
+                            // Return ordered positions from circular buffer
+                            if (!self._trailFull) return self._trail;
+                            // Wrap: [head..end] + [0..head-1]
+                            var h = self._trailHead;
+                            var t = self._trail;
+                            return t.slice(h).concat(t.slice(0, h));
                         }, false),
                         width: cfg.trailWidth || 2,
                         material: trailColor
@@ -101,15 +110,29 @@
         update(dt, world) {
             const state = this.entity.state;
 
+            // Update cached position (avoids allocation in CallbackProperty)
+            this._cachedPosition = Cesium.Cartesian3.fromRadians(
+                state.lon, state.lat, state.alt
+            );
+
             // Update trail (every ~10 frames via counter)
             if (this.config.trail) {
                 this._trailCounter++;
                 if (this._trailCounter % 10 === 0) {
-                    this._trail.push(Cesium.Cartesian3.fromRadians(
+                    const pos = Cesium.Cartesian3.fromRadians(
                         state.lon, state.lat, state.alt
-                    ));
+                    );
                     const maxLen = this.config.trailLength || 500;
-                    if (this._trail.length > maxLen) this._trail.shift();
+
+                    if (this._trail.length < maxLen) {
+                        // Still filling the buffer
+                        this._trail.push(pos);
+                    } else {
+                        // Circular overwrite — O(1) instead of shift() O(n)
+                        this._trail[this._trailHead] = pos;
+                        this._trailHead = (this._trailHead + 1) % maxLen;
+                        this._trailFull = true;
+                    }
                 }
             }
 

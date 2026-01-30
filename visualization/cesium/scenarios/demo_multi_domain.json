@@ -1,0 +1,246 @@
+{
+  "metadata": {
+    "name": "Multi-Domain Awareness",
+    "description": "Multi-domain scenario: LEO/MEO/GEO satellites, ground stations, and aircraft. Demonstrates integrated air-space-ground simulation.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["multi-domain", "orbital", "aircraft", "ground"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 1024
+  },
+  "entities": [
+    {
+      "id": "iss_001",
+      "name": "ISS Zarya",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0, "lon": 0, "alt": 408000,
+        "speed": 7670, "heading": 45, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6779000,
+          "ecc": 0.0001,
+          "inc": 51.6,
+          "raan": 247.0,
+          "argPerigee": 130.0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffaa00",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "leo_recon_002",
+      "name": "RECON-3",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0, "lon": 0, "alt": 500000,
+        "speed": 7610, "heading": 10, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6871000,
+          "ecc": 0.001,
+          "inc": 97.4,
+          "raan": 120.0,
+          "argPerigee": 0,
+          "meanAnomaly": 90
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_003",
+      "name": "GPS IIR-11",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {
+        "lat": 0, "lon": 0, "alt": 20200000,
+        "speed": 3874, "heading": 55, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.005,
+          "inc": 55.0,
+          "raan": 0,
+          "argPerigee": 45,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gps_004",
+      "name": "GPS IIR-16",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {
+        "lat": 0, "lon": 0, "alt": 20200000,
+        "speed": 3874, "heading": 55, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.003,
+          "inc": 55.0,
+          "raan": 60,
+          "argPerigee": 270,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "geo_005",
+      "name": "MILSTAR-6",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0, "lon": -100, "alt": 35786000,
+        "speed": 3075, "heading": 90, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 260
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff88ff",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false
+        }
+      }
+    },
+    {
+      "id": "eagle_006",
+      "name": "EAGLE 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.9,
+        "lon": -117.88,
+        "alt": 5000,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "bandit_007",
+      "name": "BANDIT 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 35.5,
+        "lon": -116.5,
+        "alt": 6000,
+        "speed": 220,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "gnd_008",
+      "name": "Edwards TT&C",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.905,
+        "lon": -117.884,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "visual": { "type": "point", "color": "#00ff88", "pixelSize": 10, "label": "Edwards TT&C" }
+      }
+    },
+    {
+      "id": "gnd_009",
+      "name": "Vandenberg GND",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.737,
+        "lon": -120.568,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "visual": { "type": "point", "color": "#00ff88", "pixelSize": 10, "label": "Vandenberg" }
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "free",
+    "range": 5000000
+  }
+}

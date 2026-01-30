@@ -1,0 +1,239 @@
+{
+  "metadata": {
+    "name": "Contested Orbit",
+    "description": "Space situational awareness scenario with blue LEO and GEO assets facing red co-orbital threats. Ground stations at Vandenberg and Diego Garcia provide radar tracking.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["space", "contested", "ssa", "geo", "leo"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "blue_leo_1",
+      "name": "USA-300 (LEO Recon)",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6771000,
+          "ecc": 0.001,
+          "inc": 45.0,
+          "raan": 30.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "blue_leo_2",
+      "name": "USA-301 (LEO SIGINT)",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6971000,
+          "ecc": 0.001,
+          "inc": 70.0,
+          "raan": 90.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 45.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "red_leo_intercept",
+      "name": "Kosmos-2570 (Co-orbital)",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6791000,
+          "ecc": 0.002,
+          "inc": 45.0,
+          "raan": 30.5,
+          "argPerigee": 0.0,
+          "meanAnomaly": 5.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "blue_geo_comms",
+      "name": "AEHF-6 (GEO Comms)",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0002,
+          "inc": 0.05,
+          "raan": 0.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 105.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "red_geo_inspector",
+      "name": "Luch-2 (GEO Inspector)",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0003,
+          "inc": 0.08,
+          "raan": 0.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 106.5
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "gs_vandenberg",
+      "name": "Vandenberg SFB",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.737,
+        "lon": -120.568,
+        "alt": 112
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Vandenberg SFB",
+          "sensorRange_m": 250000,
+          "sensorColor": "rgba(68,136,255,0.05)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "gs_diego_garcia",
+      "name": "Diego Garcia",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": -7.316,
+        "lon": 72.411,
+        "alt": 2
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Diego Garcia",
+          "sensorRange_m": 250000,
+          "sensorColor": "rgba(68,136,255,0.05)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_ssa_alert",
+      "trigger": {
+        "type": "time",
+        "time_s": 60
+      },
+      "action": {
+        "type": "message",
+        "text": "Space Situational Awareness alert: proximity warning",
+        "level": "warning"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_inspector_maneuver",
+      "trigger": {
+        "type": "time",
+        "time_s": 120
+      },
+      "action": {
+        "type": "message",
+        "text": "Red inspector satellite maneuvering",
+        "level": "alert"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 8000000
+  }
+}

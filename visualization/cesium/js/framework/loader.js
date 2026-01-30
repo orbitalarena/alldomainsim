@@ -119,7 +119,7 @@ const ScenarioLoader = (function() {
         const comps = def.components || {};
         for (const category in comps) {
             const spec = comps[category];
-            if (!spec) continue;
+            if (!spec || spec === null) continue;
 
             // Sensors/weapons can be arrays — for Phase 1 we just take the first
             if (Array.isArray(spec)) {
@@ -163,5 +163,12 @@ const ScenarioLoader = (function() {
         );
     }
 
-    return { load: load, build: build };
+    /**
+     * Build a single entity from a definition (exposed for builder use).
+     */
+    function buildEntity(def) {
+        return _buildEntity(def);
+    }
+
+    return { load: load, build: build, buildEntity: buildEntity };
 })();

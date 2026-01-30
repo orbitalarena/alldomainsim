@@ -132,12 +132,43 @@ const Systems = (function() {
         if (el) el.textContent = text;
     }
 
+    // -------------------------------------------------------------------
+    // 6. AISystem
+    //    Calls each entity's AI component to produce commands.
+    //    Runs before ControlSystem so player input overrides AI.
+    // -------------------------------------------------------------------
+    function AISystem(dt, world) {
+        const entities = world.entitiesWith('ai');
+        for (let i = 0; i < entities.length; i++) {
+            const e = entities[i];
+            const ai = e.getComponent('ai');
+            if (ai && ai.enabled) {
+                ai.update(dt, world);
+            }
+        }
+    }
+
     /**
      * Register all default systems on a World in the correct order.
+     * Pipeline: AI -> Control -> Physics -> Sensor -> Weapon -> Event -> Visualization -> HUD -> UI
      */
     function registerDefaults(world) {
+        // AI before Control so player input can override AI commands
+        world.addSystem('ai', AISystem);
         world.addSystem('control', ControlSystem);
         world.addSystem('physics', PhysicsSystem);
+
+        // Sensor/Weapon/Event systems (Phase 3+4, check for existence)
+        if (typeof SensorSystem !== 'undefined') {
+            world.addSystem('sensors', SensorSystem.update);
+        }
+        if (typeof WeaponSystem !== 'undefined') {
+            world.addSystem('weapons', WeaponSystem.update);
+        }
+        if (typeof EventSystem !== 'undefined') {
+            world.addSystem('events', EventSystem.update);
+        }
+
         world.addSystem('visualization', VisualizationSystem);
         world.addSystem('hud', HUDSystem);
         world.addSystem('ui', UISystem);
@@ -146,6 +177,7 @@ const Systems = (function() {
     return {
         ControlSystem: ControlSystem,
         PhysicsSystem: PhysicsSystem,
+        AISystem: AISystem,
         VisualizationSystem: VisualizationSystem,
         HUDSystem: HUDSystem,
         UISystem: UISystem,

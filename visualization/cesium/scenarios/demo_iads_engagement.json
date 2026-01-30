@@ -1,0 +1,261 @@
+{
+  "metadata": {
+    "name": "IADS Engagement",
+    "description": "Integrated Air Defense scenario: Blue strike package vs Red SAM network with radar detection, AI patrol, and engagement events.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["iads", "sam", "radar", "ai", "engagement", "multi-domain"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "eagle_1",
+      "name": "EAGLE 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.5,
+        "lon": -118.5,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 60, "detectionProbability": 0.9 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "viper_2",
+      "name": "VIPER 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.3,
+        "lon": -118.3,
+        "alt": 7500,
+        "speed": 240,
+        "heading": 80,
+        "gamma": 0,
+        "throttle": 0.65,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 34.3, "lon": -117.5, "alt": 7500, "speed": 240 },
+          { "lat": 34.8, "lon": -117.0, "alt": 8000, "speed": 250 },
+          { "lat": 35.2, "lon": -117.5, "alt": 7500, "speed": 240 },
+          { "lat": 34.8, "lon": -118.0, "alt": 7000, "speed": 230 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 10, "trail": true }
+      }
+    },
+    {
+      "id": "bandit_1",
+      "name": "BANDIT 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 35.5,
+        "lon": -116.2,
+        "alt": 9000,
+        "speed": 280,
+        "heading": 250,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "intercept", "targetId": "eagle_1", "mode": "pursuit", "engageRange_m": 80000, "maxSpeed": 320 },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "bandit_2",
+      "name": "BANDIT 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 35.8,
+        "lon": -116.8,
+        "alt": 7000,
+        "speed": 220,
+        "heading": 210,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.5, "lon": -117.0, "alt": 7000, "speed": 220 },
+          { "lat": 35.0, "lon": -116.5, "alt": 7500, "speed": 230 },
+          { "lat": 35.5, "lon": -116.0, "alt": 7000, "speed": 220 },
+          { "lat": 36.0, "lon": -116.5, "alt": 6500, "speed": 210 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 10, "trail": true }
+      }
+    },
+    {
+      "id": "sam_alpha",
+      "name": "SA-20 ALPHA",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.2,
+        "lon": -117.0,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.95 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 150000, "minRange_m": 5000, "maxAlt_m": 25000, "engagementRules": "weapons_free" },
+        "visual": { "type": "ground_station", "color": "#ff2222", "label": "SA-20 ALPHA", "sensorRange_m": 200000, "sensorColor": "rgba(255,50,50,0.06)", "sensorOutlineColor": "#ff4444" }
+      }
+    },
+    {
+      "id": "sam_bravo",
+      "name": "SA-20 BRAVO",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.6,
+        "lon": -116.5,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": { "type": "radar", "maxRange_m": 180000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.9 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 130000, "minRange_m": 5000, "maxAlt_m": 25000, "engagementRules": "weapons_hold" },
+        "visual": { "type": "ground_station", "color": "#ff2222", "label": "SA-20 BRAVO", "sensorRange_m": 180000, "sensorColor": "rgba(255,50,50,0.04)", "sensorOutlineColor": "#ff4444" }
+      }
+    },
+    {
+      "id": "ew_site",
+      "name": "EW RADAR",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.4,
+        "lon": -116.8,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 20, "detectionProbability": 0.8, "minElevation_deg": 1 },
+        "visual": { "type": "ground_station", "color": "#ff8800", "label": "EW RADAR", "sensorRange_m": 300000, "sensorColor": "rgba(255,136,0,0.03)", "sensorOutlineColor": "#ff8800" }
+      }
+    },
+    {
+      "id": "awacs_1",
+      "name": "AWACS",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 33.8,
+        "lon": -118.0,
+        "alt": 10000,
+        "speed": 180,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 33.8, "lon": -117.5, "alt": 10000, "speed": 180 },
+          { "lat": 34.2, "lon": -117.5, "alt": 10000, "speed": 180 },
+          { "lat": 34.2, "lon": -118.0, "alt": 10000, "speed": 180 },
+          { "lat": 33.8, "lon": -118.0, "alt": 10000, "speed": 180 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 18, "detectionProbability": 0.95 },
+        "visual": { "type": "point", "color": "#44aaff", "pixelSize": 14, "trail": true }
+      }
+    },
+    {
+      "id": "gnd_edwards",
+      "name": "Edwards AFB",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.905,
+        "lon": -117.884,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#00ff88", "label": "Edwards AFB", "sensorRange_m": 100000, "sensorColor": "rgba(0,255,136,0.05)", "sensorOutlineColor": "#00ff88" }
+      }
+    },
+    {
+      "id": "recon_sat",
+      "name": "RECON-7",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0, "lon": 0, "alt": 500000,
+        "speed": 7610, "heading": 10, "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6871000,
+          "ecc": 0.001,
+          "inc": 97.4,
+          "raan": 120.0,
+          "argPerigee": 0,
+          "meanAnomaly": 45
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_sam_bravo_free",
+      "trigger": { "type": "proximity", "entityA": "eagle_1", "entityB": "sam_bravo", "range_m": 180000 },
+      "action": { "type": "set_state", "entity": "sam_bravo", "field": "engagementRules", "value": "weapons_free" },
+      "once": true
+    },
+    {
+      "id": "evt_warning",
+      "trigger": { "type": "proximity", "entityA": "eagle_1", "entityB": "sam_alpha", "range_m": 250000 },
+      "action": { "type": "message", "text": "WARNING: Entering SA-20 engagement zone" },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}
