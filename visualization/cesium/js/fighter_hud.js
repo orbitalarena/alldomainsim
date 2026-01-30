@@ -88,6 +88,8 @@ const FighterHUD = (function() {
         drawPhaseIndicator(state, scale);
         drawMachIndicator(state, scale);
         drawVerticalSpeed(state, scale);
+        drawRegimeIndicator(state, scale);
+        drawCompactNavball(state, scale, simTime);
 
         ctx.restore();
     }
@@ -390,7 +392,8 @@ const FighterHUD = (function() {
      * Draw heading tape (top) with optional target bearing marker
      */
     function drawHeadingTape(state, scale, target) {
-        const hdgDeg = state.heading * RAD;
+        const noseHdg = state.heading + (state.yawOffset || 0);
+        const hdgDeg = noseHdg * RAD;
         const y = 50 * scale;
         const tapeW = 350 * scale;
         const pxPerDeg = 3 * scale;
@@ -848,6 +851,212 @@ const FighterHUD = (function() {
         ctx.fillText(`VS ${vsText}`, x, y);
     }
 
+    /**
+     * Draw flight regime indicator at top center of HUD
+     */
+    function drawRegimeIndicator(state, scale) {
+        if (typeof SpaceplaneOrbital === 'undefined') return;
+        const regime = SpaceplaneOrbital.flightRegime;
+        if (!regime) return;
+
+        const regimeColors = {
+            'ATMOSPHERIC': '#00ff00',
+            'SUBORBITAL': '#ffff00',
+            'ORBIT': '#44ccff',
+            'ESCAPE': '#ff3333',
+        };
+
+        ctx.font = `bold ${13 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = regimeColors[regime] || HUD_GREEN;
+        ctx.fillText(regime, width - 20 * scale, 30 * scale);
+    }
+
+    /**
+     * Draw compact navball at bottom-center of cockpit HUD
+     * Shows dynamic prograde/retrograde/normal/radial markers computed from ECI state
+     */
+    function drawCompactNavball(state, scale, simTime) {
+        if (typeof SpaceplaneOrbital === 'undefined') return;
+        if (!state || state.alt < 30000 || simTime == null) return;
+
+        const O = SpaceplaneOrbital;
+        const nbCx = cx;
+        const nbCy = height - 80 * scale;
+        const radius = 50 * scale;
+
+        // Get ECI state for marker computation
+        const eci = O.geodeticToECI(state, simTime);
+        const vMag = O.vecMag(eci.vel);
+        const rMag = O.vecMag(eci.pos);
+        if (vMag < 100 || rMag < 1000) return;
+
+        // Background circle
+        ctx.beginPath();
+        ctx.arc(nbCx, nbCy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 20, 40, 0.6)';
+        ctx.fill();
+        ctx.strokeStyle = '#226688';
+        ctx.lineWidth = 2 * scale;
+        ctx.stroke();
+
+        // Horizon line (pitch-based)
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(nbCx, nbCy, radius - 2 * scale, 0, Math.PI * 2);
+        ctx.clip();
+
+        const pitchOffset = state.pitch * radius / (Math.PI / 2);
+        // Sky / Ground
+        ctx.fillStyle = 'rgba(30, 60, 120, 0.3)';
+        ctx.fillRect(nbCx - radius, nbCy - radius + pitchOffset, radius * 2, radius - pitchOffset);
+        ctx.fillStyle = 'rgba(60, 40, 20, 0.3)';
+        ctx.fillRect(nbCx - radius, nbCy + pitchOffset, radius * 2, radius - pitchOffset);
+
+        // Horizon line
+        ctx.strokeStyle = '#44ccff';
+        ctx.lineWidth = 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(nbCx - radius, nbCy + pitchOffset);
+        ctx.lineTo(nbCx + radius, nbCy + pitchOffset);
+        ctx.stroke();
+
+        // Compute orbital frame in ECI
+        const prograde  = O.vecScale(eci.vel, 1 / vMag);
+        const retrograde = O.vecScale(prograde, -1);
+        const h = O.vecCross(eci.pos, eci.vel);
+        const hMag = O.vecMag(h);
+        const normal = hMag > 0 ? O.vecScale(h, 1 / hMag) : [0, 0, 1];
+        const radialOut = O.vecScale(eci.pos, 1 / rMag);
+
+        // ECI → local ENU
+        const OMEGA = O.OMEGA_EARTH;
+        const gmst = OMEGA * simTime;
+        const cosG = Math.cos(-gmst), sinG = Math.sin(-gmst);
+        const cosLat = Math.cos(state.lat), sinLat = Math.sin(state.lat);
+        const cosLon = Math.cos(state.lon), sinLon = Math.sin(state.lon);
+
+        const eastECEF  = [-sinLon,             cosLon,              0];
+        const northECEF = [-sinLat * cosLon,    -sinLat * sinLon,    cosLat];
+        const upECEF    = [ cosLat * cosLon,     cosLat * sinLon,    sinLat];
+
+        function dot3(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+
+        function eciDirToENU(d) {
+            const ecef = [
+                cosG * d[0] - sinG * d[1],
+                sinG * d[0] + cosG * d[1],
+                d[2]
+            ];
+            return [dot3(ecef, eastECEF), dot3(ecef, northECEF), dot3(ecef, upECEF)];
+        }
+
+        function navballPos(dirECI) {
+            const enu = eciDirToENU(dirECI);
+            const brg  = Math.atan2(enu[0], enu[1]);
+            const horiz = Math.sqrt(enu[0]*enu[0] + enu[1]*enu[1]);
+            const elev  = Math.atan2(enu[2], horiz);
+
+            // Relative to vehicle nose heading
+            const noseHdg = state.heading + (state.yawOffset || 0);
+            let relBrg = brg - noseHdg;
+            if (relBrg >  Math.PI) relBrg -= 2 * Math.PI;
+            if (relBrg < -Math.PI) relBrg += 2 * Math.PI;
+
+            // Map to navball surface: bearing → x, elevation → y
+            // Normalize to [-1, 1] over ±90° range
+            const nx = (relBrg / (Math.PI / 2));
+            const ny = -(elev / (Math.PI / 2));
+            const dist = Math.sqrt(nx * nx + ny * ny);
+
+            return {
+                x: nbCx + nx * radius * 0.85,
+                y: nbCy + ny * radius * 0.85,
+                visible: dist < 1.0
+            };
+        }
+
+        // Draw markers
+        const markers = [
+            { dir: prograde,    color: '#00ff00', type: 'prograde' },
+            { dir: retrograde,  color: '#ff4444', type: 'retrograde' },
+            { dir: normal,      color: '#cc44ff', type: 'normal' },
+            { dir: radialOut,   color: '#44ffcc', type: 'radial' },
+        ];
+
+        for (const m of markers) {
+            const pos = navballPos(m.dir);
+            if (!pos.visible) continue;
+            drawNavballMarkerSymbol(pos.x, pos.y, scale, m.color, m.type);
+        }
+
+        ctx.restore();
+
+        // Center crosshair (vehicle nose direction)
+        ctx.strokeStyle = '#44ccff';
+        ctx.lineWidth = 1.5 * scale;
+        const ch = 6 * scale;
+        ctx.beginPath();
+        ctx.moveTo(nbCx - ch, nbCy); ctx.lineTo(nbCx + ch, nbCy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(nbCx, nbCy - ch); ctx.lineTo(nbCx, nbCy + ch);
+        ctx.stroke();
+
+        // Outer ring label
+        ctx.fillStyle = '#226688';
+        ctx.font = `${9 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText('NAVBALL', nbCx, nbCy + radius + 4 * scale);
+        ctx.textBaseline = 'middle';
+    }
+
+    /**
+     * Draw a single navball marker symbol (smaller than pitch ladder markers)
+     */
+    function drawNavballMarkerSymbol(x, y, scale, color, type) {
+        const r = 6 * scale;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.setLineDash([]);
+
+        if (type === 'prograde') {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 2 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x, y - r - 3 * scale); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x - r - 3 * scale, y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + r + 3 * scale, y); ctx.stroke();
+        } else if (type === 'retrograde') {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.stroke();
+            const d = r * 0.65;
+            ctx.beginPath(); ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); ctx.stroke();
+        } else if (type === 'normal') {
+            ctx.beginPath();
+            ctx.moveTo(x, y - r);
+            ctx.lineTo(x - r * 0.85, y + r * 0.5);
+            ctx.lineTo(x + r * 0.85, y + r * 0.5);
+            ctx.closePath();
+            ctx.stroke();
+        } else if (type === 'radial') {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(x, y, 2 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x, y - r - 3 * scale); ctx.stroke();
+        }
+    }
+
     // ---- Orbital Velocity Markers (KSP-style) ----
 
     /**
@@ -856,7 +1065,7 @@ const FighterHUD = (function() {
      */
     function drawOrbitalMarkers(state, scale, simTime) {
         if (typeof SpaceplaneOrbital === 'undefined') return;
-        if (!state || state.alt < 80000 || simTime == null) return;
+        if (!state || state.alt < 30000 || simTime == null) return;
 
         const O = SpaceplaneOrbital;
         const pxPerDeg = 8 * scale;
@@ -912,8 +1121,9 @@ const FighterHUD = (function() {
             const horiz = Math.sqrt(enu[0]*enu[0] + enu[1]*enu[1]);
             const elev  = Math.atan2(enu[2], horiz);  // elevation angle
 
-            // Relative to vehicle heading
-            let relBrg = brg - state.heading;
+            // Relative to vehicle nose heading
+            const noseHdg = state.heading + (state.yawOffset || 0);
+            let relBrg = brg - noseHdg;
             if (relBrg >  Math.PI) relBrg -= 2 * Math.PI;
             if (relBrg < -Math.PI) relBrg += 2 * Math.PI;
 

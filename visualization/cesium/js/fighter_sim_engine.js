@@ -225,6 +225,7 @@ const FighterSimEngine = (function() {
                 flapsDown: false,
                 brakesOn: false,
                 maxG_experienced: 1.0,
+                yawOffset: 0,          // cosmetic nose yaw offset (vacuum RCS)
             };
         } else {
             // Start on runway
@@ -597,24 +598,38 @@ const FighterSimEngine = (function() {
         // Equations of motion
         const V = Math.max(state.speed, isSpaceplane ? 1 : 10);
 
-        // dV/dt = (T·cos(α) - D)/m - g·sin(γ)
-        const dV = (thrust * Math.cos(state.alpha) - drag) / mass - g * Math.sin(state.gamma);
+        // Thrust decomposition: nose direction relative to velocity vector
+        // Prograde component: T·cos(α)·cos(yawOffset)
+        // Normal component:   T·sin(α)          — pitches the flight path
+        // Lateral component:  T·cos(α)·sin(yawOffset) — changes heading (orbit plane)
+        const cosAlpha = Math.cos(state.alpha);
+        const sinAlpha = Math.sin(state.alpha);
+        const yawOff = (isSpaceplane && state.yawOffset) ? state.yawOffset : 0;
+        const cosYaw = Math.cos(yawOff);
+        const sinYaw = Math.sin(yawOff);
+
+        const thrustPrograde = thrust * cosAlpha * cosYaw;
+        const thrustNormal   = thrust * sinAlpha;
+        const thrustLateral  = thrust * cosAlpha * sinYaw;
+
+        // dV/dt = (T_prograde - D)/m - g·sin(γ)
+        const dV = (thrustPrograde - drag) / mass - g * Math.sin(state.gamma);
 
         // dγ/dt with centrifugal acceleration for spaceplane
         let dGamma;
         if (isSpaceplane) {
             // centrifugal = V²/(R_EARTH + alt) — supports orbit when V≈7800 m/s
             const centrifugal = V * V / (R_EARTH + state.alt);
-            dGamma = (lift * Math.cos(state.roll)) / (mass * V)
+            dGamma = (lift * Math.cos(state.roll) + thrustNormal) / (mass * V)
                    - (g - centrifugal) * Math.cos(state.gamma) / V;
         } else {
-            dGamma = (lift * Math.cos(state.roll) - W * Math.cos(state.gamma)) / (mass * V);
+            dGamma = (lift * Math.cos(state.roll) + thrust * sinAlpha - W * Math.cos(state.gamma)) / (mass * V);
         }
 
-        // dψ/dt = L·sin(φ) / (m·V·cos(γ))
+        // dψ/dt = (L·sin(φ) + T_lateral) / (m·V·cos(γ))
         const cosGamma = Math.cos(state.gamma);
         const dHeading = (Math.abs(cosGamma) > 0.01) ?
-            (lift * Math.sin(state.roll)) / (mass * V * cosGamma) : 0;
+            (lift * Math.sin(state.roll) + thrustLateral) / (mass * V * cosGamma) : 0;
 
         // G-load calculation
         state.g_load = W > 0 ? lift / W : 0;
@@ -634,19 +649,29 @@ const FighterSimEngine = (function() {
         }
 
         state.gamma += dGamma * dt;
-        // Gamma clamp: removed entirely in vacuum for free rotation
-        if (isSpaceplane && aeroBlend < 0.5) {
+        // Gamma clamp: spaceplane gets free looping everywhere; F-16 clamps in atmosphere
+        if (isSpaceplane) {
             state.gamma = wrapAngle(state.gamma);
         } else {
             state.gamma = clamp(state.gamma, -80 * DEG, 80 * DEG);
         }
 
         state.heading += dHeading * dt;
-        // In vacuum, yaw input directly rotates heading (RCS/reaction wheels)
-        if (isSpaceplane && aeroBlend < 0.5 && controls.yaw) {
-            state.heading += controls.yaw * config.max_pitch_rate * dt;
-        }
         state.heading = normalizeAngle(state.heading);
+
+        // Vacuum yaw: RCS repoints the nose without changing velocity vector
+        // yawOffset is cosmetic only — it affects HUD/camera but not trajectory
+        if (isSpaceplane) {
+            if (aeroBlend < 0.5 && controls.yaw) {
+                state.yawOffset = (state.yawOffset || 0) + controls.yaw * config.max_pitch_rate * dt;
+                state.yawOffset = wrapAngle(state.yawOffset);
+            }
+            // Decay yaw offset in atmosphere (aero forces realign nose with velocity)
+            if (aeroBlend > 0.1 && state.yawOffset) {
+                state.yawOffset *= Math.max(0, 1 - aeroBlend * 5 * dt);
+                if (Math.abs(state.yawOffset) < 0.001) state.yawOffset = 0;
+            }
+        }
 
         // Update body pitch to approximately track gamma + alpha
         state.pitch = state.gamma + state.alpha;
@@ -704,9 +729,8 @@ const FighterSimEngine = (function() {
         if (!controls.roll && !inVacuum) {
             state.roll *= (1 - 2.0 * dt); // decay toward wings-level
         }
-        // Roll clamp: removed in vacuum (full 360° rotation)
-        if (inVacuum) {
-            // Wrap roll to [-π, π]
+        // Roll clamp: spaceplane gets free 360° everywhere; F-16 clamps in atmosphere
+        if (inVacuum || config.isSpaceplane) {
             state.roll = wrapAngle(state.roll);
         } else {
             state.roll = clamp(state.roll, -80 * DEG, 80 * DEG);

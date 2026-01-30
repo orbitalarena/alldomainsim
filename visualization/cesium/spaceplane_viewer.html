@@ -186,10 +186,11 @@
 
     <!-- Status Bar -->
     <div id="statusBar" class="panel">
-        X-37S SPACEPLANE | <span id="simTime">0:00</span> |
+        X-37S | <span id="simTime">0:00</span> |
         <span id="timeWarpDisplay">1x</span> |
         <span id="pauseStatus">RUNNING</span> |
-        <span id="propModeDisplay">---</span>
+        <span id="propModeDisplay">---</span> |
+        <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span>
     </div>
 
     <!-- Mode Indicator -->
@@ -282,6 +283,9 @@
                 <span class="key">N</span><span class="key-desc">Create maneuver node</span>
                 <span class="key">Del</span><span class="key-desc">Delete maneuver node</span>
                 <span class="key">Enter</span><span class="key-desc">Execute maneuver node</span>
+                <span class="key">1 / 2 / 3</span><span class="key-desc">Toggle panels</span>
+                <span class="key">O</span><span class="key-desc">Toggle orbital panel</span>
+                <span class="key">Tab</span><span class="key-desc">Hide/show all panels</span>
             </div>
             <div class="key-grid">
                 <span class="key" style="color:#ff8800">Planner Mode:</span><span class="key-desc"></span>
@@ -314,7 +318,7 @@
             <button class="start-btn" onclick="startOrbital()">[ 4 ] START IN ORBIT (400km, 7700 m/s)</button>
         </div>
         <div style="margin-top:20px; color: #44ccff; font-size: 14px;">
-            Press <span style="color:#00ffff">1-4</span> to select start mode
+            Click a button or press <span style="color:#00ffff">1-4</span> to select start mode
         </div>
         <div style="margin-top:10px; color: #008888; font-size: 11px;">
             Press H in-game for controls reference | M for orbital planner
@@ -351,11 +355,11 @@
     <!-- Scripts: dependencies first, then engine modules, then main -->
     <script src="cesium_config.js"></script>
     <script src="js/fighter_atmosphere.js"></script>
-    <script src="js/fighter_sim_engine.js"></script>
-    <script src="js/fighter_hud.js"></script>
+    <script src="js/fighter_sim_engine.js?v=2"></script>
+    <script src="js/fighter_hud.js?v=2"></script>
     <script src="js/fighter_autopilot.js"></script>
-    <script src="js/spaceplane_orbital.js"></script>
-    <script src="js/spaceplane_hud.js"></script>
+    <script src="js/spaceplane_orbital.js?v=2"></script>
+    <script src="js/spaceplane_hud.js?v=2"></script>
     <script src="js/spaceplane_planner.js"></script>
 
     <script>
@@ -380,6 +384,16 @@
     let cameraMode = 'chase'; // chase, cockpit, free, planner
     let started = false;
     let plannerMode = false;
+    let lastRegime = 'ATMOSPHERIC';
+
+    // Panel visibility state
+    let panelVisible = {
+        flightData: true,
+        systems: true,
+        orbital: 'auto',  // 'auto', 'on', 'off'
+        help: false,
+    };
+    let panelsMinimized = false;
 
     // Keyboard state
     const keys = {};
@@ -700,7 +714,7 @@
                 return r;
             }
 
-            const h = aircraftState.heading;
+            const h = aircraftState.heading + (aircraftState.yawOffset || 0);
             const p = aircraftState.pitch;
             const r = -aircraftState.roll;
 
@@ -807,6 +821,12 @@
 
         let handled = true; // assume handled; set false at end if not
 
+        // Panel toggles work in both modes
+        if (handlePanelToggle(e.code)) {
+            e.preventDefault(); e.stopPropagation();
+            return;
+        }
+
         // Planner mode controls
         if (plannerMode) {
             switch (e.code) {
@@ -859,8 +879,7 @@
                     break;
 
                 case 'KeyH':
-                    const help = document.getElementById('controlsHelp');
-                    help.style.display = help.style.display === 'none' ? 'block' : 'none';
+                    togglePanel('help');
                     break;
 
                 default:
@@ -929,8 +948,7 @@
                 break;
 
             case 'KeyH':
-                const help = document.getElementById('controlsHelp');
-                help.style.display = help.style.display === 'none' ? 'block' : 'none';
+                togglePanel('help');
                 break;
 
             case 'Equal': case 'NumpadAdd':
@@ -1100,8 +1118,8 @@
             // Render cockpit HUD (with space adaptations)
             FighterHUD.render(aircraftState, autopilotState, null, null, simElapsed);
 
-            // Overlay space HUD elements when above 80km
-            if (typeof SpaceplaneHUD !== 'undefined' && aircraftState.alt > 80000) {
+            // Overlay space HUD elements when above 30km
+            if (typeof SpaceplaneHUD !== 'undefined' && aircraftState.alt > 30000) {
                 SpaceplaneHUD.renderOverlay(hudCanvas, aircraftState, simElapsed);
             }
         }
@@ -1194,13 +1212,29 @@
         setText('sysFlaps', aircraftState.flapsDown ? 'DOWN' : 'UP');
         setText('sysBrakes', aircraftState.brakesOn ? 'ON' : 'OFF');
 
-        // Flight regime
+        // Flight regime — update systems panel + status bar + flash on change
         if (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.flightRegime) {
             const regime = SpaceplaneOrbital.flightRegime;
             const regimeColor = regime === 'ORBIT' ? 'blue' :
                                regime === 'ESCAPE' ? 'alert' :
                                regime === 'SUBORBITAL' ? 'warn' : '';
             setTextWithClass('sysRegime', regime, regimeColor);
+
+            // Status bar regime display with color
+            const regimeEl = document.getElementById('regimeDisplay');
+            if (regimeEl) {
+                regimeEl.textContent = regime;
+                const cssColor = regime === 'ORBIT' ? '#44ccff' :
+                                 regime === 'ESCAPE' ? '#ff3333' :
+                                 regime === 'SUBORBITAL' ? '#ffff00' : '#00ff00';
+                regimeEl.style.color = cssColor;
+            }
+
+            // Flash notification on regime change
+            if (regime !== lastRegime) {
+                showMessage('DOMAIN: ' + regime, 2500);
+                lastRegime = regime;
+            }
         }
 
         // Autopilot
@@ -1228,12 +1262,29 @@
     function updateOrbitalPanel() {
         if (typeof SpaceplaneOrbital === 'undefined') return;
 
-        const show = aircraftState && (aircraftState.alt > 80000 || plannerMode);
+        const elems = SpaceplaneOrbital.orbitalElements;
+        const hasValidOrbit = elems && elems.apoapsisAlt != null && elems.apoapsisAlt > 0;
+
+        // Show orbital panel based on toggle override or auto logic
+        let show;
+        if (panelVisible.orbital === 'on') {
+            show = true;
+        } else if (panelVisible.orbital === 'off') {
+            show = false;
+        } else {
+            // auto: show when in planner, above 30km, or valid orbit trajectory
+            show = aircraftState && (plannerMode || aircraftState.alt > 30000 || hasValidOrbit);
+        }
         document.getElementById('orbitalPanel').style.display = show ? 'block' : 'none';
         if (!show) return;
 
-        const elems = SpaceplaneOrbital.orbitalElements;
         if (!elems) return;
+
+        // Show "PROJECTED" label when below Karman line
+        const orbTitle = document.querySelector('#orbitalPanel h3');
+        if (orbTitle) {
+            orbTitle.textContent = aircraftState.alt < 80000 ? 'Orbital Elements (PROJECTED)' : 'Orbital Elements';
+        }
 
         setText('orbAP', elems.apoapsisAlt != null ? (elems.apoapsisAlt / 1000).toFixed(1) + ' km' : '---');
         setText('orbPE', elems.periapsisAlt != null ? (elems.periapsisAlt / 1000).toFixed(1) + ' km' : '---');
@@ -1297,14 +1348,85 @@
     }
 
     let msgTimeout = null;
-    function showMessage(text) {
+    function showMessage(text, duration) {
         const el = document.getElementById('msgOverlay');
         el.textContent = text;
         el.style.opacity = '1';
         if (msgTimeout) clearTimeout(msgTimeout);
         msgTimeout = setTimeout(() => {
             el.style.opacity = '0';
-        }, 1500);
+        }, duration || 1500);
+    }
+
+    // ---- Panel Toggle System ----
+    function applyPanelVisibility() {
+        document.getElementById('flightDataPanel').style.display =
+            panelVisible.flightData ? 'block' : 'none';
+        document.getElementById('systemsPanel').style.display =
+            panelVisible.systems ? 'block' : 'none';
+        // Orbital panel visibility is handled by updateOrbitalPanel()
+        document.getElementById('controlsHelp').style.display =
+            panelVisible.help ? 'block' : 'none';
+    }
+
+    function togglePanel(name) {
+        if (name === 'orbital') {
+            // Cycle: auto → on → off → auto
+            if (panelVisible.orbital === 'auto') panelVisible.orbital = 'on';
+            else if (panelVisible.orbital === 'on') panelVisible.orbital = 'off';
+            else panelVisible.orbital = 'auto';
+            showMessage('ORBITAL: ' + panelVisible.orbital.toUpperCase());
+        } else {
+            panelVisible[name] = !panelVisible[name];
+            showMessage(name.toUpperCase() + ': ' + (panelVisible[name] ? 'ON' : 'OFF'));
+        }
+        applyPanelVisibility();
+    }
+
+    function toggleAllPanels() {
+        panelsMinimized = !panelsMinimized;
+        if (panelsMinimized) {
+            // Hide all panels — status bar stays
+            panelVisible.flightData = false;
+            panelVisible.systems = false;
+            panelVisible.orbital = 'off';
+            panelVisible.help = false;
+            showMessage('PANELS HIDDEN (Tab to restore)');
+        } else {
+            // Restore defaults
+            panelVisible.flightData = true;
+            panelVisible.systems = true;
+            panelVisible.orbital = 'auto';
+            panelVisible.help = false;
+            showMessage('PANELS RESTORED');
+        }
+        applyPanelVisibility();
+    }
+
+    /**
+     * Handle panel toggle keypresses — shared between planner and cockpit mode
+     * Returns true if the key was a panel toggle (handled)
+     */
+    function handlePanelToggle(code) {
+        switch (code) {
+            case 'Digit1': case 'Numpad1':
+                togglePanel('flightData');
+                return true;
+            case 'Digit2': case 'Numpad2':
+                togglePanel('systems');
+                return true;
+            case 'Digit3': case 'Numpad3':
+                togglePanel('orbital');
+                return true;
+            case 'KeyO':
+                togglePanel('orbital');
+                return true;
+            case 'Tab':
+                toggleAllPanels();
+                return true;
+            default:
+                return false;
+        }
     }
 
     // ---- Start Functions ----

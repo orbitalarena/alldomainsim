@@ -274,14 +274,17 @@ const SpaceplaneOrbital = (function() {
     }
 
     /**
-     * Detect flight regime based on orbital elements
+     * Detect flight regime based on orbital elements and physical altitude
      * @param {object} elems - orbital elements
+     * @param {number} [altitude] - current physical altitude in meters (fallback)
      * @returns {string} 'ATMOSPHERIC', 'SUBORBITAL', 'ORBIT', or 'ESCAPE'
      */
-    function detectFlightRegime(elems) {
+    function detectFlightRegime(elems, altitude) {
         if (elems.energy >= 0) return 'ESCAPE';
         if (elems.periapsisAlt != null && elems.periapsisAlt > KARMAN) return 'ORBIT';
         if (elems.apoapsisAlt != null && elems.apoapsisAlt > KARMAN) return 'SUBORBITAL';
+        // Fallback: if physically above the Karman line, at least suborbital
+        if (altitude != null && altitude > KARMAN) return 'SUBORBITAL';
         return 'ATMOSPHERIC';
     }
 
@@ -301,10 +304,10 @@ const SpaceplaneOrbital = (function() {
         if (elems.eccentricity >= 1.0 || elems.sma <= 0) {
             return [];
         }
-        // Skip pathological orbits where periapsis is deep underground
-        // (periapsis radius < 0.5 * R_EARTH = orbit passes near center of Earth)
+        // Skip only truly pathological orbits (periapsis near center of Earth)
+        // Allow suborbital arcs where periapsis is underground but orbit is valid
         const rPeriapsis = elems.sma * (1 - elems.eccentricity);
-        if (rPeriapsis < R_EARTH * 0.5) {
+        if (rPeriapsis < R_EARTH * 0.05) {
             return [];
         }
 
@@ -392,9 +395,9 @@ const SpaceplaneOrbital = (function() {
             elems.eccentricity >= 1.0 || elems.sma <= 0) {
             return { ap: null, pe: null };
         }
-        // Skip if orbit is too pathological
-        const rPe = elems.sma * (1 - elems.eccentricity);
-        if (rPe < R_EARTH * 0.5) {
+        // Skip only truly pathological orbits
+        const rPeCheck = elems.sma * (1 - elems.eccentricity);
+        if (rPeCheck < R_EARTH * 0.05) {
             return { ap: null, pe: null };
         }
 
@@ -533,17 +536,36 @@ const SpaceplaneOrbital = (function() {
         orbitalElements = computeOrbitalElements(eci.pos, eci.vel);
 
         // Detect flight regime (guard against NaN elements)
-        if (!isOK(orbitalElements.eccentricity) || !isOK(orbitalElements.sma)) {
-            flightRegime = 'ATMOSPHERIC';
+        if (!isOK(orbitalElements.eccentricity)) {
+            // Truly degenerate — eccentricity is NaN or non-numeric
+            flightRegime = state.alt > KARMAN ? 'SUBORBITAL' : 'ATMOSPHERIC';
             currentOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;
             return;
         }
-        flightRegime = detectFlightRegime(orbitalElements);
+        if (!isOK(orbitalElements.sma)) {
+            // sma is Infinity (parabolic) or null (degenerate) — use energy + altitude
+            if (orbitalElements.energy >= 0) {
+                flightRegime = 'ESCAPE';
+            } else if (state.alt > KARMAN) {
+                flightRegime = 'SUBORBITAL';
+            } else {
+                flightRegime = 'ATMOSPHERIC';
+            }
+            currentOrbitPositions = [];
+            apoapsisPosition = null;
+            periapsisPosition = null;
+            return;
+        }
+        flightRegime = detectFlightRegime(orbitalElements, state.alt);
 
         // Update orbit visualization (less frequently)
-        if (updateCounter % UPDATE_INTERVAL === 0 && flightRegime !== 'ATMOSPHERIC') {
+        // Show orbit path when not purely atmospheric, OR when trajectory has
+        // significant apoapsis (ascending ballistic arc with apoapsis > 30km)
+        const showOrbitViz = flightRegime !== 'ATMOSPHERIC' ||
+            (orbitalElements.apoapsisAlt != null && orbitalElements.apoapsisAlt > 30000);
+        if (updateCounter % UPDATE_INTERVAL === 0 && showOrbitViz) {
             const gmst = OMEGA_EARTH * simTime;
 
             // Predict orbit path
@@ -555,8 +577,8 @@ const SpaceplaneOrbital = (function() {
             periapsisPosition = apPe.pe;
         }
 
-        // Clear orbit display when atmospheric
-        if (flightRegime === 'ATMOSPHERIC') {
+        // Clear orbit display when fully atmospheric with no significant trajectory
+        if (!showOrbitViz) {
             currentOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;

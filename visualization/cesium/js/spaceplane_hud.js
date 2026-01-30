@@ -23,6 +23,7 @@ const SpaceplaneHUD = (function() {
     const COL_ORBIT = '#44ccff';
 
     let width = 0, height = 0;
+    let _lastSimTime = 0;
 
     function resize(canvas) {
         width = canvas.width;
@@ -39,6 +40,7 @@ const SpaceplaneHUD = (function() {
 
         width = canvas.width;
         height = canvas.height;
+        _lastSimTime = simTime || 0;
 
         ctx.clearRect(0, 0, width, height);
         const scale = Math.min(width, height) / 800;
@@ -66,6 +68,7 @@ const SpaceplaneHUD = (function() {
 
         width = canvas.width;
         height = canvas.height;
+        _lastSimTime = simTime || 0;
         const scale = Math.min(width, height) / 800;
 
         ctx.save();
@@ -168,13 +171,13 @@ const SpaceplaneHUD = (function() {
     function drawNavball(ctx, state, scale) {
         if (!state) return;
 
-        const cx = width / 2;
-        const cy = height - 100 * scale;
+        const nbCx = width / 2;
+        const nbCy = height - 100 * scale;
         const radius = 60 * scale;
 
         // Background circle
         ctx.beginPath();
-        ctx.arc(cx, cy, radius, 0, TWO_PI);
+        ctx.arc(nbCx, nbCy, radius, 0, TWO_PI);
         ctx.fillStyle = 'rgba(0, 20, 40, 0.7)';
         ctx.fill();
         ctx.strokeStyle = COL_DIM;
@@ -185,54 +188,129 @@ const SpaceplaneHUD = (function() {
         const pitchOffset = state.pitch * radius / (Math.PI / 2);
         ctx.save();
         ctx.beginPath();
-        ctx.arc(cx, cy, radius - 2 * scale, 0, TWO_PI);
+        ctx.arc(nbCx, nbCy, radius - 2 * scale, 0, TWO_PI);
         ctx.clip();
 
         // Sky (upper) / Ground (lower) split
         ctx.fillStyle = 'rgba(30, 60, 120, 0.4)';
-        ctx.fillRect(cx - radius, cy - radius + pitchOffset, radius * 2, radius - pitchOffset);
+        ctx.fillRect(nbCx - radius, nbCy - radius + pitchOffset, radius * 2, radius - pitchOffset);
         ctx.fillStyle = 'rgba(60, 40, 20, 0.4)';
-        ctx.fillRect(cx - radius, cy + pitchOffset, radius * 2, radius - pitchOffset);
+        ctx.fillRect(nbCx - radius, nbCy + pitchOffset, radius * 2, radius - pitchOffset);
 
         // Horizon line
         ctx.strokeStyle = COL_PRIMARY;
         ctx.lineWidth = 1.5 * scale;
         ctx.beginPath();
-        ctx.moveTo(cx - radius, cy + pitchOffset);
-        ctx.lineTo(cx + radius, cy + pitchOffset);
+        ctx.moveTo(nbCx - radius, nbCy + pitchOffset);
+        ctx.lineTo(nbCx + radius, nbCy + pitchOffset);
         ctx.stroke();
 
+        // Dynamic markers from ECI state (if SpaceplaneOrbital available)
+        const O = typeof SpaceplaneOrbital !== 'undefined' ? SpaceplaneOrbital : null;
+        if (O && O.orbitalElements && O.orbitalElements._r && O.orbitalElements._v) {
+            const r = O.orbitalElements._r;
+            const v = O.orbitalElements._v;
+            const vMag = O.vecMag(v);
+            const rMag = O.vecMag(r);
+
+            if (vMag > 100 && rMag > 1000) {
+                // Compute orbital frame
+                const prograde  = O.vecScale(v, 1 / vMag);
+                const retrograde = O.vecScale(prograde, -1);
+                const h = O.vecCross(r, v);
+                const hMag = O.vecMag(h);
+                const normal = hMag > 0 ? O.vecScale(h, 1 / hMag) : [0, 0, 1];
+                const radialOut = O.vecScale(r, 1 / rMag);
+
+                // ECI → ENU conversion (reuse orbital elements simTime context)
+                // Use a simplified heading-relative projection
+                const OMEGA = O.OMEGA_EARTH;
+                // We need simTime but don't have it directly; use angular momentum direction
+                // as a proxy for the ECI→body frame. For the planner navball, we compute
+                // bearing/elevation relative to vehicle heading/pitch.
+
+                // Get simTime from the last update — read from shared state
+                const simTime = _lastSimTime || 0;
+                const gmst = OMEGA * simTime;
+                const cosG = Math.cos(-gmst), sinG = Math.sin(-gmst);
+                const cosLat = Math.cos(state.lat), sinLat = Math.sin(state.lat);
+                const cosLon = Math.cos(state.lon), sinLon = Math.sin(state.lon);
+
+                const eastECEF  = [-sinLon,             cosLon,              0];
+                const northECEF = [-sinLat * cosLon,    -sinLat * sinLon,    cosLat];
+                const upECEF    = [ cosLat * cosLon,     cosLat * sinLon,    sinLat];
+
+                function dot3(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+
+                function eciDirToENU(d) {
+                    const ecef = [
+                        cosG * d[0] - sinG * d[1],
+                        sinG * d[0] + cosG * d[1],
+                        d[2]
+                    ];
+                    return [dot3(ecef, eastECEF), dot3(ecef, northECEF), dot3(ecef, upECEF)];
+                }
+
+                function navPos(dirECI) {
+                    const enu = eciDirToENU(dirECI);
+                    const brg  = Math.atan2(enu[0], enu[1]);
+                    const horiz = Math.sqrt(enu[0]*enu[0] + enu[1]*enu[1]);
+                    const elev  = Math.atan2(enu[2], horiz);
+
+                    let relBrg = brg - (state.heading + (state.yawOffset || 0));
+                    if (relBrg >  Math.PI) relBrg -= 2 * Math.PI;
+                    if (relBrg < -Math.PI) relBrg += 2 * Math.PI;
+
+                    const nx = relBrg / (Math.PI / 2);
+                    const ny = -elev / (Math.PI / 2);
+                    const dist = Math.sqrt(nx * nx + ny * ny);
+
+                    return {
+                        x: nbCx + nx * radius * 0.8,
+                        y: nbCy + ny * radius * 0.8,
+                        visible: dist < 1.0
+                    };
+                }
+
+                const dynMarkers = [
+                    { dir: prograde,    color: COL_PROGRADE,   type: 'prograde' },
+                    { dir: retrograde,  color: COL_RETROGRADE, type: 'retrograde' },
+                    { dir: normal,      color: COL_NORMAL,     type: 'normal' },
+                    { dir: radialOut,   color: COL_RADIAL,     type: 'radial' },
+                ];
+
+                for (const m of dynMarkers) {
+                    const pos = navPos(m.dir);
+                    if (!pos.visible) continue;
+                    drawNavballMarker(ctx, pos.x, pos.y, scale, m.color, m.type);
+                }
+            }
+        } else {
+            // Fallback: static markers when no orbital data
+            drawNavballMarker(ctx, nbCx, nbCy - radius * 0.5, scale, COL_PROGRADE, 'prograde');
+            drawNavballMarker(ctx, nbCx, nbCy + radius * 0.5, scale, COL_RETROGRADE, 'retrograde');
+            drawNavballMarker(ctx, nbCx - radius * 0.5, nbCy, scale, COL_NORMAL, 'normal');
+            drawNavballMarker(ctx, nbCx + radius * 0.5, nbCy, scale, COL_RADIAL, 'radial');
+        }
+
         ctx.restore();
-
-        // Direction markers (prograde, retrograde, normal, radial)
-        // Prograde marker (circle with cross) at top
-        drawNavballMarker(ctx, cx, cy - radius * 0.5, scale, COL_PROGRADE, 'prograde');
-
-        // Retrograde marker at bottom
-        drawNavballMarker(ctx, cx, cy + radius * 0.5, scale, COL_RETROGRADE, 'retrograde');
-
-        // Normal at left
-        drawNavballMarker(ctx, cx - radius * 0.5, cy, scale, COL_NORMAL, 'normal');
-
-        // Radial at right
-        drawNavballMarker(ctx, cx + radius * 0.5, cy, scale, COL_RADIAL, 'radial');
 
         // Center crosshair
         ctx.strokeStyle = COL_PRIMARY;
         ctx.lineWidth = 1.5 * scale;
         const ch = 8 * scale;
         ctx.beginPath();
-        ctx.moveTo(cx - ch, cy); ctx.lineTo(cx + ch, cy);
+        ctx.moveTo(nbCx - ch, nbCy); ctx.lineTo(nbCx + ch, nbCy);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(cx, cy - ch); ctx.lineTo(cx, cy + ch);
+        ctx.moveTo(nbCx, nbCy - ch); ctx.lineTo(nbCx, nbCy + ch);
         ctx.stroke();
 
         // Label
         ctx.fillStyle = COL_DIM;
         ctx.font = `${10 * scale}px 'Courier New', monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText('NAVBALL', cx, cy + radius + 14 * scale);
+        ctx.fillText('NAVBALL', nbCx, nbCy + radius + 14 * scale);
     }
 
     function drawNavballMarker(ctx, x, y, scale, color, type) {
