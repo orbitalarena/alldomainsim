@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: Interactive sims operational
+**Team**: Human + Claude | **Status**: Scenario Builder + Interactive sims operational
 
 ## Quick Start
 
@@ -10,21 +10,53 @@ No build step needed for the interactive sims — just serve and open in a brows
 
 ```bash
 cd visualization/cesium
-python3 -m http.server 8000
+python3 serve.py 8000
 ```
 
 Then open: **http://localhost:8000/**
 
-### Featured Sims
+> `serve.py` is a custom server that supports static file serving plus scenario export (`POST /api/export`). You can also use `python3 -m http.server 8000` for read-only serving.
 
-| Sim | URL | Description |
+### Featured
+
+| App | URL | Description |
 |-----|-----|-------------|
+| **Scenario Builder** | `/scenario_builder.html` | Interactive drag-and-drop scenario editor. Place aircraft, satellites, SAM batteries, ground stations on the globe. Configure orbital elements, radar, AI patrol routes. Run simulation, analyze results, export. |
 | **Spaceplane** | `/spaceplane_viewer.html` | Atmosphere-to-orbit flight. KSP-style orbital mechanics, maneuver nodes, 3 propulsion modes. Start on the runway or in orbit. |
 | **Fighter** | `/fighter_sim_viewer.html` | F-16 flight sim with full HUD, weapons (AIM-9/AIM-120/bombs/gun), AI adversaries. |
+| **Scenario Viewer** | `/scenario_viewer.html?scenario=scenarios/demo_multi_domain.json` | Lightweight viewer for exported scenarios (live ECS physics). |
+| **Model Viewer** | `/model_viewer.html?czml=scenarios/name_czml.json` | CZML rapid-playback viewer for model exports (no physics overhead). |
 | **Satellite Tour** | `/sat_tour_viewer.html` | Animated 3D tour of satellite constellations on Cesium globe. |
 | **GEO Sim** | `/geo_sim_viewer.html` | GEO rendezvous with Newton-Raphson intercept planner. |
 | **Launch Trajectory** | `/launch_viewer.html` | Gravity turn rocket launch with multiple scenario demos. |
 | **Orbit Viewer** | `/orbit_viewer.html` | TLE-based orbit visualization with ground tracks. |
+
+## Scenario Builder
+
+Interactive multi-domain scenario editor with three modes:
+
+- **BUILD** — Drag entities from the palette onto the Cesium globe. Configure properties in the inspector. Right-click for context menu (focus, duplicate, delete).
+- **RUN** — Execute the ECS simulation with live physics, AI, radar, weapons. Timeline panel shows entity activity. Time warp with +/-.
+- **ANALYZE** — Post-run overlays: track history, coverage heat maps, engagement markers and summary.
+
+### Entity Types
+- **Aircraft**: F-16, MiG-29, X-37S Spaceplane (3-DOF flight physics)
+- **Satellites**: LEO, GPS, GEO with Classical Orbital Elements dialog (SMA, eccentricity, inclination, RAAN, arg perigee, mean anomaly)
+- **Ground**: SAM batteries (F2T2EA kill chain), ground stations, GPS receivers, EW radar
+- **AI**: Waypoint patrol, intercept pursuit
+
+### Export Modes
+- **Export Sim** — Writes scenario JSON to `scenarios/`, opens in the Scenario Viewer with live ECS physics
+- **Export Model** — Runs sim headlessly at max speed, records all positions, exports CZML for native Cesium playback with zero JS overhead
+
+### Scenario Templates
+| Template | Description |
+|----------|-------------|
+| Multi-Domain Awareness | LEO/MEO/GEO satellites + aircraft + ground stations |
+| IADS Engagement | Blue strike package vs red SAM network with AI patrol |
+| GPS Coverage Analysis | 6 GPS satellites, 3 receivers, DOP analysis |
+| Contested Orbit | SSA scenario with co-orbital threats and GEO inspector |
+| Strike Package | F-16 flight vs SA-20 IADS in theater |
 
 ## Spaceplane Sim
 
@@ -121,6 +153,43 @@ visualization/cesium/js/
 └── spaceplane_hud.js        Planner mode HUD & navball
 ```
 
+### ECS Scenario Framework
+```
+visualization/cesium/js/
+├── framework/
+│   ├── ecs.js               Entity-Component-System core (indexed lookups)
+│   ├── constants.js          Shared physics constants
+│   ├── registry.js           Component class registry
+│   ├── systems.js            AI, Control, Physics, Viz, HUD, UI systems
+│   ├── loader.js             Scenario JSON → ECS world builder
+│   ├── sensor_system.js      Sensor detection pipeline
+│   ├── weapon_system.js      Weapon engagement pipeline
+│   ├── event_system.js       Timed/proximity/detection event triggers
+│   └── tle_parser.js         TLE catalog parsing + SGP4 propagation
+├── components/
+│   ├── physics/flight3dof.js       Aircraft 3-DOF integration
+│   ├── physics/orbital_2body.js    Keplerian + TLE orbit propagation
+│   ├── control/player_input.js     Keyboard flight controls
+│   ├── ai/waypoint_patrol.js       Waypoint navigation AI
+│   ├── ai/intercept.js             Target pursuit AI
+│   ├── sensors/radar.js            Scanning radar with FOV/range/Pd
+│   ├── weapons/sam_battery.js      SAM with F2T2EA kill chain
+│   ├── visual/cesium_entity.js     Point marker + trail rendering
+│   ├── visual/satellite_visual.js  Orbit path + ground track + Ap/Pe
+│   ├── visual/ground_station.js    Ground station icon + comm links
+│   └── visual/radar_coverage.js    Radar coverage fan visualization
+└── builder/
+    ├── builder_app.js         Main app controller (BUILD/RUN/ANALYZE)
+    ├── scenario_io.js         Save/load/export/validate + CZML model export
+    ├── globe_interaction.js   Click/drag/context menu on Cesium globe
+    ├── object_palette.js      Entity template definitions
+    ├── property_inspector.js  Entity property editing panel
+    ├── entity_tree.js         Bottom panel entity list
+    ├── satellite_dialog.js    COE input dialog for satellite placement
+    ├── timeline_panel.js      Canvas timeline with playhead + events
+    └── analysis_overlay.js    Post-run track/coverage/engagement overlays
+```
+
 ## The "We Crushed It" Scenario
 
 The end goal — all in one continuous simulation:
@@ -147,6 +216,8 @@ The end goal — all in one continuous simulation:
 - [x] **Interactive**: Fighter sim (F-16 with weapons, AI, full HUD)
 - [x] **Interactive**: Spaceplane sim (atmosphere-to-orbit, KSP-style)
 - [x] **Interactive**: Domain transitions, thrust vectoring, navball, regime detection
+- [x] **Scenario Builder**: ECS framework, drag-and-drop editor, 10+ entity types, radar/SAM/AI components
+- [x] **Export**: Dual Sim (live ECS) + Model (CZML rapid playback) export with custom server
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -167,4 +238,4 @@ The end goal — all in one continuous simulation:
 ---
 *Last Updated*: 2026-01-30
 *Team*: Human + Claude
-*Status*: Interactive flight sims operational — Spaceplane with thrust vectoring, domain transitions, and orbital mechanics
+*Status*: Scenario Builder with ECS framework, dual export (Sim + Model), COE satellite placement, and interactive flight sims

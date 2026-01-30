@@ -4,7 +4,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Phase 3 Complete
+## Current Status: Scenario Builder Operational
 
 ### C++ Backend (Milestones 0-4 + Phases 2-3):
 - **M0**: Project skeleton, CMake build system, Git setup
@@ -15,8 +15,18 @@ An integrated Earth-Air-Space simulation for multi-domain scenarios from ground 
 - **Phase 2**: High-fidelity orbital perturbations (J2/J3/J4, Sun/Moon third-body, SRP, drag)
 - **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
 
+### Scenario Builder (visualization/cesium/scenario_builder.html):
+Interactive drag-and-drop editor with ECS simulation engine. No C++ needed.
+
+- **ECS Framework**: Entity-Component-System with indexed component lookups, 9-system pipeline (AI→Control→Physics→Sensor→Weapon→Event→Viz→HUD→UI)
+- **Entity types**: F-16, MiG-29, Spaceplane, LEO/GPS/GEO satellites (with COE dialog), SAM batteries, ground stations, EW radar, GPS receivers
+- **Components**: flight3dof, orbital_2body (Kepler + TLE), radar sensor, SAM battery (F2T2EA kill chain), waypoint patrol AI, intercept AI
+- **Three modes**: BUILD (place/configure), RUN (simulate), ANALYZE (post-run overlays)
+- **Export**: Sim (live ECS in viewer) + Model (headless run → CZML rapid playback)
+- **5 scenario templates**: Multi-domain, IADS engagement, GPS coverage, contested orbit, strike package
+
 ### JavaScript Interactive Sims (visualization/cesium/):
-These are standalone browser-based simulations — no C++ backend needed.
+Standalone browser-based simulations — no C++ backend needed.
 
 - **Satellite Tour** (`sat_tour_viewer.html`) — Animated tour of satellite constellations
 - **GEO Sim** (`geo_sim_viewer.html`) — GEO rendezvous with Newton-Raphson intercept
@@ -63,13 +73,66 @@ spaceplane_planner.js   - KSP-style maneuver nodes (create/edit/execute)
 spaceplane_hud.js       - Planner mode HUD, navball, orbital overlay
 ```
 
+### ECS Scenario Framework (visualization/cesium/js/):
+```
+framework/
+  ecs.js               - Entity, Component, World classes. Component index cache
+                          for O(smallest-set) entitiesWith() lookups.
+  constants.js         - R_EARTH, MU_EARTH, DEG/RAD converters
+  registry.js          - ComponentRegistry: category/type → class mapping
+  systems.js           - System pipeline: AI → Control → Physics → Sensor →
+                          Weapon → Event → Visualization → HUD → UI
+  loader.js            - ScenarioLoader: JSON → ECS.World (async + sync)
+  sensor_system.js     - Runs sensor components (radar detection sweep)
+  weapon_system.js     - Runs weapon components (SAM engagement)
+  event_system.js      - Timed/proximity/detection event triggers + actions
+  tle_parser.js        - TLE parsing, SGP4-lite propagation, ECI↔geodetic
+
+components/
+  physics/flight3dof.js      - Aircraft 3-DOF (uses fighter_sim_engine)
+  physics/orbital_2body.js   - Keplerian propagation (elements) + TLE (SGP4)
+  control/player_input.js    - Keyboard → entity state (fighter controls)
+  ai/waypoint_patrol.js      - Fly ordered waypoints, loiter, RTB
+  ai/intercept.js            - Pure-pursuit intercept toward target entity
+  sensors/radar.js           - Search radar: range, FOV, scan rate, Pd, detection lines
+  weapons/sam_battery.js     - SAM battery with F2T2EA kill chain states
+  visual/cesium_entity.js    - Point marker + trail (circular buffer) + label
+  visual/satellite_visual.js - Orbit path, ground track, Ap/Pe markers
+  visual/ground_station.js   - Ground station icon + comm link lines
+  visual/radar_coverage.js   - Radar coverage fan (ellipse + arc)
+
+builder/
+  builder_app.js         - Main controller: BUILD/RUN/ANALYZE modes, toolbar,
+                           inspector, entity tree, palette wiring, tick handler
+  scenario_io.js         - File open/save, exportToViewer (Sim), exportModel
+                           (headless → CZML), TLE import, validation
+  globe_interaction.js   - Click-to-place, drag-to-move, right-click context menu
+  object_palette.js      - Entity templates (aircraft, satellites, ground, sensors)
+  property_inspector.js  - Entity property editing panel
+  entity_tree.js         - Bottom panel entity list with team dots
+  satellite_dialog.js    - COE input dialog (6 elements, template defaults,
+                           click-position seeding, live periapsis/apoapsis)
+  timeline_panel.js      - Canvas timeline: playhead, entity bars, event markers
+  analysis_overlay.js    - Post-run: track history, coverage heat map,
+                           engagement markers + summary table
+```
+
 ### Executables:
 - `demo` — TLE catalog visualization (generates orbit_data.json)
 - `rendezvous_demo` — Launch from Cape Canaveral, orbit insertion, transfer
 - `perturbation_demo` — Phase 2: 30-day perturbation fidelity comparison
 
 ### Visualization HTML pages:
-All served from `visualization/cesium/` via `python3 -m http.server 8000`
+All served from `visualization/cesium/` via `python3 serve.py 8000`
+
+- `scenario_builder.html` — Interactive scenario editor (BUILD/RUN/ANALYZE)
+- `scenario_viewer.html` — Lightweight scenario runner (live ECS physics)
+- `model_viewer.html` — CZML rapid-playback viewer (native Cesium, no JS physics)
+- `index.html` — Hub page linking all sims + builder
+
+### Server
+`serve.py` extends Python's SimpleHTTPRequestHandler with `POST /api/export`
+for writing scenario JSON/CZML directly to the `scenarios/` directory.
 
 ## Build & Run
 
@@ -80,15 +143,15 @@ cd build && cmake .. && make -j$(nproc)
 ./build/bin/rendezvous_demo
 ```
 
-### Interactive Sims (no build needed)
+### Scenario Builder + Interactive Sims (no build needed)
 ```bash
 cd visualization/cesium
-python3 -m http.server 8000
+python3 serve.py 8000
 # Then open in browser:
+# http://localhost:8000/scenario_builder.html     — Scenario Builder
 # http://localhost:8000/spaceplane_viewer.html    — Spaceplane sim
 # http://localhost:8000/fighter_sim_viewer.html    — Fighter sim
-# http://localhost:8000/orbit_viewer.html          — Orbit viz
-# http://localhost:8000/                           — Directory listing
+# http://localhost:8000/                           — Hub page
 ```
 
 ## Phase 2 — Orbital Perturbation Models (C++)
@@ -237,6 +300,61 @@ Same physics engine with F-16 config:
 - AI adversaries with basic tactics
 - Full HUD: pitch ladder, speed/alt tapes, heading, G meter, warnings
 
+## Scenario Builder — Technical Details
+
+### ECS Architecture
+- **Entity**: id, name, type, team, flat mutable `state` object, component map
+- **Component**: Base class with `init(world)`, `update(dt, world)`, `cleanup(world)` lifecycle
+- **World**: Entity map, ordered system list, simTime/wallTime/timeWarp, Cesium viewer ref
+- **Component Index Cache**: `_componentIndex[componentName] → Set<entityId>` — `entitiesWith()` intersects smallest index set instead of O(n) scanning all entities
+- **System Pipeline Order**: AI → Control → Physics → Sensor → Weapon → Event → Visualization → HUD → UI
+
+### Scenario JSON Format
+```json
+{
+  "metadata": { "name": "...", "version": "2.0" },
+  "environment": { "atmosphere": "us_standard_1976", "gravity": "constant", "maxTimeWarp": 64 },
+  "entities": [
+    {
+      "id": "f16_0", "name": "Eagle 1", "type": "aircraft", "team": "blue",
+      "initialState": { "lat": 34.9, "lon": -117.9, "alt": 5000, "speed": 200, "heading": 90 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [...] },
+        "sensors": { "type": "radar", "maxRange_m": 150000 },
+        "visual": { "type": "point", "color": "#4488ff", "trail": true }
+      }
+    }
+  ],
+  "events": [ { "type": "timed", "time": 120, "action": "changeROE", ... } ],
+  "camera": { "mode": "free", "range": 5000000 }
+}
+```
+
+Coordinates: scenario JSON uses **degrees**, ECS runtime uses **radians** (converted by loader).
+
+### Satellite COE Dialog
+When placing a satellite on the globe, a modal dialog appears with 6 Classical Orbital Elements:
+- SMA (km), Eccentricity, Inclination (°), RAAN (°), Arg of Perigee (°), Mean Anomaly (°)
+- Template-specific defaults: LEO (6771km, 51.6°), GPS (26571km, 55°), GEO (42164km, 0.05°)
+- Click-position seeding: RAAN from longitude, inclination from |latitude|
+- Live computed periapsis/apoapsis altitude and orbital period
+
+### Dual Export
+- **Export Sim**: POST scenario JSON to `/api/export`, open `scenario_viewer.html` (live ECS physics, full component pipeline)
+- **Export Model**: Build ECS world, tick headlessly at max speed for N seconds, record entity positions at 2 Hz, generate CZML document, open `model_viewer.html` (native Cesium interpolation playback, zero JS physics overhead)
+
+### Performance Optimizations
+- Component index cache: `entitiesWith()` O(smallest-set) instead of O(N)
+- Radar material caching: 3 pre-created `PolylineDashMaterialProperty` objects, reused per sweep
+- Radar entity filtering: skip ground-to-ground (both below 100m)
+- Timeline canvas: throttled to 4 Hz instead of every frame
+- Analysis recording: throttled to 2 Hz instead of every frame
+- Sim time DOM display: throttled to 4 Hz
+- Entity tree DOM updates: throttled to 250ms
+- Trail circular buffer: O(1) overwrite instead of O(n) `Array.shift()`
+- Cached Cartesian3 position: updated once per tick, reused by CallbackProperty
+
 ## Known Issues
 1. **C++ orbit insertion**: 140x320km, should target 400km circular
 2. **Proximity ops NaN**: LVLH edge case when vehicles overlap
@@ -277,8 +395,9 @@ Same physics engine with F-16 config:
 - **Performance matters**: These run in the browser at 60fps. Guard against per-frame
   allocations, NaN propagation to Cesium, and unbounded loops. The orbital prediction
   freeze was caused by NaN Cartesian3 values reaching Cesium's renderer.
-- **Keep the HTTP server running**: `cd visualization/cesium && python3 -m http.server 8000`
+- **Keep the HTTP server running**: `cd visualization/cesium && python3 serve.py 8000`
   The user tests changes by refreshing the browser (Ctrl+F5 for hard refresh).
+  Use `serve.py` instead of `python3 -m http.server` — it adds `POST /api/export`.
 
 ## Git Conventions
 - Commit messages: imperative mood, describe what changes do
