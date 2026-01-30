@@ -92,11 +92,20 @@ python3 -m http.server 8000
   - AIR: 160kN with density lapse (atmosphere only)
   - HYPERSONIC: 400kN flat (anywhere)
   - ROCKET: 2 MN flat (anywhere)
+- **Thrust decomposition by nose direction**:
+  - Prograde component: `T·cos(α)·cos(yawOffset)` → changes speed
+  - Normal component: `T·sin(α)` → changes flight path angle (orbit raise/lower)
+  - Lateral component: `T·cos(α)·sin(yawOffset)` → changes heading (plane change)
+  - Point at prograde/retrograde/normal/radial and throttle to apply delta-V
 - **Vacuum rotation**: All clamps/damping removed when aeroBlend < 0.5
-  - Roll: free 360°, no damping
+  - Roll: free 360° everywhere for spaceplane (F-16 keeps ±80° clamp)
   - Pitch (alpha): free rotation, no trim
-  - Yaw: directly rotates heading via RCS
-  - Gamma: wraps instead of clamping
+  - Yaw: rotates `yawOffset` (cosmetic nose direction), NOT the velocity vector
+  - Gamma: wraps instead of clamping (spaceplane can loop in atmosphere)
+- **yawOffset**: Separates nose heading from velocity heading in vacuum
+  - HUD and camera use `heading + yawOffset` (nose direction)
+  - Physics and orbital mechanics use `heading` (velocity direction)
+  - Decays to 0 in atmosphere as aero forces realign nose with velocity
 - **Sub-stepping**: Up to 500 steps of 0.05s each for time warp stability
 
 ### Key Constants
@@ -112,22 +121,34 @@ SPACEPLANE mass = 15,000 kg, fuel = Infinity
 - **computeOrbitalElements()**: Classical elements from r,v vectors
   - Guards against NaN (degenerate inputs, near-zero angular momentum)
 - **predictOrbitPath()**: 360-point Kepler propagation
-  - Skips pathological orbits (periapsis < 0.5 R_EARTH)
+  - Draws suborbital arcs (periapsis threshold: R_EARTH * 0.05)
+  - Activates when apoapsisAlt > 30km even in ATMOSPHERIC regime
   - NaN-filtered Cartesian3 output
 - **detectFlightRegime()**: ATMOSPHERIC / SUBORBITAL / ORBIT / ESCAPE
+  - Uses physical altitude as fallback (above Karman line → SUBORBITAL minimum)
+  - Handles parabolic trajectories (sma = Infinity) via energy check
 - Update interval: every 15 frames (performance optimization)
 
-### Cockpit HUD Orbital Markers (fighter_hud.js)
-Above 80km, KSP-style markers appear on the pitch ladder:
+### Cockpit HUD (fighter_hud.js)
+Above 30km, KSP-style orbital markers appear on the pitch ladder:
 - Prograde (green), Retrograde (red), Normal (purple), Anti-normal,
   Radial-out (cyan), Radial-in
 - Computed from ECI velocity/position → ENU → bearing/elevation → pitch ladder coords
 - Requires `simTime` passed as 5th arg to `FighterHUD.render()`
 
+**Compact navball** at bottom-center (above 30km):
+- Horizon line based on pitch
+- Dynamic prograde/retrograde/normal/radial markers from ECI state
+- All bearing calculations use nose heading (`heading + yawOffset`)
+
+**Flight regime indicator** at top-right:
+- Color-coded: green=ATMOSPHERIC, yellow=SUBORBITAL, cyan=ORBIT, red=ESCAPE
+- Always visible in cockpit mode
+
 ### Keyboard Controls (spaceplane_viewer.html)
 ```
 WASD / Arrows  — Throttle, pitch, roll
-Q/E            — Yaw (heading rotation in vacuum)
+Q/E            — Yaw (nose rotation in vacuum — does NOT change velocity)
 Space          — Pause
 E              — Engine on/off
 P              — Cycle propulsion: AIR → HYPERSONIC → ROCKET
@@ -138,6 +159,9 @@ Delete         — Delete maneuver node
 +/-            — Time warp (up to 1024x)
 C              — Cycle camera
 H              — Controls help
+1 / 2 / 3     — Toggle flight data / systems / orbital panels
+O              — Toggle orbital elements panel (auto / on / off)
+Tab            — Hide/show all panels
 ```
 
 ### Start Modes
@@ -158,8 +182,20 @@ Same physics engine with F-16 config:
 ## Known Issues
 1. **C++ orbit insertion**: 140x320km, should target 400km circular
 2. **Proximity ops NaN**: LVLH edge case when vehicles overlap
-3. **Spaceplane orbit viz**: Only appears when periapsis > 0.5 R_EARTH (by design)
-4. **Model**: Removed (using point marker) — can be re-added with any .glb
+3. **Model**: Removed (using point marker) — can be re-added with any .glb
+
+## Bugs Fixed (2026-01-30 session)
+- **SpaceplaneOrbital SyntaxError**: Duplicate `const rPe` in `computeApPePositions`
+  prevented the entire module from loading. All orbital mechanics were silently
+  non-functional. Regime was always ATMOSPHERIC at any altitude.
+- **Orbit viz too restrictive**: `predictOrbitPath` rejected periapsis < 0.5 R_EARTH,
+  which excluded all suborbital arcs. Lowered to 0.05 R_EARTH.
+- **NaN guard killed parabolic orbits**: sma=Infinity for near-escape trajectories
+  triggered the NaN guard, forcing ATMOSPHERIC regardless of altitude/energy.
+- **Yaw changed orbit**: Vacuum yaw modified `state.heading` (velocity azimuth),
+  directly altering the trajectory. Now modifies `yawOffset` (cosmetic only).
+- **Thrust always prograde**: No matter which direction the nose pointed, thrust
+  only changed speed. Now decomposes thrust into prograde/normal/lateral components.
 
 ## Dependencies
 - CMake 3.20+, C++17 (for C++ backend)

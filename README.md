@@ -35,7 +35,7 @@ Fly from the runway to orbit and back. Full 3-DOF flight physics with smooth atm
 W/S or Up/Down    Throttle
 A/D or Left/Right Roll (bank)
 Pitch             Up/Down arrows
-Q/E               Yaw (heading rotation in space)
+Q/E               Yaw (repoints nose in vacuum, does not change orbit)
 P                 Cycle propulsion: AIR → HYPERSONIC → ROCKET
 Space             Pause
 E                 Engine on/off
@@ -45,6 +45,9 @@ Enter             Execute maneuver node
 +/-               Time warp (up to 1024x)
 C                 Cycle camera
 H                 Show all controls
+1/2/3             Toggle flight data / systems / orbital panels
+O                 Toggle orbital elements panel
+Tab               Hide/show all panels
 ```
 
 ### Start Modes
@@ -58,9 +61,14 @@ H                 Show all controls
 - US Standard Atmosphere extended to thermosphere (exponential decay above 84km)
 - Smooth aero-to-vacuum blend based on dynamic pressure
 - Three propulsion modes: AIR (160kN turbofan), HYPERSONIC (400kN), ROCKET (2 MN)
-- Free rotation in vacuum (pitch, roll, yaw unclamped)
-- KSP-style orbital markers on HUD (prograde, retrograde, normal, radial)
+- **Thrust vectoring**: Point nose at prograde/normal/radial and throttle to apply delta-V in that direction. Thrust decomposes into prograde, normal, and lateral components.
+- Free rotation in vacuum (pitch, roll, yaw unclamped). Roll is 360° in atmosphere for spaceplane.
+- Yaw in vacuum repoints the nose without changing the velocity vector (realistic RCS behavior)
+- KSP-style orbital markers on HUD and compact navball (prograde, retrograde, normal, radial)
+- Flight regime detection with color-coded indicator: ATMOSPHERIC → SUBORBITAL → ORBIT → ESCAPE
+- Orbital elements panel with projected trajectory data starting at 30km altitude
 - Maneuver node planner with predicted orbit visualization
+- Toggleable UI panels (1/2/3/O/Tab) for minimal or full cockpit display
 
 ## Fighter Sim
 
@@ -138,6 +146,7 @@ The end goal — all in one continuous simulation:
 - [x] M7: Multi-body gravity, aerobraking
 - [x] **Interactive**: Fighter sim (F-16 with weapons, AI, full HUD)
 - [x] **Interactive**: Spaceplane sim (atmosphere-to-orbit, KSP-style)
+- [x] **Interactive**: Domain transitions, thrust vectoring, navball, regime detection
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -156,6 +165,6 @@ The end goal — all in one continuous simulation:
 - [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-01-27
+*Last Updated*: 2026-01-30
 *Team*: Human + Claude
-*Status*: Interactive flight sims operational — Spaceplane with KSP-style orbital mechanics
+*Status*: Interactive flight sims operational — Spaceplane with thrust vectoring, domain transitions, and orbital mechanics
