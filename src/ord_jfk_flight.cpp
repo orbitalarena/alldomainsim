@@ -129,15 +129,15 @@ int main() {
             last_phase = (int)fs.phase;
             std::string phase_name;
             switch (fs.phase) {
-                case FlightPhase::PARKED: phase_name = "PARKED"; break;
-                case FlightPhase::TAXI: phase_name = "TAXI"; break;
-                case FlightPhase::TAKEOFF: phase_name = "TAKEOFF"; break;
-                case FlightPhase::CLIMB: phase_name = "CLIMB"; break;
-                case FlightPhase::CRUISE: phase_name = "CRUISE"; break;
-                case FlightPhase::DESCENT: phase_name = "DESCENT"; break;
-                case FlightPhase::APPROACH: phase_name = "APPROACH"; break;
-                case FlightPhase::LANDING: phase_name = "LANDING"; break;
-                case FlightPhase::LANDED: phase_name = "LANDED"; break;
+                case AircraftFlightPhase::PARKED: phase_name = "PARKED"; break;
+                case AircraftFlightPhase::TAXI: phase_name = "TAXI"; break;
+                case AircraftFlightPhase::TAKEOFF: phase_name = "TAKEOFF"; break;
+                case AircraftFlightPhase::CLIMB: phase_name = "CLIMB"; break;
+                case AircraftFlightPhase::CRUISE: phase_name = "CRUISE"; break;
+                case AircraftFlightPhase::DESCENT: phase_name = "DESCENT"; break;
+                case AircraftFlightPhase::APPROACH: phase_name = "APPROACH"; break;
+                case AircraftFlightPhase::LANDING: phase_name = "LANDING"; break;
+                case AircraftFlightPhase::LANDED: phase_name = "LANDED"; break;
             }
             std::cout << "\n[" << (elapsed / 60.0) << " min] Phase: " << phase_name << std::endl;
         }

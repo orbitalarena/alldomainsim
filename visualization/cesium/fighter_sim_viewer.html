@@ -291,6 +291,7 @@
     <script src="js/fighter_autopilot.js"></script>
     <script src="js/fighter_weapons.js"></script>
     <script src="js/fighter_ai.js"></script>
+    <script src="js/gamepad_input.js"></script>
 
     <script>
     // =========================================================================
@@ -861,8 +862,36 @@
 
         simElapsed += dt;
 
-        // 1. Get player controls
+        // 1. Get player controls (keyboard + gamepad)
         let controls = getControlCommands();
+        const gpControls = GamepadInput.poll();
+        controls = GamepadInput.merge(controls, gpControls);
+
+        // 1b. Gamepad edge-triggered buttons
+        if (gpControls.connected) {
+            if (gpControls.justPressed.engine) {
+                aircraftState.engineOn = !aircraftState.engineOn;
+                showMessage(aircraftState.engineOn ? 'ENGINE START' : 'ENGINE OFF');
+            }
+            if (gpControls.justPressed.pause) {
+                isPaused = !isPaused;
+                showMessage(isPaused ? 'PAUSED' : 'RESUMED');
+            }
+            if (gpControls.justPressed.camera) {
+                const modes = ['chase', 'cockpit', 'free'];
+                cameraMode = modes[(modes.indexOf(cameraMode) + 1) % modes.length];
+                showMessage('CAM: ' + cameraMode.toUpperCase());
+            }
+            if (gpControls.justPressed.fire && typeof FighterWeapons !== 'undefined' && weaponsState) {
+                FighterWeapons.fire(weaponsState, aircraftState, aiDrones);
+            }
+            if (gpControls.justPressed.weaponNext && typeof FighterWeapons !== 'undefined' && weaponsState) {
+                FighterWeapons.cycleWeapon(weaponsState, 1);
+            }
+            if (gpControls.justPressed.weaponPrev && typeof FighterWeapons !== 'undefined' && weaponsState) {
+                FighterWeapons.cycleWeapon(weaponsState, -1);
+            }
+        }
 
         // 2. Autopilot (overrides manual controls if enabled)
         if (autopilotState && autopilotState.enabled) {
@@ -1069,6 +1098,9 @@
 
     // ---- Start Functions ----
     function initSim(airborne) {
+        // Initialize gamepad input
+        GamepadInput.init();
+
         // Create aircraft
         aircraftState = FighterSimEngine.createAircraftState({ airborne });
         aircraftState.weaponMass = 152 * 4 + 85 * 2; // missile mass

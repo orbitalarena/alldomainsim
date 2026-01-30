@@ -26,22 +26,28 @@ struct BodyConstants {
     double mu;      // Gravitational parameter [m³/s²]
     double radius;  // Equatorial radius [m]
     double j2;      // J2 oblateness coefficient [-]
+    double j3;      // J3 pear-shaped asymmetry coefficient [-]
+    double j4;      // J4 higher-order oblateness coefficient [-]
 
     static const BodyConstants EARTH;
     static const BodyConstants MOON;
 };
 
-// Define constants inline
+// Define constants inline (EGM96 values)
 inline const BodyConstants BodyConstants::EARTH = {
     3.986004418e14,  // mu [m³/s²]
     6378137.0,       // radius [m]
-    1.08262668e-3    // J2
+    1.08262668e-3,   // J2
+    -2.53265648e-6,  // J3
+    -1.61098761e-6   // J4
 };
 
 inline const BodyConstants BodyConstants::MOON = {
     4.9028e12,       // mu [m³/s²]
     1737400.0,       // radius [m]
-    2.027e-4         // J2
+    2.027e-4,        // J2
+    0.0,             // J3 (not modeled)
+    0.0              // J4 (not modeled)
 };
 
 /**
@@ -102,6 +108,77 @@ inline Vec3 j2_perturbation(const Vec3& position, double mu, double j2, double r
         j2_coeff * position.x * (z_factor - 1.0),
         j2_coeff * position.y * (z_factor - 1.0),
         j2_coeff * position.z * (z_factor - 3.0)
+    };
+}
+
+/**
+ * Compute J3 pear-shaped asymmetry perturbation acceleration
+ *
+ * J3 captures the north-south asymmetry of Earth's gravity field.
+ * Its magnitude is ~1000x smaller than J2.
+ *
+ * @param position Position relative to body center [m]
+ * @param mu Gravitational parameter [m³/s²]
+ * @param j3 J3 coefficient (negative for Earth: -2.53265648e-6)
+ * @param radius Body equatorial radius [m]
+ * @return J3 perturbation acceleration [m/s²]
+ */
+inline Vec3 j3_perturbation(const Vec3& position, double mu, double j3, double radius) {
+    double r = position.norm();
+    if (r < radius) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+
+    double r2 = r * r;
+    double r7 = r2 * r2 * r2 * r;
+    double z = position.z;
+    double z2 = z * z;
+    double R3 = radius * radius * radius;
+
+    double coeff = -2.5 * j3 * mu * R3 / r7;
+    double z3_over_r2 = z * z2 / r2;
+
+    return Vec3{
+        coeff * position.x * (3.0 * z - 7.0 * z3_over_r2),
+        coeff * position.y * (3.0 * z - 7.0 * z3_over_r2),
+        coeff * (6.0 * z2 - 7.0 * z2 * z2 / r2 - 0.6 * r2)
+    };
+}
+
+/**
+ * Compute J4 higher-order oblateness perturbation acceleration
+ *
+ * J4 refines the oblateness model beyond J2.
+ * Similar magnitude to J3, ~1000x smaller than J2.
+ *
+ * @param position Position relative to body center [m]
+ * @param mu Gravitational parameter [m³/s²]
+ * @param j4 J4 coefficient (negative for Earth: -1.61098761e-6)
+ * @param radius Body equatorial radius [m]
+ * @return J4 perturbation acceleration [m/s²]
+ */
+inline Vec3 j4_perturbation(const Vec3& position, double mu, double j4, double radius) {
+    double r = position.norm();
+    if (r < radius) {
+        return Vec3{0.0, 0.0, 0.0};
+    }
+
+    double r2 = r * r;
+    double r4 = r2 * r2;
+    double r7 = r4 * r2 * r;
+    double z2 = position.z * position.z;
+    double z4 = z2 * z2;
+    double R4 = r4;  // placeholder
+    R4 = radius * radius * radius * radius;
+
+    double coeff = (15.0 / 8.0) * j4 * mu * R4 / r7;
+    double z2r2 = z2 / r2;
+    double z4r4 = z4 / r4;
+
+    return Vec3{
+        coeff * position.x * (1.0 - 14.0 * z2r2 + 21.0 * z4r4),
+        coeff * position.y * (1.0 - 14.0 * z2r2 + 21.0 * z4r4),
+        coeff * position.z * (5.0 - (70.0 / 3.0) * z2r2 + 21.0 * z4r4)
     };
 }
 

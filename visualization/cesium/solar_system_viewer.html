@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Solar System Viewer - All-Domain Simulation</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%; height: 100%;
+            background: #000;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        #cesiumContainer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        .cesium-viewer-bottom { display: none !important; }
+        .cesium-viewer-toolbar { display: none !important; }
+
+        /* ─── Info Panel ─────────────────────────────────────── */
+        #infoPanel {
+            position: absolute;
+            top: 16px; left: 16px;
+            width: 320px;
+            background: rgba(10, 14, 23, 0.92);
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 18px 20px;
+            font-size: 12px;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+
+        #infoPanel h2 {
+            font-size: 16px;
+            color: #e8ecf2;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        #infoPanel .subtitle {
+            font-size: 11px;
+            color: #5a6a80;
+            margin-bottom: 14px;
+        }
+
+        .info-section {
+            margin-bottom: 12px;
+        }
+
+        .info-section h3 {
+            font-size: 11px;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            color: #8a96a6;
+        }
+
+        .info-row .label { color: #6b7a90; }
+        .info-row .value { color: #c8cdd5; text-align: right; }
+        .info-row .value.green { color: #2ecc71; }
+        .info-row .value.red { color: #e74c3c; }
+        .info-row .value.cyan { color: #4a9eff; }
+
+        /* ─── Time Controls ──────────────────────────────────── */
+        #timeControls {
+            position: absolute;
+            bottom: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 14, 23, 0.92);
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+
+        #timeControls button {
+            background: #1a2235;
+            border: 1px solid #2a3f5f;
+            color: #c8cdd5;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+
+        #timeControls button:hover {
+            background: #243352;
+            border-color: #4a9eff;
+        }
+
+        #timeControls button.active {
+            background: #1e3a5f;
+            border-color: #4a9eff;
+            color: #4a9eff;
+        }
+
+        #epochDisplay {
+            font-size: 14px;
+            color: #e8ecf2;
+            min-width: 140px;
+            text-align: center;
+        }
+
+        #warpDisplay {
+            font-size: 11px;
+            color: #f39c12;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        /* ─── Scale Toggle ───────────────────────────────────── */
+        #scaleToggle {
+            position: absolute;
+            top: 16px; right: 16px;
+            z-index: 100;
+        }
+
+        #scaleToggle button {
+            background: rgba(10, 14, 23, 0.92);
+            border: 1px solid #1e2a42;
+            color: #c8cdd5;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+            transition: all 0.15s;
+        }
+
+        #scaleToggle button:hover {
+            border-color: #4a9eff;
+            color: #4a9eff;
+        }
+
+        /* ─── Planet Legend ───────────────────────────────────── */
+        #planetLegend {
+            position: absolute;
+            bottom: 80px; right: 16px;
+            background: rgba(10, 14, 23, 0.85);
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 11px;
+            z-index: 100;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 2px 0;
+            color: #8a96a6;
+            cursor: pointer;
+        }
+
+        .legend-item:hover { color: #c8cdd5; }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ─── Transfer Info ──────────────────────────────────── */
+        #transferInfo {
+            display: none;
+        }
+
+        #transferInfo.visible {
+            display: block;
+        }
+
+        /* ─── Loading Overlay ────────────────────────────────── */
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            color: #4a9eff;
+            font-size: 16px;
+        }
+
+        #loadingOverlay.hidden { display: none; }
+
+        /* ─── Keyboard Help ──────────────────────────────────── */
+        #helpOverlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 14, 23, 0.95);
+            border: 1px solid #2a3f5f;
+            border-radius: 10px;
+            padding: 24px 30px;
+            z-index: 300;
+            display: none;
+            min-width: 300px;
+        }
+
+        #helpOverlay.visible { display: block; }
+
+        #helpOverlay h3 {
+            color: #e8ecf2;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .help-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 12px;
+        }
+
+        .help-row .key {
+            color: #4a9eff;
+            font-weight: 600;
+            min-width: 80px;
+        }
+
+        .help-row .desc { color: #8a96a6; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="loadingOverlay">Initializing Solar System...</div>
+
+    <!-- Info Panel -->
+    <div id="infoPanel">
+        <h2>Solar System Viewer</h2>
+        <div class="subtitle">Heliocentric J2000 Equatorial</div>
+
+        <div class="info-section">
+            <h3>Epoch</h3>
+            <div class="info-row">
+                <span class="label">Date</span>
+                <span class="value" id="infoDate">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Julian Date</span>
+                <span class="value" id="infoJD">--</span>
+            </div>
+        </div>
+
+        <div class="info-section" id="transferInfo">
+            <h3>Transfer Trajectory</h3>
+            <div class="info-row">
+                <span class="label">Route</span>
+                <span class="value cyan" id="tfRoute">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Departure</span>
+                <span class="value green" id="tfDepart">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Arrival</span>
+                <span class="value red" id="tfArrive">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">TOF</span>
+                <span class="value" id="tfTOF">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">C3 Depart</span>
+                <span class="value" id="tfC3">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Total Delta-V</span>
+                <span class="value" id="tfDV">--</span>
+            </div>
+        </div>
+
+        <div class="info-section" id="hoverInfo" style="display:none">
+            <h3 id="hoverPlanetName">--</h3>
+            <div class="info-row">
+                <span class="label">Distance</span>
+                <span class="value" id="hoverDist">--</span>
+            </div>
+            <div class="info-row">
+                <span class="label">Speed</span>
+                <span class="value" id="hoverSpeed">--</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time Controls -->
+    <div id="timeControls">
+        <button id="btnSlower" title="Slow down">&#9664;&#9664;</button>
+        <button id="btnPlayPause" title="Play/Pause">&#9654;</button>
+        <button id="btnFaster" title="Speed up">&#9654;&#9654;</button>
+        <span id="epochDisplay">--</span>
+        <span id="warpDisplay">1x</span>
+        <button id="btnReset" title="Reset to J2000">Reset</button>
+        <button id="btnToday" title="Go to today">Today</button>
+    </div>
+
+    <!-- Scale Toggle -->
+    <div id="scaleToggle">
+        <button id="btnScale" title="Toggle planet scale">Scale: Real</button>
+    </div>
+
+    <!-- Planet Legend -->
+    <div id="planetLegend" id="legend"></div>
+
+    <!-- Help Overlay -->
+    <div id="helpOverlay">
+        <h3>Keyboard Controls</h3>
+        <div class="help-row"><span class="key">Space</span><span class="desc">Play / Pause</span></div>
+        <div class="help-row"><span class="key">+ / -</span><span class="desc">Time warp faster / slower</span></div>
+        <div class="help-row"><span class="key">R</span><span class="desc">Reset to J2000</span></div>
+        <div class="help-row"><span class="key">T</span><span class="desc">Jump to today</span></div>
+        <div class="help-row"><span class="key">S</span><span class="desc">Toggle planet scale</span></div>
+        <div class="help-row"><span class="key">H</span><span class="desc">Toggle this help</span></div>
+        <div class="help-row"><span class="key">1-8</span><span class="desc">Fly to planet</span></div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="cesium_config.js"></script>
+    <script src="js/framework/solar_system_engine.js"></script>
+    <script src="js/framework/particle_effects.js"></script>
+    <script>
+    (function() {
+        'use strict';
+
+        // ═══════════════════════════════════════════════════════════════
+        // Configuration
+        // ═══════════════════════════════════════════════════════════════
+        var SSE = SolarSystemEngine;
+        var AU = SSE.AU;
+
+        // Cesium scale factor: AU is huge, we render in a scaled coordinate system
+        // 1 unit = 1 AU in our scene, Cesium positions in meters
+        var SCENE_SCALE = AU;  // Positions are already in meters from SSE
+
+        // Planet display sizes (exaggerated vs real)
+        var EXAGGERATED_SCALE = 2000;  // Multiplier for planet radii when exaggerated
+        var realScale = false;
+
+        // Time state
+        var currentJD = SSE.J2000_EPOCH;
+        var playing = false;
+        var timeWarp = 1;  // days per second
+        var warpLevels = [0.1, 0.5, 1, 5, 10, 30, 100, 365, 1000];
+        var warpIndex = 2;
+
+        // Transfer data
+        var transferData = null;
+
+        // Cesium entities
+        var planetEntities = {};
+        var orbitPolylines = {};
+        var transferPolyline = null;
+        var departureMarker = null;
+        var arrivalMarker = null;
+        var sunEntity = null;
+
+        // ═══════════════════════════════════════════════════════════════
+        // Initialize Cesium
+        // ═══════════════════════════════════════════════════════════════
+        var viewer = new Cesium.Viewer('cesiumContainer', {
+            skyBox: false,
+            skyAtmosphere: false,
+            globe: false,
+            baseLayerPicker: false,
+            geocoder: false,
+            homeButton: false,
+            infoBox: false,
+            selectionIndicator: false,
+            timeline: false,
+            animation: false,
+            navigationHelpButton: false,
+            sceneModePicker: false,
+            fullscreenButton: false,
+            vrButton: false,
+            contextOptions: {
+                webgl: { alpha: true }
+            }
+        });
+
+        // Dark background
+        viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#000005');
+        viewer.scene.sun.show = false;
+        viewer.scene.moon.show = false;
+
+        // Camera: looking down on the ecliptic from ~3 AU
+        var camDist = 3.5 * AU;
+        viewer.camera.position = new Cesium.Cartesian3(0, 0, camDist);
+        viewer.camera.direction = new Cesium.Cartesian3(0, 0, -1);
+        viewer.camera.up = new Cesium.Cartesian3(0, 1, 0);
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Sun
+        // ═══════════════════════════════════════════════════════════════
+        sunEntity = viewer.entities.add({
+            position: Cesium.Cartesian3.ZERO,
+            point: {
+                pixelSize: 20,
+                color: Cesium.Color.fromCssColorString('#FFD700'),
+                outlineColor: Cesium.Color.fromCssColorString('#FFA500'),
+                outlineWidth: 3,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: 'Sun',
+                font: '12px monospace',
+                fillColor: Cesium.Color.fromCssColorString('#FFD700'),
+                style: Cesium.LabelStyle.FILL,
+                pixelOffset: new Cesium.Cartesian2(0, -22),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // Create Planet Entities and Orbit Lines
+        // ═══════════════════════════════════════════════════════════════
+        var legendHTML = '';
+
+        for (var pi = 0; pi < SSE.PLANET_KEYS.length; pi++) {
+            var key = SSE.PLANET_KEYS[pi];
+            var planet = SSE.PLANETS[key];
+            var pos = SSE.getPlanetPositionHCI(key, currentJD);
+
+            // Orbit opacity: inner planets bright, outer planets fainter
+            var orbitAlpha = pi < 4 ? 0.5 : 0.25;
+            var orbitWidth = pi < 4 ? 2 : 1;
+
+            // Generate orbit path
+            var orbitPath = SSE.getOrbitPath(key, currentJD, 360);
+            var orbitPositions = [];
+            for (var oi = 0; oi < orbitPath.length; oi++) {
+                var op = orbitPath[oi];
+                orbitPositions.push(new Cesium.Cartesian3(op.x, op.y, op.z));
+            }
+
+            // Orbit polyline
+            orbitPolylines[key] = viewer.entities.add({
+                polyline: {
+                    positions: orbitPositions,
+                    width: orbitWidth,
+                    material: Cesium.Color.fromCssColorString(planet.color).withAlpha(orbitAlpha),
+                    clampToGround: false
+                }
+            });
+
+            // Planet point + label
+            var pointSize = pi < 4 ? 10 : (pi < 6 ? 14 : 8);
+            planetEntities[key] = viewer.entities.add({
+                position: new Cesium.Cartesian3(pos.x, pos.y, pos.z),
+                point: {
+                    pixelSize: pointSize,
+                    color: Cesium.Color.fromCssColorString(planet.color),
+                    outlineColor: Cesium.Color.fromCssColorString(planet.color).withAlpha(0.4),
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                    text: planet.name,
+                    font: '11px monospace',
+                    fillColor: Cesium.Color.fromCssColorString(planet.color).withAlpha(0.9),
+                    style: Cesium.LabelStyle.FILL,
+                    pixelOffset: new Cesium.Cartesian2(0, -18),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            // Legend
+            legendHTML += '<div class="legend-item" data-planet="' + key + '">' +
+                '<div class="legend-dot" style="background:' + planet.color + '"></div>' +
+                planet.name + '</div>';
+        }
+
+        document.getElementById('planetLegend').innerHTML = legendHTML;
+
+        // ═══════════════════════════════════════════════════════════════
+        // Load Transfer Trajectory Data
+        // ═══════════════════════════════════════════════════════════════
+        function loadTransferData() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'interplanetary_trajectory.json', true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        transferData = JSON.parse(xhr.responseText);
+                        createTransferVisualization();
+                    } catch (e) {
+                        console.warn('Failed to parse transfer data:', e);
+                    }
+                } else {
+                    console.warn('No interplanetary_trajectory.json found (HTTP ' + xhr.status + ')');
+                }
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            };
+            xhr.onerror = function() {
+                console.warn('Could not load interplanetary_trajectory.json');
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            };
+            xhr.send();
+        }
+
+        function createTransferVisualization() {
+            if (!transferData) return;
+
+            var infoEl = document.getElementById('transferInfo');
+            infoEl.classList.add('visible');
+
+            // Populate info panel
+            var depPlanet = transferData.departure_planet || 'Earth';
+            var arrPlanet = transferData.arrival_planet || 'Mars';
+            document.getElementById('tfRoute').textContent = depPlanet + ' -> ' + arrPlanet;
+
+            if (transferData.departure_date) {
+                document.getElementById('tfDepart').textContent = transferData.departure_date;
+            } else if (transferData.departure_jd) {
+                document.getElementById('tfDepart').textContent = SSE.jdToDateString(transferData.departure_jd);
+            }
+
+            if (transferData.arrival_date) {
+                document.getElementById('tfArrive').textContent = transferData.arrival_date;
+            } else if (transferData.arrival_jd) {
+                document.getElementById('tfArrive').textContent = SSE.jdToDateString(transferData.arrival_jd);
+            }
+
+            if (transferData.tof_days) {
+                document.getElementById('tfTOF').textContent = transferData.tof_days.toFixed(1) + ' days';
+            }
+            if (transferData.c3_departure !== undefined) {
+                document.getElementById('tfC3').textContent = transferData.c3_departure.toFixed(2) + ' km\u00B2/s\u00B2';
+            }
+            if (transferData.total_delta_v !== undefined) {
+                document.getElementById('tfDV').textContent = (transferData.total_delta_v / 1000).toFixed(3) + ' km/s';
+            }
+
+            // Draw transfer arc
+            if (transferData.trajectory && transferData.trajectory.length > 0) {
+                var arcPositions = [];
+                for (var i = 0; i < transferData.trajectory.length; i++) {
+                    var pt = transferData.trajectory[i];
+                    if (pt.x !== undefined) {
+                        arcPositions.push(new Cesium.Cartesian3(pt.x, pt.y, pt.z));
+                    } else if (pt.pos) {
+                        arcPositions.push(new Cesium.Cartesian3(pt.pos[0], pt.pos[1], pt.pos[2]));
+                    }
+                }
+
+                if (arcPositions.length > 1) {
+                    transferPolyline = viewer.entities.add({
+                        polyline: {
+                            positions: arcPositions,
+                            width: 3,
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.2,
+                                color: Cesium.Color.fromCssColorString('#FFD700')
+                            }),
+                            clampToGround: false
+                        }
+                    });
+                }
+
+                // Departure marker
+                if (arcPositions.length > 0) {
+                    departureMarker = viewer.entities.add({
+                        position: arcPositions[0],
+                        point: {
+                            pixelSize: 12,
+                            color: Cesium.Color.fromCssColorString('#2ecc71'),
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        },
+                        label: {
+                            text: 'Departure',
+                            font: '10px monospace',
+                            fillColor: Cesium.Color.fromCssColorString('#2ecc71'),
+                            style: Cesium.LabelStyle.FILL,
+                            pixelOffset: new Cesium.Cartesian2(0, 18),
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+                }
+
+                // Arrival marker
+                if (arcPositions.length > 1) {
+                    arrivalMarker = viewer.entities.add({
+                        position: arcPositions[arcPositions.length - 1],
+                        point: {
+                            pixelSize: 12,
+                            color: Cesium.Color.fromCssColorString('#e74c3c'),
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        },
+                        label: {
+                            text: 'Arrival',
+                            font: '10px monospace',
+                            fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+                            style: Cesium.LabelStyle.FILL,
+                            pixelOffset: new Cesium.Cartesian2(0, 18),
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+                }
+            } else {
+                // No trajectory points in JSON — compute from departure/arrival JD
+                // using planet positions + linear interpolation (rough)
+                if (transferData.departure_jd && transferData.arrival_jd) {
+                    var djd = transferData.departure_jd;
+                    var ajd = transferData.arrival_jd;
+                    var depKey = (depPlanet || 'Earth').toUpperCase();
+                    var arrKey = (arrPlanet || 'Mars').toUpperCase();
+                    var depPos = SSE.getPlanetPositionHCI(depKey, djd);
+                    var arrPos = SSE.getPlanetPositionHCI(arrKey, ajd);
+
+                    // Simple interpolated arc
+                    var arcPositions = [];
+                    var nSteps = 100;
+                    for (var i = 0; i <= nSteps; i++) {
+                        var frac = i / nSteps;
+                        // Smooth interpolation with slight curve
+                        var angle = frac * Math.PI;
+                        var lift = Math.sin(angle) * 0.05 * AU;
+                        arcPositions.push(new Cesium.Cartesian3(
+                            depPos.x + (arrPos.x - depPos.x) * frac,
+                            depPos.y + (arrPos.y - depPos.y) * frac,
+                            depPos.z + (arrPos.z - depPos.z) * frac + lift
+                        ));
+                    }
+
+                    transferPolyline = viewer.entities.add({
+                        polyline: {
+                            positions: arcPositions,
+                            width: 3,
+                            material: new Cesium.PolylineGlowMaterialProperty({
+                                glowPower: 0.2,
+                                color: Cesium.Color.fromCssColorString('#FFD700')
+                            }),
+                            clampToGround: false
+                        }
+                    });
+
+                    departureMarker = viewer.entities.add({
+                        position: new Cesium.Cartesian3(depPos.x, depPos.y, depPos.z),
+                        point: {
+                            pixelSize: 12,
+                            color: Cesium.Color.fromCssColorString('#2ecc71'),
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        },
+                        label: {
+                            text: 'Departure',
+                            font: '10px monospace',
+                            fillColor: Cesium.Color.fromCssColorString('#2ecc71'),
+                            style: Cesium.LabelStyle.FILL,
+                            pixelOffset: new Cesium.Cartesian2(0, 18),
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+
+                    arrivalMarker = viewer.entities.add({
+                        position: new Cesium.Cartesian3(arrPos.x, arrPos.y, arrPos.z),
+                        point: {
+                            pixelSize: 12,
+                            color: Cesium.Color.fromCssColorString('#e74c3c'),
+                            outlineColor: Cesium.Color.WHITE,
+                            outlineWidth: 2,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        },
+                        label: {
+                            text: 'Arrival',
+                            font: '10px monospace',
+                            fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+                            style: Cesium.LabelStyle.FILL,
+                            pixelOffset: new Cesium.Cartesian2(0, 18),
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        }
+                    });
+
+                    // Set epoch to departure
+                    currentJD = djd;
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Update Loop
+        // ═══════════════════════════════════════════════════════════════
+        var lastTime = performance.now();
+
+        function updatePlanetPositions() {
+            for (var i = 0; i < SSE.PLANET_KEYS.length; i++) {
+                var key = SSE.PLANET_KEYS[i];
+                var pos = SSE.getPlanetPositionHCI(key, currentJD);
+                if (isFinite(pos.x) && isFinite(pos.y) && isFinite(pos.z)) {
+                    planetEntities[key].position = new Cesium.Cartesian3(pos.x, pos.y, pos.z);
+                }
+            }
+        }
+
+        function updateDisplay() {
+            document.getElementById('infoDate').textContent = SSE.jdToDateString(currentJD);
+            document.getElementById('infoJD').textContent = currentJD.toFixed(2);
+            document.getElementById('epochDisplay').textContent = SSE.jdToDateString(currentJD);
+            document.getElementById('warpDisplay').textContent =
+                (timeWarp >= 365 ? (timeWarp / 365).toFixed(1) + ' yr/s' :
+                 timeWarp >= 1 ? timeWarp.toFixed(1) + ' d/s' :
+                 (timeWarp * 24).toFixed(1) + ' hr/s');
+        }
+
+        function tick() {
+            var now = performance.now();
+            var dt = (now - lastTime) / 1000;  // seconds
+            lastTime = now;
+
+            if (playing) {
+                currentJD += timeWarp * dt;
+                updatePlanetPositions();
+            }
+
+            updateDisplay();
+            requestAnimationFrame(tick);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Controls
+        // ═══════════════════════════════════════════════════════════════
+        function togglePlay() {
+            playing = !playing;
+            document.getElementById('btnPlayPause').innerHTML = playing ? '&#9646;&#9646;' : '&#9654;';
+            document.getElementById('btnPlayPause').classList.toggle('active', playing);
+        }
+
+        function goFaster() {
+            if (warpIndex < warpLevels.length - 1) {
+                warpIndex++;
+                timeWarp = warpLevels[warpIndex];
+            }
+        }
+
+        function goSlower() {
+            if (warpIndex > 0) {
+                warpIndex--;
+                timeWarp = warpLevels[warpIndex];
+            }
+        }
+
+        function resetToJ2000() {
+            currentJD = SSE.J2000_EPOCH;
+            updatePlanetPositions();
+        }
+
+        function goToToday() {
+            currentJD = SSE.dateToJD(new Date());
+            updatePlanetPositions();
+        }
+
+        function toggleScale() {
+            realScale = !realScale;
+            document.getElementById('btnScale').textContent =
+                'Scale: ' + (realScale ? 'Real' : 'Exaggerated');
+
+            for (var i = 0; i < SSE.PLANET_KEYS.length; i++) {
+                var key = SSE.PLANET_KEYS[i];
+                var planet = SSE.PLANETS[key];
+                var entity = planetEntities[key];
+
+                if (realScale) {
+                    // Real scale: planet is a tiny dot at these distances
+                    entity.point.pixelSize = Math.max(3, Math.min(6, planet.radius / 5e6));
+                } else {
+                    // Exaggerated: visible point sizes
+                    entity.point.pixelSize = i < 4 ? 10 : (i < 6 ? 14 : 8);
+                }
+            }
+        }
+
+        function flyToPlanet(planetKey) {
+            var pos = SSE.getPlanetPositionHCI(planetKey, currentJD);
+            var offset = SSE.PLANETS[planetKey].sma_au * AU * 0.3;
+            viewer.camera.flyTo({
+                destination: new Cesium.Cartesian3(
+                    pos.x + offset * 0.3,
+                    pos.y + offset * 0.3,
+                    pos.z + offset
+                ),
+                orientation: {
+                    direction: new Cesium.Cartesian3(-0.3, -0.3, -1).normalize
+                        ? Cesium.Cartesian3.normalize(
+                            new Cesium.Cartesian3(-0.3, -0.3, -1),
+                            new Cesium.Cartesian3()
+                          )
+                        : new Cesium.Cartesian3(0, 0, -1),
+                    up: new Cesium.Cartesian3(0, 1, 0)
+                },
+                duration: 2.0
+            });
+
+            // Show planet info
+            var planet = SSE.PLANETS[planetKey];
+            var vel = SSE.getPlanetVelocityHCI(planetKey, currentJD);
+            var speed = SSE.vecMag(vel);
+            var dist = SSE.vecMag(pos);
+
+            var hoverEl = document.getElementById('hoverInfo');
+            hoverEl.style.display = 'block';
+            document.getElementById('hoverPlanetName').textContent = planet.name;
+            document.getElementById('hoverDist').textContent = (dist / AU).toFixed(3) + ' AU';
+            document.getElementById('hoverSpeed').textContent = (speed / 1000).toFixed(2) + ' km/s';
+        }
+
+        // ─── Button Event Listeners ────────────────────────────────────
+        document.getElementById('btnPlayPause').addEventListener('click', togglePlay);
+        document.getElementById('btnFaster').addEventListener('click', goFaster);
+        document.getElementById('btnSlower').addEventListener('click', goSlower);
+        document.getElementById('btnReset').addEventListener('click', resetToJ2000);
+        document.getElementById('btnToday').addEventListener('click', goToToday);
+        document.getElementById('btnScale').addEventListener('click', toggleScale);
+
+        // Legend click: fly to planet
+        document.getElementById('planetLegend').addEventListener('click', function(e) {
+            var item = e.target.closest('.legend-item');
+            if (item) {
+                var key = item.getAttribute('data-planet');
+                if (key) flyToPlanet(key);
+            }
+        });
+
+        // ─── Keyboard Controls ─────────────────────────────────────────
+        document.addEventListener('keydown', function(e) {
+            switch (e.key) {
+                case ' ':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case '+':
+                case '=':
+                    goFaster();
+                    break;
+                case '-':
+                case '_':
+                    goSlower();
+                    break;
+                case 'r':
+                case 'R':
+                    resetToJ2000();
+                    break;
+                case 't':
+                case 'T':
+                    goToToday();
+                    break;
+                case 's':
+                case 'S':
+                    toggleScale();
+                    break;
+                case 'h':
+                case 'H':
+                    document.getElementById('helpOverlay').classList.toggle('visible');
+                    break;
+                case '1': flyToPlanet('MERCURY'); break;
+                case '2': flyToPlanet('VENUS'); break;
+                case '3': flyToPlanet('EARTH'); break;
+                case '4': flyToPlanet('MARS'); break;
+                case '5': flyToPlanet('JUPITER'); break;
+                case '6': flyToPlanet('SATURN'); break;
+                case '7': flyToPlanet('URANUS'); break;
+                case '8': flyToPlanet('NEPTUNE'); break;
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // Startup
+        // ═══════════════════════════════════════════════════════════════
+
+        // Set initial epoch to today
+        currentJD = SSE.dateToJD(new Date());
+        updatePlanetPositions();
+        updateDisplay();
+
+        // Load transfer data (async)
+        loadTransferData();
+
+        // Start render loop
+        lastTime = performance.now();
+        requestAnimationFrame(tick);
+
+    })();
+    </script>
+</body>
+</html>

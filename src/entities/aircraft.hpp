@@ -3,6 +3,7 @@
 
 #include "entity.hpp"
 #include "core/state_vector.hpp"
+#include "physics/aerodynamics_6dof.hpp"
 #include <string>
 #include <vector>
 
@@ -37,10 +38,15 @@ struct AircraftConfig {
     double max_bank_angle = 30.0;     // degrees (standard turn limit)
     double max_climb_rate = 20.0;     // m/s
     double max_descent_rate = 15.0;   // m/s
+
+    // 6DOF rotational dynamics (optional)
+    bool use_6dof = false;
+    MomentCoefficients moment_coeffs;  // Stability/control derivatives
+    InertiaMatrix inertia;             // Rotational inertia tensor
 };
 
 // Flight phase enumeration
-enum class FlightPhase {
+enum class AircraftFlightPhase {
     PARKED,
     TAXI,
     TAKEOFF,
@@ -72,7 +78,7 @@ struct WindVector {
 // Flight state for telemetry/logging
 struct FlightState {
     double time;
-    FlightPhase phase;
+    AircraftFlightPhase phase;
 
     // Position
     double latitude;
@@ -133,8 +139,8 @@ public:
 
     // State queries
     FlightState get_flight_state() const;
-    FlightPhase get_phase() const { return phase_; }
-    void set_phase(FlightPhase phase) { phase_ = phase; }
+    AircraftFlightPhase get_phase() const { return phase_; }
+    void set_phase(AircraftFlightPhase phase) { phase_ = phase; }
     double get_fuel_remaining() const { return fuel_mass_; }
     double get_total_mass() const;
     bool has_reached_destination() const;
@@ -145,6 +151,10 @@ public:
 
     // Configuration
     const AircraftConfig& get_config() const { return config_; }
+
+    // 6DOF control surfaces
+    void set_control_surfaces(const ControlSurfaces& cs) { control_surfaces_ = cs; }
+    const ControlSurfaces& get_control_surfaces() const { return control_surfaces_; }
 
     // Bank angle control (for derived classes)
     void set_bank_angle(double bank) { bank_angle_ = bank; }
@@ -165,7 +175,7 @@ protected:
     int current_waypoint_ = 0;
 
     // Current state
-    FlightPhase phase_ = FlightPhase::PARKED;
+    AircraftFlightPhase phase_ = AircraftFlightPhase::PARKED;
     double fuel_mass_;
     double throttle_ = 0.0;
 
@@ -188,12 +198,16 @@ protected:
     // Wind
     std::vector<WindVector> wind_field_;
 
+    // 6DOF state
+    ControlSurfaces control_surfaces_;
+
     // Physics helpers
     void update_autopilot(double dt);
     void update_aerodynamics(double dt);
     void update_propulsion(double dt);
     void update_kinematics(double dt);
     void update_fuel(double dt);
+    void update_6dof(double dt);
     void update_phase();
 
     double compute_lift_coefficient() const;

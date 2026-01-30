@@ -217,7 +217,7 @@
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot"></div>
-                18 scenarios loaded
+                20 scenarios loaded
             </div>
             <div class="status-item">
                 <div class="status-dot"></div>
@@ -454,6 +454,49 @@
             </div>
         </div>
 
+        <!-- Interplanetary -->
+        <div class="category">
+            <div class="category-header">
+                <h2>Interplanetary</h2>
+                <div class="category-line"></div>
+            </div>
+            <div class="grid">
+                <a class="card" href="solar_system_viewer.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#9788;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Solar System</h3>
+                    <p>Heliocentric 3D viewer with all 8 planet orbits, real-time Meeus ephemeris, interplanetary transfer arcs, and time warp controls.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">Heliocentric</span>
+                            <span class="tag">Ephemeris</span>
+                            <span class="tag">Transfer</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="porkchop_viewer.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#9673;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Porkchop Plot</h3>
+                    <p>Interplanetary transfer analysis with C3 and delta-V contour plots. Click to inspect individual transfers with geometry inset view.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">C3</span>
+                            <span class="tag">Lambert</span>
+                            <span class="tag">Contour</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
         <!-- Sensors & Analysis -->
         <div class="category">
             <div class="category-header">
@@ -624,6 +667,8 @@
             '1': 'spaceplane_viewer.html',
             '2': 'fighter_sim_viewer.html',
             '3': 'geo_sim_viewer.html',
+            '4': 'solar_system_viewer.html',
+            '5': 'porkchop_viewer.html',
         };
 
         document.addEventListener('keydown', (e) => {

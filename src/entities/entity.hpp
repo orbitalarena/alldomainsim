@@ -6,6 +6,12 @@
 #include <string>
 #include <memory>
 
+// Forward declarations for serialization
+namespace sim {
+class JsonWriter;
+class JsonValue;
+}
+
 namespace sim {
 
 /**
@@ -35,7 +41,12 @@ public:
     
     // Get 3D model path (if applicable)
     virtual std::string get_model_path() const { return ""; }
-    
+
+    // Serialization support for checkpoint/resume
+    virtual std::string entity_type() const { return "Entity"; }
+    virtual void serialize_entity(JsonWriter& writer) const;
+    virtual void deserialize_entity(const JsonValue& json);
+
 protected:
     int id_;
     std::string name_;

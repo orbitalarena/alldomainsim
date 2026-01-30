@@ -1,6 +1,7 @@
 #include "entities/satellite.hpp"
 #include "propagators/rk4_integrator.hpp"
 #include "physics/gravity_model.hpp"
+#include "physics/orbital_perturbations.hpp"
 #include "coordinate/time_utils.hpp"
 #include <cmath>
 #include <iostream>
@@ -93,13 +94,24 @@ void Satellite::update(double dt) {
     propagate_rk4(dt);
 }
 
-void Satellite::propagate_rk4(double dt) {
-    // Use RK4 integrator with gravity model
-    auto derivatives_func = [this](const StateVector& s) {
-        return GravityModel::compute_derivatives(s, use_j2_);
-    };
+void Satellite::set_perturbation_config(const PerturbationConfig& config) {
+    perturbation_config_ = config;
+    use_perturbations_ = true;
+}
 
-    state_ = RK4Integrator::step(state_, dt, derivatives_func);
+void Satellite::propagate_rk4(double dt) {
+    if (use_perturbations_) {
+        // Unified perturbation model
+        auto deriv_func = OrbitalPerturbations::make_derivative_function(
+            perturbation_config_, perturbation_config_.epoch_jd);
+        state_ = RK4Integrator::step(state_, dt, deriv_func);
+    } else {
+        // Legacy: gravity-only (backward compatible)
+        auto derivatives_func = [this](const StateVector& s) {
+            return GravityModel::compute_derivatives(s, use_j2_);
+        };
+        state_ = RK4Integrator::step(state_, dt, derivatives_func);
+    }
 }
 
 double Satellite::get_epoch_jd() const {

@@ -55,7 +55,7 @@ int main() {
         double lat = INDIANA_LAT + blue_offsets[i];
         double alt = 8000.0 + i * 300.0;  // Slight altitude separation
         fighter->set_initial_position(lat, blue_start_lon, alt);
-        fighter->set_phase(FlightPhase::CRUISE);  // Start airborne
+        fighter->set_phase(AircraftFlightPhase::CRUISE);  // Start airborne
         fighter->set_patrol_heading(90.0);  // Flying East
         fighter->set_target_heading(90.0);
         fighter->set_heading(90.0);
@@ -75,7 +75,7 @@ int main() {
         double lat = INDIANA_LAT + red_offsets[i];
         double alt = 8500.0 + i * 300.0;
         fighter->set_initial_position(lat, red_start_lon, alt);
-        fighter->set_phase(FlightPhase::CRUISE);  // Start airborne
+        fighter->set_phase(AircraftFlightPhase::CRUISE);  // Start airborne
         fighter->set_patrol_heading(270.0);  // Flying West
         fighter->set_target_heading(270.0);
         fighter->set_heading(270.0);

@@ -1,5 +1,6 @@
 add_library(propagators
     rk4_integrator.cpp
+    adaptive_integrator.cpp
 )
 
 target_include_directories(propagators PUBLIC

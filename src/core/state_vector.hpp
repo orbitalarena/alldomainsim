@@ -10,10 +10,12 @@ namespace sim {
  * @brief Coordinate frame enumeration
  */
 enum class CoordinateFrame {
-    TEME,        // True Equator Mean Equinox (TLE standard)
-    J2000_ECI,   // J2000 Earth-Centered Inertial
-    ECEF,        // Earth-Centered Earth-Fixed (WGS84)
-    BODY         // Body-fixed frame
+    TEME,                // True Equator Mean Equinox (TLE standard)
+    J2000_ECI,           // J2000 Earth-Centered Inertial
+    ECEF,                // Earth-Centered Earth-Fixed (WGS84)
+    BODY,                // Body-fixed frame
+    HELIOCENTRIC_J2000,  // Sun-centered J2000 equatorial (Phase 4)
+    PLANET_CENTERED      // Generic planet-centered inertial (Phase 4)
 };
 
 /**

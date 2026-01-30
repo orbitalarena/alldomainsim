@@ -1,0 +1,65 @@
+{
+    "metadata": {
+        "name": "Two Aircraft",
+        "description": "Player F-16 with a static wingman marker at a different position",
+        "version": "1.0"
+    },
+    "environment": {
+        "atmosphere": "us_standard_1976",
+        "gravity": "constant",
+        "maxTimeWarp": 16
+    },
+    "entities": [
+        {
+            "id": "player",
+            "name": "EAGLE 1",
+            "type": "aircraft",
+            "team": "blue",
+            "initialState": {
+                "lat": 34.9054,
+                "lon": -117.8839,
+                "alt": 5000,
+                "speed": 200,
+                "heading": 90,
+                "gamma": 0,
+                "throttle": 0.6,
+                "engineOn": true,
+                "gearDown": false,
+                "infiniteFuel": true
+            },
+            "components": {
+                "physics": { "type": "flight3dof", "config": "f16" },
+                "control": { "type": "player_input", "config": "fighter" },
+                "visual":  { "type": "point", "color": "#44aaff", "pixelSize": 12, "trail": true, "label": "EAGLE 1" }
+            }
+        },
+        {
+            "id": "wingman",
+            "name": "EAGLE 2",
+            "type": "aircraft",
+            "team": "blue",
+            "initialState": {
+                "lat": 34.88,
+                "lon": -117.85,
+                "alt": 5200,
+                "speed": 200,
+                "heading": 90,
+                "gamma": 0,
+                "throttle": 0.6,
+                "engineOn": true,
+                "gearDown": false,
+                "infiniteFuel": true
+            },
+            "components": {
+                "physics": { "type": "flight3dof", "config": "f16" },
+                "visual":  { "type": "point", "color": "#4488ff", "pixelSize": 10, "trail": true, "trailColor": "#4488ff88", "label": "EAGLE 2" }
+            }
+        }
+    ],
+    "camera": {
+        "mode": "chase",
+        "target": "player",
+        "range": 300,
+        "pitch": -0.3
+    }
+}

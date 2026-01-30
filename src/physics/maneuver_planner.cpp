@@ -61,120 +61,182 @@ HohmannTransfer ManeuverPlanner::hohmann_transfer(const OrbitalElements& initial
 
 LambertSolution ManeuverPlanner::solve_lambert(const Vec3& r1, const Vec3& r2,
                                                 double tof, double mu, bool prograde) {
+    // Universal variable Lambert solver (Curtis / Bate-Mueller-White)
+    // Uses Stumpff functions — handles all transfer angles including near-π
+
     LambertSolution result;
     result.valid = false;
 
     double r1_mag = r1.norm();
     double r2_mag = r2.norm();
 
-    // Cross product for transfer angle
-    Vec3 cross;
-    cross.x = r1.y * r2.z - r1.z * r2.y;
-    cross.y = r1.z * r2.x - r1.x * r2.z;
-    cross.z = r1.x * r2.y - r1.y * r2.x;
-
-    // Dot product
-    double dot = r1.x * r2.x + r1.y * r2.y + r1.z * r2.z;
-
-    // Transfer angle
-    double cos_theta = dot / (r1_mag * r2_mag);
-    cos_theta = std::max(-1.0, std::min(1.0, cos_theta));
-
-    double theta;
-    if (prograde) {
-        if (cross.z >= 0) {
-            theta = std::acos(cos_theta);
-        } else {
-            theta = TWO_PI - std::acos(cos_theta);
-        }
-    } else {
-        if (cross.z < 0) {
-            theta = std::acos(cos_theta);
-        } else {
-            theta = TWO_PI - std::acos(cos_theta);
-        }
-    }
-
-    // Chord
-    double c = std::sqrt(r1_mag*r1_mag + r2_mag*r2_mag - 2*r1_mag*r2_mag*std::cos(theta));
-
-    // Semi-perimeter
-    double s = (r1_mag + r2_mag + c) / 2.0;
-
-    // Minimum energy semi-major axis
-    double a_min = s / 2.0;
-
-    // Minimum energy time of flight
-    double alpha_min = PI;
-    double beta_min = 2.0 * std::asin(std::sqrt((s - c) / s));
-    if (theta > PI) beta_min = -beta_min;
-
-    double tof_min = std::sqrt(std::pow(a_min, 3) / mu) *
-                     (alpha_min - beta_min - (std::sin(alpha_min) - std::sin(beta_min)));
-
-    if (tof < tof_min * 0.5) {
-        // Time of flight too short
+    if (r1_mag < 1e-6 || r2_mag < 1e-6 || tof <= 0.0) {
         return result;
     }
 
-    // Iterative solution for semi-major axis
-    // Using bisection method for robustness
-    double a_low = a_min;
-    double a_high = s * 10.0;  // Upper bound
+    // Cross product for transfer angle determination
+    double cx = r1.y * r2.z - r1.z * r2.y;
+    double cy = r1.z * r2.x - r1.x * r2.z;
+    double cz = r1.x * r2.y - r1.y * r2.x;
 
-    double a = (a_low + a_high) / 2.0;
+    double dot_prod = r1.x * r2.x + r1.y * r2.y + r1.z * r2.z;
+    double cos_theta = std::max(-1.0, std::min(1.0, dot_prod / (r1_mag * r2_mag)));
 
-    for (int iter = 0; iter < 100; iter++) {
-        a = (a_low + a_high) / 2.0;
+    double theta;
+    if (prograde) {
+        theta = (cz >= 0) ? std::acos(cos_theta) : TWO_PI - std::acos(cos_theta);
+    } else {
+        theta = (cz < 0) ? std::acos(cos_theta) : TWO_PI - std::acos(cos_theta);
+    }
 
-        double alpha = 2.0 * std::asin(std::sqrt(s / (2.0 * a)));
-        double beta = 2.0 * std::asin(std::sqrt((s - c) / (2.0 * a)));
+    // Coefficient A (uses half-angle form to avoid singularity near θ=π)
+    // A = sin(θ) · √(r1·r2 / (1 - cos θ))
+    //   = 2·sin(θ/2)·cos(θ/2) · √(r1·r2) / (√2·|sin(θ/2)|)
+    //   = √(2·r1·r2) · cos(θ/2)  (for 0 < θ < 2π)
+    // Sign: positive for short-way (θ < π), negative for long-way (θ > π)
+    double A = std::sqrt(r1_mag * r2_mag * (1.0 + cos_theta));
+    if (theta > PI) A = -A;
 
-        if (theta > PI) beta = -beta;
+    // Guard against degenerate case (θ = 0 or π exactly)
+    if (std::abs(A) < 1e-14 * std::sqrt(r1_mag * r2_mag)) {
+        return result;
+    }
 
-        double tof_calc = std::sqrt(std::pow(a, 3) / mu) *
-                         (alpha - beta - (std::sin(alpha) - std::sin(beta)));
+    // Stumpff functions C(z) and S(z)
+    auto stumpff_C = [](double z) -> double {
+        if (std::abs(z) < 1e-6) return 0.5 - z / 24.0 + z * z / 720.0;
+        if (z > 0) return (1.0 - std::cos(std::sqrt(z))) / z;
+        return (std::cosh(std::sqrt(-z)) - 1.0) / (-z);
+    };
 
-        if (std::abs(tof_calc - tof) < 1.0) {  // Within 1 second
-            break;
+    auto stumpff_S = [](double z) -> double {
+        if (std::abs(z) < 1e-6) return 1.0 / 6.0 - z / 120.0 + z * z / 5040.0;
+        if (z > 0) {
+            double sq = std::sqrt(z);
+            return (sq - std::sin(sq)) / (z * sq);
+        }
+        double sq = std::sqrt(-z);
+        return (std::sinh(sq) - sq) / (-z * sq);
+    };
+
+    // y(z) function
+    auto y_func = [&](double z) -> double {
+        double Cz = stumpff_C(z);
+        double Sz = stumpff_S(z);
+        double sqrtCz = std::sqrt(Cz);
+        if (sqrtCz < 1e-30) return r1_mag + r2_mag;
+        return r1_mag + r2_mag + A * (z * Sz - 1.0) / sqrtCz;
+    };
+
+    // TOF as function of z
+    auto tof_func = [&](double z) -> double {
+        double Cz = stumpff_C(z);
+        double Sz = stumpff_S(z);
+        double y = y_func(z);
+        if (y < 0.0) return -1.0;  // Invalid
+        double x = std::sqrt(y / Cz);
+        return (x * x * x * Sz + A * std::sqrt(y)) / std::sqrt(mu);
+    };
+
+    // Newton-Raphson iteration on z
+    // z > 0: elliptic, z = 0: parabolic, z < 0: hyperbolic
+    // Initial guess: z = 0 (parabolic)
+    double z = 0.0;
+
+    // Bracket search: find z range where TOF crosses target
+    // For most transfers, z is in [0, (2π)²] for single-revolution elliptic
+    double z_low = -4.0 * PI * PI;  // Hyperbolic limit
+    double z_high = 4.0 * PI * PI * 4.0;  // ~2.5 revolutions
+
+    // Ensure y > 0 at lower bound
+    while (y_func(z_low) < 0.0 && z_low < z_high) {
+        z_low += 0.1;
+    }
+
+    // Bisection + Newton hybrid for robustness
+    for (int iter = 0; iter < 200; iter++) {
+        double Cz = stumpff_C(z);
+        double Sz = stumpff_S(z);
+        double y = y_func(z);
+
+        if (y < 0.0) {
+            // y must be positive; shift z upward
+            z = (z + z_high) * 0.5;
+            continue;
         }
 
-        if (tof_calc < tof) {
-            a_low = a;
+        double x = std::sqrt(y / Cz);
+        double t_z = (x * x * x * Sz + A * std::sqrt(y)) / std::sqrt(mu);
+
+        double residual = t_z - tof;
+        if (std::abs(residual) < 1e-6) {
+            break;  // Converged
+        }
+
+        // Analytical derivative dt/dz
+        double dtdz;
+        if (std::abs(z) < 1e-6) {
+            // Near-parabolic: use series expansion
+            double y_val = y;
+            double sqrt_y = std::sqrt(y_val);
+            dtdz = (std::sqrt(2.0) / 40.0 * y_val * y_val * sqrt_y +
+                    A * (sqrt_y + A * std::sqrt(1.0 / (2.0 * y_val)))) /
+                   std::sqrt(mu);
+            // Fallback: finite difference
+            double dz = 0.01;
+            double t_z2 = tof_func(z + dz);
+            if (t_z2 > 0) {
+                dtdz = (t_z2 - t_z) / dz;
+            }
         } else {
-            a_high = a;
+            double y_val = y;
+            dtdz = (x * x * x * (Sz - 3.0 * Sz / (2.0 * z) + 1.0 / (2.0 * z) * stumpff_C(z))
+                    + 3.0 * Sz * std::sqrt(y_val) * A / (2.0 * z)) / std::sqrt(mu);
+            // Use finite difference as fallback (more robust)
+            double dz = std::max(1e-4, std::abs(z) * 1e-6);
+            double t_z2 = tof_func(z + dz);
+            if (t_z2 > 0) {
+                dtdz = (t_z2 - t_z) / dz;
+            }
+        }
+
+        if (std::abs(dtdz) > 1e-30) {
+            double z_new = z - residual / dtdz;
+            // Clamp to bracket
+            z_new = std::max(z_low, std::min(z_high, z_new));
+            z = z_new;
+        } else {
+            // Bisection fallback
+            if (residual > 0) {
+                z_high = z;
+            } else {
+                z_low = z;
+            }
+            z = (z_low + z_high) * 0.5;
         }
     }
 
-    // Compute velocities using f and g functions
-    double p = a * (1.0 - std::pow((s - c) / (2.0 * a), 2));  // Semi-latus rectum approximation
+    // Final computation of f, g, g_dot from converged z
+    double y = y_func(z);
+    if (y < 0.0) return result;
 
-    // f and g functions
-    double f = 1.0 - r2_mag / p * (1.0 - std::cos(theta));
-    double g = r1_mag * r2_mag * std::sin(theta) / std::sqrt(mu * p);
-    double g_dot = 1.0 - r1_mag / p * (1.0 - std::cos(theta));
+    double f = 1.0 - y / r1_mag;
+    double g_dot = 1.0 - y / r2_mag;
+    double g = A * std::sqrt(y / mu);
 
-    // Initial velocity
+    if (std::abs(g) < 1e-30) {
+        return result;
+    }
+
+    // v1 = (r2 - f·r1) / g
     result.v1.x = (r2.x - f * r1.x) / g;
     result.v1.y = (r2.y - f * r1.y) / g;
     result.v1.z = (r2.z - f * r1.z) / g;
 
-    // Final velocity
-    result.v2.x = (g_dot * r2.x - r1.x) / g + f * result.v1.x;
-    result.v2.y = (g_dot * r2.y - r1.y) / g + f * result.v1.y;
-    result.v2.z = (g_dot * r2.z - r1.z) / g + f * result.v1.z;
-
-    // Actually, let's use the proper formula
-    double f_dot = std::sqrt(mu / p) * std::tan(theta / 2.0) *
-                   ((1.0 - std::cos(theta)) / p - 1.0/r1_mag - 1.0/r2_mag);
-
-    result.v1.x = (r2.x - f * r1.x) / g;
-    result.v1.y = (r2.y - f * r1.y) / g;
-    result.v1.z = (r2.z - f * r1.z) / g;
-
-    result.v2.x = f_dot * r1.x + g_dot * result.v1.x;
-    result.v2.y = f_dot * r1.y + g_dot * result.v1.y;
-    result.v2.z = f_dot * r1.z + g_dot * result.v1.z;
+    // v2 = (g_dot·r2 - r1) / g
+    result.v2.x = (g_dot * r2.x - r1.x) / g;
+    result.v2.y = (g_dot * r2.y - r1.y) / g;
+    result.v2.z = (g_dot * r2.z - r1.z) / g;
 
     result.tof = tof;
     result.valid = true;

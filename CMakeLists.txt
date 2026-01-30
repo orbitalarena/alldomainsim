@@ -50,6 +50,7 @@ add_subdirectory(src/debris)
 add_subdirectory(src/tactics)
 add_subdirectory(src/data)
 add_subdirectory(src/fom)
+add_subdirectory(src/distributed)
 
 # Main simulation executable
 add_executable(sim_engine
@@ -269,6 +270,56 @@ target_link_libraries(simple_gravity_turn
     core
     physics
     coordinate
+)
+
+# Perturbation fidelity comparison demo
+add_executable(perturbation_demo
+    src/perturbation_demo.cpp
+)
+
+target_link_libraries(perturbation_demo
+    core
+    physics
+    coordinate
+    propagators
+)
+
+# Crushed-It multi-phase mission demo
+add_executable(crushed_it_demo
+    src/crushed_it_demo.cpp
+)
+
+target_link_libraries(crushed_it_demo
+    core
+    physics
+    entities
+    coordinate
+    propagators
+    io
+    utils
+)
+
+# Interplanetary trajectory demo (Phase 4)
+add_executable(interplanetary_demo
+    src/interplanetary_demo.cpp
+)
+
+target_link_libraries(interplanetary_demo
+    core
+    physics
+    coordinate
+    propagators
+)
+
+# Distributed simulation demo
+add_executable(distributed_demo
+    src/distributed_demo.cpp
+)
+
+target_link_libraries(distributed_demo
+    core
+    distributed
+    pthread
 )
 
 # Testing

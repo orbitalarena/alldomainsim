@@ -9,4 +9,5 @@ target_include_directories(coordinate PUBLIC
 
 target_link_libraries(coordinate
     core
+    physics
 )

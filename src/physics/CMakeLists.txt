@@ -6,9 +6,21 @@ add_library(physics
     proximity_ops.cpp
     nonlinear_rendezvous.cpp
     lunar_ephemeris.cpp
+    solar_ephemeris.cpp
     multi_body_gravity.cpp
     aerobraking.cpp
     launch_trajectory_solver.cpp
+    solar_radiation_pressure.cpp
+    orbital_perturbations.cpp
+    aerodynamics_6dof.cpp
+    synthetic_camera.cpp
+    planetary_ephemeris.cpp
+    interplanetary_planner.cpp
+    mars_atmosphere.cpp
+    nbody_gravity.cpp
+    gravity_assist.cpp
+    low_thrust.cpp
+    mission_sequence.cpp
 )
 
 target_include_directories(physics PUBLIC

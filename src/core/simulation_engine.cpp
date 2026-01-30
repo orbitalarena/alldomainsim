@@ -1,4 +1,5 @@
 #include "core/simulation_engine.hpp"
+#include "io/checkpoint.hpp"
 #include <algorithm>
 #include <thread>
 
@@ -121,6 +122,14 @@ void SimulationEngine::handle_domain_transitions() {
             // TODO: Log domain transition
         }
     }
+}
+
+bool SimulationEngine::save_state(const std::string& filename) const {
+    return Checkpoint::save(*this, filename);
+}
+
+bool SimulationEngine::load_state(const std::string& filename) {
+    return Checkpoint::load(filename, *this);
 }
 
 } // namespace sim

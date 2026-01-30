@@ -4,14 +4,16 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Interactive Sims Operational
+## Current Status: Phase 3 Complete
 
-### C++ Backend (Milestones 0-4):
+### C++ Backend (Milestones 0-4 + Phases 2-3):
 - **M0**: Project skeleton, CMake build system, Git setup
 - **M1**: TLE parsing, single orbit propagation
 - **M2**: Cesium 3D visualization of orbits
 - **M3**: Coordinate transformations (ECI/ECEF/Geodetic), animation, ground tracks
 - **M4**: Launch vehicle physics, orbital elements, rendezvous planning
+- **Phase 2**: High-fidelity orbital perturbations (J2/J3/J4, Sun/Moon third-body, SRP, drag)
+- **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
 
 ### JavaScript Interactive Sims (visualization/cesium/):
 These are standalone browser-based simulations — no C++ backend needed.
@@ -28,13 +30,20 @@ These are standalone browser-based simulations — no C++ backend needed.
 
 ### C++ Core (src/):
 ```
-core/           - SimulationEngine, StateVector, PhysicsDomain
-physics/        - GravityModel (J2), OrbitalElements, AtmosphereModel,
-                  ManeuverPlanner (Hohmann/Lambert), ProximityOps (CW equations)
-entities/       - Entity base, Satellite (from TLE), LaunchVehicle (multi-stage)
+core/           - SimulationEngine (save_state/load_state), StateVector, PhysicsDomain
+physics/        - GravityModel (J2/J3/J4), OrbitalElements, AtmosphereModel,
+                  ManeuverPlanner (Hohmann/Lambert), ProximityOps (CW equations),
+                  OrbitalPerturbations (unified force model), SolarEphemeris,
+                  LunarEphemeris, SolarRadiationPressure, MultiBodyGravity,
+                  Aerodynamics6DOF (moments, Euler's equation, quaternion attitude),
+                  SyntheticCamera (FOV footprint, GSD, ray-Earth intersection),
+                  Vec3Ops (vector/quaternion math utilities)
+entities/       - Entity base, Satellite (from TLE), LaunchVehicle (multi-stage),
+                  Aircraft (3DOF + optional 6DOF), Fighter (BVR combat),
+                  CommandModule (reentry + parachutes)
 coordinate/     - TimeUtils (JD/GMST), FrameTransformer (ECI/ECEF/Geodetic)
 propagators/    - RK4Integrator
-io/             - TLEParser
+io/             - TLEParser, JsonWriter (header-only), JsonReader, Checkpoint
 ```
 
 ### JavaScript Sim Modules (visualization/cesium/js/):
@@ -57,6 +66,7 @@ spaceplane_hud.js       - Planner mode HUD, navball, orbital overlay
 ### Executables:
 - `demo` — TLE catalog visualization (generates orbit_data.json)
 - `rendezvous_demo` — Launch from Cape Canaveral, orbit insertion, transfer
+- `perturbation_demo` — Phase 2: 30-day perturbation fidelity comparison
 
 ### Visualization HTML pages:
 All served from `visualization/cesium/` via `python3 -m http.server 8000`
@@ -80,6 +90,54 @@ python3 -m http.server 8000
 # http://localhost:8000/orbit_viewer.html          — Orbit viz
 # http://localhost:8000/                           — Directory listing
 ```
+
+## Phase 2 — Orbital Perturbation Models (C++)
+
+### Unified Perturbation Accumulator (`orbital_perturbations.hpp`)
+`PerturbationConfig` toggles each perturbation independently:
+- `j2`, `j3`, `j4` — Zonal harmonics (EGM96 coefficients)
+- `moon`, `sun` — Third-body gravitational perturbations
+- `srp` — Solar radiation pressure (cannonball model + cylindrical shadow)
+- `drag` — Atmospheric drag with co-rotating atmosphere
+
+Convenience constructors: `two_body_only()`, `j2_only()`, `full_harmonics()`,
+`full_fidelity()`, `leo_satellite(mass, area, cd)`, `geo_satellite(mass, area, cr)`
+
+### Key Files
+```
+physics/gravity_utils.hpp          - J2/J3/J4 perturbation functions, BodyConstants
+physics/solar_ephemeris.hpp/cpp    - Low-precision Sun position (Meeus algorithm)
+physics/solar_radiation_pressure.hpp/cpp - Cannonball SRP + Earth shadow
+physics/orbital_perturbations.hpp/cpp   - Unified force model accumulator
+```
+
+### Usage
+```cpp
+// Configure perturbations
+PerturbationConfig config = PerturbationConfig::leo_satellite(420000, 1600, 2.2);
+config.epoch_jd = 2461045.0;
+
+// Option 1: Use with Satellite entity
+satellite->set_perturbation_config(config);
+
+// Option 2: Use directly with RK4
+auto deriv = OrbitalPerturbations::make_derivative_function(config, epoch_jd);
+state = RK4Integrator::step(state, dt, deriv);
+
+// Diagnostics: individual perturbation magnitudes
+PerturbationBreakdown bd = OrbitalPerturbations::compute_breakdown(pos, vel, config, jd);
+```
+
+### Perturbation Magnitudes at 400 km (ISS-like)
+| Perturbation | Magnitude (m/s²) | Ratio to J2 |
+|---|---|---|
+| Central body | 8.685 | — |
+| J2 oblateness | 1.25e-2 | 1.0 |
+| J3 asymmetry | 2.75e-5 | 0.002 |
+| J4 higher-order | 2.06e-5 | 0.002 |
+| Moon (3rd body) | 7.1e-7 | 0.00006 |
+| Sun (3rd body) | 3.1e-7 | 0.00002 |
+| SRP | 2.7e-8 | 0.000002 |
 
 ## Spaceplane Sim — Technical Details
 

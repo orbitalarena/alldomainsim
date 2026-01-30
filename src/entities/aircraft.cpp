@@ -1,5 +1,6 @@
 #include "aircraft.hpp"
 #include "physics/atmosphere_model.hpp"
+#include "physics/vec3_ops.hpp"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -115,6 +116,11 @@ void Aircraft::update(double dt) {
     update_kinematics(dt);
     update_fuel(dt);
 
+    // Optional 6DOF rotational dynamics (moments → angular rates → quaternion)
+    if (config_.use_6dof && domain_ == PhysicsDomain::AERO) {
+        update_6dof(dt);
+    }
+
     state_.time += dt;
 }
 
@@ -122,47 +128,47 @@ void Aircraft::update_phase() {
     double lat, lon, alt;
     ecef_to_geodetic(state_.position.x, state_.position.y, state_.position.z, lat, lon, alt);
 
-    if (fuel_mass_ <= 0 && phase_ != FlightPhase::LANDED && phase_ != FlightPhase::LANDING) {
+    if (fuel_mass_ <= 0 && phase_ != AircraftFlightPhase::LANDED && phase_ != AircraftFlightPhase::LANDING) {
         // Emergency - out of fuel, descend immediately
         if (alt > 100.0) {
-            phase_ = FlightPhase::DESCENT;
+            phase_ = AircraftFlightPhase::DESCENT;
         } else {
-            phase_ = FlightPhase::LANDING;
+            phase_ = AircraftFlightPhase::LANDING;
         }
         return;
     }
 
     switch (phase_) {
-        case FlightPhase::PARKED:
+        case AircraftFlightPhase::PARKED:
             if (throttle_ > 0.1) {
-                phase_ = FlightPhase::TAXI;
+                phase_ = AircraftFlightPhase::TAXI;
             }
             break;
 
-        case FlightPhase::TAXI:
+        case AircraftFlightPhase::TAXI:
             // Transition to takeoff after brief taxi (simulated)
             if (state_.time > 30.0) {  // 30 seconds of taxi
-                phase_ = FlightPhase::TAKEOFF;
+                phase_ = AircraftFlightPhase::TAKEOFF;
                 domain_ = PhysicsDomain::AERO;
             }
             break;
 
-        case FlightPhase::TAKEOFF:
+        case AircraftFlightPhase::TAKEOFF:
             if (alt > 300.0) {  // Positive climb established (~1000 ft AGL)
-                phase_ = FlightPhase::CLIMB;
+                phase_ = AircraftFlightPhase::CLIMB;
             }
             break;
 
-        case FlightPhase::CLIMB:
+        case AircraftFlightPhase::CLIMB:
             if (alt >= target_altitude_ - 200.0) {
-                phase_ = FlightPhase::CRUISE;
+                phase_ = AircraftFlightPhase::CRUISE;
             }
             break;
 
-        case FlightPhase::CRUISE:
+        case AircraftFlightPhase::CRUISE:
             // Safety: if we've somehow descended below cruise, go back to climb
             if (alt < target_altitude_ * 0.5 && target_altitude_ > 3000.0) {
-                phase_ = FlightPhase::CLIMB;
+                phase_ = AircraftFlightPhase::CLIMB;
                 break;
             }
 
@@ -170,31 +176,31 @@ void Aircraft::update_phase() {
                 double dist_to_dest = distance_to_waypoint(flight_plan_.back());
                 // Begin descent ~150 km out (gives time to descend from cruise alt)
                 if (dist_to_dest < 150000.0) {
-                    phase_ = FlightPhase::DESCENT;
+                    phase_ = AircraftFlightPhase::DESCENT;
                 }
             }
             break;
 
-        case FlightPhase::DESCENT:
+        case AircraftFlightPhase::DESCENT:
             if (alt < 1500.0) {  // ~5000 ft - begin approach
-                phase_ = FlightPhase::APPROACH;
+                phase_ = AircraftFlightPhase::APPROACH;
             }
             break;
 
-        case FlightPhase::APPROACH:
+        case AircraftFlightPhase::APPROACH:
             if (alt < 50.0 && groundspeed_ < 85.0) {
-                phase_ = FlightPhase::LANDING;
+                phase_ = AircraftFlightPhase::LANDING;
             }
             break;
 
-        case FlightPhase::LANDING:
+        case AircraftFlightPhase::LANDING:
             if (groundspeed_ < 5.0) {
-                phase_ = FlightPhase::LANDED;
+                phase_ = AircraftFlightPhase::LANDED;
                 domain_ = PhysicsDomain::GROUND;
             }
             break;
 
-        case FlightPhase::LANDED:
+        case AircraftFlightPhase::LANDED:
             // Stay landed
             break;
     }
@@ -211,28 +217,28 @@ void Aircraft::update_autopilot(double dt) {
 
     // Phase-specific throttle and speed targets
     switch (phase_) {
-        case FlightPhase::PARKED:
+        case AircraftFlightPhase::PARKED:
             throttle_ = 0.0;
             target_speed_ = 0.0;
             break;
 
-        case FlightPhase::TAXI:
+        case AircraftFlightPhase::TAXI:
             throttle_ = 0.3;
             target_speed_ = 15.0;  // ~30 kts taxi
             break;
 
-        case FlightPhase::TAKEOFF:
+        case AircraftFlightPhase::TAKEOFF:
             throttle_ = 1.0;
             target_speed_ = 85.0;  // V2 ~165 kts
             target_altitude_ = 1000.0;  // Initial climb target
             break;
 
-        case FlightPhase::CLIMB:
+        case AircraftFlightPhase::CLIMB:
             throttle_ = 0.9;
             // Target speed and altitude come from waypoints
             break;
 
-        case FlightPhase::CRUISE:
+        case AircraftFlightPhase::CRUISE:
             // Throttle set to maintain speed and altitude
             {
                 double speed_error = target_speed_ - true_airspeed_;
@@ -245,7 +251,7 @@ void Aircraft::update_autopilot(double dt) {
             }
             break;
 
-        case FlightPhase::DESCENT:
+        case AircraftFlightPhase::DESCENT:
             throttle_ = 0.25;
             // Descend toward approach altitude
             if (target_altitude_ > 3000.0) {
@@ -254,18 +260,18 @@ void Aircraft::update_autopilot(double dt) {
             target_speed_ = 180.0;  // 350 kts descent speed
             break;
 
-        case FlightPhase::APPROACH:
+        case AircraftFlightPhase::APPROACH:
             throttle_ = 0.35;
             target_speed_ = 75.0;  // ~145 kts approach
             target_altitude_ = 300.0;
             break;
 
-        case FlightPhase::LANDING:
+        case AircraftFlightPhase::LANDING:
             throttle_ = 0.0;
             target_speed_ = 70.0;
             break;
 
-        case FlightPhase::LANDED:
+        case AircraftFlightPhase::LANDED:
             throttle_ = 0.0;
             target_speed_ = 0.0;
             break;
@@ -311,7 +317,7 @@ void Aircraft::navigate_to_waypoint(double dt) {
     bank_angle_ += bank_change;
 
     // Update altitude target from waypoint
-    if (phase_ == FlightPhase::CRUISE || phase_ == FlightPhase::CLIMB) {
+    if (phase_ == AircraftFlightPhase::CRUISE || phase_ == AircraftFlightPhase::CLIMB) {
         target_altitude_ = wp.altitude;
     }
     target_speed_ = wp.target_speed;
@@ -468,27 +474,27 @@ void Aircraft::update_kinematics(double dt) {
     double vertical_speed = 0.0;
 
     // Ground operations
-    if (phase_ == FlightPhase::PARKED || phase_ == FlightPhase::TAXI ||
-        phase_ == FlightPhase::TAKEOFF || phase_ == FlightPhase::LANDING ||
-        phase_ == FlightPhase::LANDED) {
+    if (phase_ == AircraftFlightPhase::PARKED || phase_ == AircraftFlightPhase::TAXI ||
+        phase_ == AircraftFlightPhase::TAKEOFF || phase_ == AircraftFlightPhase::LANDING ||
+        phase_ == AircraftFlightPhase::LANDED) {
 
-        if (phase_ == FlightPhase::TAKEOFF) {
+        if (phase_ == AircraftFlightPhase::TAKEOFF) {
             // Accelerate on runway
             double accel = 3.0;  // m/s² typical takeoff acceleration
             groundspeed_ += accel * dt;
 
             // Rotation at V1 speed (~77 m/s / 150 kts)
             if (groundspeed_ > 77.0) {
-                phase_ = FlightPhase::CLIMB;
+                phase_ = AircraftFlightPhase::CLIMB;
                 alt = 10.0;  // Just lifted off
             }
-        } else if (phase_ == FlightPhase::LANDING) {
+        } else if (phase_ == AircraftFlightPhase::LANDING) {
             // Decelerate on runway
             double decel = -3.0;  // Braking
             groundspeed_ += decel * dt;
             groundspeed_ = std::max(groundspeed_, 0.0);
             alt = 0.0;
-        } else if (phase_ == FlightPhase::TAXI) {
+        } else if (phase_ == AircraftFlightPhase::TAXI) {
             // Taxi speed control
             double accel = (15.0 - groundspeed_) * 0.5;
             groundspeed_ += accel * dt;
@@ -508,20 +514,20 @@ void Aircraft::update_kinematics(double dt) {
         // Altitude control
         double alt_error = target_altitude_ - alt;
 
-        if (phase_ == FlightPhase::CLIMB) {
+        if (phase_ == AircraftFlightPhase::CLIMB) {
             // Climb at constant rate until reaching target
             vertical_speed = config_.max_climb_rate * 0.8;  // 80% of max
             if (alt_error < 200.0) {
                 vertical_speed = alt_error * 0.05;  // Slow as approaching target
             }
-        } else if (phase_ == FlightPhase::DESCENT || phase_ == FlightPhase::APPROACH) {
+        } else if (phase_ == AircraftFlightPhase::DESCENT || phase_ == AircraftFlightPhase::APPROACH) {
             // Descend at controlled rate
             vertical_speed = -config_.max_descent_rate * 0.7;
             if (alt_error > -200.0) {
                 vertical_speed = alt_error * 0.05;
             }
             // Approach: shallower descent
-            if (phase_ == FlightPhase::APPROACH) {
+            if (phase_ == AircraftFlightPhase::APPROACH) {
                 vertical_speed = std::max(vertical_speed, -5.0);  // ~1000 fpm max
             }
         } else {
@@ -685,7 +691,7 @@ FlightState Aircraft::get_flight_state() const {
 
 bool Aircraft::has_reached_destination() const {
     if (flight_plan_.empty()) return false;
-    return phase_ == FlightPhase::LANDED ||
+    return phase_ == AircraftFlightPhase::LANDED ||
            (current_waypoint_ >= (int)flight_plan_.size() &&
             distance_to_waypoint(flight_plan_.back()) < 1000.0);
 }
@@ -732,6 +738,28 @@ void Aircraft::ecef_to_geodetic(double x, double y, double z,
     } else {
         alt = std::abs(z) - WGS84_A * std::sqrt(1.0 - WGS84_E2);
     }
+}
+
+void Aircraft::update_6dof(double dt) {
+    // Compute dynamic pressure and airspeed for moment calculations
+    double rho = get_air_density();
+    double V = std::max(true_airspeed_, 1.0);
+    double q_bar = 0.5 * rho * V * V;
+
+    // Alpha already computed by update_aerodynamics; beta ≈ 0 for coordinated flight
+    double alpha = angle_of_attack_ * DEG_TO_RAD;
+    double beta = 0.0;
+
+    // Run 6DOF rotational step: moments → angular accel → ω → quaternion
+    Aerodynamics6DOF::step_rotation(
+        state_, alpha, beta, q_bar, V,
+        control_surfaces_, config_.moment_coeffs, config_.inertia, dt);
+
+    // Sync Euler angles back into the 3DOF state variables for telemetry
+    Vec3 euler = quat_to_euler(state_.attitude);
+    bank_angle_ = euler.x * RAD_TO_DEG;
+    pitch_angle_ = euler.y * RAD_TO_DEG;
+    // heading_ is driven by kinematics, not overwritten by attitude
 }
 
 // Utility function to create a great circle route

@@ -361,6 +361,7 @@
     <script src="js/spaceplane_orbital.js?v=2"></script>
     <script src="js/spaceplane_hud.js?v=2"></script>
     <script src="js/spaceplane_planner.js"></script>
+    <script src="js/gamepad_input.js"></script>
 
     <script>
     // =========================================================================
@@ -1063,8 +1064,42 @@
 
         simElapsed += totalDt;
 
-        // 1. Get player controls
+        // 1. Get player controls (keyboard + gamepad)
         let controls = getControlCommands();
+        const gpControls = GamepadInput.poll();
+        controls = GamepadInput.merge(controls, gpControls);
+
+        // 1b. Gamepad edge-triggered buttons
+        if (gpControls.connected) {
+            if (gpControls.justPressed.engine) {
+                aircraftState.engineOn = !aircraftState.engineOn;
+                showMessage(aircraftState.engineOn ? 'ENGINE START' : 'ENGINE STOP');
+            }
+            if (gpControls.justPressed.pause) {
+                isPaused = !isPaused;
+                document.getElementById('pauseStatus').textContent = isPaused ? 'PAUSED' : 'RUNNING';
+                showMessage(isPaused ? 'PAUSED' : 'RESUMED');
+                if (!isPaused) lastTickTime = null;
+            }
+            if (gpControls.justPressed.camera) {
+                const modes = ['chase', 'cockpit', 'free'];
+                cameraMode = modes[(modes.indexOf(cameraMode) + 1) % modes.length];
+                showMessage('CAM: ' + cameraMode.toUpperCase());
+            }
+            if (gpControls.justPressed.propulsionMode) {
+                cyclePropulsionMode();
+            }
+            if (gpControls.justPressed.maneuverNode && plannerMode &&
+                typeof SpaceplanePlanner !== 'undefined') {
+                SpaceplanePlanner.createNode(aircraftState, orbitalState);
+                showMessage('NODE CREATED');
+            }
+            if (gpControls.justPressed.executeNode && plannerMode &&
+                typeof SpaceplanePlanner !== 'undefined') {
+                SpaceplanePlanner.executeNode(aircraftState);
+                showMessage('EXECUTING NODE');
+            }
+        }
 
         // 2. Autopilot (overrides manual controls if enabled)
         if (autopilotState && autopilotState.enabled && !plannerMode) {
@@ -1431,6 +1466,9 @@
 
     // ---- Start Functions ----
     function initSim(options) {
+        // Initialize gamepad input
+        GamepadInput.init();
+
         const airborne = options.airborne !== false;
 
         aircraftState = FighterSimEngine.createAircraftState({

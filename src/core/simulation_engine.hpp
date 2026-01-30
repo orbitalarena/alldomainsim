@@ -43,7 +43,11 @@ public:
     // Time management
     double get_simulation_time() const { return sim_time_; }
     void set_simulation_time(double time) { sim_time_ = time; }
-    
+
+    // Checkpoint support
+    bool save_state(const std::string& filename) const;
+    bool load_state(const std::string& filename);
+
 private:
     SimulationMode mode_;
     TimeScale time_scale_;

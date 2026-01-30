@@ -157,28 +157,32 @@ Use unified multi-body propagator for all entities
 
 ## Future Extensions
 
-### Phase 1 (Current)
+### Phase 1
 - ✅ Core simulation engine
 - ✅ State vector framework
 - ✅ Domain transition logic
 - ✅ Entity base class
-- ⬜ TLE parsing
-- ⬜ Basic orbital propagator (Keplerian)
-- ⬜ Cesium visualization
+- ✅ TLE parsing
+- ✅ Basic orbital propagator (Keplerian)
+- ✅ Cesium visualization
 
 ### Phase 2
-- ⬜ Multi-body dynamics (Moon, Sun perturbations)
-- ⬜ J2/J3 Earth gravity harmonics
-- ⬜ Atmospheric drag model
-- ⬜ Multi-stage rocket physics
-- ⬜ Basic aerodynamic model (point-mass)
+- ✅ Multi-body dynamics (Moon + Sun perturbations)
+- ✅ J2/J3/J4 Earth gravity harmonics (EGM96)
+- ✅ Atmospheric drag model (US Standard 1976 + thermosphere)
+- ✅ Multi-stage rocket physics
+- ✅ Basic aerodynamic model (point-mass)
+- ✅ Solar radiation pressure (cannonball + shadow)
+- ✅ Unified perturbation accumulator (OrbitalPerturbations)
+- ✅ Solar ephemeris (Meeus low-precision)
+- ✅ Perturbation fidelity comparison demo
 
 ### Phase 3
-- ⬜ 6DOF aerodynamics
-- ⬜ Joystick input for interactive flight
-- ⬜ Synthetic camera system
-- ⬜ Full "crushed it" scenario integration
-- ⬜ Checkpoint/resume capability
+- ✅ 6DOF aerodynamics (rotational dynamics, quaternion attitude, moment coefficients)
+- ✅ Joystick/gamepad input for interactive flight (browser Gamepad API)
+- ✅ Synthetic camera system (FOV footprint, GSD, ray-Earth intersection)
+- ✅ Full "crushed it" scenario integration (8-phase multi-domain demo)
+- ✅ Checkpoint/resume capability (JSON save/load of full simulation state)
 
 ### Phase 4
 - ⬜ Interplanetary trajectories (Mars, asteroids)

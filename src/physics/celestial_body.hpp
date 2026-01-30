@@ -26,7 +26,10 @@ struct CelestialBody {
 constexpr double EARTH_MU = 3.986004418e14;      // m³/s²
 constexpr double EARTH_RADIUS = 6378137.0;        // m (equatorial)
 constexpr double EARTH_J2 = 1.08262668e-3;
+constexpr double EARTH_J3 = -2.53265648e-6;       // EGM96 pear-shaped asymmetry
+constexpr double EARTH_J4 = -1.61098761e-6;       // EGM96 higher-order oblateness
 constexpr double EARTH_SOI = 929000e3;            // m (from Sun, ~929,000 km)
+constexpr double EARTH_OMEGA = 7.2921159e-5;      // rad/s (rotation rate)
 
 // Moon parameters
 constexpr double MOON_MU = 4.9048695e12;          // m³/s²
@@ -39,9 +42,11 @@ constexpr double EARTH_MOON_DISTANCE = 384400e3;  // m (mean distance)
 constexpr double MOON_ORBITAL_PERIOD = 27.321661 * 86400.0;  // seconds (sidereal)
 constexpr double MOON_MEAN_MOTION = 2.0 * 3.14159265358979323846 / MOON_ORBITAL_PERIOD;
 
-// Sun parameters (for future solar perturbations)
+// Sun parameters
 constexpr double SUN_MU = 1.32712440018e20;       // m³/s²
+constexpr double SUN_RADIUS = 696340000.0;        // m (mean radius)
 constexpr double AU = 1.495978707e11;             // Astronomical unit (m)
+constexpr double OBLIQUITY_J2000 = 0.4090928;     // rad (23.4393° obliquity of ecliptic)
 
 // Predefined body instances
 inline CelestialBody make_earth() {
@@ -61,6 +66,16 @@ inline CelestialBody make_moon() {
         MOON_RADIUS,
         MOON_SOI,
         MOON_J2
+    };
+}
+
+inline CelestialBody make_sun() {
+    return CelestialBody{
+        "Sun",
+        SUN_MU,
+        SUN_RADIUS,
+        0.0,    // SOI not meaningful for Sun as primary in Earth-centric sim
+        0.0     // J2 not modeled
     };
 }
 

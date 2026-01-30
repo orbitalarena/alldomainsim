@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenario Viewer - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+        }
+
+        #hudCanvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(10, 15, 10, 0.85);
+            border: 1px solid #00aa00;
+            border-radius: 4px;
+            padding: 10px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        #scenarioStatusBar {
+            top: 5px; left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #scenarioFlightPanel {
+            top: 70px; left: 10px; width: 200px;
+        }
+
+        #scenarioSystemsPanel {
+            top: 70px; right: 10px; width: 210px;
+        }
+
+        #scenarioControlsHelp {
+            bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            max-width: 700px;
+            display: none;
+        }
+
+        .panel h3 {
+            color: #00ff88;
+            font-size: 11px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #005500;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .data-label { color: #00aa00; }
+        .data-value { color: #00ff00; text-align: right; }
+
+        .key-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 2px 10px;
+        }
+
+        .key { color: #00ffff; font-weight: bold; }
+        .key-desc { color: #00aa00; }
+
+        #scenarioMsgOverlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+        }
+
+        #loadingOverlay h1 {
+            font-size: 32px;
+            color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 100, 0.5);
+            margin-bottom: 15px;
+        }
+
+        #loadingOverlay .subtitle {
+            font-size: 14px;
+            color: #00aa00;
+        }
+
+        #loadingOverlay .error {
+            color: #ff4444;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        #scenarioEntityList {
+            bottom: 10px; right: 10px; width: 180px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .entity-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .entity-name { color: #00ff00; }
+        .entity-type { color: #00aa00; font-size: 10px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <canvas id="hudCanvas"></canvas>
+
+    <!-- Status Bar -->
+    <div id="scenarioStatusBar" class="panel">
+        <span id="scenarioName">SCENARIO</span> |
+        <span id="scenarioSimTime">0:00</span> |
+        <span id="scenarioTimeWarp">1x</span> |
+        <span id="scenarioPauseStatus">RUNNING</span>
+    </div>
+
+    <!-- Flight Data Panel -->
+    <div id="scenarioFlightPanel" class="panel">
+        <h3>Flight Data</h3>
+        <div class="data-row"><span class="data-label">IAS</span><span class="data-value" id="scenarioIAS">---</span></div>
+        <div class="data-row"><span class="data-label">Mach</span><span class="data-value" id="scenarioMach">---</span></div>
+        <div class="data-row"><span class="data-label">ALT MSL</span><span class="data-value" id="scenarioAlt">---</span></div>
+        <div class="data-row"><span class="data-label">HDG</span><span class="data-value" id="scenarioHdg">---</span></div>
+        <div class="data-row"><span class="data-label">G-Load</span><span class="data-value" id="scenarioG">---</span></div>
+        <div class="data-row"><span class="data-label">Throttle</span><span class="data-value" id="scenarioThrottle">---</span></div>
+        <div class="data-row"><span class="data-label">Phase</span><span class="data-value" id="scenarioPhase">---</span></div>
+    </div>
+
+    <!-- Systems Panel -->
+    <div id="scenarioSystemsPanel" class="panel">
+        <h3>Systems</h3>
+        <div class="data-row"><span class="data-label">Engine</span><span class="data-value" id="scenarioEngine">---</span></div>
+        <div class="data-row"><span class="data-label">Gear</span><span class="data-value" id="scenarioGear">---</span></div>
+        <div class="data-row"><span class="data-label">Flaps</span><span class="data-value" id="scenarioFlaps">---</span></div>
+        <div class="data-row"><span class="data-label">Brakes</span><span class="data-value" id="scenarioBrakes">---</span></div>
+        <h3 style="margin-top:10px">Entities</h3>
+        <div id="scenarioEntityListInner"></div>
+    </div>
+
+    <!-- Controls Help -->
+    <div id="scenarioControlsHelp" class="panel">
+        <h3>Controls (Press H to hide)</h3>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="key-grid">
+                <span class="key">W / S</span><span class="key-desc">Throttle up/down</span>
+                <span class="key">Up / Down</span><span class="key-desc">Pitch down/up</span>
+                <span class="key">Left / Right</span><span class="key-desc">Roll left/right</span>
+                <span class="key">Ctrl+L/R</span><span class="key-desc">Yaw left/right</span>
+                <span class="key">E</span><span class="key-desc">Engine start/stop</span>
+                <span class="key">G</span><span class="key-desc">Toggle gear</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">F</span><span class="key-desc">Toggle flaps</span>
+                <span class="key">B</span><span class="key-desc">Wheel brakes</span>
+                <span class="key">Space</span><span class="key-desc">Pause</span>
+                <span class="key">C</span><span class="key-desc">Cycle camera</span>
+                <span class="key">+ / -</span><span class="key-desc">Time warp</span>
+                <span class="key">H</span><span class="key-desc">Toggle this help</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">1 / 2</span><span class="key-desc">Toggle panels</span>
+                <span class="key">Tab</span><span class="key-desc">Hide/show all</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Overlay -->
+    <div id="scenarioMsgOverlay"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+        <h1>ALL-DOMAIN SCENARIO VIEWER</h1>
+        <div class="subtitle" id="loadingStatus">Loading scenario...</div>
+        <div class="error" id="loadingError" style="display:none;"></div>
+    </div>
+
+    <!-- Dependencies: Cesium config, atmosphere, physics engine -->
+    <script src="cesium_config.js"></script>
+    <script src="js/fighter_atmosphere.js"></script>
+    <script src="js/fighter_sim_engine.js"></script>
+
+    <!-- Framework core -->
+    <script src="js/framework/constants.js"></script>
+    <script src="js/framework/ecs.js"></script>
+    <script src="js/framework/registry.js"></script>
+    <script src="js/framework/systems.js"></script>
+    <script src="js/framework/loader.js"></script>
+
+    <!-- Components -->
+    <script src="js/components/physics/flight3dof.js"></script>
+    <script src="js/components/control/player_input.js"></script>
+    <script src="js/components/visual/cesium_entity.js"></script>
+
+    <script>
+    // =========================================================================
+    // SCENARIO VIEWER — MAIN
+    // =========================================================================
+    'use strict';
+
+    (async function() {
+        // --- Get scenario URL from query string ---
+        const params = new URLSearchParams(window.location.search);
+        const scenarioUrl = params.get('scenario');
+
+        if (!scenarioUrl) {
+            _showLoadError('No scenario specified. Use ?scenario=scenarios/demo_fighter_patrol.json');
+            return;
+        }
+
+        document.getElementById('loadingStatus').textContent = 'Loading: ' + scenarioUrl;
+
+        // --- Init Cesium Viewer ---
+        let viewer;
+        try {
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: true,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: false,
+                timeline: false,
+                fullscreenButton: false,
+                vrButton: false,
+                infoBox: false,
+                selectionIndicator: false,
+                shadows: false,
+                shouldAnimate: true
+            });
+
+            Cesium.createWorldTerrainAsync().then(function(terrain) {
+                viewer.terrainProvider = terrain;
+            }).catch(function(e) {
+                console.warn('World terrain unavailable:', e);
+            });
+
+            addArcGISProviders(viewer);
+            viewer.scene.globe.enableLighting = true;
+        } catch (e) {
+            _showLoadError('Cesium initialization failed: ' + e.message);
+            return;
+        }
+
+        // --- Load scenario ---
+        let world;
+        try {
+            world = await ScenarioLoader.load(scenarioUrl, viewer);
+        } catch (e) {
+            _showLoadError('Scenario load failed: ' + e.message);
+            console.error(e);
+            return;
+        }
+
+        // --- Update UI with scenario metadata ---
+        const meta = world.scenarioMeta;
+        document.title = (meta.name || 'Scenario') + ' - All Domain Sim';
+        document.getElementById('scenarioName').textContent = (meta.name || 'SCENARIO').toUpperCase();
+
+        // Populate entity list
+        const listEl = document.getElementById('scenarioEntityListInner');
+        if (listEl) {
+            world.entities.forEach(function(entity) {
+                const row = document.createElement('div');
+                row.className = 'entity-row';
+                row.innerHTML =
+                    '<span class="entity-name">' + entity.name + '</span>' +
+                    '<span class="entity-type">' + entity.type + '</span>';
+                listEl.appendChild(row);
+            });
+        }
+
+        // Add systems panel live updates
+        world.addSystem('ui_systems', function(dt, w) {
+            const player = w._playerEntity;
+            if (!player) return;
+            var s = player.state;
+            _setText('scenarioEngine', s.engineOn ? 'ON' : 'OFF');
+            _setText('scenarioGear', s.gearDown ? 'DOWN' : 'UP');
+            _setText('scenarioFlaps', s.flapsDown ? 'DOWN' : 'UP');
+            _setText('scenarioBrakes', s.brakesOn ? 'ON' : 'OFF');
+        });
+
+        // --- Hide loading overlay ---
+        document.getElementById('loadingOverlay').style.display = 'none';
+
+        // --- HUD canvas setup ---
+        const hudCanvas = document.getElementById('hudCanvas');
+        hudCanvas.width = hudCanvas.clientWidth;
+        hudCanvas.height = hudCanvas.clientHeight;
+        window.addEventListener('resize', function() {
+            hudCanvas.width = hudCanvas.clientWidth;
+            hudCanvas.height = hudCanvas.clientHeight;
+        });
+
+        // --- Main tick ---
+        viewer.clock.onTick.addEventListener(function() {
+            world.tick();
+        });
+
+        console.log('Scenario loaded:', meta.name, '| Entities:', world.entities.size);
+
+    })();
+
+    // --- Helpers ---
+    function _showLoadError(msg) {
+        document.getElementById('loadingStatus').textContent = 'Error';
+        var errEl = document.getElementById('loadingError');
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+    }
+
+    function _setText(id, text) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+    </script>
+</body>
+</html>

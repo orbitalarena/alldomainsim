@@ -3,6 +3,9 @@
 
 #include "core/state_vector.hpp"
 
+// Forward declare Planet enum (defined in planetary_ephemeris.hpp)
+namespace sim { enum class Planet; }
+
 namespace sim {
 
 /**
@@ -49,6 +52,43 @@ public:
      * @return Geodetic coordinates (lat, lon in degrees, alt in meters)
      */
     static GeodeticCoord eci_to_geodetic(const Vec3& pos_eci, double jd);
+
+    // ── Heliocentric (HCI) conversions (Phase 4) ──
+
+    /**
+     * @brief Transform ECI position to Heliocentric J2000 Equatorial
+     * HCI = ECI + Earth_position_HCI (Earth's position from Sun)
+     * @param pos_eci Position in ECI frame [m]
+     * @param jd Julian Date
+     * @return Position in Heliocentric J2000 Equatorial [m]
+     */
+    static Vec3 eci_to_hci(const Vec3& pos_eci, double jd);
+
+    /**
+     * @brief Transform ECI velocity to HCI velocity
+     * Accounts for Earth's orbital velocity
+     */
+    static Vec3 vel_eci_to_hci(const Vec3& vel_eci, double jd);
+
+    /**
+     * @brief Transform HCI position to ECI
+     */
+    static Vec3 hci_to_eci(const Vec3& pos_hci, double jd);
+
+    /**
+     * @brief Transform HCI velocity to ECI velocity
+     */
+    static Vec3 vel_hci_to_eci(const Vec3& vel_hci, double jd);
+
+    /**
+     * @brief Transform HCI position to planet-centered inertial
+     */
+    static Vec3 hci_to_planet_centered(const Vec3& pos_hci, Planet planet, double jd);
+
+    /**
+     * @brief Transform HCI velocity to planet-centered velocity
+     */
+    static Vec3 vel_hci_to_planet_centered(const Vec3& vel_hci, Planet planet, double jd);
 };
 
 } // namespace sim

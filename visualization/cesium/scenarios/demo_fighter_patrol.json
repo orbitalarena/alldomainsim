@@ -1,0 +1,43 @@
+{
+    "metadata": {
+        "name": "Fighter Patrol",
+        "description": "Single F-16 airborne patrol over Edwards AFB",
+        "version": "1.0"
+    },
+    "environment": {
+        "atmosphere": "us_standard_1976",
+        "gravity": "constant",
+        "maxTimeWarp": 16
+    },
+    "entities": [
+        {
+            "id": "player",
+            "name": "EAGLE 1",
+            "type": "aircraft",
+            "team": "blue",
+            "initialState": {
+                "lat": 34.9054,
+                "lon": -117.8839,
+                "alt": 5000,
+                "speed": 200,
+                "heading": 220,
+                "gamma": 0,
+                "throttle": 0.6,
+                "engineOn": true,
+                "gearDown": false,
+                "infiniteFuel": true
+            },
+            "components": {
+                "physics": { "type": "flight3dof", "config": "f16" },
+                "control": { "type": "player_input", "config": "fighter" },
+                "visual":  { "type": "point", "color": "#44aaff", "pixelSize": 12, "trail": true, "trailColor": "#4488ff88", "label": "EAGLE 1" }
+            }
+        }
+    ],
+    "camera": {
+        "mode": "chase",
+        "target": "player",
+        "range": 200,
+        "pitch": -0.3
+    }
+}
