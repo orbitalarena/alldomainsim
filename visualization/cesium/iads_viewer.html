@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IADS Engagement — F2T2EA Kill Chain</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        .panel {
+            position: absolute;
+            background: rgba(5, 10, 20, 0.88);
+            border: 1px solid #1a3050;
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: #b0c8e0;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+        .panel h4 {
+            color: #5599cc;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #1a3050;
+            padding-bottom: 4px;
+        }
+
+        #statusBar {
+            position: absolute;
+            top: 8px; left: 50%; transform: translateX(-50%);
+            z-index: 30;
+            background: rgba(5, 10, 20, 0.92);
+            border: 1px solid #1a3050;
+            border-radius: 6px;
+            padding: 8px 20px;
+            color: #d0e8ff;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            text-align: center;
+            min-width: 350px;
+        }
+        #statusPhase { font-weight: bold; font-size: 16px; }
+        #statusTime { color: #6688aa; font-size: 12px; margin-top: 2px; }
+
+        #killChainBanner {
+            position: absolute;
+            top: 62px; left: 50%; transform: translateX(-50%);
+            z-index: 30;
+            display: flex;
+            gap: 2px;
+        }
+        .kc-stage {
+            width: 90px; height: 42px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #0a1525;
+            border: 1px solid #1a2540;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px; font-weight: bold;
+            color: #334455;
+            transition: all 0.3s ease;
+        }
+        .kc-stage.active { border-color: currentColor; animation: kcPulse 1.2s ease-in-out infinite; }
+        .kc-stage.done { border-color: currentColor; opacity: 0.9; }
+        .kc-stage .kc-time { font-size: 9px; font-weight: normal; margin-top: 1px; opacity: 0.7; }
+        @keyframes kcPulse {
+            0%, 100% { box-shadow: 0 0 8px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
+        }
+
+        #controls { top: 8px; left: 8px; min-width: 160px; }
+        #controls button {
+            display: block; width: 100%; margin: 3px 0; padding: 5px 8px;
+            background: #0d1a2a; border: 1px solid #1a3050; border-radius: 3px;
+            color: #88aacc; font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer;
+        }
+        #controls button:hover { background: #152535; border-color: #2a5080; }
+
+        #iadsStatus { top: 120px; left: 8px; width: 260px; }
+        .radar-block { margin-bottom: 8px; padding: 4px 0; }
+        .radar-header {
+            display: flex; justify-content: space-between;
+            font-weight: bold; color: #88bbdd; font-size: 11px;
+            border-bottom: 1px solid #122030; padding-bottom: 2px; margin-bottom: 3px;
+        }
+        .radar-state { padding: 1px 5px; border-radius: 2px; font-size: 9px; }
+        .data-row { display: flex; justify-content: space-between; padding: 1px 0; color: #7799bb; }
+        .data-val { color: #aaccee; }
+
+        #commPanel {
+            top: 120px; right: 8px; width: 290px;
+            max-height: calc(100vh - 200px);
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+        #networkCanvas { width: 268px; height: 200px; border: 1px solid #122030; border-radius: 3px; margin-bottom: 6px; }
+        #msgLog { flex: 1; overflow-y: auto; max-height: 260px; font-size: 10px; line-height: 1.5; }
+        #msgLog::-webkit-scrollbar { width: 4px; }
+        #msgLog::-webkit-scrollbar-thumb { background: #1a3050; border-radius: 2px; }
+        .msg-entry { padding: 2px 0; border-bottom: 1px solid #0a1525; }
+        .msg-time { color: #4477aa; }
+        .msg-route { font-weight: bold; }
+        .msg-type { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 9px; font-weight: bold; }
+        .msg-content { color: #6688aa; font-style: italic; }
+
+        #engagementTimeline {
+            position: absolute;
+            bottom: 12px; left: 50%; transform: translateX(-50%);
+            z-index: 30;
+            background: rgba(5, 10, 20, 0.88);
+            border: 1px solid #1a3050;
+            border-radius: 6px;
+            padding: 6px;
+            cursor: pointer;
+        }
+
+        #helpOverlay {
+            position: absolute;
+            bottom: 130px; left: 50%; transform: translateX(-50%);
+            z-index: 40;
+            background: rgba(5, 10, 20, 0.95);
+            border: 1px solid #1a3050;
+            border-radius: 8px;
+            padding: 16px 20px;
+            color: #88aacc;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            display: none;
+            min-width: 340px;
+        }
+        #helpOverlay h3 { color: #5599cc; margin-bottom: 8px; }
+        .help-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .help-key { color: #ccddee; font-weight: bold; width: 100px; }
+        .help-desc { color: #7799bb; }
+    </style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+<div id="loadStatus" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100;color:#5599cc;font-family:'Courier New',monospace;font-size:16px;">Loading IADS simulation...</div>
+
+<div id="statusBar">
+    <div id="statusPhase">IDLE</div>
+    <div id="statusTime">T+0.0s | 1x</div>
+</div>
+
+<div id="killChainBanner">
+    <div class="kc-stage" id="kc-FIND">FIND<span class="kc-time"></span></div>
+    <div class="kc-stage" id="kc-FIX">FIX<span class="kc-time"></span></div>
+    <div class="kc-stage" id="kc-TRACK">TRACK<span class="kc-time"></span></div>
+    <div class="kc-stage" id="kc-TARGET">TARGET<span class="kc-time"></span></div>
+    <div class="kc-stage" id="kc-ENGAGE">ENGAGE<span class="kc-time"></span></div>
+    <div class="kc-stage" id="kc-ASSESS">ASSESS<span class="kc-time"></span></div>
+</div>
+
+<div class="panel" id="controls">
+    <h4>Playback</h4>
+    <button onclick="togglePause()">SPACE &mdash; Pause/Resume</button>
+    <button onclick="changeWarp(1)">+ Speed Up</button>
+    <button onclick="changeWarp(-1)">&minus; Slow Down</button>
+    <button onclick="resetPlayback()">R &mdash; Restart</button>
+    <button onclick="toggleHelp()">H &mdash; Help</button>
+</div>
+
+<div class="panel" id="iadsStatus">
+    <h4>IADS Status</h4>
+    <div class="radar-block">
+        <div class="radar-header">EW RADAR <span class="radar-state" id="ewState" style="background:#003355;color:#00ccff">SCANNING</span></div>
+        <div class="data-row"><span>Range to tgt</span><span class="data-val" id="ewRange">---</span></div>
+        <div class="data-row"><span>Azimuth</span><span class="data-val" id="ewAz">0&deg;</span></div>
+        <div class="data-row"><span>Detections</span><span class="data-val" id="ewDetects">0</span></div>
+    </div>
+    <div class="radar-block">
+        <div class="radar-header">TTR <span class="radar-state" id="ttrState" style="background:#003322;color:#44ff88">OFF</span></div>
+        <div class="data-row"><span>Range to tgt</span><span class="data-val" id="ttrRange">---</span></div>
+        <div class="data-row"><span>Track conf</span><span class="data-val" id="ttrConf">0.00</span></div>
+        <div class="data-row"><span>Updates</span><span class="data-val" id="ttrUpdates">0</span></div>
+    </div>
+    <div class="radar-block">
+        <div class="radar-header">SAM/FCR <span class="radar-state" id="fcrState" style="background:#330011;color:#ff4444">OFF</span></div>
+        <div class="data-row"><span>Range to tgt</span><span class="data-val" id="fcrRange">---</span></div>
+        <div class="data-row"><span>Missiles</span><span class="data-val" id="samMissiles">6/6</span></div>
+        <div class="data-row"><span>SAM status</span><span class="data-val" id="samStatus">READY</span></div>
+        <div class="data-row"><span>Closure</span><span class="data-val" id="samClosure">---</span></div>
+    </div>
+    <div class="radar-block">
+        <div class="radar-header">C2 CENTER <span class="radar-state" id="c2State" style="background:#222;color:#aaa">MONITORING</span></div>
+        <div class="data-row"><span>Decision</span><span class="data-val" id="c2Decision">---</span></div>
+    </div>
+    <div class="radar-block">
+        <div class="radar-header" style="color:#ff6644">BOGEY-1 <span class="radar-state" style="background:#331100;color:#ff6644" id="bogeyState">INBOUND</span></div>
+        <div class="data-row"><span>HDG/ALT/SPD</span><span class="data-val" id="bogeyInfo">---</span></div>
+        <div class="data-row"><span>Range to SAM</span><span class="data-val" id="bogeyRange">---</span></div>
+    </div>
+</div>
+
+<div class="panel" id="commPanel">
+    <h4>SATCOM Network</h4>
+    <canvas id="networkCanvas" width="268" height="200"></canvas>
+    <h4>Message Log</h4>
+    <div id="msgLog"></div>
+</div>
+
+<div id="engagementTimeline">
+    <canvas id="timelineCanvas" width="800" height="95"></canvas>
+</div>
+
+<div id="helpOverlay">
+    <h3>KEYBOARD CONTROLS</h3>
+    <div class="help-row"><span class="help-key">SPACE</span><span class="help-desc">Pause / Resume</span></div>
+    <div class="help-row"><span class="help-key">+ / -</span><span class="help-desc">Speed up / slow down</span></div>
+    <div class="help-row"><span class="help-key">LEFT / RIGHT</span><span class="help-desc">Step frame back / forward</span></div>
+    <div class="help-row"><span class="help-key">SHIFT+L/R</span><span class="help-desc">Jump 5 seconds</span></div>
+    <div class="help-row"><span class="help-key">CLICK TIMELINE</span><span class="help-desc">Seek to time</span></div>
+    <div class="help-row"><span class="help-key">R</span><span class="help-desc">Restart playback</span></div>
+    <div class="help-row"><span class="help-key">V</span><span class="help-desc">Toggle range rings</span></div>
+    <div class="help-row"><span class="help-key">C</span><span class="help-desc">Toggle comm link lines</span></div>
+    <div class="help-row"><span class="help-key">1-5</span><span class="help-desc">Camera: EW / TTR / SAM / C2 / Aircraft</span></div>
+    <div class="help-row"><span class="help-key">H</span><span class="help-desc">Toggle this help</span></div>
+</div>
+
+<script>
+window.onerror = function(msg, src, line, col, err) {
+    var d = document.getElementById('loadStatus');
+    if (d) { d.style.color='#ff4444'; d.textContent='ERROR: '+msg+' ('+src+':'+line+')'; }
+    console.error('IADS Error:', msg, src, line, col, err);
+};
+</script>
+<script src="cesium_config.js"></script>
+<script src="js/iads_engine.js"></script>
+<script src="js/iads_comms.js"></script>
+<script>
+(function() {
+    'use strict';
+
+    console.log('[IADS] Script start. IadsEngine:', typeof IadsEngine, 'IadsComms:', typeof IadsComms);
+
+    var SIM_DT = 0.05;
+    var SIM_MAX = 180;  // longer to allow SSLS re-engagements
+
+    // ═══════════════════════════════════════════════════════════
+    // PHASE 1 — PRE-COMPUTE THE ENTIRE ENGAGEMENT (SSLS)
+    // ═══════════════════════════════════════════════════════════
+
+    var scenario, comms, eng;
+    try {
+        scenario = IadsEngine.createScenario();
+        comms    = IadsComms.createCommNetwork();
+        eng      = scenario.engagement;
+        console.log('[IADS] Scenario created OK. Magazine:', eng.missilesRemaining);
+    } catch(e) {
+        console.error('[IADS] Failed to create scenario:', e);
+        var d = document.getElementById('loadStatus');
+        if (d) { d.style.color='#ff4444'; d.textContent='ERROR creating scenario: '+e.message; }
+        return;
+    }
+
+    var frames          = [];   // keyframes array
+    var msgEvents       = [];   // {t, type, from, to, content, typeDef}
+    var interceptResults = [];  // [{id, t, lat, lon, alt, hit}]
+
+    function transitionPhase(newPhase, t) {
+        if (eng.phase !== 'IDLE' && eng.phase !== 'COMPLETE') {
+            eng.phaseHistory.push({ phase: eng.phase, startTime: eng.phaseStartTime, endTime: t });
+        }
+        eng.phase = newPhase;
+        eng.phaseStartTime = t;
+    }
+
+    function deliver(msg) {
+        msgEvents.push({
+            t: msg.arriveTime, type: msg.type, typeDef: msg.typeDef,
+            from: msg.from, to: msg.to, content: msg.content,
+        });
+
+        var t = scenario.simTime;
+        var ac = scenario.aircraft;
+        switch (msg.type) {
+            case 'DETECTION_REPORT':
+                if (eng.phase === 'FIND') {
+                    scenario.c2.state = 'DIRECTING';
+                    IadsComms.send(comms, 'c2', 'ttr', 'TRACK_ASSIGNMENT',
+                        { targetId: 'BOGEY-1' }, t);
+                }
+                break;
+            case 'TRACK_ASSIGNMENT':
+                scenario.ttr.assigned = true;
+                scenario.ttr.state = 'ACQUIRING';
+                break;
+            case 'TRACK_UPDATE':
+                eng.ttrUpdateCount++;
+                eng.trackConfidence = Math.min(1.0, eng.ttrUpdateCount * 0.30);
+                if (eng.phase === 'FIND' || eng.phase === 'FIX') {
+                    if (eng.phase === 'FIND') transitionPhase('FIX', t);
+                    if (eng.ttrUpdateCount >= 3 && eng.trackConfidence >= 0.8) {
+                        transitionPhase('TRACK', t);
+                        scenario.c2.state = 'EVALUATING';
+                        eng.c2EvalDoneTime = t + 2.0;
+                    }
+                }
+                break;
+            case 'WEAPON_ASSIGNMENT':
+                scenario.fcr.assigned = true;
+                scenario.fcr.state = 'ACQUIRING';
+                break;
+            case 'WEAPONS_FREE':
+                eng.weaponsFree = true;
+                scenario.c2.state = 'ENGAGED';
+                scenario.fcr.state = 'GUIDING';
+                if (!eng.samLaunched) {
+                    // Initial salvo: shoot-shoot
+                    var salvo = IadsEngine.launchSalvo(eng, ac,
+                        IadsEngine.SAM_CONFIG.salvo_size);
+                    transitionPhase('ENGAGE', t);
+                    salvo.forEach(function(msl) {
+                        IadsComms.send(comms, 'sam', 'c2', 'LAUNCH_COMMAND',
+                            { targetId: 'BOGEY-1', weapon: 'SA-20', missileId: msl.id }, t);
+                    });
+                }
+                break;
+            case 'BDA_REPORT':
+                var bdaResult = msg.content.result;
+                if (bdaResult === 'KILL') {
+                    eng.assessResult = 'HIT';
+                    transitionPhase('COMPLETE', t);
+                    scenario.c2.state = 'COMPLETE';
+                } else if (bdaResult === 'MISS') {
+                    // Look-shoot: fire follow-up if missiles remain and target alive
+                    if (eng.missilesRemaining > 0 && !ac.destroyed) {
+                        var followUp = IadsEngine.launchSalvo(eng, ac, 1);
+                        followUp.forEach(function(msl) {
+                            IadsComms.send(comms, 'sam', 'c2', 'LAUNCH_COMMAND',
+                                { targetId: 'BOGEY-1', weapon: 'SA-20', missileId: msl.id }, t);
+                        });
+                        // Return to ENGAGE if we were in ASSESS
+                        if (eng.phase === 'ASSESS') transitionPhase('ENGAGE', t);
+                    } else {
+                        // Out of missiles or target destroyed
+                        eng.assessResult = 'MISS';
+                        // Only go COMPLETE if no missiles still flying
+                        var anyFlying = eng.missiles.some(function(m) {
+                            return m.state === 'FLYING' || m.state === 'TERMINAL';
+                        });
+                        if (!anyFlying) {
+                            transitionPhase('COMPLETE', t);
+                            scenario.c2.state = 'COMPLETE';
+                        }
+                    }
+                }
+                break;
+        }
+    }
+
+    // ─── Pre-compute loop ──────────────────────────────────
+    console.log('[IADS] Starting SSLS pre-compute...');
+  try {
+    for (var st = 0; st < SIM_MAX; st += SIM_DT) {
+        scenario.simTime = st;
+        var ac = scenario.aircraft;
+
+        IadsEngine.updateAircraft(ac, SIM_DT);
+        IadsEngine.updateRadarScan(scenario.ewRadar, ac, SIM_DT);
+        IadsEngine.updateRadarScan(scenario.ttr, ac, SIM_DT);
+        IadsEngine.updateRadarScan(scenario.fcr, ac, SIM_DT);
+
+        // EW detection
+        var ewDet = IadsEngine.checkDetection(scenario.ewRadar, ac, st);
+        if (ewDet) {
+            if (eng.phase === 'IDLE') {
+                transitionPhase('FIND', st);
+                scenario.ewRadar.state = 'DETECTING';
+            }
+            IadsComms.send(comms, 'ew_radar', 'c2', 'DETECTION_REPORT', {
+                targetId: ewDet.targetId, range_nm: ewDet.range_nm,
+                bearing_deg: ewDet.bearing_deg,
+                lat: ewDet.measuredLat, lon: ewDet.measuredLon, alt: ewDet.measuredAlt,
+            }, st);
+        }
+
+        // TTR detection
+        if (scenario.ttr.assigned && !ac.destroyed) {
+            var ttrDet = IadsEngine.checkDetection(scenario.ttr, ac, st);
+            if (ttrDet) {
+                scenario.ttr.state = 'TRACKING';
+                IadsComms.send(comms, 'ttr', 'c2', 'TRACK_UPDATE', {
+                    targetId: ttrDet.targetId,
+                    lat: ttrDet.measuredLat, lon: ttrDet.measuredLon, alt: ttrDet.measuredAlt,
+                    speed: ttrDet.speed, heading: ttrDet.heading, range_nm: ttrDet.range_nm,
+                }, st);
+            }
+        }
+
+        // FCR
+        if (scenario.fcr.assigned && !ac.destroyed)
+            IadsEngine.checkDetection(scenario.fcr, ac, st);
+
+        // Comms
+        var delivered = IadsComms.update(comms, SIM_DT, st);
+        delivered.forEach(deliver);
+
+        // C2 evaluation timer
+        if (eng.phase === 'TRACK' && eng.c2EvalDoneTime && st >= eng.c2EvalDoneTime) {
+            eng.c2EvalDoneTime = null;
+            scenario.c2.state = 'TARGETING';
+            transitionPhase('TARGET', st);
+            IadsComms.send(comms, 'c2', 'sam', 'WEAPON_ASSIGNMENT',
+                { targetId: 'BOGEY-1', weapon: 'SA-20' }, st);
+            IadsComms.send(comms, 'c2', 'sam', 'WEAPONS_FREE',
+                { targetId: 'BOGEY-1' }, st);
+        }
+
+        // SAM physics — sub-step ALL active missiles
+        for (var mi = 0; mi < eng.missiles.length; mi++) {
+            var msl = eng.missiles[mi];
+            if (msl.state !== 'FLYING' && msl.state !== 'TERMINAL') continue;
+
+            var samRem = SIM_DT, samSteps = 0;
+            while (samRem > 0 && samSteps < 200) {
+                var subDt = Math.min(samRem, 0.01);
+                IadsEngine.stepSAM(msl, ac, subDt);
+                samRem -= subDt; samSteps++;
+                if (msl.state === 'HIT' || msl.state === 'MISS') break;
+            }
+
+            if (msl.state === 'HIT') {
+                ac.destroyed = true;
+                eng.assessResult = 'HIT';
+                interceptResults.push({
+                    id: msl.id, t: st,
+                    lat: ac.lat, lon: ac.lon, alt: ac.alt, hit: true
+                });
+                if (eng.phase === 'ENGAGE') transitionPhase('ASSESS', st);
+                IadsComms.send(comms, 'sam', 'c2', 'BDA_REPORT',
+                    { targetId: 'BOGEY-1', result: 'KILL', weapon: 'SA-20', missileId: msl.id }, st);
+                scenario.fcr.state = 'BDA';
+            } else if (msl.state === 'MISS') {
+                interceptResults.push({
+                    id: msl.id, t: st,
+                    lat: msl.lat, lon: msl.lon, alt: msl.alt, hit: false
+                });
+                var anyStillFlying = eng.missiles.some(function(m) {
+                    return m.state === 'FLYING' || m.state === 'TERMINAL';
+                });
+                if (!anyStillFlying && eng.phase === 'ENGAGE') {
+                    transitionPhase('ASSESS', st);
+                }
+                IadsComms.send(comms, 'sam', 'c2', 'BDA_REPORT',
+                    { targetId: 'BOGEY-1', result: 'MISS', weapon: 'SA-20', missileId: msl.id }, st);
+                scenario.fcr.state = 'BDA';
+            }
+        }
+
+        // Force COMPLETE if all missiles resolved and none remaining
+        if (eng.phase !== 'COMPLETE' && eng.phase !== 'IDLE' && eng.samLaunched) {
+            var allDone = eng.missiles.every(function(m) {
+                return m.state === 'HIT' || m.state === 'MISS';
+            });
+            if (allDone && eng.missilesRemaining === 0 && eng.missiles.length > 0) {
+                transitionPhase('COMPLETE', st);
+                scenario.c2.state = 'COMPLETE';
+            }
+        }
+
+        // Record keyframe
+        frames.push({
+            t: st,
+            acLat: ac.lat, acLon: ac.lon, acAlt: ac.alt,
+            acSpeed: ac.speed, acHeading: ac.heading, acDestroyed: ac.destroyed,
+            missiles: eng.missiles.map(function(m) {
+                return { id: m.id, lat: m.lat, lon: m.lon, alt: m.alt,
+                         state: m.state, flightTime: m.flightTime };
+            }),
+            missilesFired: eng.missilesFired,
+            missilesRemaining: eng.missilesRemaining,
+            ewAz: scenario.ewRadar.currentAz,
+            ewState: scenario.ewRadar.state,
+            ewDetects: scenario.ewRadar.detectionCount,
+            ttrState: scenario.ttr.state,
+            ttrAssigned: scenario.ttr.assigned,
+            fcrState: scenario.fcr.state,
+            fcrAssigned: scenario.fcr.assigned,
+            c2State: scenario.c2.state,
+            phase: eng.phase,
+            phaseStartTime: eng.phaseStartTime,
+            phaseHistory: JSON.parse(JSON.stringify(eng.phaseHistory)),
+            trackConf: eng.trackConfidence,
+            ttrUpdates: eng.ttrUpdateCount,
+            weaponsFree: eng.weaponsFree,
+            samLaunched: eng.samLaunched,
+        });
+
+        if (eng.phase === 'COMPLETE') {
+            for (var extra = 0; extra < 3; extra += SIM_DT) {
+                st += SIM_DT;
+                scenario.simTime = st;
+                delivered = IadsComms.update(comms, SIM_DT, st);
+                delivered.forEach(deliver);
+                var lastF = frames[frames.length - 1];
+                var settleF = {};
+                for (var k in lastF) settleF[k] = lastF[k];
+                settleF.t = st;
+                frames.push(settleF);
+            }
+            break;
+        }
+    }
+  } catch(precomputeErr) {
+    console.error('[IADS] Pre-compute FAILED:', precomputeErr);
+    var d2 = document.getElementById('loadStatus');
+    if (d2) { d2.style.color='#ff4444'; d2.textContent='Pre-compute error: '+precomputeErr.message; }
+  }
+
+    var allMessages = comms.delivered.slice().concat(comms.pending.slice());
+    var totalTime = frames.length > 0 ? frames[frames.length - 1].t + 5 : 60;
+
+    var hitCount = interceptResults.filter(function(r){return r.hit;}).length;
+    var missCount = interceptResults.filter(function(r){return !r.hit;}).length;
+    console.log('[IADS] Pre-computed ' + frames.length + ' frames over ' +
+        (frames.length > 0 ? frames[frames.length-1].t.toFixed(1) : 0) + 's. ' +
+        msgEvents.length + ' messages. Missiles: ' + eng.missilesFired + ' fired, ' +
+        hitCount + ' hit, ' + missCount + ' miss');
+
+    if (frames.length === 0) {
+        frames.push({
+            t:0, acLat:32.5, acLon:-118.2, acAlt:8000, acSpeed:250, acHeading:140, acDestroyed:false,
+            missiles:[], missilesFired:0, missilesRemaining:6,
+            ewAz:0, ewState:'SCANNING', ewDetects:0,
+            ttrState:'OFF', ttrAssigned:false, fcrState:'OFF', fcrAssigned:false,
+            c2State:'MONITORING', phase:'IDLE', phaseStartTime:0, phaseHistory:[],
+            trackConf:0, ttrUpdates:0, weaponsFree:false, samLaunched:false,
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PHASE 2 — CESIUM VIEWER + PLAYBACK
+    // ═══════════════════════════════════════════════════════════
+
+    console.log('[IADS] Creating Cesium viewer...');
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+        baseLayerPicker: true,
+        geocoder: false, homeButton: false, sceneModePicker: false,
+        navigationHelpButton: false, animation: false, timeline: false,
+        fullscreenButton: false, vrButton: false, infoBox: false,
+        selectionIndicator: false, shadows: false, shouldAnimate: true,
+    });
+    try { Cesium.createWorldTerrainAsync().then(function(t) { viewer.terrainProvider = t; }).catch(function(){}); }
+    catch(e) { try { viewer.terrainProvider = Cesium.createWorldTerrain(); } catch(e2) {} }
+    try { addArcGISProviders(viewer); } catch(e) {}
+    viewer.scene.globe.enableLighting = true;
+
+    var loadEl = document.getElementById('loadStatus');
+    if (loadEl) loadEl.style.display = 'none';
+
+    // ─── Playback state ──────────────────────────────────────
+    var WARP_LEVELS = [0.5, 1, 2, 5, 10, 30];
+    var warpIndex   = 1;
+    var timeWarp    = 1;
+    var isPaused    = false;
+    var playTime    = 0;
+    var lastWall    = null;
+    var frameCount  = 0;
+    var showRangeRings = true;
+    var showCommLines  = true;
+    var helpVisible    = false;
+
+    // ─── Multi-missile playback state ────────────────────────
+    var missileEntities = {};    // { 'SAM-1': {entity, trailEntity, trail:[]} }
+    var interceptEntities = [];  // intercept marker entities
+    var acTrail = [];
+
+    var MISSILE_COLORS = [
+        Cesium.Color.YELLOW,
+        Cesium.Color.fromCssColorString('#ffaa00'),
+        Cesium.Color.fromCssColorString('#ff8800'),
+        Cesium.Color.fromCssColorString('#ff6600'),
+        Cesium.Color.fromCssColorString('#ff4400'),
+        Cesium.Color.fromCssColorString('#ff2200'),
+    ];
+
+    // ─── Helpers ─────────────────────────────────────────────
+    var P = IadsEngine.POSITIONS;
+
+    function c3(lat, lon, alt) {
+        return Cesium.Cartesian3.fromDegrees(lon, lat, alt || 0);
+    }
+
+    function getFrame(t) {
+        if (frames.length === 0) return frames[0];
+        if (t <= 0) return frames[0];
+        if (t >= frames[frames.length-1].t) return frames[frames.length-1];
+        var lo = 0, hi = frames.length - 1;
+        while (lo < hi - 1) {
+            var mid = (lo + hi) >> 1;
+            if (frames[mid].t <= t) lo = mid; else hi = mid;
+        }
+        return frames[lo];
+    }
+
+    // ─── Create Cesium entities ──────────────────────────────
+
+    function makePoint(name, lat, lon, alt, color, size) {
+        return viewer.entities.add({
+            name: name,
+            position: c3(lat, lon, alt),
+            point: { pixelSize: size, color: color, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+            label: {
+                text: name, font: '11px Courier New',
+                fillColor: color, outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -12), scale: 0.9,
+            },
+        });
+    }
+
+    function makeRing(lat, lon, range_nm, color) {
+        return viewer.entities.add({
+            position: c3(lat, lon, 0),
+            ellipse: {
+                semiMajorAxis: range_nm * IadsEngine.NM_TO_M,
+                semiMinorAxis: range_nm * IadsEngine.NM_TO_M,
+                height: 0, fill: false, outline: true,
+                outlineColor: color.withAlpha(0.35), outlineWidth: 1,
+            },
+        });
+    }
+
+    // Ground nodes
+    makePoint('EW RADAR', P.ew_radar.lat, P.ew_radar.lon, P.ew_radar.alt, Cesium.Color.CYAN, 14);
+    makePoint('TTR', P.ttr.lat, P.ttr.lon, P.ttr.alt, Cesium.Color.LIME, 12);
+    makePoint('SAM SITE', P.sam.lat, P.sam.lon, P.sam.alt, Cesium.Color.RED, 12);
+    makePoint('C2 CENTER', P.c2.lat, P.c2.lon, P.c2.alt, Cesium.Color.WHITE, 14);
+    makePoint('SATCOM-1', P.satcom.lat, P.satcom.lon, P.satcom.alt, Cesium.Color.WHITE.withAlpha(0.8), 8);
+
+    // Range rings
+    var ewRing  = makeRing(P.ew_radar.lat, P.ew_radar.lon, IadsEngine.RADAR_CONFIGS.EW.maxRange_nm, Cesium.Color.CYAN);
+    var ttrRing = makeRing(P.ttr.lat, P.ttr.lon, IadsEngine.RADAR_CONFIGS.TTR.maxRange_nm, Cesium.Color.LIME);
+    var fcrRing = makeRing(P.sam.lat, P.sam.lon, IadsEngine.RADAR_CONFIGS.FCR.maxRange_nm, Cesium.Color.RED);
+
+    // EW scan beam
+    viewer.entities.add({
+        polygon: {
+            hierarchy: new Cesium.CallbackProperty(function() {
+                var f = getFrame(playTime);
+                var az = f.ewAz;
+                var hw = IadsEngine.RADAR_CONFIGS.EW.beamwidth_deg / 2;
+                var rangeDeg = (IadsEngine.RADAR_CONFIGS.EW.maxRange_nm * IadsEngine.NM_TO_M) / IadsEngine.R_EARTH * IadsEngine.RAD;
+                var pts = [c3(P.ew_radar.lat, P.ew_radar.lon, 0)];
+                for (var i = 0; i <= 8; i++) {
+                    var a = ((az - hw) + (2 * hw) * i / 8) * IadsEngine.DEG;
+                    pts.push(c3(
+                        P.ew_radar.lat + rangeDeg * Math.cos(a),
+                        P.ew_radar.lon + rangeDeg * Math.sin(a) / Math.cos(P.ew_radar.lat * IadsEngine.DEG),
+                        0));
+                }
+                return new Cesium.PolygonHierarchy(pts);
+            }, false),
+            material: Cesium.Color.CYAN.withAlpha(0.12),
+            outline: true, outlineColor: Cesium.Color.CYAN.withAlpha(0.4),
+        },
+    });
+
+    // TTR beam
+    viewer.entities.add({
+        polyline: {
+            positions: new Cesium.CallbackProperty(function() {
+                var f = getFrame(playTime);
+                if (!f.ttrAssigned || f.acDestroyed) return [];
+                return [c3(P.ttr.lat, P.ttr.lon, P.ttr.alt + 500), c3(f.acLat, f.acLon, f.acAlt)];
+            }, false),
+            width: 2,
+            material: new Cesium.PolylineDashMaterialProperty({ color: Cesium.Color.LIME.withAlpha(0.6), dashLength: 12 }),
+        },
+    });
+
+    // FCR beam
+    viewer.entities.add({
+        polyline: {
+            positions: new Cesium.CallbackProperty(function() {
+                var f = getFrame(playTime);
+                if (!f.fcrAssigned || f.acDestroyed) return [];
+                return [c3(P.sam.lat, P.sam.lon, P.sam.alt + 500), c3(f.acLat, f.acLon, f.acAlt)];
+            }, false),
+            width: 3,
+            material: Cesium.Color.RED.withAlpha(0.7),
+        },
+    });
+
+    // Aircraft
+    viewer.entities.add({
+        name: 'BOGEY-1',
+        position: new Cesium.CallbackProperty(function() {
+            var f = getFrame(playTime);
+            return c3(f.acLat, f.acLon, f.acAlt);
+        }, false),
+        point: { pixelSize: 12, color: Cesium.Color.fromCssColorString('#ff4422') },
+        label: {
+            text: new Cesium.CallbackProperty(function() {
+                var f = getFrame(playTime);
+                if (f.acDestroyed) return 'BOGEY-1 [DESTROYED]';
+                return 'BOGEY-1\n' + f.acHeading.toFixed(0) + '\u00B0 ' + (f.acSpeed * 1.94384).toFixed(0) + 'kts';
+            }, false),
+            font: '11px Courier New',
+            fillColor: Cesium.Color.fromCssColorString('#ff6644'),
+            outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -14), scale: 0.9,
+        },
+    });
+    viewer.entities.add({
+        polyline: {
+            positions: new Cesium.CallbackProperty(function() { return acTrail; }, false),
+            width: 2, material: Cesium.Color.fromCssColorString('#ff4422').withAlpha(0.3),
+        },
+    });
+
+    // ─── Multi-missile entity management ─────────────────────
+
+    function ensureMissileEntities(f) {
+        f.missiles.forEach(function(msl, idx) {
+            if (missileEntities[msl.id]) return;
+            if (msl.state === 'HIT' || msl.state === 'MISS') return;
+
+            var color = MISSILE_COLORS[idx % MISSILE_COLORS.length];
+            var trail = [];
+            var mslId = msl.id;  // closure capture
+            var entity = viewer.entities.add({
+                position: new Cesium.CallbackProperty(function() {
+                    var ff = getFrame(playTime);
+                    var mm = null;
+                    for (var j = 0; j < ff.missiles.length; j++) {
+                        if (ff.missiles[j].id === mslId) { mm = ff.missiles[j]; break; }
+                    }
+                    if (!mm) return c3(P.sam.lat, P.sam.lon, P.sam.alt);
+                    return c3(mm.lat, mm.lon, mm.alt);
+                }, false),
+                point: { pixelSize: 8, color: color },
+                label: {
+                    text: msl.id, font: '10px Courier New', fillColor: color,
+                    outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -10), scale: 0.8,
+                },
+            });
+            var trailEntity = viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(function() { return trail; }, false),
+                    width: 2, material: color.withAlpha(0.5),
+                },
+            });
+            missileEntities[msl.id] = { entity: entity, trailEntity: trailEntity, trail: trail, color: color };
+        });
+    }
+
+    function removeAllMissileEntities() {
+        Object.keys(missileEntities).forEach(function(id) {
+            var me = missileEntities[id];
+            if (me.entity) viewer.entities.remove(me.entity);
+            if (me.trailEntity) viewer.entities.remove(me.trailEntity);
+        });
+        missileEntities = {};
+        interceptEntities.forEach(function(e) { viewer.entities.remove(e); });
+        interceptEntities = [];
+    }
+
+    // SATCOM link lines
+    var commLineEntities = [];
+    var commPulseEntities = [];
+    var satPos = c3(P.satcom.lat, P.satcom.lon, P.satcom.alt);
+    [{p: P.ew_radar, c: Cesium.Color.CYAN}, {p: P.ttr, c: Cesium.Color.LIME},
+     {p: P.sam, c: Cesium.Color.RED}, {p: P.c2, c: Cesium.Color.WHITE}].forEach(function(n) {
+        commLineEntities.push(viewer.entities.add({
+            polyline: {
+                positions: [c3(n.p.lat, n.p.lon, n.p.alt), satPos],
+                width: 1,
+                material: new Cesium.PolylineDashMaterialProperty({ color: n.c.withAlpha(0.15), dashLength: 16 }),
+            },
+        }));
+    });
+
+    // ─── Canvas: Network topology ────────────────────────────
+    var netCanvas = document.getElementById('networkCanvas');
+    var netCtx    = netCanvas.getContext('2d');
+    var NET_NODES = {
+        satcom:   { x:134, y:28,  color:'#aaaaaa', label:'SATCOM' },
+        ew_radar: { x:40,  y:110, color:'#00ccff', label:'EW' },
+        ttr:      { x:110, y:150, color:'#44ff88', label:'TTR' },
+        sam:      { x:228, y:110, color:'#ff4444', label:'SAM' },
+        c2:       { x:160, y:180, color:'#cccccc', label:'C2' },
+    };
+
+    function drawNetwork() {
+        var ctx = netCtx, w = netCanvas.width, h = netCanvas.height;
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = '#050a14'; ctx.fillRect(0,0,w,h);
+        var sat = NET_NODES.satcom;
+        ['ew_radar','ttr','sam','c2'].forEach(function(id) {
+            var nd = NET_NODES[id];
+            ctx.strokeStyle = 'rgba(30,60,90,0.4)'; ctx.lineWidth = 1;
+            ctx.setLineDash([4,4]);
+            ctx.beginPath(); ctx.moveTo(sat.x, sat.y); ctx.lineTo(nd.x, nd.y); ctx.stroke();
+            ctx.setLineDash([]);
+        });
+        allMessages.forEach(function(msg) {
+            if (playTime < msg.sendTime || playTime > msg.arriveTime) return;
+            var progress = (playTime - msg.sendTime) / (msg.arriveTime - msg.sendTime);
+            var fromN = NET_NODES[msg.from] || NET_NODES.c2;
+            var toN   = NET_NODES[msg.to]   || NET_NODES.c2;
+            var UFRAC = IadsComms.UPLINK_FRAC, RFRAC = IadsComms.RELAY_FRAC;
+            var px, py;
+            if (progress < UFRAC) { var lp = progress / UFRAC; px = fromN.x+(sat.x-fromN.x)*lp; py = fromN.y+(sat.y-fromN.y)*lp; }
+            else if (progress < UFRAC+RFRAC) { px = sat.x; py = sat.y; }
+            else { var lp2 = (progress-UFRAC-RFRAC)/(1-UFRAC-RFRAC); px = sat.x+(toN.x-sat.x)*lp2; py = sat.y+(toN.y-sat.y)*lp2; }
+            ctx.fillStyle = msg.typeDef.color; ctx.shadowColor = msg.typeDef.color; ctx.shadowBlur = 8;
+            ctx.beginPath(); ctx.arc(px,py,4,0,Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+        });
+        var f = getFrame(playTime);
+        Object.keys(NET_NODES).forEach(function(id) {
+            var nd = NET_NODES[id], r = id==='satcom' ? 10 : 8;
+            var glow = false;
+            if (id==='ew_radar' && f.ewDetects>0) glow=true;
+            if (id==='ttr' && f.ttrAssigned) glow=true;
+            if (id==='sam' && f.fcrAssigned) glow=true;
+            if (id==='c2' && f.phase!=='IDLE') glow=true;
+            if (glow) { ctx.shadowColor=nd.color; ctx.shadowBlur=12; }
+            ctx.fillStyle = nd.color; ctx.beginPath(); ctx.arc(nd.x,nd.y,r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+            ctx.font='9px Courier New'; ctx.textAlign='center'; ctx.fillText(nd.label,nd.x,nd.y+r+12);
+            var st2='';
+            if (id==='ew_radar') st2=f.ewState; if (id==='ttr') st2=f.ttrState;
+            if (id==='sam') st2=f.fcrState; if (id==='c2') st2=f.c2State;
+            if (st2) { ctx.fillStyle='rgba(100,150,200,0.5)'; ctx.font='8px Courier New'; ctx.fillText(st2,nd.x,nd.y-r-4); }
+        });
+    }
+
+    // ─── Canvas: Timeline (with click-to-seek) ───────────────
+    var tlCanvas = document.getElementById('timelineCanvas');
+    var tlCtx    = tlCanvas.getContext('2d');
+    var TL_XO = 50;  // left offset
+    var isDraggingTimeline = false;
+
+    function tlTimeToX(t) { var maxT = Math.max(totalTime, 80); return TL_XO + t * (tlCanvas.width - 60) / maxT; }
+    function tlXToTime(px) { var maxT = Math.max(totalTime, 80); return Math.max(0, Math.min(totalTime, (px - TL_XO) / ((tlCanvas.width - 60) / maxT))); }
+
+    function drawTimeline() {
+        var ctx = tlCtx, w = tlCanvas.width, h = tlCanvas.height;
+        ctx.clearRect(0,0,w,h); ctx.fillStyle='#050a14'; ctx.fillRect(0,0,w,h);
+        var f = getFrame(playTime);
+        var maxT = Math.max(totalTime, 80);
+        var barY=15, barH=28, xS=(w-60)/maxT, xO=TL_XO;
+
+        ctx.strokeStyle='#1a3050'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(xO,barY+barH+5); ctx.lineTo(w-10,barY+barH+5); ctx.stroke();
+        ctx.fillStyle='#446688'; ctx.font='9px Courier New'; ctx.textAlign='center';
+        for (var tt=0; tt<=maxT; tt+=10) { ctx.fillText(tt+'s', xO+tt*xS, barY+barH+18); }
+        ctx.textAlign='right'; ctx.fillText('F2T2EA',xO-6,barY+barH/2+3);
+
+        // phase bars
+        f.phaseHistory.forEach(function(ph) {
+            var x1=xO+ph.startTime*xS, x2=xO+(ph.endTime!==undefined?ph.endTime:playTime)*xS;
+            ctx.fillStyle=IadsEngine.PHASE_COLORS[ph.phase]; ctx.globalAlpha=0.6;
+            ctx.fillRect(x1,barY,Math.max(x2-x1,2),barH); ctx.globalAlpha=1;
+            if (x2-x1>30) { ctx.fillStyle='#000'; ctx.font='bold 9px Courier New'; ctx.textAlign='center'; ctx.fillText(ph.phase,(x1+x2)/2,barY+barH/2+3); }
+        });
+        if (f.phase!=='IDLE' && f.phase!=='COMPLETE') {
+            var x1b=xO+f.phaseStartTime*xS, x2b=xO+playTime*xS;
+            ctx.fillStyle=IadsEngine.PHASE_COLORS[f.phase]; ctx.globalAlpha=0.7;
+            ctx.fillRect(x1b,barY,Math.max(x2b-x1b,2),barH); ctx.globalAlpha=1;
+            if (x2b-x1b>30) { ctx.fillStyle='#000'; ctx.font='bold 9px Courier New'; ctx.textAlign='center'; ctx.fillText(f.phase,(x1b+x2b)/2,barY+barH/2+3); }
+        }
+
+        // message dots
+        var evY=barY+barH+24;
+        msgEvents.forEach(function(m) { if (m.t<=playTime) { ctx.fillStyle=m.typeDef.color; ctx.beginPath(); ctx.arc(xO+m.t*xS,evY,2.5,0,Math.PI*2); ctx.fill(); }});
+        ctx.fillStyle='#334455'; ctx.font='8px Courier New'; ctx.textAlign='right'; ctx.fillText('msgs',xO-6,evY+3);
+
+        // SAM intercept markers
+        var mslY = evY + 14;
+        ctx.fillText('SAMs', xO-6, mslY+3);
+        interceptResults.forEach(function(ir) {
+            if (ir.t > playTime) return;
+            var mx = xO + ir.t * xS;
+            if (ir.hit) {
+                ctx.fillStyle='#ff8800'; ctx.beginPath(); ctx.arc(mx, mslY, 4, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.strokeStyle='#666'; ctx.lineWidth=1.5;
+                ctx.beginPath(); ctx.moveTo(mx-3,mslY-3); ctx.lineTo(mx+3,mslY+3); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(mx+3,mslY-3); ctx.lineTo(mx-3,mslY+3); ctx.stroke();
+            }
+        });
+
+        // cursor with handle
+        var cx = xO + playTime * xS;
+        ctx.strokeStyle='#ff3333'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(cx, barY-4); ctx.lineTo(cx, mslY+10); ctx.stroke();
+        ctx.fillStyle='#ff3333';
+        ctx.beginPath(); ctx.moveTo(cx-5, barY-6); ctx.lineTo(cx+5, barY-6); ctx.lineTo(cx, barY); ctx.closePath(); ctx.fill();
+    }
+
+    // Timeline click-to-seek
+    function getCanvasX(evt) {
+        var rect = tlCanvas.getBoundingClientRect();
+        return (evt.clientX - rect.left) * (tlCanvas.width / rect.width);
+    }
+    tlCanvas.addEventListener('mousedown', function(e) {
+        isDraggingTimeline = true;
+        seekTo(tlXToTime(getCanvasX(e)));
+        isPaused = true;
+    });
+    tlCanvas.addEventListener('mousemove', function(e) {
+        if (!isDraggingTimeline) return;
+        seekTo(tlXToTime(getCanvasX(e)));
+    });
+    window.addEventListener('mouseup', function() { isDraggingTimeline = false; });
+
+    // ─── Message log ─────────────────────────────────────────
+    var msgLogEl = document.getElementById('msgLog');
+    var lastLogIdx = 0;
+
+    function formatContent(m) {
+        var c = m.content;
+        switch (m.type) {
+            case 'DETECTION_REPORT': return 'Contact ' + c.targetId + ', ' + c.range_nm.toFixed(0) + 'nm brg ' + c.bearing_deg.toFixed(0) + '\u00B0';
+            case 'TRACK_ASSIGNMENT': return 'Acquire ' + c.targetId;
+            case 'TRACK_UPDATE': return c.targetId + ': ' + c.lat.toFixed(1) + 'N ' + Math.abs(c.lon).toFixed(1) + 'W ' + (c.speed*1.94384).toFixed(0) + 'kts';
+            case 'WEAPON_ASSIGNMENT': return c.weapon + ' assigned to ' + c.targetId;
+            case 'WEAPONS_FREE': return 'WEAPONS FREE \u2014 engage ' + c.targetId;
+            case 'LAUNCH_COMMAND': return (c.missileId||c.weapon) + ' launched at ' + c.targetId;
+            case 'BDA_REPORT': return 'BDA: ' + c.result + ' \u2014 ' + (c.missileId||c.targetId);
+            default: return m.type;
+        }
+    }
+
+    function appendLogEntry(m) {
+        var div = document.createElement('div'); div.className = 'msg-entry';
+        var route = (IadsComms.NODE_NAMES[m.from]||m.from) + ' \u2192 SAT \u2192 ' + (IadsComms.NODE_NAMES[m.to]||m.to);
+        div.innerHTML = '<span class="msg-time">T+' + m.t.toFixed(1) + 's</span> ' +
+            '<span class="msg-route" style="color:'+m.typeDef.color+'">' + route + '</span> ' +
+            '<span class="msg-type" style="background:'+m.typeDef.color+'22;color:'+m.typeDef.color+'">'+m.typeDef.label+'</span><br>' +
+            '<span class="msg-content">' + formatContent(m) + '</span>';
+        msgLogEl.appendChild(div);
+    }
+
+    function updateLog() {
+        while (lastLogIdx < msgEvents.length && msgEvents[lastLogIdx].t <= playTime) {
+            appendLogEntry(msgEvents[lastLogIdx]);
+            lastLogIdx++;
+        }
+        msgLogEl.scrollTop = msgLogEl.scrollHeight;
+    }
+
+    // ─── Kill chain banner ───────────────────────────────────
+    var kcPhases = ['FIND','FIX','TRACK','TARGET','ENGAGE','ASSESS'];
+
+    function updateBanner() {
+        var f = getFrame(playTime);
+        kcPhases.forEach(function(ph) {
+            var el = document.getElementById('kc-'+ph);
+            var color = IadsEngine.PHASE_COLORS[ph];
+            var ts = el.querySelector('.kc-time');
+            // For SSLS, ENGAGE/ASSESS may appear multiple times in history
+            // Find the LAST occurrence of this phase in history
+            var hist = null;
+            for (var i = f.phaseHistory.length - 1; i >= 0; i--) {
+                if (f.phaseHistory[i].phase === ph) { hist = f.phaseHistory[i]; break; }
+            }
+            var active = f.phase === ph;
+            var done = hist && hist.endTime !== undefined;
+            el.classList.remove('active','done');
+            if (active) {
+                el.classList.add('active'); el.style.color=color; el.style.background=color+'22'; el.style.borderColor=color;
+                ts.textContent = (playTime - f.phaseStartTime).toFixed(1)+'s';
+            } else if (done) {
+                el.classList.add('done'); el.style.color=color; el.style.background=color+'18'; el.style.borderColor=color+'88';
+                ts.textContent = (hist.endTime - hist.startTime).toFixed(1)+'s';
+            } else {
+                el.style.color='#334455'; el.style.background='#0a1525'; el.style.borderColor='#1a2540'; ts.textContent='';
+            }
+        });
+    }
+
+    // ─── Status panels ───────────────────────────────────────
+    function updatePanels() {
+        var f = getFrame(playTime);
+        document.getElementById('statusPhase').textContent = f.phase;
+        document.getElementById('statusPhase').style.color = IadsEngine.PHASE_COLORS[f.phase]||'#888';
+        document.getElementById('statusTime').textContent = 'T+'+playTime.toFixed(1)+'s | '+timeWarp+'x'+(isPaused?' [PAUSED]':'');
+
+        var ewR = IadsEngine.distance(P.ew_radar.lat, P.ew_radar.lon, f.acLat, f.acLon);
+        document.getElementById('ewRange').textContent = (ewR/IadsEngine.NM_TO_M).toFixed(0)+' nm';
+        document.getElementById('ewAz').textContent = f.ewAz.toFixed(0)+'\u00B0';
+        document.getElementById('ewDetects').textContent = f.ewDetects;
+        setRS('ewState', f.ewState, '#003355','#00ccff');
+
+        var ttrR = IadsEngine.distance(P.ttr.lat, P.ttr.lon, f.acLat, f.acLon);
+        document.getElementById('ttrRange').textContent = (ttrR/IadsEngine.NM_TO_M).toFixed(0)+' nm';
+        document.getElementById('ttrConf').textContent = f.trackConf.toFixed(2);
+        document.getElementById('ttrUpdates').textContent = f.ttrUpdates;
+        setRS('ttrState', f.ttrState, '#003322','#44ff88');
+
+        var fcrR = IadsEngine.distance(P.sam.lat, P.sam.lon, f.acLat, f.acLon);
+        document.getElementById('fcrRange').textContent = (fcrR/IadsEngine.NM_TO_M).toFixed(0)+' nm';
+
+        // Multi-missile status
+        document.getElementById('samMissiles').textContent = f.missilesRemaining + '/' + (f.missilesFired + f.missilesRemaining);
+        var flying = f.missiles.filter(function(m) { return m.state === 'FLYING' || m.state === 'TERMINAL'; });
+        if (flying.length > 0) {
+            document.getElementById('samStatus').textContent = flying.length + ' IN FLIGHT (' + f.missilesFired + ' fired)';
+            var closest = flying[0];
+            var cr = IadsEngine.distance(closest.lat, closest.lon, f.acLat, f.acLon);
+            document.getElementById('samClosure').textContent = (cr/1000).toFixed(1)+' km';
+        } else if (f.missiles.some(function(m){ return m.state==='HIT'; })) {
+            document.getElementById('samStatus').textContent = 'HIT (' + f.missilesFired + ' fired)';
+            document.getElementById('samClosure').textContent = '---';
+        } else if (f.missilesFired > 0) {
+            document.getElementById('samStatus').textContent = f.missiles.length > 0 ? 'ALL MISS (' + f.missilesFired + ')' : 'LAUNCHED';
+            document.getElementById('samClosure').textContent = '---';
+        } else {
+            document.getElementById('samStatus').textContent = 'READY (' + IadsEngine.SAM_CONFIG.magazine_size + ')';
+            document.getElementById('samClosure').textContent = '---';
+        }
+        setRS('fcrState', f.fcrState, '#330011','#ff4444');
+
+        document.getElementById('c2State').textContent = f.c2State;
+        var anyHit = f.missiles.some(function(m){return m.state==='HIT';});
+        document.getElementById('c2Decision').textContent =
+            f.phase==='COMPLETE' ? (anyHit ? 'KILL CONFIRMED' : 'TGT SURVIVED') :
+            f.weaponsFree ? 'WEAPONS FREE' : f.phase==='TARGET' ? 'EVALUATING' : '---';
+
+        if (!f.acDestroyed) {
+            document.getElementById('bogeyInfo').textContent = f.acHeading.toFixed(0)+'\u00B0 FL'+(f.acAlt*3.28084/100).toFixed(0)+' '+(f.acSpeed*1.94384).toFixed(0)+'kts';
+            var rs = IadsEngine.distance(f.acLat, f.acLon, P.sam.lat, P.sam.lon);
+            document.getElementById('bogeyRange').textContent = (rs/IadsEngine.NM_TO_M).toFixed(0)+' nm';
+            document.getElementById('bogeyState').textContent = 'INBOUND';
+        } else {
+            document.getElementById('bogeyInfo').textContent = 'DESTROYED';
+            document.getElementById('bogeyRange').textContent = '---';
+            document.getElementById('bogeyState').textContent = 'DESTROYED';
+        }
+    }
+
+    function setRS(id, txt, bg, fg) {
+        var el = document.getElementById(id); el.textContent=txt; el.style.background=bg; el.style.color=fg;
+    }
+
+    // ─── SATCOM pulse entities ───────────────────────────────
+    function updatePulses() {
+        commPulseEntities.forEach(function(e) { viewer.entities.remove(e); });
+        commPulseEntities = [];
+        if (!showCommLines) return;
+
+        var satP = [P.satcom.lat, P.satcom.lon, P.satcom.alt];
+        var nodeP = {
+            ew_radar:[P.ew_radar.lat,P.ew_radar.lon,P.ew_radar.alt+500],
+            ttr:[P.ttr.lat,P.ttr.lon,P.ttr.alt+500],
+            sam:[P.sam.lat,P.sam.lon,P.sam.alt+500], fcr:[P.sam.lat,P.sam.lon,P.sam.alt+500],
+            c2:[P.c2.lat,P.c2.lon,P.c2.alt+500],
+        };
+        allMessages.forEach(function(msg) {
+            if (playTime < msg.sendTime || playTime > msg.arriveTime) return;
+            var prog = (playTime - msg.sendTime) / (msg.arriveTime - msg.sendTime);
+            var fp = nodeP[msg.from]||nodeP.c2, tp = nodeP[msg.to]||nodeP.c2;
+            var UFRAC = IadsComms.UPLINK_FRAC, RFRAC = IadsComms.RELAY_FRAC;
+            var lat,lon,alt;
+            if (prog < UFRAC) { var t2=prog/UFRAC; lat=fp[0]+(satP[0]-fp[0])*t2; lon=fp[1]+(satP[1]-fp[1])*t2; alt=fp[2]+(satP[2]-fp[2])*t2; }
+            else if (prog < UFRAC+RFRAC) { lat=satP[0]; lon=satP[1]; alt=satP[2]; }
+            else { var t3=(prog-UFRAC-RFRAC)/(1-UFRAC-RFRAC); lat=satP[0]+(tp[0]-satP[0])*t3; lon=satP[1]+(tp[1]-satP[1])*t3; alt=satP[2]+(tp[2]-satP[2])*t3; }
+            commPulseEntities.push(viewer.entities.add({
+                position: c3(lat,lon,alt),
+                point: { pixelSize:6, color: Cesium.Color.fromCssColorString(msg.typeDef.color), outlineColor: Cesium.Color.WHITE, outlineWidth:1 },
+            }));
+        });
+    }
+
+    // ─── Seek / rebuild functions (time slider) ─────────────
+
+    function rebuildTrails(t) {
+        acTrail.length = 0;
+        Object.keys(missileEntities).forEach(function(id) {
+            missileEntities[id].trail.length = 0;
+        });
+        var acSamp = 0;
+        var mslSamp = {};
+        for (var i = 0; i < frames.length; i++) {
+            var f = frames[i];
+            if (f.t > t) break;
+            acSamp++;
+            if (acSamp % 5 === 0 && !f.acDestroyed) {
+                acTrail.push(c3(f.acLat, f.acLon, f.acAlt));
+            }
+            f.missiles.forEach(function(msl) {
+                if (!mslSamp[msl.id]) mslSamp[msl.id] = 0;
+                mslSamp[msl.id]++;
+                if ((msl.state === 'FLYING' || msl.state === 'TERMINAL') && mslSamp[msl.id] % 3 === 0) {
+                    var me = missileEntities[msl.id];
+                    if (me) me.trail.push(c3(msl.lat, msl.lon, msl.alt));
+                }
+            });
+        }
+        while (acTrail.length > 300) acTrail.shift();
+        Object.keys(missileEntities).forEach(function(id) {
+            while (missileEntities[id].trail.length > 500) missileEntities[id].trail.shift();
+        });
+    }
+
+    function rebuildMessageLog(t) {
+        msgLogEl.innerHTML = '';
+        lastLogIdx = 0;
+        for (var i = 0; i < msgEvents.length; i++) {
+            if (msgEvents[i].t > t) break;
+            appendLogEntry(msgEvents[i]);
+            lastLogIdx = i + 1;
+        }
+        msgLogEl.scrollTop = msgLogEl.scrollHeight;
+    }
+
+    function rebuildMissileEntities(t) {
+        removeAllMissileEntities();
+        shownIntercepts = {};
+        var f = getFrame(t);
+        if (f.samLaunched) {
+            ensureMissileEntities(f);
+            // Show intercept markers + trail entities for resolved missiles
+            interceptResults.forEach(function(ir) {
+                if (ir.t > t) return;
+                shownIntercepts[ir.id] = true;
+                // Remove live point entity for resolved missile
+                var me = missileEntities[ir.id];
+                if (me && me.entity) {
+                    viewer.entities.remove(me.entity);
+                    me.entity = null;
+                }
+                // Create trail-only entity so rebuildTrails can populate it
+                if (!missileEntities[ir.id]) {
+                    var idx = 0;
+                    for (var j = 0; j < f.missiles.length; j++) {
+                        if (f.missiles[j].id === ir.id) { idx = j; break; }
+                    }
+                    var color = MISSILE_COLORS[idx % MISSILE_COLORS.length];
+                    var trail = [];
+                    var trailEntity = viewer.entities.add({
+                        polyline: {
+                            positions: new Cesium.CallbackProperty(function() { return trail; }, false),
+                            width: 2, material: color.withAlpha(0.3),
+                        },
+                    });
+                    missileEntities[ir.id] = { entity: null, trailEntity: trailEntity, trail: trail, color: color };
+                }
+                interceptEntities.push(viewer.entities.add({
+                    position: c3(ir.lat, ir.lon, ir.alt),
+                    point: { pixelSize: ir.hit ? 20 : 10,
+                             color: ir.hit ? Cesium.Color.ORANGE : Cesium.Color.YELLOW.withAlpha(0.5) },
+                    label: {
+                        text: ir.id + ' ' + (ir.hit ? 'KILL' : 'MISS'),
+                        font: 'bold 12px Courier New',
+                        fillColor: ir.hit ? Cesium.Color.ORANGE : Cesium.Color.YELLOW.withAlpha(0.5),
+                        outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -20),
+                    },
+                }));
+            });
+        }
+        rebuildTrails(t);
+    }
+
+    function seekTo(t) {
+        t = Math.max(0, Math.min(totalTime, t));
+        playTime = t;
+        lastWall = null;
+        rebuildMissileEntities(t);
+        rebuildMessageLog(t);
+        updatePanels();
+        updateBanner();
+        drawNetwork();
+        drawTimeline();
+        updatePulses();
+    }
+
+    // ─── Camera ──────────────────────────────────────────────
+    function focusCamera(target) {
+        var lat, lon, range;
+        switch(target) {
+            case 1: lat=P.ew_radar.lat; lon=P.ew_radar.lon; range=500000; break;
+            case 2: lat=P.ttr.lat; lon=P.ttr.lon; range=300000; break;
+            case 3: lat=P.sam.lat; lon=P.sam.lon; range=200000; break;
+            case 4: lat=P.c2.lat; lon=P.c2.lon; range=300000; break;
+            case 5: var ff=getFrame(playTime); lat=ff.acLat; lon=ff.acLon; range=200000; break;
+            default: lat=32.0; lon=-117.7; range=500000;
+        }
+        viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon,lat,range),
+            orientation:{heading:0,pitch:Cesium.Math.toRadians(-60),roll:0}, duration:1.5 });
+    }
+
+    // ─── Keyboard ────────────────────────────────────────────
+    window.addEventListener('keydown', function(e) {
+        switch(e.code) {
+            case 'Space': e.preventDefault(); togglePause(); break;
+            case 'Equal': case 'NumpadAdd': e.preventDefault(); changeWarp(1); break;
+            case 'Minus': case 'NumpadSubtract': e.preventDefault(); changeWarp(-1); break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                isPaused = true;
+                seekTo(playTime - (e.shiftKey ? 5.0 : SIM_DT));
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                isPaused = true;
+                seekTo(playTime + (e.shiftKey ? 5.0 : SIM_DT));
+                break;
+            case 'KeyR': resetPlayback(); break;
+            case 'KeyV':
+                showRangeRings=!showRangeRings;
+                ewRing.show=showRangeRings; ttrRing.show=showRangeRings; fcrRing.show=showRangeRings;
+                break;
+            case 'KeyC':
+                showCommLines=!showCommLines;
+                commLineEntities.forEach(function(e2){e2.show=showCommLines;});
+                break;
+            case 'KeyH': toggleHelp(); break;
+            case 'Digit1': focusCamera(1); break;
+            case 'Digit2': focusCamera(2); break;
+            case 'Digit3': focusCamera(3); break;
+            case 'Digit4': focusCamera(4); break;
+            case 'Digit5': focusCamera(5); break;
+        }
+    }, true);
+
+    window.togglePause = function() { isPaused=!isPaused; lastWall=null; };
+    window.changeWarp  = function(d) { warpIndex=Math.max(0,Math.min(WARP_LEVELS.length-1,warpIndex+d)); timeWarp=WARP_LEVELS[warpIndex]; };
+    window.toggleHelp  = function() { helpVisible=!helpVisible; document.getElementById('helpOverlay').style.display=helpVisible?'block':'none'; };
+    window.resetPlayback = function() {
+        isPaused = false;
+        seekTo(0);
+    };
+
+    // ─── Initial camera ──────────────────────────────────────
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-117.7, 32.0, 500000),
+        orientation: { heading:0, pitch:Cesium.Math.toRadians(-55), roll:0 },
+        duration: 2,
+    });
+
+    // ─── Playback loop ───────────────────────────────────────
+    // Track which intercept results have been shown (for forward playback)
+    var shownIntercepts = {};
+
+    viewer.clock.onTick.addEventListener(function() {
+        if (isPaused) { lastWall=null; return; }
+
+        var now = Date.now();
+        if (lastWall === null) { lastWall = now; return; }
+        var realDt = (now - lastWall) / 1000;
+        lastWall = now;
+        realDt = Math.min(realDt, 0.1);
+        var dt = realDt * timeWarp;
+
+        playTime += dt;
+        if (playTime > totalTime) playTime = totalTime;
+
+        var f = getFrame(playTime);
+        frameCount++;
+
+        // Aircraft trail
+        if (frameCount % 5 === 0 && !f.acDestroyed) {
+            acTrail.push(c3(f.acLat, f.acLon, f.acAlt));
+            if (acTrail.length > 300) acTrail.shift();
+        }
+
+        // Multi-missile entities
+        ensureMissileEntities(f);
+
+        // Update missile trails
+        if (frameCount % 3 === 0) {
+            f.missiles.forEach(function(msl) {
+                var me = missileEntities[msl.id];
+                if (!me) return;
+                if (msl.state === 'FLYING' || msl.state === 'TERMINAL') {
+                    me.trail.push(c3(msl.lat, msl.lon, msl.alt));
+                    if (me.trail.length > 500) me.trail.shift();
+                }
+            });
+        }
+
+        // Create intercept markers as missiles resolve during forward play
+        interceptResults.forEach(function(ir) {
+            if (playTime < ir.t) return;
+            if (shownIntercepts[ir.id]) return;
+            shownIntercepts[ir.id] = true;
+
+            var me = missileEntities[ir.id];
+            if (me && me.entity) {
+                viewer.entities.remove(me.entity);
+                me.entity = null;
+            }
+            interceptEntities.push(viewer.entities.add({
+                position: c3(ir.lat, ir.lon, ir.alt),
+                point: { pixelSize: ir.hit ? 20 : 10,
+                         color: ir.hit ? Cesium.Color.ORANGE : Cesium.Color.YELLOW.withAlpha(0.5) },
+                label: {
+                    text: ir.id + ' ' + (ir.hit ? 'KILL' : 'MISS'),
+                    font: 'bold 12px Courier New',
+                    fillColor: ir.hit ? Cesium.Color.ORANGE : Cesium.Color.YELLOW.withAlpha(0.5),
+                    outlineColor: Cesium.Color.BLACK, outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -20),
+                },
+            }));
+        });
+
+        // Update visuals
+        if (frameCount % 2 === 0) updatePulses();
+        if (frameCount % 10 === 0) { updatePanels(); updateBanner(); updateLog(); }
+        if (frameCount % 20 === 0) { drawNetwork(); drawTimeline(); }
+
+        ewRing.show = showRangeRings;
+        ttrRing.show = showRangeRings;
+        fcrRing.show = showRangeRings;
+    });
+
+    // Initial draw
+    drawNetwork();
+    drawTimeline();
+
+    console.log('[IADS] Initialization complete. ' + frames.length + ' frames, ' +
+        interceptResults.length + ' intercepts, playback ready.');
+    console.log('[IADS] Phase history:', eng.phaseHistory.map(function(h){return h.phase+'@'+h.startTime.toFixed(1)+'s'}).join(' > '));
+
+})();
+</script>
+</body>
+</html>
