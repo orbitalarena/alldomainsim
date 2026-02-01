@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: Scenario Builder + Interactive sims operational
+**Team**: Human + Claude | **Status**: C++ MC Engine + Chart.js Dashboard + Multi-Regime Orbital Arena
 
 ## Quick Start
 
@@ -21,7 +21,8 @@ Then open: **http://localhost:8000/**
 
 | App | URL | Description |
 |-----|-----|-------------|
-| **Scenario Builder** | `/scenario_builder.html` | Interactive drag-and-drop scenario editor. Place aircraft, satellites, SAM batteries, ground stations on the globe. Configure orbital elements, radar, AI patrol routes. Run simulation, analyze results, export. |
+| **Scenario Builder** | `/scenario_builder.html` | Interactive drag-and-drop scenario editor. Place aircraft, satellites, SAM batteries, ground stations. Run simulation, analyze with Chart.js dashboard, export to C++ engine. |
+| **Replay Viewer** | `/replay_viewer.html?replay=replay_iads.json` | C++ replay playback with range rings, animated missile trails, engagement timeline. 11 pre-generated replays. |
 | **Spaceplane** | `/spaceplane_viewer.html` | Atmosphere-to-orbit flight. KSP-style orbital mechanics, maneuver nodes, 3 propulsion modes. Start on the runway or in orbit. |
 | **Fighter** | `/fighter_sim_viewer.html` | F-16 flight sim with full HUD, weapons (AIM-9/AIM-120/bombs/gun), AI adversaries. |
 | **Scenario Viewer** | `/scenario_viewer.html?scenario=scenarios/demo_multi_domain.json` | Lightweight viewer for exported scenarios (live ECS physics). |
@@ -48,6 +49,14 @@ Interactive multi-domain scenario editor with three modes:
 ### Export Modes
 - **Export Sim** — Writes scenario JSON to `scenarios/`, opens in the Scenario Viewer with live ECS physics
 - **Export Model** — Runs sim headlessly at max speed, records all positions, exports CZML for native Cesium playback with zero JS overhead
+- **Export C++ Replay** — Sends scenario to C++ MC engine via Node.js bridge, generates replay JSON for the Replay Viewer with progress reporting
+
+### MC Analysis Dashboard
+Run batch Monte Carlo simulations (JS or C++ engine) and view results in a Chart.js tabbed dashboard:
+- **Overview**: Team survival bar chart, kill distribution histogram, entity survival table
+- **Weapons**: Weapon effectiveness doughnut chart, kill chain funnel (SAM F2T2EA success rates)
+- **Timeline**: Engagement scatter plot (time vs run index, colored by event type)
+- **Raw Data**: Per-run tables, CSV/JSON export
 
 ### Scenario Templates
 | Template | Description |
@@ -57,6 +66,7 @@ Interactive multi-domain scenario editor with three modes:
 | GPS Coverage Analysis | 6 GPS satellites, 3 receivers, DOP analysis |
 | Contested Orbit | SSA scenario with co-orbital threats and GEO inspector |
 | Strike Package | F-16 flight vs SA-20 IADS in theater |
+| Orbital Arena Large | 850v850 across LEO Sun-Synch, GTO, GEO, and Lunar orbit |
 
 ## Spaceplane Sim
 
@@ -112,31 +122,47 @@ Full F-16 simulation with realistic flight dynamics.
 - Autopilot (altitude, heading, speed hold)
 - Gear, flaps, brakes, afterburner
 
-## C++ Backend
+## C++ MC Engine
 
-For offline orbit computation and data generation:
+Headless Monte Carlo simulation engine for batch analysis and replay generation:
 
 ```bash
 # Build
-cd build && cmake .. && make -j$(nproc)
+cd build && cmake .. && ninja mc_engine
 
-# Generate TLE orbit data
-./build/bin/demo data/tles/satcat.txt
+# Batch MC (100 runs, aggregated results)
+./bin/mc_engine --scenario ../visualization/cesium/scenarios/demo_iads_engagement.json \
+    --runs 100 --seed 42 --max-time 600 --output results.json --verbose
 
-# Run rendezvous scenario
-./build/bin/rendezvous_demo
+# Replay (trajectory JSON for Cesium viewer)
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/demo_iads_engagement.json \
+    --seed 42 --max-time 600 --sample-interval 2 --output replay.json --verbose
 ```
+
+### Pre-Generated Replays (11 datasets)
+| Replay | Scenario | Entities |
+|--------|----------|----------|
+| `replay_arena_large.json` | Orbital Arena Large | 1700 (4 orbital regimes: LEO/GTO/GEO/Lunar) |
+| `replay_iads.json` | IADS Engagement | 10 (aircraft + SAM + sat + ground) |
+| `replay_strike.json` | Strike Package | 8 (aircraft + SAM + ground) |
+| `replay_data.json` | Orbital Arena | 100 (GEO satellites) |
+| `replay_contested_orbit.json` | Contested Orbit | 7 (sats + ground) |
+| `replay_gps_coverage.json` | GPS Coverage | 10 (GPS sats + ground) |
 
 ### C++ Architecture
 ```
 src/
 ├── core/          Simulation engine, state vectors
-├── physics/       Gravity (J2), orbital elements, atmosphere,
-│                  Hohmann/Lambert transfers, CW equations
-├── entities/      Satellite (TLE), launch vehicle (multi-stage)
+├── physics/       Gravity (J2/J3/J4), orbital elements, atmosphere,
+│                  Hohmann/Lambert transfers, CW equations, SRP, drag
+├── entities/      Satellite (TLE), launch vehicle, aircraft, fighter
 ├── coordinate/    ECI/ECEF/Geodetic transforms, GMST
 ├── propagators/   RK4 integrator
-└── io/            TLE parser
+├── io/            TLE parser, JSON reader/writer
+└── montecarlo/    MC engine: entity, world, parser, runner, replay writer,
+                   AI (orbital combat, waypoint patrol, intercept),
+                   weapons (kinetic kill, SAM battery, A2A missile),
+                   sensors (radar), events, flight3DOF, Kepler propagator
 ```
 
 ### JavaScript Sim Modules
@@ -218,14 +244,18 @@ The end goal — all in one continuous simulation:
 - [x] **Interactive**: Domain transitions, thrust vectoring, navball, regime detection
 - [x] **Scenario Builder**: ECS framework, drag-and-drop editor, 10+ entity types, radar/SAM/AI components
 - [x] **Export**: Dual Sim (live ECS) + Model (CZML rapid playback) export with custom server
+- [x] **MC Engine**: C++ headless Monte Carlo (batch + replay), Node.js bridge, Chart.js dashboard
+- [x] **Replay Viewer**: Range rings, missile trails, engagement timeline, 11 pre-generated replays
+- [x] **Orbital Arena Large**: 1700-entity multi-regime scenario (LEO/GTO/GEO/Lunar)
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
 ## Dependencies
 
 - **C++ backend**: CMake 3.20+, C++17
+- **MC bridge server**: Node.js (spawns C++ engine, manages job queue)
 - **Interactive sims**: Python3 (HTTP server), modern browser with WebGL
-- **No npm/node** — Cesium loaded from CDN
+- **CDN libraries**: CesiumJS, Chart.js
 
 ## References
 
@@ -236,6 +266,6 @@ The end goal — all in one continuous simulation:
 - [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-01-30
+*Last Updated*: 2026-02-01
 *Team*: Human + Claude
-*Status*: Scenario Builder with ECS framework, dual export (Sim + Model), COE satellite placement, and interactive flight sims
+*Status*: C++ MC engine with Chart.js dashboard, progress pipeline, replay viewer with range rings + missile trails, 1700-entity multi-regime orbital arena

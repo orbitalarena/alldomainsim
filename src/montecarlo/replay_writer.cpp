@@ -140,6 +140,13 @@ void ReplayWriter::write_json(std::ostream& out, const MCConfig& config,
             w.kv("deathTime", death_times_[i]);
         }
 
+        // Max range for SAM/radar entities (used for range rings in viewer)
+        if (e.weapon_type == WeaponType::SAM_BATTERY) {
+            w.kv("maxRange", e.sam_max_range);
+        } else if (e.has_radar) {
+            w.kv("maxRange", e.radar_max_range);
+        }
+
         // Positions as flat arrays [x,y,z] for compactness
         w.key("positions").begin_array();
         for (const auto& pos : positions_[i]) {

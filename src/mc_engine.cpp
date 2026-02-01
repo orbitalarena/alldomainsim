@@ -38,6 +38,7 @@ static void print_usage(const char* prog) {
               << "  --sample-interval I  Replay: seconds between samples (default: 2.0)\n"
               << "  --output <path>      Output JSON file (default: stdout)\n"
               << "  --verbose            Progress to stderr\n"
+              << "  --progress           JSON-Lines progress to stderr (for server)\n"
               << "  --help               Show this message\n";
 }
 
@@ -69,6 +70,8 @@ int main(int argc, char* argv[]) {
             config.output_path = argv[++i];
         } else if (arg == "--verbose" || arg == "-v") {
             config.verbose = true;
+        } else if (arg == "--progress") {
+            config.progress = true;
         } else {
             std::cerr << "Unknown argument: " << arg << "\n";
             print_usage(argv[0]);
@@ -130,6 +133,10 @@ int main(int argc, char* argv[]) {
         auto t_end = std::chrono::high_resolution_clock::now();
         double elapsed = std::chrono::duration<double>(t_end - t_start).count();
 
+        if (config.progress) {
+            std::cerr << "{\"type\":\"done\",\"mode\":\"replay\",\"elapsed\":"
+                      << elapsed << "}\n" << std::flush;
+        }
         if (config.verbose) {
             std::cerr << "\nReplay generated in " << elapsed << "s\n";
             if (!config.output_path.empty()) {
@@ -153,7 +160,15 @@ int main(int argc, char* argv[]) {
 
         auto t_start = std::chrono::high_resolution_clock::now();
 
-        auto results = runner.run(scenario);
+        sim::mc::MCRunner::ProgressCallback progress_cb = nullptr;
+        if (config.progress) {
+            progress_cb = [&](int completed, int total) {
+                std::cerr << "{\"type\":\"run_complete\",\"run\":" << completed
+                          << ",\"total\":" << total << "}\n" << std::flush;
+            };
+        }
+
+        auto results = runner.run(scenario, progress_cb);
 
         auto t_end = std::chrono::high_resolution_clock::now();
         double elapsed = std::chrono::duration<double>(t_end - t_start).count();
@@ -199,6 +214,12 @@ int main(int argc, char* argv[]) {
             if (config.verbose) {
                 std::cerr << "Results written to: " << config.output_path << "\n";
             }
+        }
+
+        if (config.progress) {
+            std::cerr << "{\"type\":\"done\",\"mode\":\"batch\",\"runs\":"
+                      << results.size() << ",\"elapsed\":" << elapsed << "}\n"
+                      << std::flush;
         }
     }
 

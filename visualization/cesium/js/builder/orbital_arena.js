@@ -278,8 +278,233 @@ var OrbitalArena = (function() {
         });
     }
 
+    // -------------------------------------------------------------------
+    // Large variant — 850v850 across 4 orbital regimes
+    // 1. LEO Sun-Synch: ~700km, inc=98.2° (nearly polar), full 360°
+    // 2. GTO: perigee ~250km, apogee ~35,800km, inc=28.5°, full 360°
+    // 3. GEO: ~42,164km circular equatorial, full 360°
+    // 4. Lunar: ~200km above Moon surface, ring around Moon's position
+    // -------------------------------------------------------------------
+
+    /**
+     * Convert true anomaly to mean anomaly for eccentric orbits.
+     * Prevents visual clustering at apogee when e is large.
+     */
+    function _trueToMeanAnomaly(nuDeg, ecc) {
+        var nu = nuDeg * Math.PI / 180;
+        var E = 2 * Math.atan2(
+            Math.sqrt(1 - ecc) * Math.sin(nu / 2),
+            Math.sqrt(1 + ecc) * Math.cos(nu / 2)
+        );
+        var M = E - ecc * Math.sin(E);
+        return ((M * 180 / Math.PI) % 360 + 360) % 360;
+    }
+
+    function generateLarge(config) {
+        config = config || {};
+        var seed = config.seed !== undefined ? config.seed : (Date.now() & 0x7FFFFFFF);
+        var rand = _mulberry32(seed);
+
+        var R_EARTH = 6371000;
+        var R_MOON = 1737400;
+        var MOON_DIST = 384400000;
+
+        var ROLE_DEFS = [
+            { role: 'hva', fraction: 0.2, hasWeapons: false },
+            { role: 'defender', fraction: 0.2, hasWeapons: true, needsHva: true },
+            { role: 'attacker', fraction: 0.3, hasWeapons: true },
+            { role: 'escort', fraction: 0.2, hasWeapons: true, needsHva: true },
+            { role: 'sweep', fraction: 0.1, hasWeapons: true }
+        ];
+
+        // Orbit definitions (non-lunar handled uniformly)
+        var KEPLERIAN_ORBITS = [
+            {
+                label: 'LEO-SSO', sma: 7078000, ecc: 0.001, inc: 98.2, raan: 90, argPerigee: 0,
+                perSide: 100, useTA: false,
+                sensorRange: 500000, defenseRadius: 250000,
+                killRange: 30000, maxAccel: 40.0, Pk: 0.65, cooldown: 4.0
+            },
+            {
+                label: 'GTO', sma: 24400000, ecc: 0.7285, inc: 28.5, raan: 180, argPerigee: 178,
+                perSide: 200, useTA: true,  // distribute by true anomaly
+                sensorRange: 1200000, defenseRadius: 600000,
+                killRange: 60000, maxAccel: 45.0, Pk: 0.6, cooldown: 6.0
+            },
+            {
+                label: 'GEO', sma: 42164000, ecc: 0.0001, inc: 0.001, raan: 0, argPerigee: 0,
+                perSide: 500, useTA: false,
+                sensorRange: 1000000, defenseRadius: 500000,
+                killRange: 50000, maxAccel: 50.0, Pk: 0.7, cooldown: 5.0
+            }
+        ];
+
+        var entities = [];
+
+        // ---- Generate Keplerian orbit entities (LEO, GTO, GEO) ----
+        for (var oi = 0; oi < KEPLERIAN_ORBITS.length; oi++) {
+            var orb = KEPLERIAN_ORBITS[oi];
+            var hvaIds = { blue: [], red: [] };
+
+            for (var ri = 0; ri < ROLE_DEFS.length; ri++) {
+                var rd = ROLE_DEFS[ri];
+                var perRole = Math.round(orb.perSide * rd.fraction);
+
+                for (var ti = 0; ti < 2; ti++) {
+                    var team = ti === 0 ? 'blue' : 'red';
+                    for (var i = 0; i < perRole; i++) {
+                        var idx = i + 1;
+                        var id = team + '-' + orb.label.toLowerCase() + '-' + rd.role + '-' + _pad(idx);
+                        var nm = team.charAt(0).toUpperCase() + team.slice(1) + '-' +
+                            orb.label + '-' + rd.role.charAt(0).toUpperCase() + rd.role.slice(1) + '-' + _pad(idx);
+
+                        var ma;
+                        if (orb.useTA) {
+                            // Uniform true anomaly → convert to mean anomaly
+                            var trueAnom = rand() * 360;
+                            ma = _trueToMeanAnomaly(trueAnom, orb.ecc);
+                        } else {
+                            ma = rand() * 360;
+                        }
+
+                        var lon = ma > 180 ? ma - 360 : ma;
+                        var ent = {
+                            id: id, name: nm, type: 'satellite', team: team,
+                            initialState: {
+                                lat: 0, lon: lon, alt: (orb.sma - R_EARTH),
+                                speed: 0, heading: 90, gamma: 0,
+                                throttle: 0, engineOn: false, gearDown: false, infiniteFuel: true
+                            },
+                            components: {
+                                physics: {
+                                    type: 'orbital_2body', source: 'elements',
+                                    sma: orb.sma, ecc: orb.ecc, inc: orb.inc,
+                                    raan: orb.raan, argPerigee: orb.argPerigee,
+                                    meanAnomaly: Math.round(ma * 10000) / 10000
+                                },
+                                ai: {
+                                    type: 'orbital_combat', role: rd.role,
+                                    sensorRange: orb.sensorRange, defenseRadius: orb.defenseRadius,
+                                    maxAccel: orb.maxAccel, killRange: orb.killRange, scanInterval: 1.0
+                                },
+                                visual: { type: 'cesium_entity' }
+                            }
+                        };
+                        if (rd.role === 'hva') hvaIds[team].push(id);
+                        if (rd.needsHva && hvaIds[team].length > 0) {
+                            ent.components.ai.assignedHvaId = hvaIds[team][i % hvaIds[team].length];
+                        }
+                        if (rd.hasWeapons) {
+                            ent.components.weapons = {
+                                type: 'kinetic_kill', Pk: orb.Pk,
+                                killRange: orb.killRange, cooldown: orb.cooldown
+                            };
+                        }
+                        entities.push(ent);
+                    }
+                }
+            }
+        }
+
+        // ---- Generate Lunar orbit entities (ring around Moon) ----
+        // Moon approximate ECI position at t=0 (simplified)
+        var moonTheta = 45 * Math.PI / 180;  // 45° from vernal equinox
+        var moonInc = 5.14 * Math.PI / 180;
+        var moonX = MOON_DIST * Math.cos(moonTheta);
+        var moonY = MOON_DIST * Math.sin(moonTheta) * Math.cos(moonInc);
+        var moonZ = MOON_DIST * Math.sin(moonTheta) * Math.sin(moonInc);
+
+        var lunarOrbitR = R_MOON + 200000;  // 200km above surface
+        var lunarPerSide = 50;
+        var lunarHvaIds = { blue: [], red: [] };
+
+        for (var lri = 0; lri < ROLE_DEFS.length; lri++) {
+            var lrd = ROLE_DEFS[lri];
+            var lPerRole = Math.round(lunarPerSide * lrd.fraction);
+
+            for (var lti = 0; lti < 2; lti++) {
+                var lteam = lti === 0 ? 'blue' : 'red';
+                for (var li = 0; li < lPerRole; li++) {
+                    var lidx = li + 1;
+                    var lid = lteam + '-lunar-' + lrd.role + '-' + _pad(lidx);
+                    var lnm = lteam.charAt(0).toUpperCase() + lteam.slice(1) + '-LUNAR-' +
+                        lrd.role.charAt(0).toUpperCase() + lrd.role.slice(1) + '-' + _pad(lidx);
+
+                    // Random angle in selenocentric orbit
+                    var angle = rand() * 360 * Math.PI / 180;
+                    var orbInc = 15 * Math.PI / 180;  // 15° lunar orbit inclination
+                    var dx = lunarOrbitR * Math.cos(angle);
+                    var dy = lunarOrbitR * Math.sin(angle) * Math.cos(orbInc);
+                    var dz = lunarOrbitR * Math.sin(angle) * Math.sin(orbInc);
+
+                    var gx = moonX + dx;
+                    var gy = moonY + dy;
+                    var gz = moonZ + dz;
+
+                    // Geocentric distance → use as SMA for Kepler propagator
+                    var gr = Math.sqrt(gx * gx + gy * gy + gz * gz);
+                    var glon = Math.atan2(gy, gx) * 180 / Math.PI;
+                    var glat = Math.asin(gz / gr) * 180 / Math.PI;
+
+                    // Mean anomaly from geocentric longitude relative to RAAN
+                    var lunarRaan = 45;  // aligned with Moon position
+                    var lma = ((glon - lunarRaan + 360) % 360);
+
+                    var lent = {
+                        id: lid, name: lnm, type: 'satellite', team: lteam,
+                        initialState: {
+                            lat: glat, lon: glon, alt: gr - R_EARTH,
+                            speed: 0, heading: 90, gamma: 0,
+                            throttle: 0, engineOn: false, gearDown: false, infiniteFuel: true
+                        },
+                        components: {
+                            physics: {
+                                type: 'orbital_2body', source: 'elements',
+                                sma: Math.round(gr), ecc: 0.001, inc: 23.4,
+                                raan: lunarRaan, argPerigee: 0,
+                                meanAnomaly: Math.round(lma * 10000) / 10000
+                            },
+                            ai: {
+                                type: 'orbital_combat', role: lrd.role,
+                                sensorRange: 2000000, defenseRadius: 1000000,
+                                maxAccel: 60.0, killRange: 100000, scanInterval: 1.0
+                            },
+                            visual: { type: 'cesium_entity' }
+                        }
+                    };
+                    if (lrd.role === 'hva') lunarHvaIds[lteam].push(lid);
+                    if (lrd.needsHva && lunarHvaIds[lteam].length > 0) {
+                        lent.components.ai.assignedHvaId = lunarHvaIds[lteam][li % lunarHvaIds[lteam].length];
+                    }
+                    if (lrd.hasWeapons) {
+                        lent.components.weapons = {
+                            type: 'kinetic_kill', Pk: 0.75, killRange: 100000, cooldown: 8.0
+                        };
+                    }
+                    entities.push(lent);
+                }
+            }
+        }
+
+        var perSide = entities.length / 2;
+        return {
+            metadata: {
+                name: 'Orbital Arena Large (seed=' + seed + ')',
+                description: perSide + 'v' + perSide +
+                    ' multi-regime orbital combat: GEO (500v500), Sun-synch LEO (100v100), ' +
+                    'GTO (200v200), Lunar orbit (50v50). Seed=' + seed,
+                version: '2.0'
+            },
+            environment: { maxTimeWarp: 64 },
+            entities: entities,
+            events: [],
+            camera: { target: 'blue-geo-hva-001', range: 500000, pitch: -0.5 }
+        };
+    }
+
     return {
         generate: generate,
-        generateSmall: generateSmall
+        generateSmall: generateSmall,
+        generateLarge: generateLarge
     };
 })();

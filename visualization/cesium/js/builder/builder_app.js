@@ -680,6 +680,20 @@ const BuilderApp = (function() {
             return;
         }
 
+        if (scenarioName === '__orbital_arena_large' && typeof OrbitalArena !== 'undefined') {
+            showMessage('Generating Orbital Arena Large (1700 entities, 4 orbits)...');
+            setTimeout(function() {
+                try {
+                    var json = OrbitalArena.generateLarge();
+                    setScenarioData(json);
+                } catch (err) {
+                    showMessage('Generation failed: ' + err.message);
+                    console.error('OA Large generation error:', err);
+                }
+            }, 10);
+            return;
+        }
+
         scenarioName = scenarioName || 'demo_multi_domain';
         showMessage('Loading ' + scenarioName + '...');
 
@@ -812,6 +826,115 @@ const BuilderApp = (function() {
             if (entities[i].id === id) return entities[i];
         }
         return null;
+    }
+
+    // -------------------------------------------------------------------
+    // C++ Replay Generation
+    // -------------------------------------------------------------------
+
+    /**
+     * Prompt for replay parameters and run the C++ engine.
+     * On success, saves replay JSON and opens replay_viewer.html.
+     */
+    function _promptAndRunCppReplay(scenarioData) {
+        var durationStr = prompt('Simulation duration (seconds):', '600');
+        if (!durationStr) return;
+        var duration = parseFloat(durationStr);
+        if (isNaN(duration) || duration <= 0) {
+            showMessage('Invalid duration');
+            return;
+        }
+
+        var seedStr = prompt('Random seed:', '42');
+        if (seedStr === null) return;
+        var seed = parseInt(seedStr, 10);
+        if (isNaN(seed) || seed < 0) seed = 42;
+
+        showMessage('Starting C++ engine (' + duration + 's, seed ' + seed + ')...', 2000);
+
+        var payload = {
+            scenario: scenarioData,
+            seed: seed,
+            maxTime: duration,
+            dt: 0.1,
+            sampleInterval: 2
+        };
+
+        fetch('/api/mc/replay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(function(resp) {
+            if (!resp.ok) {
+                return resp.json().then(function(d) {
+                    throw new Error(d.error || ('HTTP ' + resp.status));
+                });
+            }
+            return resp.json();
+        })
+        .then(function(data) {
+            if (!data.jobId) throw new Error('No jobId returned');
+            _pollReplayJob(data.jobId);
+        })
+        .catch(function(err) {
+            showMessage('C++ replay failed: ' + err.message);
+            console.error('C++ replay error:', err);
+        });
+    }
+
+    function _pollReplayJob(jobId) {
+        var pollInterval = setInterval(function() {
+            fetch('/api/mc/jobs/' + jobId)
+            .then(function(resp) { return resp.json(); })
+            .then(function(job) {
+                if (job.status === 'running') {
+                    var p = job.progress || {};
+                    var msg = 'C++ engine: ';
+                    if (p.step !== undefined) {
+                        msg += 'step ' + p.step + '/' + p.totalSteps +
+                               ' (t=' + (p.simTime || 0).toFixed(0) + 's) ' + (p.pct || 0) + '%';
+                    } else if (p.pct !== undefined) {
+                        msg += p.pct + '%';
+                    } else {
+                        msg += 'starting...';
+                    }
+                    showMessage(msg, 1500);
+                } else if (job.status === 'complete') {
+                    clearInterval(pollInterval);
+                    var replayData = job.results;
+                    var meta = replayData._serverMeta || {};
+                    var elapsed = meta.elapsed ? meta.elapsed.toFixed(2) + 's' : job.elapsed.toFixed(2) + 's';
+                    var entityCount = (replayData.entities || []).length;
+                    showMessage('C++ replay: ' + entityCount + ' entities in ' + elapsed, 3000);
+
+                    // Save replay to file on server
+                    var replayName = _scenarioName || 'untitled';
+                    fetch('/api/save_replay', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: replayName, replay: replayData })
+                    })
+                    .then(function(resp) { return resp.json(); })
+                    .then(function(saveResult) {
+                        if (saveResult.ok) {
+                            showMessage('Replay saved: ' + saveResult.filename, 2000);
+                            window.open(saveResult.viewerUrl, '_blank');
+                        }
+                    })
+                    .catch(function(err) {
+                        showMessage('Save failed: ' + err.message);
+                    });
+                } else if (job.status === 'failed') {
+                    clearInterval(pollInterval);
+                    showMessage('C++ replay failed: ' + (job.error || 'unknown error'));
+                }
+            })
+            .catch(function() {
+                clearInterval(pollInterval);
+                showMessage('Lost connection to MC server');
+            });
+        }, 500);
     }
 
     // -------------------------------------------------------------------
@@ -1165,6 +1288,34 @@ const BuilderApp = (function() {
                         }
                     });
             }, 100);
+        });
+
+        // Export C++ Replay — run scenario in C++ engine and open replay viewer
+        _bindButton('btnExportCppReplay', function() {
+            var menu = document.getElementById('exportDropdownMenu');
+            if (menu) menu.classList.remove('open');
+
+            var scenarioData = getScenarioData();
+            if (!scenarioData || !scenarioData.entities || scenarioData.entities.length === 0) {
+                showMessage('No entities in scenario');
+                return;
+            }
+
+            // Check engine availability first
+            showMessage('Checking C++ engine...', 2000);
+
+            fetch('/api/mc/status')
+                .then(function(resp) { return resp.json(); })
+                .then(function(status) {
+                    if (!status.ready) {
+                        showMessage('C++ engine not available. Start mc_server: node mc_server.js');
+                        return;
+                    }
+                    _promptAndRunCppReplay(scenarioData);
+                })
+                .catch(function() {
+                    showMessage('MC server not running. Start with: node mc_server.js');
+                });
         });
 
         // Export DIS — binary PDU file

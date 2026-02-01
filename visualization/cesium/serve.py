@@ -98,6 +98,8 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path == '/api/export':
             self._handle_export()
+        elif self.path == '/api/save_replay':
+            self._handle_save_replay()
         elif self.path == '/api/dis_export':
             self._handle_dis_export()
         elif self.path == '/api/dis_poll':
@@ -195,6 +197,42 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
             })
 
             print(f'  Exported: {filepath}')
+
+        except json.JSONDecodeError:
+            self._json_response(400, {'error': 'Invalid JSON'})
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
+    def _handle_save_replay(self):
+        """Save replay JSON to a replay_*.json file in the cesium directory."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            payload = json.loads(body)
+
+            replay = payload.get('replay')
+            name = payload.get('name', '')
+
+            if not replay or not isinstance(replay, dict):
+                self._json_response(400, {'error': 'Missing replay object'})
+                return
+
+            if not name:
+                name = 'untitled'
+            filename = 'replay_' + sanitize_filename(name) + '.json'
+            # Save in the cesium directory (same level as serve.py)
+            filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
+            with open(filepath, 'w') as f:
+                json.dump(replay, f)
+
+            self._json_response(200, {
+                'ok': True,
+                'filename': filename,
+                'viewerUrl': f'replay_viewer.html?replay={filename}'
+            })
+
+            print(f'  Replay saved: {filepath}')
 
         except json.JSONDecodeError:
             self._json_response(400, {'error': 'Invalid JSON'})

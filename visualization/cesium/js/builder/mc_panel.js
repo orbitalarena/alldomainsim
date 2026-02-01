@@ -444,18 +444,19 @@ var MCPanel = (function() {
     /**
      * Run batch MC via the C++ engine bridge server.
      */
+    var _pollTimer = null;
+
     function _runCppBatch(scenarioData, numRuns, baseSeed, maxSimTime) {
         _abortController = new AbortController();
 
         _statusText.textContent = 'Sending to C++ engine...';
-        _setProgress(5, '...');
+        _setProgress(2, '...');
 
         var payload = {
             scenario: scenarioData,
             runs: numRuns,
             seed: baseSeed,
-            maxTime: maxSimTime,
-            verbose: false
+            maxTime: maxSimTime
         };
 
         fetch('/api/mc/batch', {
@@ -472,29 +473,11 @@ var MCPanel = (function() {
             }
             return resp.json();
         })
-        .then(function(results) {
-            var elapsed = ((Date.now() - _startTime) / 1000).toFixed(2);
-            _setProgress(100, '100%');
-            _statusText.textContent = 'C++ engine: ' + numRuns + ' runs in ' + elapsed + 's';
-
-            _btnStart.disabled = false;
-            _btnCancel.disabled = true;
-            _abortController = null;
-
-            // Convert C++ results format to match MCAnalysis.aggregate() expectations
-            // The C++ engine returns its own format; we need to adapt it
-            if (typeof MCAnalysis !== 'undefined') {
-                // C++ results come in a different structure — pass directly if compatible,
-                // or wrap for the analysis panel
-                var aggData = _convertCppResults(results, numRuns);
-                MCAnalysis.showPanel(aggData, aggData._rawRuns || []);
-            }
-
-            hide();
-
-            if (typeof BuilderApp !== 'undefined' && BuilderApp.showMessage) {
-                BuilderApp.showMessage('C++ MC complete: ' + numRuns + ' runs in ' + elapsed + 's');
-            }
+        .then(function(data) {
+            if (!data.jobId) throw new Error('No jobId returned');
+            _statusText.textContent = 'C++ engine running...';
+            _setProgress(5, '5%');
+            _pollBatchJob(data.jobId, numRuns);
         })
         .catch(function(err) {
             if (err.name === 'AbortError') {
@@ -506,6 +489,73 @@ var MCPanel = (function() {
             _btnCancel.disabled = true;
             _abortController = null;
         });
+    }
+
+    function _pollBatchJob(jobId, numRuns) {
+        _pollTimer = setInterval(function() {
+            fetch('/api/mc/jobs/' + jobId)
+            .then(function(resp) { return resp.json(); })
+            .then(function(job) {
+                if (job.status === 'running') {
+                    var p = job.progress || {};
+                    var pct = p.pct || 0;
+                    // Clamp to 5-95 range while running
+                    pct = Math.max(5, Math.min(95, pct));
+                    _setProgress(pct, pct + '%');
+
+                    if (p.completed !== undefined && p.total !== undefined) {
+                        var elapsed = job.elapsed || 0;
+                        var perRun = p.completed > 0 ? elapsed / p.completed : 0;
+                        var remaining = perRun * (p.total - p.completed);
+                        var remStr = remaining < 60 ?
+                            remaining.toFixed(1) + 's' :
+                            (remaining / 60).toFixed(1) + 'm';
+                        _statusText.textContent = 'Run ' + p.completed + '/' + p.total +
+                            ' (' + pct + '%) ~' + remStr + ' remaining';
+                    } else {
+                        _statusText.textContent = 'C++ engine: ' + pct + '%';
+                    }
+                } else if (job.status === 'complete') {
+                    clearInterval(_pollTimer);
+                    _pollTimer = null;
+
+                    var elapsed = ((Date.now() - _startTime) / 1000).toFixed(2);
+                    _setProgress(100, '100%');
+                    _statusText.textContent = 'C++ engine: ' + numRuns + ' runs in ' + elapsed + 's';
+
+                    _btnStart.disabled = false;
+                    _btnCancel.disabled = true;
+                    _abortController = null;
+
+                    var results = job.results;
+                    if (typeof MCAnalysis !== 'undefined') {
+                        var aggData = _convertCppResults(results, numRuns);
+                        MCAnalysis.showPanel(aggData, aggData._rawRuns || []);
+                    }
+
+                    hide();
+
+                    if (typeof BuilderApp !== 'undefined' && BuilderApp.showMessage) {
+                        BuilderApp.showMessage('C++ MC complete: ' + numRuns + ' runs in ' + elapsed + 's');
+                    }
+                } else if (job.status === 'failed') {
+                    clearInterval(_pollTimer);
+                    _pollTimer = null;
+                    _statusText.textContent = 'Error: ' + (job.error || 'unknown');
+                    _btnStart.disabled = false;
+                    _btnCancel.disabled = true;
+                    _abortController = null;
+                }
+            })
+            .catch(function() {
+                clearInterval(_pollTimer);
+                _pollTimer = null;
+                _statusText.textContent = 'Lost connection to MC server';
+                _btnStart.disabled = false;
+                _btnCancel.disabled = true;
+                _abortController = null;
+            });
+        }, 500);
     }
 
     /**

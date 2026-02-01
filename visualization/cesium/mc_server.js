@@ -7,16 +7,17 @@
  * and single replay generation.
  *
  * Endpoints:
- *   POST /api/mc/batch    - Run N MC iterations, return aggregated results
- *   POST /api/mc/replay   - Generate a single replay JSON
+ *   POST /api/mc/batch    - Start N MC iterations, return { jobId } for polling
+ *   POST /api/mc/replay   - Start single replay, return { jobId } for polling
+ *   GET  /api/mc/jobs/:id - Poll job status/progress/results
  *   GET  /api/mc/status   - Check if mc_engine binary exists and server is ready
+ *
+ * The browser polls GET /api/mc/jobs/:id every 500ms to get real-time progress
+ * from the C++ engine's --progress JSON-Lines output.
  *
  * Usage:
  *   node mc_server.js [port]
  *   # Default port: 8001
- *
- * The Scenario Builder's MCPanel can POST to this server instead of
- * running slow JS Monte Carlo simulations in the browser.
  */
 
 'use strict';
@@ -31,21 +32,19 @@ const crypto = require('crypto');
 // ── Configuration ──
 const PORT = parseInt(process.argv[2] || '8001', 10);
 
-// Locate mc_engine binary relative to this file
-// This file is at: visualization/cesium/mc_server.js
-// Binary is at:    build/bin/mc_engine
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 const MC_ENGINE = path.join(PROJECT_ROOT, 'build', 'bin', 'mc_engine');
-const SCENARIOS_DIR = path.join(__dirname, 'scenarios');
 const TMP_DIR = os.tmpdir();
 
-// Track active jobs
-const activeJobs = new Map();
+// ── Job Store ──
+const jobs = new Map();
 let jobCounter = 0;
+
+const JOB_CLEANUP_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── Utility ──
 
-function generateId() {
+function generateJobId() {
     return 'mc_' + (++jobCounter) + '_' + crypto.randomBytes(4).toString('hex');
 }
 
@@ -78,7 +77,6 @@ function corsHeaders(res) {
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-// ── Verify mc_engine exists ──
 function engineExists() {
     try {
         fs.accessSync(MC_ENGINE, fs.constants.X_OK);
@@ -88,135 +86,141 @@ function engineExists() {
     }
 }
 
-// ── Run mc_engine as child process ──
+// ── Parse stderr JSON-Lines for progress ──
 
-/**
- * Run a batch MC simulation.
- * @param {object} scenario - Scenario JSON object
- * @param {object} opts - { runs, seed, maxTime, dt, verbose }
- * @returns {Promise<object>} - Parsed results JSON
- */
-function runBatchMC(scenario, opts) {
-    return new Promise((resolve, reject) => {
-        const scenarioFile = tempFile('mc_scenario', '.json');
-        const outputFile = tempFile('mc_results', '.json');
+function parseProgressLine(line, job) {
+    // Only parse lines that look like JSON objects
+    line = line.trim();
+    if (!line.startsWith('{')) return;
 
-        // Write scenario to temp file
-        fs.writeFileSync(scenarioFile, JSON.stringify(scenario, null, 2));
-
-        const args = [
-            '--scenario', scenarioFile,
-            '--runs', String(opts.runs || 100),
-            '--seed', String(opts.seed || 42),
-            '--max-time', String(opts.maxTime || 600),
-            '--dt', String(opts.dt || 0.1),
-            '--output', outputFile
-        ];
-
-        if (opts.verbose) args.push('--verbose');
-
-        const startTime = Date.now();
-        const proc = spawn(MC_ENGINE, args, {
-            cwd: path.dirname(MC_ENGINE),
-            timeout: 300000 // 5 minute timeout
-        });
-
-        let stderr = '';
-        proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
-        proc.stdout.on('data', chunk => { stderr += chunk.toString(); }); // mc_engine logs to stdout
-
-        proc.on('close', (code) => {
-            const elapsed = (Date.now() - startTime) / 1000;
-
-            // Clean up scenario temp file
-            try { fs.unlinkSync(scenarioFile); } catch {}
-
-            if (code !== 0) {
-                try { fs.unlinkSync(outputFile); } catch {}
-                reject(new Error(`mc_engine exited with code ${code}: ${stderr.slice(0, 500)}`));
-                return;
-            }
-
-            // Read results
-            try {
-                const data = JSON.parse(fs.readFileSync(outputFile, 'utf-8'));
-                fs.unlinkSync(outputFile);
-                data._serverMeta = { elapsed, engine: 'c++', runs: opts.runs };
-                resolve(data);
-            } catch (e) {
-                try { fs.unlinkSync(outputFile); } catch {}
-                reject(new Error('Failed to parse mc_engine output: ' + e.message));
-            }
-        });
-
-        proc.on('error', (err) => {
-            try { fs.unlinkSync(scenarioFile); } catch {}
-            reject(new Error('Failed to spawn mc_engine: ' + err.message));
-        });
-    });
+    try {
+        const msg = JSON.parse(line);
+        if (msg.type === 'run_complete') {
+            job.progress = {
+                completed: msg.run,
+                total: msg.total,
+                pct: Math.round((msg.run / msg.total) * 100)
+            };
+        } else if (msg.type === 'replay_progress') {
+            job.progress = {
+                step: msg.step,
+                totalSteps: msg.totalSteps,
+                simTime: msg.simTime,
+                pct: Math.round((msg.step / msg.totalSteps) * 100)
+            };
+        } else if (msg.type === 'done') {
+            job.progress.pct = 100;
+            job.progress.elapsed = msg.elapsed;
+        }
+    } catch {
+        // Not valid JSON — skip (e.g. [EVENT] lines)
+    }
 }
 
-/**
- * Generate a single replay.
- * @param {object} scenario - Scenario JSON object
- * @param {object} opts - { seed, maxTime, dt, sampleInterval }
- * @returns {Promise<object>} - Parsed replay JSON
- */
-function runReplay(scenario, opts) {
-    return new Promise((resolve, reject) => {
-        const scenarioFile = tempFile('mc_scenario', '.json');
-        const outputFile = tempFile('mc_replay', '.json');
+// ── Launch mc_engine as a job ──
 
-        fs.writeFileSync(scenarioFile, JSON.stringify(scenario, null, 2));
+function startJob(mode, scenario, opts) {
+    const jobId = generateJobId();
+    const scenarioFile = tempFile('mc_scenario', '.json');
+    const outputFile = tempFile(mode === 'batch' ? 'mc_results' : 'mc_replay', '.json');
 
-        const args = [
-            '--replay',
-            '--scenario', scenarioFile,
-            '--seed', String(opts.seed || 42),
-            '--max-time', String(opts.maxTime || 600),
-            '--dt', String(opts.dt || 0.1),
-            '--sample-interval', String(opts.sampleInterval || 2),
-            '--output', outputFile
-        ];
+    fs.writeFileSync(scenarioFile, JSON.stringify(scenario, null, 2));
 
-        if (opts.verbose) args.push('--verbose');
+    const args = ['--scenario', scenarioFile, '--progress', '--output', outputFile];
 
-        const startTime = Date.now();
-        const proc = spawn(MC_ENGINE, args, {
-            cwd: path.dirname(MC_ENGINE),
-            timeout: 60000
-        });
+    if (mode === 'batch') {
+        args.push('--runs', String(opts.runs || 100));
+        args.push('--seed', String(opts.seed !== undefined ? opts.seed : 42));
+        args.push('--max-time', String(opts.maxTime || 600));
+        args.push('--dt', String(opts.dt || 0.1));
+    } else {
+        args.push('--replay');
+        args.push('--seed', String(opts.seed !== undefined ? opts.seed : 42));
+        args.push('--max-time', String(opts.maxTime || 600));
+        args.push('--dt', String(opts.dt || 0.1));
+        args.push('--sample-interval', String(opts.sampleInterval || 2));
+    }
 
-        let stderr = '';
-        proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
-        proc.stdout.on('data', chunk => { stderr += chunk.toString(); });
+    const job = {
+        id: jobId,
+        mode: mode,
+        status: 'running',
+        progress: { pct: 0 },
+        results: null,
+        error: null,
+        startTime: Date.now(),
+        scenarioFile: scenarioFile,
+        outputFile: outputFile
+    };
 
-        proc.on('close', (code) => {
-            const elapsed = (Date.now() - startTime) / 1000;
-            try { fs.unlinkSync(scenarioFile); } catch {}
+    jobs.set(jobId, job);
 
-            if (code !== 0) {
-                try { fs.unlinkSync(outputFile); } catch {}
-                reject(new Error(`mc_engine exited with code ${code}: ${stderr.slice(0, 500)}`));
-                return;
-            }
+    const proc = spawn(MC_ENGINE, args, {
+        cwd: path.dirname(MC_ENGINE),
+        timeout: mode === 'batch' ? 300000 : 60000
+    });
 
+    let stderrBuf = '';
+
+    proc.stderr.on('data', chunk => {
+        stderrBuf += chunk.toString();
+        // Process complete lines
+        const lines = stderrBuf.split('\n');
+        stderrBuf = lines.pop(); // Keep incomplete last line in buffer
+        for (const line of lines) {
+            parseProgressLine(line, job);
+        }
+    });
+
+    proc.stdout.on('data', () => {});  // Drain stdout
+
+    proc.on('close', (code) => {
+        const elapsed = (Date.now() - job.startTime) / 1000;
+
+        // Process any remaining stderr
+        if (stderrBuf.trim()) {
+            parseProgressLine(stderrBuf, job);
+        }
+
+        // Clean up scenario temp file
+        try { fs.unlinkSync(scenarioFile); } catch {}
+
+        if (code !== 0) {
+            job.status = 'failed';
+            job.error = `mc_engine exited with code ${code}`;
+            try { fs.unlinkSync(outputFile); } catch {}
+            console.log(`[MC] Job ${jobId} failed (code ${code})`);
+        } else {
             try {
                 const data = JSON.parse(fs.readFileSync(outputFile, 'utf-8'));
                 fs.unlinkSync(outputFile);
-                data._serverMeta = { elapsed, engine: 'c++' };
-                resolve(data);
+                data._serverMeta = { elapsed, engine: 'c++', mode: mode };
+                if (mode === 'batch') data._serverMeta.runs = opts.runs;
+                job.results = data;
+                job.status = 'complete';
+                job.progress.pct = 100;
+                console.log(`[MC] Job ${jobId} complete in ${elapsed.toFixed(2)}s`);
             } catch (e) {
+                job.status = 'failed';
+                job.error = 'Failed to parse output: ' + e.message;
                 try { fs.unlinkSync(outputFile); } catch {}
-                reject(new Error('Failed to parse replay output: ' + e.message));
+                console.log(`[MC] Job ${jobId} parse error: ${e.message}`);
             }
-        });
+        }
 
-        proc.on('error', (err) => {
-            try { fs.unlinkSync(scenarioFile); } catch {}
-            reject(new Error('Failed to spawn mc_engine: ' + err.message));
-        });
+        // Schedule cleanup
+        setTimeout(() => { jobs.delete(jobId); }, JOB_CLEANUP_MS);
     });
+
+    proc.on('error', (err) => {
+        job.status = 'failed';
+        job.error = 'Failed to spawn mc_engine: ' + err.message;
+        try { fs.unlinkSync(scenarioFile); } catch {}
+        setTimeout(() => { jobs.delete(jobId); }, JOB_CLEANUP_MS);
+    });
+
+    console.log(`[MC] Job ${jobId} started (${mode}, ${mode === 'batch' ? opts.runs + ' runs' : 'replay'})`);
+    return jobId;
 }
 
 // ── HTTP Server ──
@@ -224,7 +228,6 @@ function runReplay(scenario, opts) {
 const server = http.createServer(async (req, res) => {
     corsHeaders(res);
 
-    // Handle CORS preflight
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
@@ -239,8 +242,37 @@ const server = http.createServer(async (req, res) => {
                 ready: exists,
                 engine: MC_ENGINE,
                 exists: exists,
-                version: 'mc_engine v1.0'
+                version: 'mc_engine v2.0',
+                activeJobs: jobs.size
             });
+            return;
+        }
+
+        // GET /api/mc/jobs/:id
+        const jobMatch = req.method === 'GET' && req.url.match(/^\/api\/mc\/jobs\/([a-zA-Z0-9_]+)$/);
+        if (jobMatch) {
+            const jobId = jobMatch[1];
+            const job = jobs.get(jobId);
+            if (!job) {
+                jsonResponse(res, 404, { error: 'Job not found: ' + jobId });
+                return;
+            }
+
+            const response = {
+                jobId: job.id,
+                mode: job.mode,
+                status: job.status,
+                progress: job.progress,
+                elapsed: (Date.now() - job.startTime) / 1000
+            };
+
+            if (job.status === 'complete') {
+                response.results = job.results;
+            } else if (job.status === 'failed') {
+                response.error = job.error;
+            }
+
+            jsonResponse(res, 200, response);
             return;
         }
 
@@ -266,15 +298,11 @@ const server = http.createServer(async (req, res) => {
                 runs: payload.runs || 100,
                 seed: payload.seed !== undefined ? payload.seed : 42,
                 maxTime: payload.maxTime || 600,
-                dt: payload.dt || 0.1,
-                verbose: payload.verbose || false
+                dt: payload.dt || 0.1
             };
 
-            console.log(`[MC] Batch: ${opts.runs} runs, seed=${opts.seed}, maxTime=${opts.maxTime}s`);
-
-            const results = await runBatchMC(scenario, opts);
-            console.log(`[MC] Batch complete in ${results._serverMeta.elapsed.toFixed(2)}s`);
-            jsonResponse(res, 200, results);
+            const jobId = startJob('batch', scenario, opts);
+            jsonResponse(res, 202, { jobId: jobId, status: 'running' });
             return;
         }
 
@@ -300,19 +328,14 @@ const server = http.createServer(async (req, res) => {
                 seed: payload.seed !== undefined ? payload.seed : 42,
                 maxTime: payload.maxTime || 600,
                 dt: payload.dt || 0.1,
-                sampleInterval: payload.sampleInterval || 2,
-                verbose: payload.verbose || false
+                sampleInterval: payload.sampleInterval || 2
             };
 
-            console.log(`[MC] Replay: seed=${opts.seed}, maxTime=${opts.maxTime}s`);
-
-            const replay = await runReplay(scenario, opts);
-            console.log(`[MC] Replay complete in ${replay._serverMeta.elapsed.toFixed(2)}s`);
-            jsonResponse(res, 200, replay);
+            const jobId = startJob('replay', scenario, opts);
+            jsonResponse(res, 202, { jobId: jobId, status: 'running' });
             return;
         }
 
-        // 404
         jsonResponse(res, 404, { error: 'Not found' });
 
     } catch (e) {
@@ -327,7 +350,8 @@ server.listen(PORT, () => {
     console.log(`  Engine: ${MC_ENGINE}`);
     console.log(`  Status: ${exists ? 'READY' : 'NOT FOUND — build with: cd build && cmake .. && ninja mc_engine'}`);
     console.log('');
-    console.log('  POST /api/mc/batch   — Run N MC iterations');
-    console.log('  POST /api/mc/replay  — Generate single replay');
-    console.log('  GET  /api/mc/status  — Check engine availability');
+    console.log('  POST /api/mc/batch       — Start batch MC (returns jobId)');
+    console.log('  POST /api/mc/replay      — Start replay gen (returns jobId)');
+    console.log('  GET  /api/mc/jobs/:id    — Poll job progress/results');
+    console.log('  GET  /api/mc/status      — Check engine availability');
 });

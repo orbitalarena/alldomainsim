@@ -336,7 +336,11 @@ void MCRunner::run_replay(const sim::JsonValue& scenario,
         }
 
         // Progress reporting
-        if (config_.verbose && step % 1000 == 999) {
+        if (config_.progress && step % 500 == 499) {
+            std::cerr << "{\"type\":\"replay_progress\",\"step\":" << (step + 1)
+                      << ",\"totalSteps\":" << total_steps
+                      << ",\"simTime\":" << world.sim_time << "}\n" << std::flush;
+        } else if (config_.verbose && step % 1000 == 999) {
             std::cerr << "  Step " << (step + 1) << "/" << total_steps
                       << " (t=" << world.sim_time << "s)\n";
         }

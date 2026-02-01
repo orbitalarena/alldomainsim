@@ -1,6 +1,7 @@
 #include "montecarlo/scenario_parser.hpp"
 #include "montecarlo/kepler_propagator.hpp"
 #include "montecarlo/aircraft_configs.hpp"
+#include "montecarlo/geo_utils.hpp"
 #include <cmath>
 
 namespace sim::mc {
@@ -220,34 +221,42 @@ MCEntity ScenarioParser::parse_entity(const sim::JsonValue& def) {
         std::string ctrl_type = ctrl["type"].get_string("");
 
         if (ctrl_type == "player_input" && ent.ai_type == AIType::NONE) {
-            // Auto-assign waypoint patrol: single waypoint 100km ahead
+            // Auto-assign waypoint patrol: racetrack orbit pattern
             ent.ai_type = AIType::WAYPOINT_PATROL;
             ent.has_ai = true;
-            ent.waypoint_loop = false;
+            ent.waypoint_loop = true;
 
-            // Compute waypoint 100km ahead on current heading
+            // Build a 50km x 20km racetrack: fwd, right, back, left
             double heading = ent.flight_heading;  // already in radians
-            double lat_rad = ent.geo_lat * M_PI / 180.0;
-            double lon_rad = ent.geo_lon * M_PI / 180.0;
+            double lat0 = ent.geo_lat * M_PI / 180.0;
+            double lon0 = ent.geo_lon * M_PI / 180.0;
+            double alt  = ent.geo_alt;
+            double spd  = ent.flight_speed;
 
-            // Simple forward projection (great circle)
-            double d = 100000.0;  // 100km
-            double R = 6371000.0;
-            double angular = d / R;
+            double leg_fwd  = 50000.0;  // 50km forward leg
+            double leg_side = 20000.0;  // 20km lateral offset
+            double right_hdg = heading + M_PI / 2.0;
 
-            double new_lat = std::asin(
-                std::sin(lat_rad) * std::cos(angular) +
-                std::cos(lat_rad) * std::sin(angular) * std::cos(heading));
-            double new_lon = lon_rad + std::atan2(
-                std::sin(heading) * std::sin(angular) * std::cos(lat_rad),
-                std::cos(angular) - std::sin(lat_rad) * std::sin(new_lat));
+            // WP1: 50km ahead
+            auto p1 = destination_point(lat0, lon0, heading, leg_fwd);
+            // WP2: 50km ahead + 20km right
+            auto p2 = destination_point(p1.first, p1.second, right_hdg, leg_side);
+            // WP3: back to start longitude, 20km right
+            auto p3 = destination_point(lat0, lon0, right_hdg, leg_side);
 
-            Waypoint wp;
-            wp.lat   = new_lat * 180.0 / M_PI;
-            wp.lon   = new_lon * 180.0 / M_PI;
-            wp.alt   = ent.geo_alt;
-            wp.speed = ent.flight_speed;
-            ent.waypoints.push_back(wp);
+            auto add_wp = [&](double lat_r, double lon_r) {
+                Waypoint wp;
+                wp.lat   = lat_r * 180.0 / M_PI;
+                wp.lon   = lon_r * 180.0 / M_PI;
+                wp.alt   = alt;
+                wp.speed = spd;
+                ent.waypoints.push_back(wp);
+            };
+
+            add_wp(p1.first, p1.second);   // forward
+            add_wp(p2.first, p2.second);   // forward-right
+            add_wp(p3.first, p3.second);   // back-right
+            add_wp(lat0, lon0);            // back to start
         }
     }
 

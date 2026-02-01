@@ -27,6 +27,8 @@ var MCAnalysis = (function() {
     var _panel = null;
     var _sortColumn = null;
     var _sortAscending = true;
+    var _chartInstances = [];
+    var _renderedTabs = {};
 
     // -------------------------------------------------------------------
     // Utility Functions
@@ -595,6 +597,61 @@ var MCAnalysis = (function() {
             '  color: #000000;',
             '}',
             '',
+            '/* Tabs */',
+            '#' + PANEL_ID + ' .mca-tabs {',
+            '  display: flex;',
+            '  gap: 0;',
+            '  margin-bottom: 0;',
+            '  border-bottom: 2px solid #ff8800;',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-tab {',
+            '  padding: 6px 16px;',
+            '  background: transparent;',
+            '  border: 1px solid #333;',
+            '  border-bottom: none;',
+            '  border-radius: 4px 4px 0 0;',
+            '  color: #666;',
+            '  font-family: "Courier New", monospace;',
+            '  font-size: 11px;',
+            '  cursor: pointer;',
+            '  letter-spacing: 1px;',
+            '  text-transform: uppercase;',
+            '  margin-right: 2px;',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-tab.active {',
+            '  color: #ff8800;',
+            '  border-color: #ff8800;',
+            '  background: rgba(255, 136, 0, 0.1);',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-tab:hover {',
+            '  color: #ffcc00;',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-tab-content {',
+            '  min-height: 80px;',
+            '  padding-top: 12px;',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-chart-wrap {',
+            '  position: relative;',
+            '  margin: 8px 0 16px 0;',
+            '  background: rgba(0, 0, 0, 0.3);',
+            '  border-radius: 4px;',
+            '  padding: 8px;',
+            '}',
+            '',
+            '#' + PANEL_ID + ' .mca-chart-title {',
+            '  color: #ff8800;',
+            '  font-size: 11px;',
+            '  font-weight: bold;',
+            '  text-transform: uppercase;',
+            '  letter-spacing: 1px;',
+            '  margin-bottom: 6px;',
+            '}',
+            '',
             '/* Error banner */',
             '#' + PANEL_ID + ' .mca-error-banner {',
             '  background: rgba(255, 68, 68, 0.15);',
@@ -1013,6 +1070,377 @@ var MCAnalysis = (function() {
     }
 
     // -------------------------------------------------------------------
+    // Chart.js Rendering
+    // -------------------------------------------------------------------
+
+    /**
+     * Destroy all active Chart.js instances and reset tab tracking.
+     */
+    function _destroyCharts() {
+        for (var i = 0; i < _chartInstances.length; i++) {
+            _chartInstances[i].destroy();
+        }
+        _chartInstances = [];
+        _renderedTabs = {};
+    }
+
+    /**
+     * Create a Chart.js chart inside a wrapper div, append to container.
+     * @param {HTMLElement} container
+     * @param {string} type - Chart.js chart type
+     * @param {Object} data - Chart.js data config
+     * @param {Object} options - Chart.js options config
+     * @param {number} [height] - optional explicit height in px
+     * @returns {Chart}
+     */
+    function _createChart(container, type, data, options, height) {
+        var wrap = document.createElement('div');
+        wrap.className = 'mca-chart-wrap';
+        var canvas = document.createElement('canvas');
+        wrap.appendChild(canvas);
+        container.appendChild(wrap);
+        if (height) {
+            wrap.style.height = height + 'px';
+        }
+        var chart = new Chart(canvas, {
+            type: type,
+            data: data,
+            options: options
+        });
+        _chartInstances.push(chart);
+        return chart;
+    }
+
+    /**
+     * Common Chart.js scale config for dark theme.
+     */
+    function _darkScale(opts) {
+        var base = {
+            ticks: { color: '#888', font: { family: '"Courier New", monospace', size: 10 } },
+            grid: { color: '#222' }
+        };
+        if (opts) {
+            var keys = Object.keys(opts);
+            for (var i = 0; i < keys.length; i++) {
+                base[keys[i]] = opts[keys[i]];
+            }
+        }
+        return base;
+    }
+
+    /**
+     * Render Overview tab charts: survival bar + kill histogram.
+     */
+    function _renderOverviewCharts(agg) {
+        var container = document.getElementById('mca-charts-overview');
+        if (!container) return;
+
+        // 1. Entity survival horizontal bar chart
+        var entityIds = Object.keys(agg.entityStats);
+        if (entityIds.length > 0 && entityIds.length <= 50) {
+            entityIds.sort(function(a, b) {
+                return agg.entityStats[a].survivalRate - agg.entityStats[b].survivalRate;
+            });
+            var labels = [];
+            var data = [];
+            var bgColors = [];
+            for (var i = 0; i < entityIds.length; i++) {
+                var es = agg.entityStats[entityIds[i]];
+                labels.push(es.name);
+                data.push(es.survivalRate);
+                bgColors.push(_teamColor(es.team));
+            }
+            var chartHeight = Math.max(180, entityIds.length * 28);
+            _createChart(container, 'bar', {
+                labels: labels,
+                datasets: [{
+                    label: 'Survival Rate',
+                    data: data,
+                    backgroundColor: bgColors,
+                    borderWidth: 0
+                }]
+            }, {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: 4 },
+                scales: {
+                    x: _darkScale({
+                        min: 0, max: 1,
+                        ticks: {
+                            color: '#888',
+                            callback: function(v) { return (v * 100) + '%'; },
+                            font: { family: '"Courier New", monospace', size: 10 }
+                        }
+                    }),
+                    y: _darkScale({
+                        ticks: {
+                            color: '#ccc',
+                            font: { family: '"Courier New", monospace', size: 10 }
+                        },
+                        grid: { display: false }
+                    })
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true, text: 'ENTITY SURVIVAL RATES',
+                        color: '#ff8800',
+                        font: { family: '"Courier New", monospace', size: 12, weight: 'bold' }
+                    }
+                }
+            }, chartHeight);
+        }
+
+        // 2. Kill distribution histogram
+        if (agg.killsPerRun && agg.killsPerRun.length > 0) {
+            var kills = agg.killsPerRun;
+            var minVal = agg.killMin;
+            var maxVal = agg.killMax;
+            var binLabels = [];
+            var binData = [];
+
+            if (minVal === maxVal) {
+                binLabels = ['' + minVal];
+                binData = [kills.length];
+            } else {
+                var numBins = Math.min(HISTOGRAM_BINS, maxVal - minVal + 1);
+                var binWidth = (maxVal - minVal) / numBins;
+                for (var b = 0; b < numBins; b++) {
+                    var lo = minVal + b * binWidth;
+                    var hi = minVal + (b + 1) * binWidth;
+                    binLabels.push(Math.round(lo) + '-' + Math.round(hi));
+                    binData.push(0);
+                }
+                for (var j = 0; j < kills.length; j++) {
+                    var idx = Math.floor((kills[j] - minVal) / binWidth);
+                    if (idx >= numBins) idx = numBins - 1;
+                    binData[idx]++;
+                }
+            }
+
+            _createChart(container, 'bar', {
+                labels: binLabels,
+                datasets: [{
+                    label: 'Runs',
+                    data: binData,
+                    backgroundColor: '#ff8800',
+                    borderWidth: 0
+                }]
+            }, {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: _darkScale({
+                        title: { display: true, text: 'Kills per Run', color: '#888' }
+                    }),
+                    y: _darkScale({
+                        beginAtZero: true,
+                        title: { display: true, text: 'Frequency', color: '#888' },
+                        ticks: {
+                            color: '#888', stepSize: 1,
+                            font: { family: '"Courier New", monospace', size: 10 }
+                        }
+                    })
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true, text: 'KILL DISTRIBUTION',
+                        color: '#ff8800',
+                        font: { family: '"Courier New", monospace', size: 12, weight: 'bold' }
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Render Weapons tab charts: effectiveness doughnut + kill chain funnel.
+     */
+    function _renderWeaponsCharts(agg) {
+        var container = document.getElementById('mca-charts-weapons');
+        if (!container) return;
+
+        var weaponTypes = Object.keys(agg.weaponStats);
+        if (weaponTypes.length === 0) return;
+
+        // Color palette for weapon types
+        var palette = ['#ff8800', '#4488ff', '#00ff00', '#ff44ff', '#44ffff', '#ffcc00'];
+
+        // 1. Kills by weapon type doughnut
+        var dLabels = [];
+        var dData = [];
+        var dColors = [];
+        for (var i = 0; i < weaponTypes.length; i++) {
+            var ws = agg.weaponStats[weaponTypes[i]];
+            if (ws.kills > 0) {
+                dLabels.push(weaponTypes[i]);
+                dData.push(ws.kills);
+                dColors.push(palette[i % palette.length]);
+            }
+        }
+
+        if (dData.length > 0) {
+            _createChart(container, 'doughnut', {
+                labels: dLabels,
+                datasets: [{
+                    data: dData,
+                    backgroundColor: dColors,
+                    borderWidth: 1,
+                    borderColor: '#1a1a1a'
+                }]
+            }, {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { color: '#ccc', font: { family: '"Courier New", monospace', size: 11 } }
+                    },
+                    title: {
+                        display: true, text: 'KILLS BY WEAPON TYPE',
+                        color: '#ff8800',
+                        font: { family: '"Courier New", monospace', size: 12, weight: 'bold' }
+                    }
+                }
+            });
+        }
+
+        // 2. Kill chain funnel: launches / kills / misses per weapon
+        var fLabels = [];
+        var launches = [];
+        var fKills = [];
+        var misses = [];
+        for (var j = 0; j < weaponTypes.length; j++) {
+            var ws2 = agg.weaponStats[weaponTypes[j]];
+            fLabels.push(weaponTypes[j]);
+            launches.push(ws2.launches);
+            fKills.push(ws2.kills);
+            misses.push(ws2.misses);
+        }
+
+        _createChart(container, 'bar', {
+            labels: fLabels,
+            datasets: [
+                { label: 'Launches', data: launches, backgroundColor: '#ffcc00', borderWidth: 0 },
+                { label: 'Kills', data: fKills, backgroundColor: '#00ff00', borderWidth: 0 },
+                { label: 'Misses', data: misses, backgroundColor: '#ff4444', borderWidth: 0 }
+            ]
+        }, {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                x: _darkScale(),
+                y: _darkScale({
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#888', stepSize: 1,
+                        font: { family: '"Courier New", monospace', size: 10 }
+                    }
+                })
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#ccc', font: { family: '"Courier New", monospace', size: 11 } }
+                },
+                title: {
+                    display: true, text: 'KILL CHAIN FUNNEL',
+                    color: '#ff8800',
+                    font: { family: '"Courier New", monospace', size: 12, weight: 'bold' }
+                }
+            }
+        });
+    }
+
+    /**
+     * Render Timeline tab chart: engagement scatter plot.
+     */
+    function _renderTimelineCharts(agg, results) {
+        var container = document.getElementById('mca-charts-timeline');
+        if (!container) return;
+
+        var killPts = [];
+        var launchPts = [];
+        var missPts = [];
+
+        for (var r = 0; r < results.length; r++) {
+            var run = results[r];
+            if (run.error) continue;
+            var log = run.engagementLog || [];
+            var runIdx = run.runIndex !== undefined ? run.runIndex : r;
+            for (var e = 0; e < log.length; e++) {
+                var evt = log[e];
+                var pt = { x: evt.time || 0, y: runIdx };
+                var res = (evt.result || '').toUpperCase();
+                if (res === 'KILL') killPts.push(pt);
+                else if (res === 'LAUNCH') launchPts.push(pt);
+                else if (res === 'MISS') missPts.push(pt);
+            }
+        }
+
+        if (killPts.length + launchPts.length + missPts.length === 0) {
+            container.innerHTML = '<div style="color:#666;padding:20px;text-align:center;">' +
+                'No engagement events to display.</div>';
+            return;
+        }
+
+        _createChart(container, 'scatter', {
+            datasets: [
+                {
+                    label: 'Kill', data: killPts,
+                    backgroundColor: '#ff4444', pointRadius: 5,
+                    pointStyle: 'crossRot'
+                },
+                {
+                    label: 'Launch', data: launchPts,
+                    backgroundColor: '#ffcc00', pointRadius: 4,
+                    pointStyle: 'triangle'
+                },
+                {
+                    label: 'Miss', data: missPts,
+                    backgroundColor: '#888888', pointRadius: 3,
+                    pointStyle: 'circle'
+                }
+            ]
+        }, {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                x: _darkScale({
+                    title: { display: true, text: 'Sim Time (s)', color: '#888' }
+                }),
+                y: _darkScale({
+                    title: { display: true, text: 'Run #', color: '#888' },
+                    ticks: {
+                        color: '#888', stepSize: 1,
+                        font: { family: '"Courier New", monospace', size: 10 }
+                    },
+                    reverse: true
+                })
+            },
+            plugins: {
+                legend: {
+                    labels: { color: '#ccc', font: { family: '"Courier New", monospace', size: 11 } }
+                },
+                title: {
+                    display: true, text: 'ENGAGEMENT TIMELINE',
+                    color: '#ff8800',
+                    font: { family: '"Courier New", monospace', size: 12, weight: 'bold' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.dataset.label + ' at t=' + ctx.parsed.x.toFixed(1) +
+                                's (run ' + ctx.parsed.y + ')';
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // -------------------------------------------------------------------
     // Panel Show / Hide
     // -------------------------------------------------------------------
 
@@ -1036,18 +1464,78 @@ var MCAnalysis = (function() {
         var html = '';
         html += _buildHeader(aggregated);
         html += _buildErrorBanner(aggregated);
+
+        // Tab navigation
+        html += '<div class="mca-tabs">';
+        html += '<button class="mca-tab active" data-tab="overview">Overview</button>';
+        html += '<button class="mca-tab" data-tab="weapons">Weapons</button>';
+        html += '<button class="mca-tab" data-tab="timeline">Timeline</button>';
+        html += '<button class="mca-tab" data-tab="rawdata">Raw Data</button>';
+        html += '</div>';
+
+        // Overview tab (visible by default)
+        html += '<div class="mca-tab-content" id="mca-tab-overview">';
         html += _buildTeamSurvival(aggregated);
+        html += '<div id="mca-charts-overview"></div>';
         html += _buildEntitySurvival(aggregated);
+        html += '</div>';
+
+        // Weapons tab
+        html += '<div class="mca-tab-content" id="mca-tab-weapons" style="display:none;">';
+        html += '<div id="mca-charts-weapons"></div>';
         html += _buildWeaponEffectiveness(aggregated);
+        html += '</div>';
+
+        // Timeline tab
+        html += '<div class="mca-tab-content" id="mca-tab-timeline" style="display:none;">';
+        html += '<div id="mca-charts-timeline"></div>';
+        html += '</div>';
+
+        // Raw Data tab
+        html += '<div class="mca-tab-content" id="mca-tab-rawdata" style="display:none;">';
         html += _buildKillDistribution(aggregated);
         html += _buildPerRunTable(aggregated);
         html += _buildExportButtons();
+        html += '</div>';
 
         panel.innerHTML = html;
         document.body.appendChild(panel);
         _panel = panel;
 
+        // Render overview charts immediately (visible tab)
+        if (typeof Chart !== 'undefined') {
+            _renderOverviewCharts(aggregated);
+            _renderedTabs['overview'] = true;
+        }
+
         // --- Event Listeners ---
+
+        // Tab switching
+        var tabs = panel.querySelectorAll('.mca-tab');
+        for (var t = 0; t < tabs.length; t++) {
+            tabs[t].addEventListener('click', function() {
+                var tabName = this.getAttribute('data-tab');
+                // Update active tab button
+                var allTabs = panel.querySelectorAll('.mca-tab');
+                for (var i = 0; i < allTabs.length; i++) {
+                    allTabs[i].classList.remove('active');
+                }
+                this.classList.add('active');
+                // Show/hide content
+                var contents = panel.querySelectorAll('.mca-tab-content');
+                for (var j = 0; j < contents.length; j++) {
+                    contents[j].style.display = 'none';
+                }
+                var target = document.getElementById('mca-tab-' + tabName);
+                if (target) target.style.display = 'block';
+                // Lazy-render charts on first visit
+                if (typeof Chart !== 'undefined' && !_renderedTabs[tabName]) {
+                    _renderedTabs[tabName] = true;
+                    if (tabName === 'weapons') _renderWeaponsCharts(aggregated);
+                    else if (tabName === 'timeline') _renderTimelineCharts(aggregated, results);
+                }
+            });
+        }
 
         // Close button
         var closeBtn = document.getElementById('mca-close-btn');
@@ -1102,6 +1590,7 @@ var MCAnalysis = (function() {
      * Remove the analysis panel from the DOM.
      */
     function hidePanel() {
+        _destroyCharts();
         var existing = document.getElementById(PANEL_ID);
         if (existing) {
             existing.parentNode.removeChild(existing);

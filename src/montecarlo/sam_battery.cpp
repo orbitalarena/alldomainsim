@@ -163,6 +163,10 @@ void SAMBattery::update_entity(MCEntity& e, double dt, MCWorld& world) {
             MCEntity* target = world.get_entity(det.entity_id);
             if (!target || !target->active || target->destroyed) continue;
 
+            // Skip ground/static targets (SAMs shouldn't waste missiles on buildings)
+            if (target->physics_type == PhysicsType::STATIC) continue;
+            if (target->geo_alt < 100.0) continue;
+
             // Compute slant range from SAM to target
             double range = slant_range_ecef(
                 sam_lat_rad, sam_lon_rad, e.geo_alt,

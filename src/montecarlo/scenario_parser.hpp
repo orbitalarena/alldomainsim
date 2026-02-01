@@ -26,6 +26,9 @@ struct MCConfig {
     // Replay mode: single run with trajectory sampling
     bool replay_mode = false;
     double sample_interval = 2.0;   // seconds between position samples
+
+    // Progress reporting: JSON-Lines to stderr for server consumption
+    bool progress = false;
 };
 
 class ScenarioParser {

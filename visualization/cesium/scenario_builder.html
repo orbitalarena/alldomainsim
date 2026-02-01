@@ -8,6 +8,7 @@
     <!-- Cesium -->
     <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
     <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
     <style>
         /* ================================================================
@@ -1284,6 +1285,11 @@
                         <div class="demo-item-desc">Headless run → CZML rapid playback (no physics overhead)</div>
                     </button>
                     <div class="demo-dropdown-sep"></div>
+                    <button class="demo-dropdown-item" id="btnExportCppReplay">
+                        <div class="demo-item-name" style="color:#ff8800;">Export C++ Replay</div>
+                        <div class="demo-item-desc">Run scenario in C++ engine → Cesium 3D replay</div>
+                    </button>
+                    <div class="demo-dropdown-sep"></div>
                     <button class="demo-dropdown-item" id="btnExportDIS">
                         <div class="demo-item-name" style="color:#ff6688;">Export DIS</div>
                         <div class="demo-item-desc">IEEE 1278 binary PDU file for DIS federation</div>
@@ -1322,6 +1328,10 @@
                     <button class="demo-dropdown-item" data-scenario="__orbital_arena_v1">
                         <div class="demo-item-name">Orbital Arena v1</div>
                         <div class="demo-item-desc">500v500 GEO kinetic kill space combat</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="__orbital_arena_large">
+                        <div class="demo-item-name">Orbital Arena Large</div>
+                        <div class="demo-item-desc">850v850 multi-orbit (GEO+LEO+GTO+Lunar)</div>
                     </button>
                     <button class="demo-dropdown-item" data-scenario="__orbital_arena_small">
                         <div class="demo-item-name">Orbital Arena Small</div>

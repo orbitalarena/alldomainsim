@@ -15214,6 +15214,7 @@
       "type": "ground",
       "role": null,
       "deathTime": null,
+      "maxRange": 200000,
       "positions": [
         [
           -1248634.86287168,

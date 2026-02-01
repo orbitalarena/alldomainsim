@@ -129,6 +129,12 @@
             background: #222; border: 1px solid #444; border-radius: 3px;
             padding: 1px 5px; color: #ccc; font-size: 10px;
         }
+        /* Engagement timeline bar */
+        #engagementTimeline {
+            position: absolute; bottom: 68px; left: 280px; right: 280px; z-index: 10;
+            height: 24px; background: rgba(0,0,0,0.75); border: 1px solid #333;
+            border-radius: 4px; cursor: pointer; pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -183,6 +189,8 @@
         <kbd>Esc</kbd> Untrack entity<br>
         <kbd>?</kbd> Toggle this help
     </div>
+
+    <canvas id="engagementTimeline" width="800" height="24"></canvas>
 
     <input type="file" id="fileInput" accept=".json">
 
@@ -334,6 +342,9 @@ var showKillLines = true;
 var showKeyHelp = false;
 var scenarioType = 'atmospheric';
 var trailPrimitives = [];
+var missileTrails = [];
+var rangeRingEntities = [];
+var _timelineFrameCount = 0;
 
 // -- Available replay files (populated by scanning) --
 var REPLAY_FILES = [
@@ -345,6 +356,8 @@ var REPLAY_FILES = [
     { file: 'replay_fighter_patrol.json', label: 'Fighter Patrol (1 entity)' },
     { file: 'replay_two_aircraft.json', label: 'Two Aircraft (2 entities)' },
     { file: 'replay_data.json', label: 'Orbital Arena Small (10 entities)' },
+    { file: 'replay_arena_large.json', label: 'Orbital Arena Large (1700 entities)' },
+    { file: 'replay_multi-domain_awareness.json', label: 'Multi-Domain Awareness' },
     { file: 'replay_h.json', label: 'Contested Orbit H (7 entities)' }
 ];
 
@@ -542,6 +555,41 @@ function initReplay() {
         entityLabels.push(label);
     }
 
+    // Create range rings for SAM/radar ground entities
+    rangeRingEntities.forEach(function(e) { viewer.entities.remove(e); });
+    rangeRingEntities = [];
+    for (var ri = 0; ri < data.entities.length; ri++) {
+        var rawEnt = data.entities[ri];
+        if (!rawEnt.maxRange) continue;
+        // Only draw rings for ground/static entities
+        var entTypeLC = (rawEnt.type || '').toLowerCase();
+        if (entTypeLC !== 'sam' && entTypeLC !== 'radar' && entTypeLC !== 'ground') continue;
+
+        var ringPos = rawEnt.positions[0];
+        if (!ringPos) continue;
+        var ringCart = new Cesium.Cartesian3(ringPos[0], ringPos[1], ringPos[2]);
+        var ringCarto = Cesium.Cartographic.fromCartesian(ringCart);
+
+        var ringTeam = rawEnt.team || 'neutral';
+        var ringBaseColor = ringTeam === 'blue' ? Cesium.Color.fromCssColorString('#4488ff') :
+                            ringTeam === 'red' ? Cesium.Color.fromCssColorString('#ff4444') :
+                            Cesium.Color.fromCssColorString('#888888');
+
+        var ringEntity = viewer.entities.add({
+            position: Cesium.Cartesian3.fromRadians(ringCarto.longitude, ringCarto.latitude, 0),
+            ellipse: {
+                semiMajorAxis: rawEnt.maxRange,
+                semiMinorAxis: rawEnt.maxRange,
+                height: 0,
+                material: ringBaseColor.withAlpha(0.08),
+                outline: true,
+                outlineColor: ringBaseColor.withAlpha(0.4),
+                outlineWidth: 2
+            }
+        });
+        rangeRingEntities.push(ringEntity);
+    }
+
     // Sort events by time
     data.events.sort(function(a, b) { return a.time - b.time; });
 
@@ -693,9 +741,17 @@ function onTick(clock) {
     // Update engagement lines
     updateEngagementLines(simTime);
 
+    // Update missile trails
+    updateMissileTrails(simTime);
+
     // Update trails
     if (showTrails) {
         updateTrails(simTime, sampleInterval, idx);
+    }
+
+    // Update engagement timeline (throttled to every 4th frame)
+    if (++_timelineFrameCount % 4 === 0) {
+        drawEngagementTimeline(simTime);
     }
 
     // Camera tracking
@@ -726,6 +782,8 @@ function processEvents(simTime) {
         killFlashes = [];
         engagementLines.forEach(function(p) { viewer.scene.primitives.remove(p.primitive); });
         engagementLines = [];
+        missileTrails.forEach(function(t) { if (t.primitive) viewer.scene.primitives.remove(t.primitive); });
+        missileTrails = [];
     }
 
     while (eventIndex < events.length && events[eventIndex].time <= simTime) {
@@ -776,22 +834,125 @@ function processEvents(simTime) {
             var launchTgt = new Cesium.Cartesian3(
                 evt.targetPosition[0], evt.targetPosition[1], evt.targetPosition[2]);
 
-            var launchPoly = new Cesium.PolylineCollection();
-            launchPoly.add({
-                positions: [launchSrc, launchTgt],
-                width: 1.5,
-                material: Cesium.Material.fromType('Color', {
-                    color: Cesium.Color.ORANGE.withAlpha(0.5)
-                })
-            });
-            var launchPrim = viewer.scene.primitives.add(launchPoly);
-            engagementLines.push({
-                primitive: launchPrim,
-                startTime: evt.time,
-                duration: 10.0
-            });
+            // Find matching KILL/MISS for time-of-flight
+            var tof = 10.0;
+            for (var k = eventIndex; k < events.length; k++) {
+                var futureEvt = events[k];
+                if ((futureEvt.type === 'KILL' || futureEvt.type === 'MISS') &&
+                    futureEvt.sourceId === evt.sourceId && futureEvt.targetId === evt.targetId) {
+                    tof = futureEvt.time - evt.time;
+                    break;
+                }
+            }
+            if (tof <= 0) tof = 10.0;
+
+            // Find source team for coloring
+            var srcTeam = 'red';
+            for (var ei = 0; ei < entities.length; ei++) {
+                if (entities[ei].id === evt.sourceId) { srcTeam = entities[ei].team; break; }
+            }
+
+            // Create animated missile trail
+            if (missileTrails.length < 20) {
+                missileTrails.push({
+                    srcPos: launchSrc,
+                    tgtPos: launchTgt,
+                    startTime: evt.time,
+                    tof: tof,
+                    team: srcTeam,
+                    primitive: null
+                });
+            }
         }
     }
+}
+
+// -- Animated missile trails --
+var _missileScratch = new Cesium.Cartesian3();
+function updateMissileTrails(simTime) {
+    for (var i = missileTrails.length - 1; i >= 0; i--) {
+        var trail = missileTrails[i];
+        var elapsed = simTime - trail.startTime;
+        var frac = elapsed / trail.tof;
+
+        if (frac >= 1.0 || elapsed < 0) {
+            if (trail.primitive) viewer.scene.primitives.remove(trail.primitive);
+            missileTrails.splice(i, 1);
+            continue;
+        }
+
+        // Interpolate position
+        Cesium.Cartesian3.lerp(trail.srcPos, trail.tgtPos, frac, _missileScratch);
+
+        // Remove old polyline
+        if (trail.primitive) viewer.scene.primitives.remove(trail.primitive);
+
+        // Draw from source to current position
+        var color = trail.team === 'blue' ?
+            Cesium.Color.CYAN.withAlpha(0.7) : Cesium.Color.ORANGE.withAlpha(0.7);
+        var polyCol = new Cesium.PolylineCollection();
+        polyCol.add({
+            positions: [trail.srcPos, Cesium.Cartesian3.clone(_missileScratch)],
+            width: 2,
+            material: Cesium.Material.fromType('Color', { color: color })
+        });
+        trail.primitive = viewer.scene.primitives.add(polyCol);
+    }
+}
+
+// -- Engagement timeline bar --
+function drawEngagementTimeline(simTime) {
+    var canvas = document.getElementById('engagementTimeline');
+    if (!canvas || !replayData || !replayData.events.length) return;
+
+    var ctx = canvas.getContext('2d');
+    var rect = canvas.getBoundingClientRect();
+    var w = rect.width;
+    var h = rect.height;
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+
+    var endTime = replayData.timeline.endTime;
+    if (endTime <= 0) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Draw events
+    var events = replayData.events;
+    for (var i = 0; i < events.length; i++) {
+        var evt = events[i];
+        var x = (evt.time / endTime) * w;
+
+        if (evt.type === 'KILL') {
+            ctx.fillStyle = '#FF4444';
+            ctx.beginPath();
+            ctx.arc(x, h / 2, 5, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (evt.type === 'LAUNCH') {
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(x, h / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (evt.type === 'MISS') {
+            ctx.fillStyle = '#666666';
+            ctx.beginPath();
+            ctx.arc(x, h / 2, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // Current time indicator
+    var nowX = (simTime / endTime) * w;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(nowX, 0);
+    ctx.lineTo(nowX, h);
+    ctx.stroke();
 }
 
 // -- Kill flash animation --
@@ -1175,6 +1336,19 @@ document.getElementById('btnHelp').addEventListener('click', function() {
 
 document.getElementById('detailClose').addEventListener('click', function() {
     document.getElementById('entityDetail').style.display = 'none';
+});
+
+// -- Engagement timeline click-to-scrub --
+document.getElementById('engagementTimeline').addEventListener('click', function(e) {
+    if (!replayData) return;
+    var rect = e.target.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var frac = x / rect.width;
+    var targetTime = frac * replayData.timeline.endTime;
+
+    var startJD = viewer.clock.startTime;
+    viewer.clock.currentTime = Cesium.JulianDate.addSeconds(
+        startJD, targetTime, new Cesium.JulianDate());
 });
 
 // -- Keyboard shortcuts --
