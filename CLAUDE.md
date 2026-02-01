@@ -4,9 +4,9 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Scenario Builder Operational
+## Current Status: C++ Multi-Domain MC Engine Complete
 
-### C++ Backend (Milestones 0-4 + Phases 2-3):
+### C++ Backend (Milestones 0-4 + Phases 2-3 + MC Engine):
 - **M0**: Project skeleton, CMake build system, Git setup
 - **M1**: TLE parsing, single orbit propagation
 - **M2**: Cesium 3D visualization of orbits
@@ -14,6 +14,7 @@ An integrated Earth-Air-Space simulation for multi-domain scenarios from ground 
 - **M4**: Launch vehicle physics, orbital elements, rendezvous planning
 - **Phase 2**: High-fidelity orbital perturbations (J2/J3/J4, Sun/Moon third-body, SRP, drag)
 - **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
+- **MC Engine**: Headless Monte Carlo simulation engine — see detailed section below
 
 ### Scenario Builder (visualization/cesium/scenario_builder.html):
 Interactive drag-and-drop editor with ECS simulation engine. No C++ needed.
@@ -36,6 +37,258 @@ Standalone browser-based simulations — no C++ backend needed.
 - **Fighter Sim** (`fighter_sim_viewer.html`) — Full F-16 flight sim with HUD, weapons, AI
 - **Spaceplane Sim** (`spaceplane_viewer.html`) — **Atmosphere-to-orbit KSP-style sim**
 
+---
+
+## C++ Headless MC Engine — Complete Architecture
+
+### Overview
+The `mc_engine` executable runs Monte Carlo simulations headlessly at native speed, processing scenario JSON from the browser builder and outputting results JSON or replay JSON for Cesium playback.
+
+### Two Modes
+1. **Batch MC mode** (`mc_engine --scenario <path> --runs N`): Runs N independent simulations, outputs aggregated results (engagement counts, survival rates, per-run breakdown)
+2. **Replay mode** (`mc_engine --replay --scenario <path>`): Single deterministic run sampling ECEF positions at intervals, outputs trajectory JSON for the Cesium replay viewer
+
+### Build & Run
+```bash
+cd build && cmake .. && ninja mc_engine
+
+# Batch MC (100 runs, results JSON)
+./bin/mc_engine --scenario ../visualization/cesium/scenarios/demo_iads_engagement.json \
+    --runs 100 --seed 42 --max-time 600 --output results.json --verbose
+
+# Replay (single run, trajectory JSON for Cesium)
+./bin/mc_engine --replay \
+    --scenario ../visualization/cesium/scenarios/demo_iads_engagement.json \
+    --seed 42 --max-time 600 --sample-interval 2 \
+    --output ../visualization/cesium/replay_iads.json --verbose
+```
+
+### Source Files (src/montecarlo/)
+
+**Core:**
+| File | Purpose |
+|------|---------|
+| `mc_entity.hpp` | Flat entity struct: identity, PhysicsType/AIType/WeaponType enums, ECI state, geodetic pos, flight state, aircraft params, waypoint/intercept/radar/SAM/A2A state, engagement log |
+| `mc_world.hpp` | Entity container + ScenarioEvent structs (trigger/action) |
+| `mc_world.cpp` | add_entity, get_entity by ID (O(1) via unordered_map) |
+| `scenario_parser.hpp/cpp` | MCConfig + JSON→MCWorld parser. Handles both IADS (entityA/entityB) and Strike (entityId/targetId) event naming. Auto-assigns waypoint_patrol AI to player_input entities. |
+| `mc_runner.hpp/cpp` | Batch MC orchestrator + replay runner. Tick order: AI→Physics→Sensors→Weapons→Events. Multi-domain combat resolution (orbital HVA + atmospheric aircraft). |
+| `mc_results.hpp/cpp` | RunResult, EngagementEvent, EntitySurvival, JSON output |
+| `mc_engine.cpp` | CLI entry point (--scenario, --replay, --runs, --seed, --max-time, --dt, --sample-interval, --output, --verbose) |
+
+**Physics:**
+| File | Purpose |
+|------|---------|
+| `kepler_propagator.hpp` | Kepler propagation + init_from_elements (for orbital entities) |
+| `flight3dof.hpp/cpp` | 3-DOF atmospheric flight: lift/drag/thrust/gravity → dV/dGamma/dHeading → geodetic position update |
+| `atmosphere.hpp` | US Standard Atmosphere 1976 (header-only): 7 layers + thermosphere. `get_atmosphere(alt_m)` → T, P, ρ, a |
+| `aircraft_configs.hpp` | F-16, MiG-29, AWACS, F-15, Su-27 parameter structs (header-only) |
+| `geo_utils.hpp` | Haversine, geodetic→ECEF (WGS84), bearing, destination_point, slant_range, elevation_angle (header-only) |
+
+**AI:**
+| File | Purpose |
+|------|---------|
+| `orbital_combat_ai.hpp/cpp` | GEO combat AI: HVA defense, pursuit, kinetic kill targeting |
+| `waypoint_patrol_ai.hpp/cpp` | Great-circle waypoint navigation with bank/altitude/speed steering |
+| `intercept_ai.hpp/cpp` | Pure-pursuit intercept toward target entity |
+
+**Sensors:**
+| File | Purpose |
+|------|---------|
+| `radar_sensor.hpp/cpp` | Periodic sweep, ECEF range/elevation check, probabilistic detection via seeded RNG |
+
+**Weapons:**
+| File | Purpose |
+|------|---------|
+| `kinetic_kill.hpp/cpp` | Orbital KKV: cooldown, range check, Pk roll |
+| `sam_battery.hpp/cpp` | F2T2EA kill chain: DETECT(1s)→TRACK(2s)→ENGAGE(TOF)→ASSESS(3s), salvo fire, Pk per missile |
+| `a2a_missile.hpp/cpp` | A2A engagement: LOCK(1.5s)→FIRE(TOF)→ASSESS(2s), weapon selection by range, inventory tracking |
+
+**Events & Output:**
+| File | Purpose |
+|------|---------|
+| `event_system.hpp/cpp` | Trigger evaluation (time, proximity, detection) + action execution (message, change_rules, set_state) |
+| `replay_writer.hpp/cpp` | Trajectory sampling, ECI→ECEF / geodetic→ECEF, JSON output for Cesium viewer |
+| `sim_rng.hpp` | Deterministic seeded RNG (xorshift128+) |
+
+### Tick Order
+```
+1. AI:      OrbitalCombatAI → WaypointPatrolAI → InterceptAI
+2. Physics: Kepler (orbital) → Flight3DOF (atmospheric) → [Static: no-op]
+3. Sensors: RadarSensor
+4. Weapons: KineticKill → SAMBattery → A2AMissile
+5. Events:  EventSystem
+```
+
+### Entity Type Discriminators
+```cpp
+PhysicsType: NONE | ORBITAL_2BODY | FLIGHT_3DOF | STATIC
+AIType:      NONE | ORBITAL_COMBAT | WAYPOINT_PATROL | INTERCEPT
+WeaponType:  NONE | KINETIC_KILL | SAM_BATTERY | A2A_MISSILE
+```
+
+### Replay JSON Format (replay_v1)
+```json
+{
+  "format": "replay_v1",
+  "config": { "seed": 42, "duration": 600, "sampleInterval": 2 },
+  "timeline": { "endTime": 447.8, "sampleTimes": [0, 2, 4, ...] },
+  "entities": [
+    { "id": "eagle_1", "name": "EAGLE 1", "team": "blue", "type": "aircraft",
+      "role": null, "deathTime": 162.9,
+      "positions": [[-2513976,-4630168,3596823], ...] }
+  ],
+  "events": [
+    { "time": 13.2, "type": "LAUNCH", "sourceId": "sam_alpha", "targetId": "gnd_edwards",
+      "sourcePosition": [...], "targetPosition": [...] }
+  ],
+  "summary": { "blueAlive": 0, "blueTotal": 3, "redAlive": 4, "redTotal": 4,
+               "totalKills": 4, "totalLaunches": 8 }
+}
+```
+
+### Replay Viewer (replay_viewer.html)
+Cesium-based 3D playback of replay JSON:
+- PointPrimitiveCollection (single draw call for all entities)
+- Float64Array per entity for zero-allocation interpolation
+- Linear position interpolation between samples
+- Kill flash animation (yellow burst, 3s fade)
+- Engagement polylines (20s fade)
+- Cesium timeline scrubbing + play/pause/speed control
+- Stats panel, scrolling event log, entity list with click-to-track
+- Keyboard: Space=play/pause, +/-=speed, L/T/K=toggle labels/trails/kills, Esc=untrack
+
+### Scenario Compatibility Matrix
+| Scenario | Entities | C++ Support | Replay Generated |
+|----------|----------|-------------|------------------|
+| test_orbital_arena_small | 10 (GEO sats) | Full (orbital_2body + orbital_combat + kinetic_kill) | replay_data.json |
+| test_orbital_arena_100 | 100 (GEO sats) | Full | replay_data.json |
+| demo_iads_engagement | 10 (aircraft+SAM+sat+ground) | Full (multi-domain) | replay_iads.json |
+| template_strike_package | 8 (aircraft+SAM+ground) | Full (multi-domain) | replay_strike.json |
+| demo_multi_domain | 9 (sats+aircraft+ground) | Full (multi-domain) | Not yet generated |
+| template_contested_orbit | 7 (sats+ground) | Full (orbital only, ground is static) | Not yet generated |
+| template_gps_coverage | 10 (GPS sats+ground) | Partial (no combat, just propagation) | Not yet generated |
+| demo_fighter_patrol | 1 (F-16) | Full (flight3dof, player→auto AI) | Not yet generated |
+| demo_two_aircraft | 2 (F-16s) | Full (flight3dof) | Not yet generated |
+| h.json | 7 (sats+ground) | Full (orbital+static) | Not yet generated |
+
+### Performance
+| Scenario | Mode | Time |
+|----------|------|------|
+| IADS (10 entities, 448s sim) | Replay | 7.8ms |
+| Strike (8 entities, 600s sim) | Replay | 7.5ms |
+| Orbital Arena (10 entities, 600s) | Replay | 13.8ms |
+| IADS (10 entities, 300s × 10 runs) | Batch MC | 34.8ms |
+
+---
+
+## NEXT STEPS — Detailed Instructions
+
+### What Was Just Completed
+The C++ headless MC engine now supports multi-domain scenarios (atmospheric flight, radar sensors, SAM batteries, A2A missiles, waypoint/intercept AI, events). Three replay JSONs have been generated:
+- `replay_data.json` — orbital arena (from earlier session)
+- `replay_iads.json` — IADS engagement (10 entities, combat resolves at 448s)
+- `replay_strike.json` — strike package (8 entities, runs full 600s)
+
+### Step 1: Upgrade replay_viewer.html for Multi-Domain
+
+The replay viewer was originally built for orbital GEO combat. It needs several improvements to properly handle atmospheric/ground scenarios:
+
+**Camera auto-detection**: Currently starts at 80,000,000m altitude (GEO view). Should detect scenario type from entity positions:
+- If ALL entities are > 100km altitude → orbital camera (current behavior)
+- If ANY entity is < 100km altitude → atmospheric camera (~500km altitude, centered on entity cluster)
+- Calculate centroid of initial entity positions to set camera target
+
+**Entity coloring by type**: Current color scheme is role-based (HVA=gold, defender=blue, etc.) which only makes sense for orbital combat. Need type-aware coloring:
+- Aircraft: team color (blue=#4488ff, red=#ff4444) with brightness by type (fighter=bright, AWACS=medium, bomber=dim)
+- Ground stations: team color but desaturated/darker
+- SAM sites: team color + distinct shape or pulsing
+- Satellites: keep existing role-based colors
+- Fallback: if entity has no role, use team color + type string
+
+**Ground entity rendering**: Ground stations/SAMs currently render as tiny dots on the Earth surface. Need:
+- Larger pixel size for ground entities (12px vs 8px for aircraft vs 6px for satellites)
+- Optional range rings for SAM/radar entities (if maxRange available in replay data — would need to add to replay JSON)
+- Different point shape if possible (Cesium supports different point primitives)
+
+**Entity info on hover/click**: Show entity metadata (type, team, weapons, status) in a tooltip or sidebar detail panel when clicked.
+
+**Replay file selector**: Add a dropdown or file picker to switch between replay files without editing the URL. List all `replay_*.json` files.
+
+### Step 2: Generate Replays for All Remaining Scenarios
+
+Run the C++ engine on all compatible scenarios:
+
+```bash
+cd /home/ace/all-domain-sim/build
+
+# Multi-domain demo
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/demo_multi_domain.json \
+    --seed 42 --max-time 600 --sample-interval 2 \
+    --output ../visualization/cesium/replay_multi_domain.json --verbose
+
+# Contested orbit
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/template_contested_orbit.json \
+    --seed 42 --max-time 600 --sample-interval 2 \
+    --output ../visualization/cesium/replay_contested_orbit.json --verbose
+
+# GPS coverage
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/template_gps_coverage.json \
+    --seed 42 --max-time 600 --sample-interval 2 \
+    --output ../visualization/cesium/replay_gps_coverage.json --verbose
+
+# Fighter patrol
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/demo_fighter_patrol.json \
+    --seed 42 --max-time 300 --sample-interval 2 \
+    --output ../visualization/cesium/replay_fighter_patrol.json --verbose
+
+# Two aircraft
+./bin/mc_engine --replay --scenario ../visualization/cesium/scenarios/demo_two_aircraft.json \
+    --seed 42 --max-time 300 --sample-interval 2 \
+    --output ../visualization/cesium/replay_two_aircraft.json --verbose
+```
+
+Some scenarios may need parser updates if they use JSON fields not yet handled (check for errors).
+
+### Step 3: Wire Scenario Builder MC Panel to C++ Engine
+
+The scenario builder has a built-in MC analysis panel (`js/builder/mc_runner.js`, `mc_analysis.js`, `mc_panel.js`) that currently runs MC simulations in JavaScript (slow). Wire it to use the C++ engine:
+
+**Option A: Node.js wrapper** (requires Node):
+- Create a small Node.js server that accepts scenario JSON via POST, spawns `mc_engine` as a child process, streams results back
+- Builder sends scenario to Node server instead of running JS MC
+- Advantages: fast (C++ speed), runs on same machine, keeps browser responsive
+- File: `visualization/cesium/mc_server.js` or similar
+
+**Option B: WebAssembly compilation**:
+- Compile the C++ MC engine to WASM via Emscripten
+- Load in browser, run MC directly without server
+- Advantages: no server needed, works offline
+- Disadvantages: Emscripten setup, may need build system changes
+
+**Option C: Shell script bridge** (simplest):
+- Builder exports scenario JSON to disk (already supports this via POST /api/export)
+- User runs `mc_engine` from terminal
+- Builder loads results JSON for analysis display
+- Advantages: zero new code for engine, just UI to trigger and load
+
+### Step 4: Index/Hub Page Updates
+
+Update `index.html` (hub page) to include:
+- Link to replay viewer with all available replays
+- Scenario compatibility status (which scenarios have replay data)
+- C++ engine build instructions
+
+### Known Behavior Notes
+
+**SAM targeting ground bases**: Both IADS and Strike scenarios have SAM batteries engaging ground stations (Edwards AFB, Ali Al Salem AB). This happens because radar detects all opposing-team entities regardless of type, and SAMs engage any detected target. This is technically correct (SAMs fire at radar returns) but may not match scenario intent. To fix: add target type filtering in `sam_battery.cpp` to skip entities where `geo_alt < 100` or `type == "ground"`.
+
+**Strike package detection event**: The `evt_sam_weapons_free` event in `template_strike_package.json` triggers on radar detection of `strike_1`. The SAM's radar (200km range) detects strike_1 almost immediately since they start ~170km apart. This means the SAM goes weapons_free very early. If longer delay is desired, reduce SAM radar range or increase the starting distance.
+
+**Player input auto-AI**: Entities with `control.type == "player_input"` get auto-assigned `WAYPOINT_PATROL` AI with a single waypoint 100km ahead on current heading. They fly straight and level. This is a reasonable headless approximation but means "player" aircraft don't do anything tactical.
+
+---
+
 ## Architecture
 
 ### C++ Core (src/):
@@ -54,6 +307,10 @@ entities/       - Entity base, Satellite (from TLE), LaunchVehicle (multi-stage)
 coordinate/     - TimeUtils (JD/GMST), FrameTransformer (ECI/ECEF/Geodetic)
 propagators/    - RK4Integrator
 io/             - TLEParser, JsonWriter (header-only), JsonReader, Checkpoint
+montecarlo/     - MC engine: MCEntity, MCWorld, ScenarioParser, MCRunner,
+                  ReplayWriter, OrbitalCombatAI, KineticKill, Flight3DOF,
+                  WaypointPatrolAI, InterceptAI, RadarSensor, SAMBattery,
+                  A2AMissile, EventSystem, atmosphere, aircraft_configs, geo_utils
 ```
 
 ### JavaScript Sim Modules (visualization/cesium/js/):
@@ -94,30 +351,36 @@ components/
   control/player_input.js    - Keyboard → entity state (fighter controls)
   ai/waypoint_patrol.js      - Fly ordered waypoints, loiter, RTB
   ai/intercept.js            - Pure-pursuit intercept toward target entity
-  sensors/radar.js           - Search radar: range, FOV, scan rate, Pd, detection lines
+  ai/orbital_combat.js       - GEO combat AI (HVA, defender, attacker, sweep)
+  sensors/radar.js           - Search radar: range, FOV, scan rate, Pd
   weapons/sam_battery.js     - SAM battery with F2T2EA kill chain states
+  weapons/fighter_loadout.js - Aircraft weapons (AIM-120/AIM-9/bombs)
+  weapons/a2a_missile.js     - Air-to-air missile engagement
+  weapons/kinetic_kill.js    - Kinetic projectile intercept (orbital)
   visual/cesium_entity.js    - Point marker + trail (circular buffer) + label
   visual/satellite_visual.js - Orbit path, ground track, Ap/Pe markers
   visual/ground_station.js   - Ground station icon + comm link lines
   visual/radar_coverage.js   - Radar coverage fan (ellipse + arc)
 
 builder/
-  builder_app.js         - Main controller: BUILD/RUN/ANALYZE modes, toolbar,
-                           inspector, entity tree, palette wiring, tick handler
-  scenario_io.js         - File open/save, exportToViewer (Sim), exportModel
-                           (headless → CZML), TLE import, validation
-  globe_interaction.js   - Click-to-place, drag-to-move, right-click context menu
-  object_palette.js      - Entity templates (aircraft, satellites, ground, sensors)
+  builder_app.js         - Main controller: BUILD/RUN/ANALYZE modes
+  scenario_io.js         - File open/save, exportToViewer, exportModel
+  globe_interaction.js   - Click-to-place, drag-to-move
+  object_palette.js      - Entity templates (aircraft, sats, ground, naval)
   property_inspector.js  - Entity property editing panel
-  entity_tree.js         - Bottom panel entity list with team dots
-  satellite_dialog.js    - COE input dialog (6 elements, template defaults,
-                           click-position seeding, live periapsis/apoapsis)
+  entity_tree.js         - Bottom panel entity list
+  satellite_dialog.js    - COE input dialog
   timeline_panel.js      - Canvas timeline: playhead, entity bars, event markers
-  analysis_overlay.js    - Post-run: track history, coverage heat map,
-                           engagement markers + summary table
+  analysis_overlay.js    - Post-run overlays
+  run_inspector.js       - Live simulation HUD
+  event_editor.js        - Visual event creator
+  mc_runner.js           - Monte Carlo batch executor (JS, slow)
+  mc_analysis.js         - MC result aggregator
+  mc_panel.js            - MC UI panel
 ```
 
 ### Executables:
+- `mc_engine` — **Headless Monte Carlo engine** (batch MC + replay generation)
 - `demo` — TLE catalog visualization (generates orbit_data.json)
 - `rendezvous_demo` — Launch from Cape Canaveral, orbit insertion, transfer
 - `perturbation_demo` — Phase 2: 30-day perturbation fidelity comparison
@@ -127,6 +390,7 @@ All served from `visualization/cesium/` via `python3 serve.py 8000`
 
 - `scenario_builder.html` — Interactive scenario editor (BUILD/RUN/ANALYZE)
 - `scenario_viewer.html` — Lightweight scenario runner (live ECS physics)
+- `replay_viewer.html` — **C++ replay playback** (load ?replay=replay_iads.json)
 - `model_viewer.html` — CZML rapid-playback viewer (native Cesium, no JS physics)
 - `index.html` — Hub page linking all sims + builder
 
@@ -138,9 +402,17 @@ for writing scenario JSON/CZML directly to the `scenarios/` directory.
 
 ### C++ Backend
 ```bash
-cd build && cmake .. && make -j$(nproc)
-./build/bin/demo data/tles/satcat.txt
-./build/bin/rendezvous_demo
+cd build && cmake .. && ninja mc_engine
+# or ninja -j$(nproc) for all targets
+```
+
+### MC Engine Usage
+```bash
+# Batch MC
+./bin/mc_engine --scenario <path.json> --runs 100 --seed 42 --max-time 600 --output results.json --verbose
+
+# Replay generation
+./bin/mc_engine --replay --scenario <path.json> --seed 42 --max-time 600 --sample-interval 2 --output replay.json --verbose
 ```
 
 ### Scenario Builder + Interactive Sims (no build needed)
@@ -149,6 +421,7 @@ cd visualization/cesium
 python3 serve.py 8000
 # Then open in browser:
 # http://localhost:8000/scenario_builder.html     — Scenario Builder
+# http://localhost:8000/replay_viewer.html?replay=replay_iads.json  — Replay
 # http://localhost:8000/spaceplane_viewer.html    — Spaceplane sim
 # http://localhost:8000/fighter_sim_viewer.html    — Fighter sim
 # http://localhost:8000/                           — Hub page
@@ -359,6 +632,7 @@ When placing a satellite on the globe, a modal dialog appears with 6 Classical O
 1. **C++ orbit insertion**: 140x320km, should target 400km circular
 2. **Proximity ops NaN**: LVLH edge case when vehicles overlap
 3. **Model**: Removed (using point marker) — can be re-added with any .glb
+4. **SAM targets ground bases**: SAM engages any radar-detected opposing entity including ground stations. Fix: filter by target altitude or type in `sam_battery.cpp`.
 
 ## Bugs Fixed (2026-01-30 session)
 - **SpaceplaneOrbital SyntaxError**: Duplicate `const rPe` in `computeApPePositions`
@@ -398,6 +672,7 @@ When placing a satellite on the globe, a modal dialog appears with 6 Classical O
 - **Keep the HTTP server running**: `cd visualization/cesium && python3 serve.py 8000`
   The user tests changes by refreshing the browser (Ctrl+F5 for hard refresh).
   Use `serve.py` instead of `python3 -m http.server` — it adds `POST /api/export`.
+- **C++ build uses Ninja**: Always `cd build && cmake .. && ninja mc_engine` (not make).
 
 ## Git Conventions
 - Commit messages: imperative mood, describe what changes do

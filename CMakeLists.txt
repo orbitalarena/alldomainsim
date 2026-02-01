@@ -51,6 +51,7 @@ add_subdirectory(src/tactics)
 add_subdirectory(src/data)
 add_subdirectory(src/fom)
 add_subdirectory(src/distributed)
+add_subdirectory(src/montecarlo)
 
 # Main simulation executable
 add_executable(sim_engine
@@ -320,6 +321,18 @@ target_link_libraries(distributed_demo
     core
     distributed
     pthread
+)
+
+# Monte Carlo simulation engine
+add_executable(mc_engine
+    src/mc_engine.cpp
+)
+
+target_link_libraries(mc_engine
+    montecarlo
+    physics
+    core
+    io
 )
 
 # Testing

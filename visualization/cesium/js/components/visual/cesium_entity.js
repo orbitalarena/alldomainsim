@@ -22,17 +22,34 @@
 (function() {
     'use strict';
 
+    // Weapon name -> max range in meters lookup for A2A loadouts
+    var WEAPON_RANGE_TABLE = {
+        'aim120':   100000,   // AIM-120 AMRAAM ~100km
+        'aim9':     18000,    // AIM-9 Sidewinder ~18km
+        'aim7':     70000,    // AIM-7 Sparrow ~70km
+        'r77':      110000,   // R-77 ~110km
+        'r73':      30000,    // R-73 ~30km
+        'r27':      80000,    // R-27 ~80km
+        'pl12':     100000,   // PL-12 ~100km
+        'pl5':      18000,    // PL-5 ~18km
+        'meteor':   150000,   // Meteor ~150km
+        'mica':     80000     // MICA ~80km
+    };
+
     class CesiumEntity extends ECS.Component {
         constructor(config) {
             super(config);
             this._cesiumEntity = null;
             this._trailEntity = null;
+            this._weaponRangeEntity = null;
+            this._weaponRange = 0;
             this._trail = [];
             this._trailCounter = 0;
             this._trailHead = 0;       // circular buffer write index
             this._trailFull = false;    // whether buffer has wrapped
             this._isPlayer = false;
             this._cachedPosition = null; // reuse Cartesian3
+            this._cachedAlt = 0;
         }
 
         init(world) {
@@ -105,6 +122,49 @@
                     }
                 });
             }
+
+            // --- Weapon range ring for aircraft with A2A loadouts ---
+            var weaponsComp = entity.getComponent('weapons');
+            var weaponsCfg = weaponsComp ? weaponsComp.config : null;
+            if (weaponsCfg && weaponsCfg.loadout && Array.isArray(weaponsCfg.loadout)) {
+                // Find max range across all loadout weapons
+                var maxWeaponRange = 0;
+                var loadout = weaponsCfg.loadout;
+                for (var w = 0; w < loadout.length; w++) {
+                    var item = loadout[w];
+                    var range = 0;
+                    if (typeof item === 'object' && item !== null && item.maxRange) {
+                        range = item.maxRange;
+                    } else if (typeof item === 'string') {
+                        range = WEAPON_RANGE_TABLE[item.toLowerCase()] || 0;
+                    }
+                    if (range > maxWeaponRange) maxWeaponRange = range;
+                }
+
+                if (maxWeaponRange > 0) {
+                    this._weaponRange = maxWeaponRange;
+                    this._cachedAlt = state.alt;
+
+                    this._weaponRangeEntity = viewer.entities.add({
+                        name: entity.name + ' Weapon Range',
+                        position: new Cesium.CallbackProperty(function() {
+                            return self._cachedPosition;
+                        }, false),
+                        ellipse: {
+                            semiMajorAxis: maxWeaponRange,
+                            semiMinorAxis: maxWeaponRange,
+                            material: Cesium.Color.CYAN.withAlpha(0.02),
+                            outline: true,
+                            outlineColor: Cesium.Color.CYAN.withAlpha(0.4),
+                            outlineWidth: 1,
+                            height: new Cesium.CallbackProperty(function() {
+                                return self._cachedAlt;
+                            }, false),
+                            granularity: Cesium.Math.toRadians(3)
+                        }
+                    });
+                }
+            }
         }
 
         update(dt, world) {
@@ -114,6 +174,7 @@
             this._cachedPosition = Cesium.Cartesian3.fromRadians(
                 state.lon, state.lat, state.alt
             );
+            this._cachedAlt = state.alt;
 
             // Update trail (every ~10 frames via counter)
             if (this.config.trail) {
@@ -146,7 +207,9 @@
             if (world.viewer) {
                 if (this._cesiumEntity) world.viewer.entities.remove(this._cesiumEntity);
                 if (this._trailEntity) world.viewer.entities.remove(this._trailEntity);
+                if (this._weaponRangeEntity) world.viewer.entities.remove(this._weaponRangeEntity);
             }
+            this._weaponRangeEntity = null;
         }
     }
 

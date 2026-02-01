@@ -1,0 +1,336 @@
+{
+  "metadata": {
+    "name": "Test Orbital Arena Small",
+    "description": "5v5 GEO combat test",
+    "version": "2.0"
+  },
+  "environment": {
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "blue-hva-001",
+      "name": "Blue-HVA-001",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "hva",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        }
+      }
+    },
+    {
+      "id": "blue-hva-002",
+      "name": "Blue-HVA-002",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 8
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "hva",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        }
+      }
+    },
+    {
+      "id": "blue-defender-001",
+      "name": "Blue-Defender-001",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 4
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "defender",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0,
+          "assignedHvaId": "blue-hva-001"
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    },
+    {
+      "id": "blue-attacker-001",
+      "name": "Blue-Attacker-001",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 20
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    },
+    {
+      "id": "blue-sweep-001",
+      "name": "Blue-Sweep-001",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 30
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "sweep",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    },
+    {
+      "id": "red-hva-001",
+      "name": "Red-HVA-001",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 10
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "hva",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        }
+      }
+    },
+    {
+      "id": "red-hva-002",
+      "name": "Red-HVA-002",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 18
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "hva",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        }
+      }
+    },
+    {
+      "id": "red-defender-001",
+      "name": "Red-Defender-001",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 14
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "defender",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0,
+          "assignedHvaId": "red-hva-001"
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    },
+    {
+      "id": "red-attacker-001",
+      "name": "Red-Attacker-001",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 30
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    },
+    {
+      "id": "red-sweep-001",
+      "name": "Red-Sweep-001",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.001,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 40
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "sweep",
+          "sensorRange": 1000000,
+          "defenseRadius": 500000,
+          "maxAccel": 50.0,
+          "killRange": 50000,
+          "scanInterval": 1.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.7,
+          "killRange": 50000,
+          "cooldown": 5.0
+        }
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "target": "blue-hva-001",
+    "range": 500000,
+    "pitch": -0.5
+  }
+}

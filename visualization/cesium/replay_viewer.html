@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Replay Viewer</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        /* Stats panel - top left */
+        #statsPanel {
+            position: absolute; top: 10px; left: 10px; z-index: 10;
+            background: rgba(0,0,0,0.88); border: 1px solid #333; border-radius: 8px;
+            padding: 14px 18px; color: #fff; font-size: 13px; min-width: 220px;
+            pointer-events: none;
+        }
+        #statsPanel h3 { font-size: 13px; color: #888; margin-bottom: 8px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-row { display: flex; justify-content: space-between; margin: 3px 0; }
+        .stat-label { color: #666; }
+        .stat-value { font-weight: 600; }
+        .stat-blue { color: #4DA6FF; }
+        .stat-red { color: #FF4444; }
+        .stat-neutral { color: #aaa; }
+        .stat-gold { color: #FFD700; }
+        .stat-section { margin-top: 8px; padding-top: 6px; border-top: 1px solid #222; }
+
+        /* Event log - top right */
+        #eventLog {
+            position: absolute; top: 10px; right: 10px; z-index: 10;
+            background: rgba(0,0,0,0.88); border: 1px solid #333; border-radius: 8px;
+            padding: 10px 14px; color: #fff; font-size: 11px; width: 340px; max-height: 220px;
+            overflow-y: auto; pointer-events: auto;
+        }
+        #eventLog h3 { font-size: 11px; color: #888; margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+        .event-entry { margin: 2px 0; font-family: 'Consolas', monospace; }
+        .event-kill { color: #FF6347; }
+        .event-launch { color: #FFD700; }
+        .event-miss { color: #888; }
+        .event-detect { color: #4DA6FF; }
+
+        /* Entity list - right side */
+        #entityList {
+            position: absolute; top: 240px; right: 10px; z-index: 10;
+            background: rgba(0,0,0,0.88); border: 1px solid #333; border-radius: 8px;
+            padding: 10px 14px; color: #fff; font-size: 11px; width: 260px;
+            max-height: calc(100vh - 360px); overflow-y: auto; pointer-events: auto;
+        }
+        #entityList h3 { font-size: 11px; color: #888; margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+        .entity-item {
+            padding: 3px 6px; cursor: pointer; border-radius: 4px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;
+        }
+        .entity-item:hover { background: rgba(255,255,255,0.08); }
+        .entity-item.tracked { background: rgba(74,158,255,0.15); border: 1px solid rgba(74,158,255,0.3); }
+        .entity-item.dead { opacity: 0.35; text-decoration: line-through; }
+        .entity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .entity-type-tag { font-size: 9px; color: #555; margin-left: auto; text-transform: uppercase; flex-shrink: 0; }
+
+        /* Entity detail panel */
+        #entityDetail {
+            position: absolute; bottom: 80px; right: 10px; z-index: 10;
+            background: rgba(0,0,0,0.92); border: 1px solid #444; border-radius: 8px;
+            padding: 14px 18px; color: #fff; font-size: 12px; width: 280px;
+            display: none; pointer-events: auto;
+        }
+        #entityDetail h3 { font-size: 14px; margin-bottom: 8px; }
+        #entityDetail .detail-row { display: flex; justify-content: space-between; margin: 2px 0; }
+        #entityDetail .detail-label { color: #666; }
+        #entityDetail .detail-value { color: #ddd; }
+        #entityDetail .detail-close {
+            position: absolute; top: 8px; right: 10px; background: none; border: none;
+            color: #666; cursor: pointer; font-size: 16px;
+        }
+        #entityDetail .detail-close:hover { color: #fff; }
+
+        /* Controls - bottom left */
+        #controlBar {
+            position: absolute; bottom: 30px; left: 10px; z-index: 10;
+            background: rgba(0,0,0,0.88); border: 1px solid #333; border-radius: 8px;
+            padding: 8px 14px; color: #fff; font-size: 12px;
+            display: flex; align-items: center; gap: 12px; pointer-events: auto;
+        }
+        #controlBar button {
+            background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px;
+            padding: 5px 12px; cursor: pointer; font-size: 12px; transition: all 0.15s;
+        }
+        #controlBar button:hover { background: #333; color: #fff; border-color: #555; }
+        #controlBar button.active { background: #1a5c9e; border-color: #2a7cc0; color: #fff; }
+        #controlBar label { color: #888; cursor: pointer; user-select: none; }
+        #controlBar input[type="checkbox"] { margin-right: 3px; vertical-align: middle; }
+        #controlBar select {
+            background: #222; color: #ccc; border: 1px solid #444; border-radius: 4px;
+            padding: 5px 8px; font-size: 12px; cursor: pointer;
+        }
+
+        /* Loading overlay */
+        #loadingOverlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;
+            background: rgba(0,0,0,0.92); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: #fff;
+        }
+        #loadingOverlay h2 { font-size: 22px; margin-bottom: 10px; font-weight: 500; }
+        #loadingOverlay p { color: #888; font-size: 14px; }
+        #loadingOverlay.hidden { display: none; }
+
+        /* Speed indicator */
+        #speedIndicator {
+            position: absolute; bottom: 72px; left: 10px; z-index: 10;
+            background: rgba(0,0,0,0.7); border-radius: 4px;
+            padding: 4px 10px; color: #FFD700; font-size: 14px; font-weight: bold;
+            pointer-events: none;
+        }
+
+        #fileInput { display: none; }
+        .cesium-viewer-bottom { opacity: 0.5; }
+
+        /* Keyboard help */
+        #keyHelp {
+            position: absolute; bottom: 80px; left: 10px; z-index: 10;
+            background: rgba(0,0,0,0.92); border: 1px solid #333; border-radius: 8px;
+            padding: 12px 16px; color: #888; font-size: 11px; display: none;
+            font-family: 'Consolas', monospace; line-height: 1.8;
+        }
+        #keyHelp kbd {
+            background: #222; border: 1px solid #444; border-radius: 3px;
+            padding: 1px 5px; color: #ccc; font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="loadingOverlay">
+        <h2>Replay Viewer</h2>
+        <p id="loadingStatus">Loading replay data...</p>
+    </div>
+
+    <div id="statsPanel">
+        <h3 id="statsTitle">REPLAY</h3>
+        <div id="statsContent"></div>
+    </div>
+
+    <div id="eventLog">
+        <h3>ENGAGEMENT LOG</h3>
+        <div id="eventLogEntries"></div>
+    </div>
+
+    <div id="entityList">
+        <h3>ENTITIES</h3>
+        <div id="entityListEntries"></div>
+    </div>
+
+    <div id="entityDetail">
+        <button class="detail-close" id="detailClose">&times;</button>
+        <h3 id="detailName">—</h3>
+        <div id="detailContent"></div>
+    </div>
+
+    <div id="controlBar">
+        <select id="replaySelector" title="Select replay file">
+            <option value="">— Select Replay —</option>
+        </select>
+        <button id="btnLoadFile">Browse...</button>
+        <label><input type="checkbox" id="chkLabels"> Labels</label>
+        <label><input type="checkbox" id="chkTrails" checked> Trails</label>
+        <label><input type="checkbox" id="chkLines" checked> Kill Lines</label>
+        <button id="btnReset">Reset Cam</button>
+        <button id="btnHelp">?</button>
+    </div>
+
+    <div id="speedIndicator">1x</div>
+
+    <div id="keyHelp">
+        <kbd>Space</kbd> Play / Pause<br>
+        <kbd>+</kbd> <kbd>-</kbd> Speed up / slow down<br>
+        <kbd>L</kbd> Toggle labels<br>
+        <kbd>T</kbd> Toggle trails<br>
+        <kbd>K</kbd> Toggle kill lines<br>
+        <kbd>Esc</kbd> Untrack entity<br>
+        <kbd>?</kbd> Toggle this help
+    </div>
+
+    <input type="file" id="fileInput" accept=".json">
+
+<script>
+// =================================================================
+// Multi-Domain Replay Viewer
+// Renders C++ mc_engine replay data in Cesium 3D
+// Supports orbital, atmospheric, and ground entity types
+// =================================================================
+
+(function() {
+'use strict';
+
+// -- Constants --
+var R_EARTH = 6371000; // meters
+
+// -- Color scheme: type-aware, team-based --
+var TEAM_COLORS = {
+    blue: {
+        aircraft:  { cesium: null, css: '#4DA6FF' },
+        satellite: { cesium: null, css: '#6EC6FF' },
+        ground:    { cesium: null, css: '#2E7BB8' },
+        default:   { cesium: null, css: '#4DA6FF' }
+    },
+    red: {
+        aircraft:  { cesium: null, css: '#FF4444' },
+        satellite: { cesium: null, css: '#FF7777' },
+        ground:    { cesium: null, css: '#CC2222' },
+        default:   { cesium: null, css: '#FF4444' }
+    },
+    neutral: {
+        aircraft:  { cesium: null, css: '#AAAAAA' },
+        satellite: { cesium: null, css: '#CCCCCC' },
+        ground:    { cesium: null, css: '#888888' },
+        default:   { cesium: null, css: '#AAAAAA' }
+    }
+};
+
+// Role-specific overrides (orbital combat scenarios)
+var ROLE_COLORS = {
+    hva:      { blue: '#FFD700', red: '#FF6347' },
+    defender: { blue: '#4DA6FF', red: '#FF4444' },
+    attacker: { blue: '#00BFFF', red: '#FF0000' },
+    escort:   { blue: '#1E90FF', red: '#DC143C' },
+    sweep:    { blue: '#6495ED', red: '#B22222' }
+};
+
+// Initialize Cesium colors
+(function initColors() {
+    var teams = Object.keys(TEAM_COLORS);
+    for (var t = 0; t < teams.length; t++) {
+        var types = Object.keys(TEAM_COLORS[teams[t]]);
+        for (var ty = 0; ty < types.length; ty++) {
+            var entry = TEAM_COLORS[teams[t]][types[ty]];
+            entry.cesium = Cesium.Color.fromCssColorString(entry.css);
+        }
+    }
+})();
+
+function getEntityColor(team, type, role) {
+    // Role takes priority (orbital combat scenarios)
+    if (role && ROLE_COLORS[role]) {
+        var rc = ROLE_COLORS[role];
+        var css = rc[team] || rc.blue;
+        return { cesium: Cesium.Color.fromCssColorString(css), css: css };
+    }
+    var t = TEAM_COLORS[team] || TEAM_COLORS.neutral;
+    var c = t[type] || t.default;
+    return c;
+}
+
+function getPointSize(type, role) {
+    if (role === 'hva') return 14;
+    if (type === 'ground') return 12;
+    if (type === 'aircraft') return 8;
+    if (type === 'satellite') return 6;
+    return 7;
+}
+
+function getOutline(type, role) {
+    if (role === 'hva') return { color: Cesium.Color.WHITE, width: 2 };
+    if (type === 'ground') return { color: Cesium.Color.WHITE.withAlpha(0.5), width: 1 };
+    return { color: Cesium.Color.TRANSPARENT, width: 0 };
+}
+
+// -- Scenario type detection --
+function detectScenarioType(entities) {
+    var hasOrbital = false;
+    var hasAtmospheric = false;
+    var hasGround = false;
+
+    for (var i = 0; i < entities.length; i++) {
+        var type = entities[i].type;
+        if (type === 'satellite') hasOrbital = true;
+        else if (type === 'aircraft') hasAtmospheric = true;
+        else if (type === 'ground') hasGround = true;
+    }
+
+    // Check initial altitudes
+    var maxAlt = 0;
+    var minAlt = Infinity;
+    for (var j = 0; j < entities.length; j++) {
+        var pos = entities[j].positions[0];
+        if (!pos) continue;
+        var mag = Math.sqrt(pos[0]*pos[0] + pos[1]*pos[1] + pos[2]*pos[2]);
+        var alt = mag - R_EARTH;
+        if (alt > maxAlt) maxAlt = alt;
+        if (alt < minAlt) minAlt = alt;
+    }
+
+    if (hasAtmospheric || hasGround) {
+        if (hasOrbital && maxAlt > 200000) return 'multi-domain';
+        return 'atmospheric';
+    }
+    if (hasOrbital) return 'orbital';
+    return 'atmospheric'; // default
+}
+
+function computeCentroid(entities) {
+    var sumLat = 0, sumLon = 0, count = 0;
+    for (var i = 0; i < entities.length; i++) {
+        var pos = entities[i].positions[0];
+        if (!pos) continue;
+        var cart = new Cesium.Cartesian3(pos[0], pos[1], pos[2]);
+        var carto = Cesium.Cartographic.fromCartesian(cart);
+        sumLat += Cesium.Math.toDegrees(carto.latitude);
+        sumLon += Cesium.Math.toDegrees(carto.longitude);
+        count++;
+    }
+    if (count === 0) return { lat: 0, lon: 0 };
+    return { lat: sumLat / count, lon: sumLon / count };
+}
+
+// -- State --
+var viewer;
+var replayData = null;
+var pointCollection = null;
+var labelCollection = null;
+var entities = [];
+var entityPoints = [];
+var entityLabels = [];
+var killFlashes = [];
+var engagementLines = [];
+var eventIndex = 0;
+var trackedEntityIdx = -1;
+var showLabels = false;
+var showTrails = true;
+var showKillLines = true;
+var showKeyHelp = false;
+var scenarioType = 'atmospheric';
+var trailPrimitives = [];
+
+// -- Available replay files (populated by scanning) --
+var REPLAY_FILES = [
+    { file: 'replay_iads.json', label: 'IADS Engagement (10 entities)' },
+    { file: 'replay_strike.json', label: 'Strike Package (8 entities)' },
+    { file: 'replay_multi_domain.json', label: 'Multi-Domain (9 entities)' },
+    { file: 'replay_contested_orbit.json', label: 'Contested Orbit (7 entities)' },
+    { file: 'replay_gps_coverage.json', label: 'GPS Coverage (11 entities)' },
+    { file: 'replay_fighter_patrol.json', label: 'Fighter Patrol (1 entity)' },
+    { file: 'replay_two_aircraft.json', label: 'Two Aircraft (2 entities)' },
+    { file: 'replay_data.json', label: 'Orbital Arena Small (10 entities)' },
+    { file: 'replay_h.json', label: 'Contested Orbit H (7 entities)' }
+];
+
+// -- Cesium Init --
+viewer = new Cesium.Viewer('cesiumContainer', {
+    baseLayerPicker: true,
+    geocoder: false,
+    homeButton: false,
+    sceneModePicker: false,
+    navigationHelpButton: false,
+    animation: true,
+    timeline: true,
+    fullscreenButton: false,
+    vrButton: false,
+    infoBox: false,
+    selectionIndicator: false,
+    shadows: false,
+    shouldAnimate: true
+});
+
+viewer.scene.globe.enableLighting = true;
+viewer.scene.skyAtmosphere.show = true;
+viewer.scene.backgroundColor = Cesium.Color.BLACK;
+
+// -- Populate replay selector --
+(function populateSelector() {
+    var sel = document.getElementById('replaySelector');
+    for (var i = 0; i < REPLAY_FILES.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = REPLAY_FILES[i].file;
+        opt.textContent = REPLAY_FILES[i].label;
+        sel.appendChild(opt);
+    }
+})();
+
+// -- Load replay from URL param or show selector --
+var params = new URLSearchParams(window.location.search);
+var replayUrl = params.get('replay');
+
+if (replayUrl) {
+    loadReplay(replayUrl);
+    // Highlight in selector
+    var sel = document.getElementById('replaySelector');
+    for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === replayUrl) {
+            sel.selectedIndex = i;
+            break;
+        }
+    }
+} else {
+    document.getElementById('loadingStatus').textContent =
+        'Select a replay from the dropdown, or use ?replay=replay_iads.json';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+
+// Selector change handler
+document.getElementById('replaySelector').addEventListener('change', function(e) {
+    var file = e.target.value;
+    if (file) {
+        // Update URL without reload
+        var newUrl = window.location.pathname + '?replay=' + file;
+        window.history.pushState({}, '', newUrl);
+        loadReplay(file);
+    }
+});
+
+async function loadReplay(url) {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    document.getElementById('loadingStatus').textContent = 'Loading: ' + url;
+
+    try {
+        var resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
+        replayData = await resp.json();
+        document.title = 'Replay: ' + (replayData.config.scenarioName || url.replace('.json',''));
+        initReplay();
+    } catch (e) {
+        document.getElementById('loadingStatus').textContent = 'Error: ' + e.message;
+        console.error('Load error:', e);
+    }
+}
+
+function loadReplayFromFile(file) {
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    document.getElementById('loadingStatus').textContent = 'Loading: ' + file.name;
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            replayData = JSON.parse(e.target.result);
+            initReplay();
+        } catch (err) {
+            document.getElementById('loadingStatus').textContent = 'Error: ' + err.message;
+        }
+    };
+    reader.readAsText(file);
+}
+
+// -- Initialize replay --
+function initReplay() {
+    var data = replayData;
+    var sampleInterval = data.config.sampleInterval;
+    var sampleTimes = data.timeline.sampleTimes;
+    var endTime = data.timeline.endTime;
+
+    document.getElementById('loadingStatus').textContent =
+        'Processing ' + data.entities.length + ' entities, ' + sampleTimes.length + ' samples...';
+
+    // Detect scenario type
+    scenarioType = detectScenarioType(data.entities);
+
+    // Clear previous state
+    if (pointCollection) viewer.scene.primitives.remove(pointCollection);
+    if (labelCollection) viewer.scene.primitives.remove(labelCollection);
+    trailPrimitives.forEach(function(p) { viewer.scene.primitives.remove(p); });
+    engagementLines.forEach(function(p) { viewer.scene.primitives.remove(p.primitive); });
+    pointCollection = null;
+    labelCollection = null;
+    entities = [];
+    entityPoints = [];
+    entityLabels = [];
+    killFlashes = [];
+    engagementLines = [];
+    trailPrimitives = [];
+    eventIndex = 0;
+    trackedEntityIdx = -1;
+
+    // Hide detail panel
+    document.getElementById('entityDetail').style.display = 'none';
+
+    // Create primitives
+    pointCollection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+    labelCollection = viewer.scene.primitives.add(new Cesium.LabelCollection());
+
+    // Process entities
+    for (var i = 0; i < data.entities.length; i++) {
+        var raw = data.entities[i];
+        var entType = raw.type || 'unknown';
+        var entRole = raw.role || null;
+        var entTeam = raw.team || 'neutral';
+
+        var colorInfo = getEntityColor(entTeam, entType, entRole);
+        var pointSize = getPointSize(entType, entRole);
+        var outline = getOutline(entType, entRole);
+
+        // Flatten positions into Float64Array
+        var flat = new Float64Array(raw.positions.length * 3);
+        for (var j = 0; j < raw.positions.length; j++) {
+            flat[j * 3]     = raw.positions[j][0];
+            flat[j * 3 + 1] = raw.positions[j][1];
+            flat[j * 3 + 2] = raw.positions[j][2];
+        }
+
+        var initPos = new Cesium.Cartesian3(flat[0], flat[1], flat[2]);
+
+        var point = pointCollection.add({
+            position: initPos,
+            pixelSize: pointSize,
+            color: colorInfo.cesium,
+            outlineColor: outline.color,
+            outlineWidth: outline.width,
+            show: true
+        });
+
+        var label = labelCollection.add({
+            position: initPos,
+            text: raw.name,
+            font: '11px sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -(pointSize + 6)),
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            show: showLabels
+        });
+
+        entities.push({
+            id: raw.id,
+            name: raw.name,
+            team: entTeam,
+            type: entType,
+            role: entRole,
+            deathTime: raw.deathTime,
+            flat: flat,
+            numPositions: raw.positions.length,
+            color: colorInfo.cesium,
+            cssColor: colorInfo.css,
+            baseSize: pointSize,
+            alive: true
+        });
+
+        entityPoints.push(point);
+        entityLabels.push(label);
+    }
+
+    // Sort events by time
+    data.events.sort(function(a, b) { return a.time - b.time; });
+
+    // Setup Cesium timeline
+    var startJD = Cesium.JulianDate.fromDate(new Date('2026-01-01T00:00:00Z'));
+    var endJD = Cesium.JulianDate.addSeconds(startJD, endTime, new Cesium.JulianDate());
+
+    viewer.clock.startTime = startJD;
+    viewer.clock.stopTime = endJD;
+    viewer.clock.currentTime = Cesium.JulianDate.clone(startJD);
+    viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+    viewer.clock.multiplier = 1;
+    viewer.clock.shouldAnimate = false;
+
+    viewer.timeline.zoomTo(startJD, endJD);
+
+    // Camera positioning based on scenario type
+    setupCamera();
+
+    // Build UI
+    buildEntityList();
+    buildStatsPanel();
+    updateStats(0);
+
+    // Register tick handler (remove old one first)
+    viewer.clock.onTick.removeEventListener(onTick);
+    viewer.clock.onTick.addEventListener(onTick);
+
+    // Hide loading
+    document.getElementById('loadingOverlay').classList.add('hidden');
+
+    // Auto-play
+    setTimeout(function() {
+        viewer.clock.shouldAnimate = true;
+    }, 500);
+}
+
+// -- Camera setup based on scenario type --
+function setupCamera() {
+    var centroid, altitude;
+
+    switch (scenarioType) {
+        case 'orbital':
+            // GEO/orbital view — far out
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 80000000),
+                duration: 0
+            });
+            break;
+        case 'atmospheric':
+            // Close view centered on entity cluster
+            centroid = computeCentroid(replayData.entities);
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(centroid.lon, centroid.lat, 500000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-45),
+                    roll: 0
+                },
+                duration: 0
+            });
+            break;
+        case 'multi-domain':
+            // Medium view to see both ground/air and some orbital context
+            centroid = computeCentroid(replayData.entities);
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(centroid.lon, centroid.lat, 5000000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-30),
+                    roll: 0
+                },
+                duration: 0
+            });
+            break;
+    }
+}
+
+// -- Per-frame tick --
+var _scratchPos = new Cesium.Cartesian3();
+
+function onTick(clock) {
+    if (!replayData) return;
+
+    var startJD = clock.startTime;
+    var simTime = Cesium.JulianDate.secondsDifference(clock.currentTime, startJD);
+    var sampleInterval = replayData.config.sampleInterval;
+
+    if (simTime < 0) return;
+
+    // Speed indicator
+    var mult = clock.multiplier;
+    document.getElementById('speedIndicator').textContent =
+        mult >= 1 ? mult + 'x' : (1/mult).toFixed(1) + 'x slow';
+
+    // Interpolate positions
+    var rawIdx = simTime / sampleInterval;
+    var idx = Math.floor(rawIdx);
+    var frac = rawIdx - idx;
+
+    for (var i = 0; i < entities.length; i++) {
+        var ent = entities[i];
+        var flat = ent.flat;
+        var maxIdx = ent.numPositions - 1;
+
+        // Death check
+        if (ent.deathTime !== null && simTime >= ent.deathTime) {
+            if (ent.alive) {
+                ent.alive = false;
+                entityPoints[i].show = false;
+                entityLabels[i].show = false;
+                updateEntityListItem(i, false);
+            }
+            continue;
+        } else if (!ent.alive && (ent.deathTime === null || simTime < ent.deathTime)) {
+            ent.alive = true;
+            entityPoints[i].show = true;
+            entityLabels[i].show = showLabels;
+            updateEntityListItem(i, true);
+        }
+
+        if (idx >= maxIdx) {
+            var base = maxIdx * 3;
+            _scratchPos.x = flat[base];
+            _scratchPos.y = flat[base + 1];
+            _scratchPos.z = flat[base + 2];
+        } else if (idx < 0) {
+            _scratchPos.x = flat[0];
+            _scratchPos.y = flat[1];
+            _scratchPos.z = flat[2];
+        } else {
+            var i0 = idx * 3;
+            var i1 = (idx + 1) * 3;
+            _scratchPos.x = flat[i0]     + frac * (flat[i1]     - flat[i0]);
+            _scratchPos.y = flat[i0 + 1] + frac * (flat[i1 + 1] - flat[i0 + 1]);
+            _scratchPos.z = flat[i0 + 2] + frac * (flat[i1 + 2] - flat[i0 + 2]);
+        }
+
+        entityPoints[i].position = Cesium.Cartesian3.clone(_scratchPos);
+        entityLabels[i].position = Cesium.Cartesian3.clone(_scratchPos);
+    }
+
+    // Process events
+    processEvents(simTime);
+
+    // Update kill flashes
+    updateKillFlashes(simTime);
+
+    // Update engagement lines
+    updateEngagementLines(simTime);
+
+    // Update trails
+    if (showTrails) {
+        updateTrails(simTime, sampleInterval, idx);
+    }
+
+    // Camera tracking
+    if (trackedEntityIdx >= 0 && trackedEntityIdx < entityPoints.length) {
+        var pos = entityPoints[trackedEntityIdx].position;
+        if (pos) {
+            var trackType = entities[trackedEntityIdx].type;
+            var range = trackType === 'satellite' ? 500000 :
+                        trackType === 'ground' ? 50000 : 100000;
+            var offset = new Cesium.HeadingPitchRange(0, -0.5, range);
+            viewer.camera.lookAt(pos, offset);
+        }
+    }
+
+    // Update stats and detail panel
+    updateStats(simTime);
+    updateDetailPanel(simTime);
+}
+
+// -- Event processing --
+function processEvents(simTime) {
+    var events = replayData.events;
+
+    // Handle rewind
+    if (eventIndex > 0 && events[eventIndex - 1].time > simTime) {
+        eventIndex = 0;
+        document.getElementById('eventLogEntries').innerHTML = '';
+        killFlashes = [];
+        engagementLines.forEach(function(p) { viewer.scene.primitives.remove(p.primitive); });
+        engagementLines = [];
+    }
+
+    while (eventIndex < events.length && events[eventIndex].time <= simTime) {
+        var evt = events[eventIndex];
+        eventIndex++;
+
+        addEventLogEntry(evt);
+
+        if (evt.type === 'KILL') {
+            var targetIdx = entities.findIndex(function(e) { return e.id === evt.targetId; });
+            if (targetIdx >= 0 && entityPoints[targetIdx].show) {
+                killFlashes.push({
+                    pointIdx: targetIdx,
+                    startTime: evt.time,
+                    duration: 3.0
+                });
+                entityPoints[targetIdx].pixelSize = 24;
+                entityPoints[targetIdx].color = Cesium.Color.YELLOW;
+            }
+
+            if (showKillLines && evt.sourcePosition && evt.targetPosition) {
+                var srcPos = new Cesium.Cartesian3(
+                    evt.sourcePosition[0], evt.sourcePosition[1], evt.sourcePosition[2]);
+                var tgtPos = new Cesium.Cartesian3(
+                    evt.targetPosition[0], evt.targetPosition[1], evt.targetPosition[2]);
+
+                var polyline = new Cesium.PolylineCollection();
+                polyline.add({
+                    positions: [srcPos, tgtPos],
+                    width: 2,
+                    material: Cesium.Material.fromType('Color', {
+                        color: Cesium.Color.YELLOW.withAlpha(0.8)
+                    })
+                });
+                var primitive = viewer.scene.primitives.add(polyline);
+
+                engagementLines.push({
+                    primitive: primitive,
+                    startTime: evt.time,
+                    duration: 20.0
+                });
+            }
+        }
+
+        if (evt.type === 'LAUNCH' && showKillLines && evt.sourcePosition && evt.targetPosition) {
+            var launchSrc = new Cesium.Cartesian3(
+                evt.sourcePosition[0], evt.sourcePosition[1], evt.sourcePosition[2]);
+            var launchTgt = new Cesium.Cartesian3(
+                evt.targetPosition[0], evt.targetPosition[1], evt.targetPosition[2]);
+
+            var launchPoly = new Cesium.PolylineCollection();
+            launchPoly.add({
+                positions: [launchSrc, launchTgt],
+                width: 1.5,
+                material: Cesium.Material.fromType('Color', {
+                    color: Cesium.Color.ORANGE.withAlpha(0.5)
+                })
+            });
+            var launchPrim = viewer.scene.primitives.add(launchPoly);
+            engagementLines.push({
+                primitive: launchPrim,
+                startTime: evt.time,
+                duration: 10.0
+            });
+        }
+    }
+}
+
+// -- Kill flash animation --
+function updateKillFlashes(simTime) {
+    for (var i = killFlashes.length - 1; i >= 0; i--) {
+        var flash = killFlashes[i];
+        var elapsed = simTime - flash.startTime;
+        var t = elapsed / flash.duration;
+
+        if (t >= 1.0 || elapsed < 0) {
+            var ent = entities[flash.pointIdx];
+            entityPoints[flash.pointIdx].pixelSize = ent.baseSize;
+            entityPoints[flash.pointIdx].color = ent.color;
+            killFlashes.splice(i, 1);
+            continue;
+        }
+
+        var entF = entities[flash.pointIdx];
+        var size = 24 + (entF.baseSize - 24) * t;
+        entityPoints[flash.pointIdx].pixelSize = Math.max(size, entF.baseSize);
+        entityPoints[flash.pointIdx].color = Cesium.Color.lerp(
+            Cesium.Color.YELLOW, entF.color, t, new Cesium.Color());
+    }
+}
+
+// -- Engagement lines fade --
+function updateEngagementLines(simTime) {
+    for (var i = engagementLines.length - 1; i >= 0; i--) {
+        var line = engagementLines[i];
+        var elapsed = simTime - line.startTime;
+
+        if (elapsed >= line.duration || elapsed < 0) {
+            viewer.scene.primitives.remove(line.primitive);
+            engagementLines.splice(i, 1);
+        }
+    }
+}
+
+// -- Trail rendering --
+var lastTrailUpdate = -1;
+
+function updateTrails(simTime, sampleInterval, currentIdx) {
+    if (currentIdx === lastTrailUpdate) return;
+    lastTrailUpdate = currentIdx;
+
+    trailPrimitives.forEach(function(p) { viewer.scene.primitives.remove(p); });
+    trailPrimitives = [];
+
+    // Trail length varies by entity type
+    var defaultTrailLen = 30;
+
+    for (var i = 0; i < entities.length; i++) {
+        var ent = entities[i];
+        if (!ent.alive && ent.deathTime !== null && simTime >= ent.deathTime) continue;
+
+        var flat = ent.flat;
+        var maxIdx = ent.numPositions - 1;
+
+        // Longer trails for satellites, shorter for ground
+        var trailLength = ent.type === 'satellite' ? 60 :
+                          ent.type === 'ground' ? 10 : defaultTrailLen;
+        var startIdx = Math.max(0, currentIdx - trailLength);
+        var endIdx = Math.min(currentIdx, maxIdx);
+
+        if (endIdx - startIdx < 2) continue;
+
+        var positions = [];
+        for (var j = startIdx; j <= endIdx; j++) {
+            var base = j * 3;
+            positions.push(new Cesium.Cartesian3(flat[base], flat[base+1], flat[base+2]));
+        }
+
+        var polyline = new Cesium.PolylineCollection();
+        polyline.add({
+            positions: positions,
+            width: ent.type === 'satellite' ? 1 : 2,
+            material: Cesium.Material.fromType('Color', {
+                color: ent.color.withAlpha(ent.type === 'ground' ? 0.2 : 0.4)
+            })
+        });
+        trailPrimitives.push(viewer.scene.primitives.add(polyline));
+    }
+}
+
+// -- Dynamic stats panel --
+function buildStatsPanel() {
+    var title = 'REPLAY';
+    if (scenarioType === 'orbital') title = 'ORBITAL ARENA';
+    else if (scenarioType === 'atmospheric') title = 'ENGAGEMENT';
+    else if (scenarioType === 'multi-domain') title = 'MULTI-DOMAIN';
+
+    document.getElementById('statsTitle').textContent = title;
+}
+
+function updateStats(simTime) {
+    var mins = Math.floor(simTime / 60);
+    var secs = Math.floor(simTime % 60);
+    var timeStr = 'T+' + mins + ':' + String(secs).padStart(2, '0');
+
+    // Count entities by team and type
+    var counts = {
+        blue: { alive: 0, total: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 },
+        red:  { alive: 0, total: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 }
+    };
+
+    for (var i = 0; i < entities.length; i++) {
+        var ent = entities[i];
+        var team = ent.team;
+        if (!counts[team]) continue;
+        var alive = ent.deathTime === null || simTime < ent.deathTime;
+        counts[team].total++;
+        if (alive) counts[team].alive++;
+
+        var type = ent.type || 'unknown';
+        if (type === 'aircraft') {
+            counts[team].aircraft++;
+            if (alive) counts[team].aircraftAlive++;
+        } else if (type === 'ground') {
+            counts[team].ground++;
+            if (alive) counts[team].groundAlive++;
+        } else if (type === 'satellite') {
+            counts[team].satellite++;
+            if (alive) counts[team].satelliteAlive++;
+        }
+    }
+
+    // Count events
+    var kills = 0, launches = 0;
+    if (replayData) {
+        for (var e = 0; e < replayData.events.length; e++) {
+            if (replayData.events[e].time > simTime) break;
+            if (replayData.events[e].type === 'KILL') kills++;
+            if (replayData.events[e].type === 'LAUNCH') launches++;
+        }
+    }
+
+    // Build HTML
+    var html = '<div class="stat-row"><span class="stat-label">Time</span><span class="stat-value">' + timeStr + '</span></div>';
+
+    function teamRow(label, teamData, cssClass) {
+        var parts = [];
+        if (teamData.aircraft > 0) parts.push(teamData.aircraftAlive + '/' + teamData.aircraft + ' air');
+        if (teamData.ground > 0) parts.push(teamData.groundAlive + '/' + teamData.ground + ' gnd');
+        if (teamData.satellite > 0) parts.push(teamData.satelliteAlive + '/' + teamData.satellite + ' sat');
+
+        if (parts.length === 0) return '';
+
+        var detail = parts.join(', ');
+        return '<div class="stat-row"><span class="stat-label">' + label + '</span>' +
+               '<span class="stat-value ' + cssClass + '">' + teamData.alive + '/' + teamData.total + '</span></div>' +
+               '<div class="stat-row" style="margin-top:-2px"><span class="stat-label"></span>' +
+               '<span style="color:#555;font-size:10px">' + detail + '</span></div>';
+    }
+
+    html += teamRow('Blue', counts.blue, 'stat-blue');
+    html += teamRow('Red', counts.red, 'stat-red');
+
+    html += '<div class="stat-section">';
+    html += '<div class="stat-row"><span class="stat-label">Kills</span><span class="stat-value stat-gold">' + kills + '</span></div>';
+    html += '<div class="stat-row"><span class="stat-label">Launches</span><span class="stat-value">' + launches + '</span></div>';
+    html += '</div>';
+
+    html += '<div style="margin-top:6px;font-size:10px;color:#444">' +
+            entities.length + ' entities | ' + scenarioType + '</div>';
+
+    document.getElementById('statsContent').innerHTML = html;
+}
+
+// -- Event log --
+function addEventLogEntry(evt) {
+    var div = document.getElementById('eventLogEntries');
+    var entry = document.createElement('div');
+    var mins = Math.floor(evt.time / 60);
+    var secs = Math.floor(evt.time % 60);
+    var timeStr = mins + ':' + String(secs).padStart(2, '0');
+
+    var cls = 'event-entry';
+    if (evt.type === 'KILL') cls += ' event-kill';
+    else if (evt.type === 'LAUNCH') cls += ' event-launch';
+    else if (evt.type === 'DETECT') cls += ' event-detect';
+    else cls += ' event-miss';
+
+    var src = replayData.entities.find(function(e) { return e.id === evt.sourceId; });
+    var tgt = replayData.entities.find(function(e) { return e.id === evt.targetId; });
+    var srcName = src ? src.name : (evt.sourceId || '?');
+    var tgtName = tgt ? tgt.name : (evt.targetId || '?');
+
+    entry.className = cls;
+    entry.textContent = 'T+' + timeStr + ' ' + evt.type + ' ' + srcName + ' \u2192 ' + tgtName;
+    div.insertBefore(entry, div.firstChild);
+
+    while (div.children.length > 60) {
+        div.removeChild(div.lastChild);
+    }
+}
+
+// -- Entity list --
+function buildEntityList() {
+    var div = document.getElementById('entityListEntries');
+    div.innerHTML = '';
+
+    var blueEnts = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
+                           .filter(function(e) { return e.team === 'blue'; });
+    var redEnts  = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
+                           .filter(function(e) { return e.team === 'red'; });
+    var otherEnts = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
+                            .filter(function(e) { return e.team !== 'blue' && e.team !== 'red'; });
+
+    function addGroup(label, ents) {
+        if (ents.length === 0) return;
+        var header = document.createElement('div');
+        header.style.cssText = 'color:#555; font-size:10px; margin-top:8px; margin-bottom:3px; text-transform:uppercase; letter-spacing:0.5px;';
+        header.textContent = label + ' (' + ents.length + ')';
+        div.appendChild(header);
+
+        for (var i = 0; i < ents.length; i++) {
+            var ent = ents[i];
+            var item = document.createElement('div');
+            item.className = 'entity-item';
+            item.id = 'entity-item-' + ent.idx;
+
+            var dot = document.createElement('span');
+            dot.className = 'entity-dot';
+            dot.style.backgroundColor = ent.cssColor;
+
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = ent.name;
+
+            var typeTag = document.createElement('span');
+            typeTag.className = 'entity-type-tag';
+            typeTag.textContent = ent.type;
+
+            item.appendChild(dot);
+            item.appendChild(nameSpan);
+            item.appendChild(typeTag);
+            item.addEventListener('click', (function(idx) {
+                return function() { trackEntity(idx); };
+            })(ent.idx));
+
+            div.appendChild(item);
+        }
+    }
+
+    addGroup('Blue', blueEnts);
+    addGroup('Red', redEnts);
+    addGroup('Other', otherEnts);
+}
+
+function updateEntityListItem(idx, alive) {
+    var item = document.getElementById('entity-item-' + idx);
+    if (item) {
+        if (alive) item.classList.remove('dead');
+        else item.classList.add('dead');
+    }
+}
+
+function trackEntity(idx) {
+    // Untrack previous
+    if (trackedEntityIdx >= 0) {
+        var prev = document.getElementById('entity-item-' + trackedEntityIdx);
+        if (prev) prev.classList.remove('tracked');
+        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+    }
+
+    if (idx === trackedEntityIdx) {
+        trackedEntityIdx = -1;
+        document.getElementById('entityDetail').style.display = 'none';
+        return;
+    }
+
+    trackedEntityIdx = idx;
+    var item = document.getElementById('entity-item-' + idx);
+    if (item) item.classList.add('tracked');
+
+    // Show detail panel
+    showEntityDetail(idx);
+}
+
+// -- Entity detail panel --
+function showEntityDetail(idx) {
+    var ent = entities[idx];
+    var panel = document.getElementById('entityDetail');
+    document.getElementById('detailName').textContent = ent.name;
+    document.getElementById('detailName').style.color = ent.cssColor;
+    panel.style.display = 'block';
+}
+
+function updateDetailPanel(simTime) {
+    if (trackedEntityIdx < 0) return;
+    var panel = document.getElementById('entityDetail');
+    if (panel.style.display === 'none') return;
+
+    var ent = entities[trackedEntityIdx];
+    var point = entityPoints[trackedEntityIdx];
+    if (!point || !point.position) return;
+
+    // Compute geodetic position
+    var carto = Cesium.Cartographic.fromCartesian(point.position);
+    var lat = Cesium.Math.toDegrees(carto.latitude).toFixed(3);
+    var lon = Cesium.Math.toDegrees(carto.longitude).toFixed(3);
+    var altKm = (carto.height / 1000).toFixed(1);
+
+    var alive = ent.deathTime === null || simTime < ent.deathTime;
+    var statusText = alive ? '<span style="color:#2ecc71">ACTIVE</span>' : '<span style="color:#ff4444">DESTROYED</span>';
+
+    var html = '';
+    html += '<div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">' + ent.id + '</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + ent.type + '</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">Team</span><span class="detail-value" style="color:' + ent.cssColor + '">' + ent.team + '</span></div>';
+    if (ent.role) {
+        html += '<div class="detail-row"><span class="detail-label">Role</span><span class="detail-value">' + ent.role + '</span></div>';
+    }
+    html += '<div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">' + statusText + '</span></div>';
+    html += '<div style="margin:6px 0; border-top:1px solid #333;"></div>';
+    html += '<div class="detail-row"><span class="detail-label">Lat</span><span class="detail-value">' + lat + '\u00B0</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">Lon</span><span class="detail-value">' + lon + '\u00B0</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">Alt</span><span class="detail-value">' + altKm + ' km</span></div>';
+
+    if (ent.deathTime !== null) {
+        var dMin = Math.floor(ent.deathTime / 60);
+        var dSec = Math.floor(ent.deathTime % 60);
+        html += '<div class="detail-row"><span class="detail-label">Death</span><span class="detail-value">T+' +
+                dMin + ':' + String(dSec).padStart(2, '0') + '</span></div>';
+    }
+
+    document.getElementById('detailContent').innerHTML = html;
+}
+
+// -- Controls --
+document.getElementById('btnLoadFile').addEventListener('click', function() {
+    document.getElementById('fileInput').click();
+});
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    if (e.target.files.length > 0) {
+        loadReplayFromFile(e.target.files[0]);
+    }
+});
+
+document.getElementById('chkLabels').addEventListener('change', function(e) {
+    showLabels = e.target.checked;
+    for (var i = 0; i < entityLabels.length; i++) {
+        entityLabels[i].show = showLabels && entities[i].alive;
+    }
+});
+
+document.getElementById('chkTrails').addEventListener('change', function(e) {
+    showTrails = e.target.checked;
+    if (!showTrails) {
+        trailPrimitives.forEach(function(p) { viewer.scene.primitives.remove(p); });
+        trailPrimitives = [];
+        lastTrailUpdate = -1;
+    }
+});
+
+document.getElementById('chkLines').addEventListener('change', function(e) {
+    showKillLines = e.target.checked;
+    if (!showKillLines) {
+        engagementLines.forEach(function(p) { viewer.scene.primitives.remove(p.primitive); });
+        engagementLines = [];
+    }
+});
+
+document.getElementById('btnReset').addEventListener('click', function() {
+    if (trackedEntityIdx >= 0) {
+        var prev = document.getElementById('entity-item-' + trackedEntityIdx);
+        if (prev) prev.classList.remove('tracked');
+        trackedEntityIdx = -1;
+        viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+    }
+    document.getElementById('entityDetail').style.display = 'none';
+    if (replayData) {
+        setupCamera();
+    }
+});
+
+document.getElementById('btnHelp').addEventListener('click', function() {
+    showKeyHelp = !showKeyHelp;
+    document.getElementById('keyHelp').style.display = showKeyHelp ? 'block' : 'none';
+});
+
+document.getElementById('detailClose').addEventListener('click', function() {
+    document.getElementById('entityDetail').style.display = 'none';
+});
+
+// -- Keyboard shortcuts --
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    switch (e.key) {
+        case ' ':
+            e.preventDefault();
+            viewer.clock.shouldAnimate = !viewer.clock.shouldAnimate;
+            break;
+        case '+':
+        case '=':
+            viewer.clock.multiplier = Math.min(viewer.clock.multiplier * 2, 256);
+            break;
+        case '-':
+            viewer.clock.multiplier = Math.max(viewer.clock.multiplier / 2, 0.25);
+            break;
+        case 'l':
+        case 'L':
+            document.getElementById('chkLabels').click();
+            break;
+        case 't':
+        case 'T':
+            document.getElementById('chkTrails').click();
+            break;
+        case 'k':
+        case 'K':
+            document.getElementById('chkLines').click();
+            break;
+        case '?':
+            document.getElementById('btnHelp').click();
+            break;
+        case 'Escape':
+            if (trackedEntityIdx >= 0) {
+                trackEntity(trackedEntityIdx); // toggle off
+            }
+            document.getElementById('entityDetail').style.display = 'none';
+            break;
+    }
+});
+
+})();
+</script>
+</body>
+</html>

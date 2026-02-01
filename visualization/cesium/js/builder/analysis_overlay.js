@@ -44,8 +44,11 @@ var AnalysisOverlay = (function() {
     var _lastWallTime = 0;
     var _lastSampleTime = {};        // entityId -> last simTime sampled
     var _prevSamStates = {};         // entityId -> previous _samState value
+    var _prevA2AStates = {};         // entityId -> previous _a2aState value
     var _pendingEngagements = {};    // entityId -> { time, samId, samName, targetId, targetName, lat, lon, alt }
+    var _pendingA2AEngagements = {}; // entityId -> { time, sourceId, sourceName, targetId, targetName }
     var _summaryPanel = null;        // DOM element for engagement summary
+    var _combatStatsPanel = null;    // DOM element for combat statistics
 
     // -------------------------------------------------------------------
     // Public API
@@ -69,7 +72,9 @@ var AnalysisOverlay = (function() {
         _engagementLog = [];
         _lastSampleTime = {};
         _prevSamStates = {};
+        _prevA2AStates = {};
         _pendingEngagements = {};
+        _pendingA2AEngagements = {};
         _isRecording = true;
 
         // Take an initial sample of all entity positions
@@ -124,6 +129,7 @@ var AnalysisOverlay = (function() {
         _buildCoverageHeatMap();
         _buildEngagementMarkers();
         _buildEngagementSummary();
+        _buildCombatStats();
     }
 
     /**
@@ -141,6 +147,9 @@ var AnalysisOverlay = (function() {
         // Hide summary panel
         if (_summaryPanel) {
             _summaryPanel.style.display = 'none';
+        }
+        if (_combatStatsPanel) {
+            _combatStatsPanel.style.display = 'none';
         }
 
         _isActive = false;
@@ -283,6 +292,97 @@ var AnalysisOverlay = (function() {
             }
 
             _prevSamStates[id] = currentState;
+        });
+
+        // Watch for A2A missile engagement state transitions
+        world.entities.forEach(function(entity) {
+            if (!entity.active) return;
+            var s = entity.state;
+            if (!s._a2aState) return;
+
+            var id = entity.id;
+            var prevState = _prevA2AStates[id] || 'SEARCHING';
+            var currentState = s._a2aState;
+
+            // Detect transition to ENGAGING (missile launched)
+            if (currentState === 'ENGAGING' && prevState !== 'ENGAGING') {
+                // Find the active engagement to get target info
+                var engagements = s._a2aEngagements || [];
+                for (var ei = 0; ei < engagements.length; ei++) {
+                    var eng = engagements[ei];
+                    if (eng.state === 'GUIDE' || eng.state === 'FIRE') {
+                        var targetEntity = world.getEntity(eng.targetId);
+                        var targetName = targetEntity ? targetEntity.name : eng.targetId;
+                        var targetState = targetEntity ? targetEntity.state : null;
+
+                        _pendingA2AEngagements[id + '_' + eng.targetId] = {
+                            time: simTime,
+                            sourceId: id,
+                            sourceName: entity.name,
+                            sourceTeam: entity.team,
+                            targetId: eng.targetId,
+                            targetName: targetName,
+                            weaponType: eng.weaponType
+                        };
+
+                        _engagementLog.push({
+                            time: simTime,
+                            sourceId: id,
+                            sourceName: entity.name,
+                            sourceType: 'aircraft',
+                            targetId: eng.targetId,
+                            targetName: targetName,
+                            result: 'LAUNCH',
+                            weaponType: eng.weaponType || 'A2A',
+                            lat: s.lat,
+                            lon: s.lon,
+                            alt: s.alt || 0,
+                            range: _computeRange(s, targetState)
+                        });
+                    }
+                }
+            }
+
+            // Check for completed engagements (KILL or MISS results)
+            var engagements = s._a2aEngagements || [];
+            for (var ei = 0; ei < engagements.length; ei++) {
+                var eng = engagements[ei];
+                if (eng.result && (eng.result === 'KILL' || eng.result === 'MISS')) {
+                    var pendingKey = id + '_' + eng.targetId;
+                    if (_pendingA2AEngagements[pendingKey]) {
+                        var pending = _pendingA2AEngagements[pendingKey];
+                        var tgtEntity = world.getEntity(eng.targetId);
+                        var tgtState = tgtEntity ? tgtEntity.state : null;
+
+                        var resultLat = tgtState ? tgtState.lat : s.lat;
+                        var resultLon = tgtState ? tgtState.lon : s.lon;
+                        var resultAlt = tgtState ? (tgtState.alt || 0) : (s.alt || 0);
+
+                        _engagementLog.push({
+                            time: simTime,
+                            sourceId: id,
+                            sourceName: pending.sourceName,
+                            sourceType: 'aircraft',
+                            targetId: eng.targetId,
+                            targetName: pending.targetName,
+                            result: eng.result,
+                            weaponType: pending.weaponType || 'A2A',
+                            lat: resultLat,
+                            lon: resultLon,
+                            alt: resultAlt,
+                            range: _computeRange(s, tgtState)
+                        });
+
+                        if (eng.result === 'KILL' && _trackHistory.has(eng.targetId)) {
+                            _trackHistory.get(eng.targetId).destroyed = true;
+                        }
+
+                        delete _pendingA2AEngagements[pendingKey];
+                    }
+                }
+            }
+
+            _prevA2AStates[id] = currentState;
         });
     }
 
@@ -712,6 +812,246 @@ var AnalysisOverlay = (function() {
 
         _summaryPanel.innerHTML = html;
         _summaryPanel.style.display = 'block';
+    }
+
+    // -------------------------------------------------------------------
+    // Combat Statistics Panel
+    // -------------------------------------------------------------------
+
+    /**
+     * Build the combat statistics panel (top-right overlay in ANALYZE mode).
+     * Computes blue vs red force statistics, air defense metrics, and timeline.
+     */
+    function _buildCombatStats() {
+        if (!_combatStatsPanel) {
+            _combatStatsPanel = document.createElement('div');
+            _combatStatsPanel.id = 'analysisCombatStats';
+            _combatStatsPanel.style.cssText = [
+                'position: fixed',
+                'top: 60px',
+                'right: 20px',
+                'z-index: 150',
+                'background: rgba(10, 10, 30, 0.92)',
+                'border: 1px solid #334',
+                'border-radius: 4px',
+                'padding: 10px 14px',
+                'font-family: monospace',
+                'font-size: 12px',
+                'color: #ccc',
+                'max-height: calc(100vh - 120px)',
+                'max-width: 420px',
+                'overflow-y: auto',
+                'pointer-events: auto',
+                'box-shadow: 0 2px 12px rgba(0,0,0,0.5)'
+            ].join('; ');
+            document.body.appendChild(_combatStatsPanel);
+        }
+
+        // Compute stats from track history and engagement log
+        var teams = {};  // team -> { aircraft, survived, destroyed, fired, kills }
+
+        _trackHistory.forEach(function(record, entityId) {
+            if (record.type !== 'aircraft') return;
+            var team = record.team || 'neutral';
+            if (!teams[team]) {
+                teams[team] = { aircraft: 0, survived: 0, destroyed: 0, fired: 0, kills: 0, misses: 0 };
+            }
+            teams[team].aircraft++;
+            if (record.destroyed) {
+                teams[team].destroyed++;
+            } else {
+                teams[team].survived++;
+            }
+        });
+
+        // Count launches, kills, misses from engagement log
+        var samFired = 0, samKills = 0, samMisses = 0;
+        var firstDetTime = Infinity, firstEngTime = Infinity, firstKillTime = Infinity, lastEngTime = 0;
+        var simDuration = 0;
+
+        for (var i = 0; i < _engagementLog.length; i++) {
+            var e = _engagementLog[i];
+            if (e.time > simDuration) simDuration = e.time;
+
+            var isA2A = (e.sourceType === 'aircraft');
+            var sourceTeam = null;
+
+            if (isA2A) {
+                // Find the source entity team from track history
+                if (_trackHistory.has(e.sourceId)) {
+                    sourceTeam = _trackHistory.get(e.sourceId).team;
+                }
+            }
+
+            if (e.result === 'LAUNCH') {
+                if (isA2A && sourceTeam && teams[sourceTeam]) {
+                    teams[sourceTeam].fired++;
+                } else if (!isA2A) {
+                    samFired++;
+                }
+                if (e.time < firstEngTime) firstEngTime = e.time;
+                if (e.time > lastEngTime) lastEngTime = e.time;
+            } else if (e.result === 'KILL') {
+                if (isA2A && sourceTeam && teams[sourceTeam]) {
+                    teams[sourceTeam].kills++;
+                } else if (!isA2A) {
+                    samKills++;
+                }
+                if (e.time < firstKillTime) firstKillTime = e.time;
+                if (e.time > lastEngTime) lastEngTime = e.time;
+            } else if (e.result === 'MISS') {
+                if (isA2A && sourceTeam && teams[sourceTeam]) {
+                    teams[sourceTeam].misses++;
+                } else if (!isA2A) {
+                    samMisses++;
+                }
+            }
+        }
+
+        // First detection time: scan track history for earliest detection-related event
+        // Use first engagement time as proxy
+        if (firstEngTime < Infinity) firstDetTime = Math.max(0, firstEngTime - 5);
+
+        // Build HTML
+        var html = '<div style="color:#0af; font-weight:bold; margin-bottom:8px; font-size:13px;">' +
+                   'COMBAT STATISTICS</div>';
+
+        // Force comparison table
+        var teamNames = Object.keys(teams);
+        if (teamNames.length > 0) {
+            html += '<table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:8px;">';
+            html += '<tr style="color:#888; border-bottom:1px solid #333;">' +
+                    '<th style="text-align:left; padding:3px 6px;">Force</th>' +
+                    '<th style="text-align:center; padding:3px 6px;">A/C</th>' +
+                    '<th style="text-align:center; padding:3px 6px;">Survived</th>' +
+                    '<th style="text-align:center; padding:3px 6px;">Fired</th>' +
+                    '<th style="text-align:center; padding:3px 6px;">Kills</th>' +
+                    '<th style="text-align:center; padding:3px 6px;">Hit %</th>' +
+                    '</tr>';
+
+            for (var ti = 0; ti < teamNames.length; ti++) {
+                var t = teamNames[ti];
+                var ts = teams[t];
+                var teamColor = t === 'blue' ? '#4488ff' : t === 'red' ? '#ff4444' : '#88ff88';
+                var hitRate = ts.fired > 0 ? Math.round((ts.kills / ts.fired) * 100) + '%' : '---';
+                var survRate = ts.aircraft > 0 ? Math.round((ts.survived / ts.aircraft) * 100) : 0;
+
+                html += '<tr>' +
+                        '<td style="padding:3px 6px; color:' + teamColor + '; font-weight:bold;">' +
+                        t.toUpperCase() + '</td>' +
+                        '<td style="text-align:center; padding:3px 6px;">' + ts.aircraft + '</td>' +
+                        '<td style="text-align:center; padding:3px 6px;">' +
+                        ts.survived + ' (' + survRate + '%)</td>' +
+                        '<td style="text-align:center; padding:3px 6px;">' + ts.fired + '</td>' +
+                        '<td style="text-align:center; padding:3px 6px;">' + ts.kills + '</td>' +
+                        '<td style="text-align:center; padding:3px 6px;">' + hitRate + '</td>' +
+                        '</tr>';
+            }
+            html += '</table>';
+        }
+
+        // Air Defense section (SAMs)
+        if (samFired > 0 || samKills > 0) {
+            var samPk = samFired > 0 ? Math.round((samKills / samFired) * 100) + '%' : '---';
+            html += '<div style="border-top:1px solid #333; padding-top:6px; margin-top:4px;">';
+            html += '<div style="color:#ff8800; font-weight:bold; margin-bottom:4px;">AIR DEFENSE</div>';
+            html += '<div style="display:flex; gap:16px; font-size:11px;">';
+            html += '<span>Fired: ' + samFired + '</span>';
+            html += '<span>Kills: ' + samKills + '</span>';
+            html += '<span>Miss: ' + samMisses + '</span>';
+            html += '<span>P(k): ' + samPk + '</span>';
+            html += '</div></div>';
+        }
+
+        // Timeline
+        html += '<div style="border-top:1px solid #333; padding-top:6px; margin-top:6px;">';
+        html += '<div style="color:#888; font-weight:bold; margin-bottom:4px;">TIMELINE</div>';
+        html += '<div style="font-size:11px; color:#aaa;">';
+        if (firstEngTime < Infinity) {
+            html += 'First Engagement: ' + _fmtTime(firstEngTime) + '<br>';
+        }
+        if (firstKillTime < Infinity) {
+            html += 'First Kill: ' + _fmtTime(firstKillTime) + '<br>';
+        }
+        if (lastEngTime > 0) {
+            html += 'Last Engagement: ' + _fmtTime(lastEngTime) + '<br>';
+        }
+        html += 'Sim Duration: ' + _fmtTime(simDuration);
+        html += '</div></div>';
+
+        // Export CSV button
+        html += '<div style="margin-top:8px; text-align:right;">';
+        html += '<button id="exportCsvBtn" style="background:#1a2a44; color:#4488ff; border:1px solid #2a4a66; ' +
+                'border-radius:3px; padding:4px 12px; font-family:monospace; font-size:11px; cursor:pointer;">' +
+                'Export CSV</button>';
+        html += '</div>';
+
+        _combatStatsPanel.innerHTML = html;
+        _combatStatsPanel.style.display = 'block';
+
+        // Wire CSV export button
+        var csvBtn = document.getElementById('exportCsvBtn');
+        if (csvBtn) {
+            csvBtn.addEventListener('click', function() {
+                _exportCSV();
+            });
+        }
+    }
+
+    /**
+     * Format time in seconds as MM:SS.
+     */
+    function _fmtTime(seconds) {
+        var m = Math.floor(seconds / 60);
+        var s = Math.floor(seconds % 60);
+        return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    /**
+     * Export engagement log as CSV, triggering a browser download.
+     */
+    function _exportCSV() {
+        var header = 'Time,Source,SourceType,Target,Result,WeaponType,Lat,Lon,Alt,Range_m\n';
+        var rows = '';
+
+        for (var i = 0; i < _engagementLog.length; i++) {
+            var e = _engagementLog[i];
+            var latDeg = e.lat !== undefined ? (e.lat * RAD).toFixed(4) : '';
+            var lonDeg = e.lon !== undefined ? (e.lon * RAD).toFixed(4) : '';
+            rows += e.time.toFixed(1) + ',' +
+                    _csvEscape(e.sourceName || e.samName || '') + ',' +
+                    _csvEscape(e.sourceType || 'ground') + ',' +
+                    _csvEscape(e.targetName || '') + ',' +
+                    (e.result || '') + ',' +
+                    _csvEscape(e.weaponType || 'SAM') + ',' +
+                    latDeg + ',' + lonDeg + ',' +
+                    (e.alt || 0).toFixed(0) + ',' +
+                    (e.range || 0).toFixed(0) + '\n';
+        }
+
+        var csv = header + rows;
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'engagement_log.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        if (typeof BuilderApp !== 'undefined') {
+            BuilderApp.showMessage('Engagement log exported as CSV');
+        }
+    }
+
+    /**
+     * Escape a CSV field value.
+     */
+    function _csvEscape(str) {
+        if (!str) return '';
+        if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1) {
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        return str;
     }
 
     // -------------------------------------------------------------------

@@ -214,8 +214,9 @@
             if (eng.timeInState >= tof) {
                 // Apply kill probability for each missile in the salvo
                 var survived = true;
+                var rng = world.rng;
                 for (var m = 0; m < this._salvoSize; m++) {
-                    if (Math.random() < this._killProb) {
+                    if (rng ? rng.bernoulli(this._killProb) : (Math.random() < this._killProb)) {
                         survived = false;
                         break;
                     }

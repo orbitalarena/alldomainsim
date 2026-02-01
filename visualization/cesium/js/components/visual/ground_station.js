@@ -47,6 +47,7 @@
             // Cesium entity references
             this._pointEntity = null;
             this._sensorEntity = null;
+            this._ringEntities = [];
             // Cached parsed colors
             this._color = null;
             this._labelText = '';
@@ -145,6 +146,131 @@
                     }
                 });
             }
+
+            // --- Weapon engagement zone rings (SAM batteries) ---
+            var weaponsComp = entity.getComponent('weapons');
+            if (weaponsComp) {
+                var weaponConfig = weaponsComp.config || {};
+                var maxRange = weaponConfig.maxRange_m || 150000;
+                var minRange = weaponConfig.minRange_m || 5000;
+                var optRange = 0.6 * maxRange;
+
+                // Helper: format range as km string
+                function fmtKm(meters) {
+                    return Math.round(meters / 1000) + 'km';
+                }
+
+                // Helper: compute label position at north edge of ring
+                function ringLabelPosition(baseLat, baseLon, baseAlt, range_m) {
+                    var angularOffset = range_m / R_EARTH; // radians
+                    return Cesium.Cartesian3.fromRadians(baseLon, baseLat + angularOffset, baseAlt);
+                }
+
+                // 1) Min Range Ring — yellow, thin outline, no fill
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Min Range',
+                    position: position,
+                    ellipse: {
+                        semiMajorAxis: minRange,
+                        semiMinorAxis: minRange,
+                        material: Cesium.Color.TRANSPARENT,
+                        outline: true,
+                        outlineColor: Cesium.Color.YELLOW,
+                        outlineWidth: 1,
+                        height: 0,
+                        granularity: Cesium.Math.toRadians(2)
+                    }
+                }));
+
+                // Min range label
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Min Range Label',
+                    position: ringLabelPosition(lat, lon, alt, minRange),
+                    label: {
+                        text: 'MIN ' + fmtKm(minRange),
+                        font: '10px monospace',
+                        fillColor: Cesium.Color.YELLOW,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+                        pixelOffset: new Cesium.Cartesian2(4, 0),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        scale: 0.85
+                    }
+                }));
+
+                // 2) Optimal Range Ring — green, very faint fill
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Opt Range',
+                    position: position,
+                    ellipse: {
+                        semiMajorAxis: optRange,
+                        semiMinorAxis: optRange,
+                        material: Cesium.Color.fromCssColorString('#00ff44').withAlpha(0.03),
+                        outline: true,
+                        outlineColor: Cesium.Color.fromCssColorString('#00ff44'),
+                        outlineWidth: 1,
+                        height: 0,
+                        granularity: Cesium.Math.toRadians(2)
+                    }
+                }));
+
+                // Optimal range label
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Opt Range Label',
+                    position: ringLabelPosition(lat, lon, alt, optRange),
+                    label: {
+                        text: 'OPT ' + fmtKm(optRange),
+                        font: '10px monospace',
+                        fillColor: Cesium.Color.fromCssColorString('#00ff44'),
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+                        pixelOffset: new Cesium.Cartesian2(4, 0),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        scale: 0.85
+                    }
+                }));
+
+                // 3) Max Range Ring — red, very faint fill
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Max Range',
+                    position: position,
+                    ellipse: {
+                        semiMajorAxis: maxRange,
+                        semiMinorAxis: maxRange,
+                        material: Cesium.Color.RED.withAlpha(0.03),
+                        outline: true,
+                        outlineColor: Cesium.Color.RED,
+                        outlineWidth: 1,
+                        height: 0,
+                        granularity: Cesium.Math.toRadians(2)
+                    }
+                }));
+
+                // Max range label
+                this._ringEntities.push(viewer.entities.add({
+                    name: entity.name + ' Max Range Label',
+                    position: ringLabelPosition(lat, lon, alt, maxRange),
+                    label: {
+                        text: 'MAX ' + fmtKm(maxRange),
+                        font: '10px monospace',
+                        fillColor: Cesium.Color.RED,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+                        pixelOffset: new Cesium.Cartesian2(4, 0),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                        scale: 0.85
+                    }
+                }));
+            }
         }
 
         update(dt, world) {
@@ -169,9 +295,13 @@
             if (world.viewer) {
                 if (this._pointEntity) world.viewer.entities.remove(this._pointEntity);
                 if (this._sensorEntity) world.viewer.entities.remove(this._sensorEntity);
+                for (var i = 0; i < this._ringEntities.length; i++) {
+                    world.viewer.entities.remove(this._ringEntities[i]);
+                }
             }
             this._pointEntity = null;
             this._sensorEntity = null;
+            this._ringEntities = [];
         }
     }
 

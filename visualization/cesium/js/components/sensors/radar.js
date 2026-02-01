@@ -281,8 +281,9 @@ const RadarSensor = (function() {
                 if (bearingDelta < -180) bearingDelta += 360;
                 if (Math.abs(bearingDelta) > effectiveHalfCoverage) return;
 
-                // Apply detection probability
-                var detected = Math.random() < self._pDetect;
+                // Apply detection probability (seeded RNG for MC determinism)
+                var rng = world.rng;
+                var detected = rng ? rng.bernoulli(self._pDetect) : (Math.random() < self._pDetect);
 
                 detections.push({
                     targetId:      target.id,

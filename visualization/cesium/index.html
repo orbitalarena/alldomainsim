@@ -42,6 +42,7 @@
             gap: 20px;
             margin-top: 14px;
             font-size: 12px;
+            flex-wrap: wrap;
         }
 
         .status-item {
@@ -153,6 +154,16 @@
             color: #b57edc;
         }
 
+        .card-badge.engine {
+            background: rgba(255, 136, 0, 0.12);
+            color: #ff8800;
+        }
+
+        .card-badge.replay {
+            background: rgba(255, 215, 0, 0.12);
+            color: #ffd700;
+        }
+
         .card h3 {
             font-size: 16px;
             font-weight: 600;
@@ -179,6 +190,7 @@
         .card-tags {
             display: flex;
             gap: 6px;
+            flex-wrap: wrap;
         }
 
         .tag {
@@ -208,6 +220,34 @@
         .featured .card:hover {
             border-color: #2a5080;
         }
+
+        /* Build instructions */
+        .build-info {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 16px 20px;
+            font-size: 12px;
+            font-family: 'Consolas', monospace;
+            color: #6b7a90;
+            line-height: 1.8;
+            margin-top: 20px;
+        }
+
+        .build-info code {
+            background: #1a2235;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #8aafdb;
+        }
+
+        .build-info h4 {
+            color: #8a96a6;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
@@ -217,24 +257,28 @@
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot"></div>
-                21 scenarios + builder
+                Scenario Builder + 9 Replays
             </div>
             <div class="status-item">
                 <div class="status-dot"></div>
-                Cesium 3D ready
+                C++ MC Engine
             </div>
             <div class="status-item">
-                <div class="status-dot amber"></div>
-                M8-M9 in progress
+                <div class="status-dot"></div>
+                Cesium 3D
+            </div>
+            <div class="status-item">
+                <div class="status-dot" id="mcServerDot" style="background:#666;box-shadow:none"></div>
+                <span id="mcServerStatus">MC Server: checking...</span>
             </div>
         </div>
     </header>
 
     <main>
-        <!-- Scenario Builder -->
+        <!-- Scenario Builder & MC Engine -->
         <div class="category featured">
             <div class="category-header">
-                <h2>Scenario Builder</h2>
+                <h2>Scenario Builder &amp; MC Engine</h2>
                 <div class="category-line"></div>
             </div>
             <div class="grid">
@@ -244,13 +288,139 @@
                         <div class="card-badge interactive">Builder</div>
                     </div>
                     <h3>Scenario Builder</h3>
-                    <p>Compose multi-domain scenarios: place aircraft, satellites, ground stations, SAM batteries on the globe. Configure sensors, weapons, AI patrol routes, and engagement rules. Run simulations with the full ECS engine.</p>
+                    <p>Compose multi-domain scenarios: place aircraft, satellites, ground stations, SAM batteries on the globe. Configure sensors, weapons, AI patrol routes. Run via JS or C++ engine.</p>
                     <div class="card-footer">
                         <div class="card-tags">
                             <span class="tag">ECS</span>
                             <span class="tag">Multi-Domain</span>
+                            <span class="tag">Monte Carlo</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- C++ Replay Viewer -->
+        <div class="category featured">
+            <div class="category-header">
+                <h2>C++ Engine Replays</h2>
+                <div class="category-line"></div>
+            </div>
+            <div class="grid">
+                <a class="card" href="replay_viewer.html?replay=replay_iads.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#127919;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>IADS Engagement</h3>
+                    <p>10 entities: F-16s, MiG-29s, SAM batteries, AWACS, ground stations, recon satellite. Full multi-domain combat with SAM kill chains.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">SAM</span>
+                            <span class="tag">Aircraft</span>
+                            <span class="tag">10 entities</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html?replay=replay_strike.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#9992;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>Strike Package</h3>
+                    <p>8 entities: F-16 strike flight vs SA-20 IADS network. Waypoint patrol, intercept AI, radar detection, and SAM engagement.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">Strike</span>
                             <span class="tag">IADS</span>
+                            <span class="tag">8 entities</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html?replay=replay_multi_domain.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#127760;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>Multi-Domain</h3>
+                    <p>9 entities: ISS, LEO recon, GPS/GEO satellites, aircraft, and ground stations. Full domain coverage from surface to GEO.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
                             <span class="tag">Orbital</span>
+                            <span class="tag">Air</span>
+                            <span class="tag">Ground</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html?replay=replay_contested_orbit.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#9678;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>Contested Orbit</h3>
+                    <p>7 entities: GEO satellites with co-orbital threats and inspector satellites. SSA proximity warning events.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">GEO</span>
+                            <span class="tag">SSA</span>
+                            <span class="tag">7 entities</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html?replay=replay_data.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#10022;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>Orbital Arena</h3>
+                    <p>10 GEO satellites in combat: HVAs, defenders, attackers with kinetic kill vehicles. Blue vs Red orbital engagement.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">KKV</span>
+                            <span class="tag">GEO</span>
+                            <span class="tag">10 entities</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html?replay=replay_gps_coverage.json">
+                    <div class="card-top">
+                        <div class="card-icon">&#128225;</div>
+                        <div class="card-badge replay">Replay</div>
+                    </div>
+                    <h3>GPS Coverage</h3>
+                    <p>11 entities: 6 GPS satellites, ground receivers, and tracking stations. Constellation propagation (no combat).</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">GPS</span>
+                            <span class="tag">MEO</span>
+                            <span class="tag">11 entities</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="replay_viewer.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#9654;</div>
+                        <div class="card-badge engine">Viewer</div>
+                    </div>
+                    <h3>Replay Viewer</h3>
+                    <p>Open the replay viewer with a dropdown to select any available replay. Supports file browsing and URL parameters.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">All Replays</span>
+                            <span class="tag">Selector</span>
                         </div>
                         <div class="launch-arrow">&#8594;</div>
                     </div>
@@ -426,7 +596,7 @@
                         <div class="card-badge interactive">Interactive</div>
                     </div>
                     <h3>Van Allen Belts</h3>
-                    <p>Radiation belt visualization with 6 satellites tracking real-time particle flux. Trigger the Starfish Prime nuclear detonation and watch artificial belt injection and decay.</p>
+                    <p>Radiation belt visualization with 6 satellites tracking real-time particle flux. Trigger Starfish Prime nuclear detonation.</p>
                     <div class="card-footer">
                         <div class="card-tags">
                             <span class="tag">Radiation</span>
@@ -443,7 +613,7 @@
                         <div class="card-badge interactive">Interactive</div>
                     </div>
                     <h3>Nuclear Detonation</h3>
-                    <p>Configurable high-altitude nuclear detonation. Set altitude (300 km to 50,000 km), location, and yield. Physics computes injection L-shell, trapping fraction, and belt decay.</p>
+                    <p>Configurable high-altitude nuclear detonation. Set altitude, location, and yield. Physics computes injection L-shell, trapping fraction, and belt decay.</p>
                     <div class="card-footer">
                         <div class="card-tags">
                             <span class="tag">Configurable</span>
@@ -537,7 +707,7 @@
                         <div class="card-badge interactive">Interactive</div>
                     </div>
                     <h3>IADS Engagement</h3>
-                    <p>Integrated Air Defense System with EW/tracking/fire-control radars, SAM engagement, and F2T2EA kill chain. All comms routed through GEO SATCOM with realistic latency.</p>
+                    <p>Integrated Air Defense System with EW/tracking/fire-control radars, SAM engagement, and F2T2EA kill chain. All comms routed through GEO SATCOM.</p>
                     <div class="card-footer">
                         <div class="card-tags">
                             <span class="tag">F2T2EA</span>
@@ -686,17 +856,28 @@
                 </a>
             </div>
         </div>
+
+        <!-- Build instructions -->
+        <div class="build-info">
+            <h4>C++ Engine &amp; MC Server</h4>
+            Build: <code>cd build && cmake .. && ninja mc_engine</code><br>
+            Serve: <code>cd visualization/cesium && python3 serve.py 8000</code><br>
+            MC Server: <code>node mc_server.js 8001</code> (enables C++ MC from the Scenario Builder)<br>
+            Replay: <code>./bin/mc_engine --replay --scenario &lt;path&gt; --seed 42 --max-time 600 --output replay.json</code><br>
+            Batch MC: <code>./bin/mc_engine --scenario &lt;path&gt; --runs 1000 --seed 42 --output results.json</code>
+        </div>
     </main>
 
     <script>
-        // Keyboard shortcut: number keys 1-9 launch featured sims
+        // Keyboard shortcut: number keys launch featured sims
         const quickLaunch = {
             '0': 'scenario_builder.html',
             '1': 'spaceplane_viewer.html',
             '2': 'fighter_sim_viewer.html',
-            '3': 'geo_sim_viewer.html',
-            '4': 'solar_system_viewer.html',
-            '5': 'porkchop_viewer.html',
+            '3': 'replay_viewer.html?replay=replay_iads.json',
+            '4': 'geo_sim_viewer.html',
+            '5': 'solar_system_viewer.html',
+            '6': 'porkchop_viewer.html',
         };
 
         document.addEventListener('keydown', (e) => {
@@ -704,6 +885,29 @@
                 window.location.href = quickLaunch[e.key];
             }
         });
+
+        // Check MC server status
+        fetch('/api/mc/status')
+            .then(r => r.json())
+            .then(data => {
+                const dot = document.getElementById('mcServerDot');
+                const text = document.getElementById('mcServerStatus');
+                if (data.ready) {
+                    dot.style.background = '#2ecc71';
+                    dot.style.boxShadow = '0 0 6px rgba(46, 204, 113, 0.4)';
+                    text.textContent = 'MC Server: ready';
+                } else {
+                    dot.style.background = '#f39c12';
+                    dot.style.boxShadow = '0 0 6px rgba(243, 156, 18, 0.4)';
+                    text.textContent = 'MC Server: engine not found';
+                }
+            })
+            .catch(() => {
+                const dot = document.getElementById('mcServerDot');
+                const text = document.getElementById('mcServerStatus');
+                dot.style.background = '#666';
+                text.textContent = 'MC Server: not running';
+            });
     </script>
 </body>
 </html>

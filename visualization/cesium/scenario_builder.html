@@ -1068,6 +1068,172 @@
         .sat-dialog-btn-confirm:hover {
             background: #0a5a0a;
         }
+
+        /* ================================================================
+           CURSOR COORDINATE READOUT
+           ================================================================ */
+        #cursorCoords {
+            position: absolute;
+            bottom: 188px;
+            left: 248px;
+            background: rgba(8, 12, 22, 0.85);
+            border: 1px solid #1a2a44;
+            border-radius: 3px;
+            padding: 3px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #88ccff;
+            z-index: 45;
+            pointer-events: none;
+            display: none;
+        }
+
+        /* ================================================================
+           RUN-MODE HUD
+           ================================================================ */
+        #runHUD {
+            position: absolute;
+            top: 52px;
+            right: 288px;
+            background: rgba(0, 10, 0, 0.85);
+            border: 1px solid #005500;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #00ff00;
+            z-index: 45;
+            white-space: pre;
+            line-height: 1.5;
+            display: none;
+            min-width: 160px;
+        }
+
+        /* ================================================================
+           HELP DIALOG
+           ================================================================ */
+        #helpDialogOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 600;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .help-dialog {
+            background: rgba(12, 18, 30, 0.98);
+            border: 1px solid #4a9eff;
+            border-radius: 8px;
+            padding: 24px 32px;
+            max-width: 560px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            color: #e0e8f0;
+            box-shadow: 0 8px 32px rgba(74, 158, 255, 0.2);
+        }
+        .help-dialog h2 {
+            font-size: 16px;
+            color: #4a9eff;
+            margin-bottom: 16px;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .help-section-title {
+            font-size: 12px;
+            color: #88aacc;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin: 12px 0 6px;
+            border-bottom: 1px solid #1a2a44;
+            padding-bottom: 4px;
+        }
+        .help-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 12px;
+        }
+        .help-key {
+            font-family: 'Courier New', monospace;
+            color: #ffcc44;
+            font-weight: bold;
+            min-width: 100px;
+        }
+        .help-desc {
+            color: #a0b8d0;
+            text-align: right;
+        }
+        .help-close-hint {
+            text-align: center;
+            margin-top: 16px;
+            font-size: 11px;
+            color: #506880;
+        }
+
+        /* ================================================================
+           DIS STATUS INDICATOR
+           ================================================================ */
+        #disStatusDot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+            display: inline-block;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        /* ================================================================
+           SCENARIO NAME EDITOR
+           ================================================================ */
+        #scenarioNameDisplay {
+            color: #88aacc;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            transition: background 0.15s;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #scenarioNameDisplay:hover {
+            background: rgba(74, 158, 255, 0.1);
+            color: #c0d8f0;
+        }
+        #scenarioNameInput {
+            display: none;
+            background: rgba(8, 14, 26, 0.9);
+            border: 1px solid #4a9eff;
+            border-radius: 3px;
+            color: #c0d8f0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-size: 13px;
+            padding: 2px 6px;
+            width: 180px;
+            outline: none;
+        }
+
+        /* ================================================================
+           PALETTE COUNT BADGE
+           ================================================================ */
+        .palette-count-badge {
+            display: inline-block;
+            background: rgba(74, 158, 255, 0.2);
+            color: #4a9eff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 8px;
+            margin-left: 6px;
+            min-width: 18px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -1117,10 +1283,16 @@
                         <div class="demo-item-name" style="color:#ffaa00;">Export Model</div>
                         <div class="demo-item-desc">Headless run → CZML rapid playback (no physics overhead)</div>
                     </button>
+                    <div class="demo-dropdown-sep"></div>
+                    <button class="demo-dropdown-item" id="btnExportDIS">
+                        <div class="demo-item-name" style="color:#ff6688;">Export DIS</div>
+                        <div class="demo-item-desc">IEEE 1278 binary PDU file for DIS federation</div>
+                    </button>
                 </div>
             </div>
             <div class="toolbar-separator"></div>
             <button class="toolbar-btn" id="btnImportTLE" title="Import satellites from TLE file">Import TLE</button>
+            <button class="toolbar-btn" id="btnEvents" title="Edit scenario events (V)">Events</button>
             <div class="toolbar-separator"></div>
             <div class="demo-dropdown">
                 <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
@@ -1146,12 +1318,24 @@
                         <div class="demo-item-name">Strike Package</div>
                         <div class="demo-item-desc">Middle East theater: F-16s vs SA-20 IADS</div>
                     </button>
+                    <div class="demo-dropdown-sep"></div>
+                    <button class="demo-dropdown-item" data-scenario="__orbital_arena_v1">
+                        <div class="demo-item-name">Orbital Arena v1</div>
+                        <div class="demo-item-desc">500v500 GEO kinetic kill space combat</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="__orbital_arena_small">
+                        <div class="demo-item-name">Orbital Arena Small</div>
+                        <div class="demo-item-desc">50v50 GEO combat in 30° arc</div>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- Center group: Mode / Time / Warp -->
+        <!-- Center group: Name / Mode / Time / Warp -->
         <div class="toolbar-group">
+            <span id="scenarioNameDisplay" title="Click to rename">Untitled Scenario</span>
+            <input type="text" id="scenarioNameInput" placeholder="Scenario name...">
+            <div class="toolbar-separator"></div>
             <span id="modeBadge" class="build">BUILD</span>
             <div class="toolbar-separator"></div>
             <span id="simTimeDisplay">00:00:00</span>
@@ -1159,12 +1343,17 @@
             <span id="timeWarpDisplay">1x</span>
         </div>
 
-        <!-- Right group: Sim controls -->
+        <!-- Right group: Sim controls + DIS + Help -->
         <div class="toolbar-group">
+            <button class="toolbar-btn" id="btnDISToggle" title="Toggle DIS streaming"><span id="disStatusDot"></span>DIS: OFF</button>
+            <div class="toolbar-separator"></div>
             <button class="toolbar-btn success" id="btnRun" title="Run Simulation">Run</button>
             <button class="toolbar-btn" id="btnPause" title="Pause Simulation">Pause</button>
             <button class="toolbar-btn" id="btnAnalyze" title="Analyze Results">Analyze</button>
+            <button class="toolbar-btn" id="btnMonteCarlo" title="Monte Carlo Analysis" style="color:#ff8800; border-color:#664400;">MC</button>
             <button class="toolbar-btn danger" id="btnReset" title="Reset to Build">Reset</button>
+            <div class="toolbar-separator"></div>
+            <button class="toolbar-btn" id="btnHelp" title="Keyboard Shortcuts (?)" style="font-size:14px; padding:3px 10px;">?</button>
         </div>
     </div>
 
@@ -1172,7 +1361,7 @@
          LEFT SIDEBAR - OBJECT PALETTE
          ============================================================ -->
     <div id="leftSidebar">
-        <div class="sidebar-header">Object Palette</div>
+        <div class="sidebar-header">Object Palette <span class="palette-count-badge" id="paletteCountBadge">0</span></div>
 
         <!-- Aircraft Section -->
         <div class="palette-section" id="paletteAircraft">
@@ -1188,11 +1377,130 @@
                         <div class="palette-item-desc">Multi-role fighter, 9G capable</div>
                     </div>
                 </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f15" data-team="blue">
+                    <div class="palette-dot" style="background-color: #4488ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">F-15E Strike Eagle</div>
+                        <div class="palette-item-desc">Twin-engine multirole, heavy payload</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f22" data-team="blue">
+                    <div class="palette-dot" style="background-color: #6644ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">F-22A Raptor</div>
+                        <div class="palette-item-desc">5th-gen stealth, supercruise</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f35" data-team="blue">
+                    <div class="palette-dot" style="background-color: #5566ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">F-35A Lightning II</div>
+                        <div class="palette-item-desc">5th-gen stealth multirole</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f18" data-team="blue">
+                    <div class="palette-dot" style="background-color: #3388ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">F/A-18E Super Hornet</div>
+                        <div class="palette-item-desc">Carrier-based multirole</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="a10" data-team="blue">
+                    <div class="palette-dot" style="background-color: #448844;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">A-10C Thunderbolt II</div>
+                        <div class="palette-item-desc">Close air support, GAU-8</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="b2" data-team="blue">
+                    <div class="palette-dot" style="background-color: #4444aa;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">B-2A Spirit</div>
+                        <div class="palette-item-desc">Stealth strategic bomber</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="b1b" data-team="blue">
+                    <div class="palette-dot" style="background-color: #5555bb;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">B-1B Lancer</div>
+                        <div class="palette-item-desc">Supersonic strategic bomber</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="e3_awacs" data-team="blue">
+                    <div class="palette-dot" style="background-color: #00aaff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">E-3G Sentry AWACS</div>
+                        <div class="palette-item-desc">Airborne early warning, 400km</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="c130" data-team="blue">
+                    <div class="palette-dot" style="background-color: #88aa88;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">C-130J Super Hercules</div>
+                        <div class="palette-item-desc">Tactical airlift, turboprop</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="mq9" data-team="blue">
+                    <div class="palette-dot" style="background-color: #44aacc;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">MQ-9A Reaper</div>
+                        <div class="palette-item-desc">Armed MALE UAV, ISR/strike</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="rq4" data-team="blue">
+                    <div class="palette-dot" style="background-color: #44ccee;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">RQ-4B Global Hawk</div>
+                        <div class="palette-item-desc">HALE ISR drone, 60,000ft</div>
+                    </div>
+                </div>
                 <div class="palette-item" data-entity-type="aircraft" data-subtype="mig29" data-team="red">
                     <div class="palette-dot team-red"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">MiG-29 Fulcrum</div>
                         <div class="palette-item-desc">Air superiority fighter, 9G</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su27" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff4444;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Su-27S Flanker</div>
+                        <div class="palette-item-desc">Heavy air superiority interceptor</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su35" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff6644;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Su-35S Flanker-E</div>
+                        <div class="palette-item-desc">4++ gen, thrust vectoring</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su57" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff2266;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Su-57 Felon</div>
+                        <div class="palette-item-desc">5th-gen stealth fighter</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu160" data-team="red">
+                    <div class="palette-dot" style="background-color: #cc4444;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Tu-160 Blackjack</div>
+                        <div class="palette-item-desc">Supersonic strategic bomber</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu22m" data-team="red">
+                    <div class="palette-dot" style="background-color: #cc5555;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Tu-22M3 Backfire</div>
+                        <div class="palette-item-desc">Long-range bomber/maritime</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tb2" data-team="red">
+                    <div class="palette-dot" style="background-color: #cc8844;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Bayraktar TB2</div>
+                        <div class="palette-item-desc">Armed tactical UCAV</div>
                     </div>
                 </div>
                 <div class="palette-item" data-entity-type="aircraft" data-subtype="spaceplane" data-team="blue">
@@ -1219,6 +1527,20 @@
                         <div class="palette-item-desc">Low Earth orbit, 400km alt</div>
                     </div>
                 </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="sat_inspector" data-team="blue">
+                    <div class="palette-dot" style="background-color: #88ccff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Satellite Inspector</div>
+                        <div class="palette-item-desc">Proximity operations inspector</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="img_sat" data-team="blue">
+                    <div class="palette-dot" style="background-color: #aaddff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Imaging Satellite</div>
+                        <div class="palette-item-desc">LEO electro-optical recon</div>
+                    </div>
+                </div>
                 <div class="palette-item" data-entity-type="satellite" data-subtype="gps_sat" data-team="neutral">
                     <div class="palette-dot" style="background-color: #ffdd44;"></div>
                     <div class="palette-item-info">
@@ -1231,6 +1553,34 @@
                     <div class="palette-item-info">
                         <div class="palette-item-name">GEO Comms Sat</div>
                         <div class="palette-item-desc">Geostationary communications</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="sso_weather" data-team="neutral">
+                    <div class="palette-dot" style="background-color: #88ff88;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">SSO Weather Sat</div>
+                        <div class="palette-item-desc">Sun-synchronous polar orbit</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="molniya_sat" data-team="neutral">
+                    <div class="palette-dot" style="background-color: #ffaa88;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Molniya Orbit Sat</div>
+                        <div class="palette-item-desc">Highly elliptical, Arctic</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="kosmos_sat" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff8888;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Kosmos Radar Sat</div>
+                        <div class="palette-item-desc">LEO radar reconnaissance</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="satellite" data-subtype="asat" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff4466;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Co-Orbital ASAT</div>
+                        <div class="palette-item-desc">Co-orbital interceptor</div>
                     </div>
                 </div>
             </div>
@@ -1247,7 +1597,49 @@
                     <div class="palette-dot" style="background-color: #44ff88;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Ground Station</div>
-                        <div class="palette-item-desc">TT&C with radar + sensor cone</div>
+                        <div class="palette-item-desc">TT&amp;C with radar + sensor cone</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="m1a2" data-team="blue">
+                    <div class="palette-dot" style="background-color: #668844;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">M1A2 Abrams</div>
+                        <div class="palette-item-desc">Main battle tank, 120mm</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="hmmwv" data-team="blue">
+                    <div class="palette-dot" style="background-color: #889966;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">HMMWV</div>
+                        <div class="palette-item-desc">Light tactical vehicle, scout</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="patriot" data-team="blue">
+                    <div class="palette-dot" style="background-color: #2288ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Patriot Battery</div>
+                        <div class="palette-item-desc">MIM-104 PAC-3, medium-range AD</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="thaad" data-team="blue">
+                    <div class="palette-dot" style="background-color: #3366cc;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">THAAD Battery</div>
+                        <div class="palette-item-desc">Terminal High Altitude Area Defense</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="avenger" data-team="blue">
+                    <div class="palette-dot" style="background-color: #44aa44;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Avenger SHORAD</div>
+                        <div class="palette-item-desc">Short-range air defense, Stinger</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="cmd_post" data-team="blue">
+                    <div class="palette-dot" style="background-color: #4488cc;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Command Post</div>
+                        <div class="palette-item-desc">Tactical operations center, C2</div>
                     </div>
                 </div>
                 <div class="palette-item" data-entity-type="ground" data-subtype="sam_battery" data-team="red">
@@ -1264,11 +1656,112 @@
                         <div class="palette-item-desc">Early warning, 300km range</div>
                     </div>
                 </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="t90" data-team="red">
+                    <div class="palette-dot" style="background-color: #884444;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">T-90 MBT</div>
+                        <div class="palette-item-desc">Main battle tank, 125mm</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="s400" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff2200;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">S-400 Triumf</div>
+                        <div class="palette-item-desc">SA-21 strategic long-range AD</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="pantsir" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff6600;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Pantsir-S1</div>
+                        <div class="palette-item-desc">SA-22 gun/missile SHORAD</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="tor_m2" data-team="red">
+                    <div class="palette-dot" style="background-color: #ff4400;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Tor-M2</div>
+                        <div class="palette-item-desc">SA-15 mobile tactical SAM</div>
+                    </div>
+                </div>
                 <div class="palette-item" data-entity-type="ground" data-subtype="gps_receiver" data-team="neutral">
                     <div class="palette-dot team-neutral"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">GPS Receiver</div>
                         <div class="palette-item-desc">Position fix from GPS constellation</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Naval Section -->
+        <div class="palette-section" id="paletteNaval">
+            <div class="palette-section-header open" data-section="naval">
+                Naval
+                <span class="chevron">&#9654;</span>
+            </div>
+            <div class="palette-section-body open" id="paletteSectionNaval">
+                <div class="palette-item" data-entity-type="ground" data-subtype="cvn_nimitz" data-team="blue">
+                    <div class="palette-dot" style="background-color: #4466aa;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">CVN Nimitz Carrier</div>
+                        <div class="palette-item-desc">Nuclear carrier, air wing</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="ddg_burke" data-team="blue">
+                    <div class="palette-dot" style="background-color: #3355aa;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">DDG Arleigh Burke</div>
+                        <div class="palette-item-desc">Aegis destroyer, SPY-1D</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="ssn_virginia" data-team="blue">
+                    <div class="palette-dot" style="background-color: #224488;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">SSN Virginia</div>
+                        <div class="palette-item-desc">Nuclear attack submarine</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="ffg_const" data-team="blue">
+                    <div class="palette-dot" style="background-color: #5577aa;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">FFG Constellation</div>
+                        <div class="palette-item-desc">Multi-mission frigate</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="lhd_wasp" data-team="blue">
+                    <div class="palette-dot" style="background-color: #668899;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">LHD Wasp</div>
+                        <div class="palette-item-desc">Amphibious assault ship</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="kirov" data-team="red">
+                    <div class="palette-dot" style="background-color: #aa3333;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Kirov Battlecruiser</div>
+                        <div class="palette-item-desc">Nuclear battlecruiser, S-300F</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="kuznetsov" data-team="red">
+                    <div class="palette-dot" style="background-color: #993333;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Adm. Kuznetsov</div>
+                        <div class="palette-item-desc">Aircraft carrier, Su-33</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="kilo_sub" data-team="red">
+                    <div class="palette-dot" style="background-color: #882222;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Kilo-class Submarine</div>
+                        <div class="palette-item-desc">Diesel-electric submarine</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="slava" data-team="red">
+                    <div class="palette-dot" style="background-color: #bb4444;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Slava-class Cruiser</div>
+                        <div class="palette-item-desc">Guided missile cruiser</div>
                     </div>
                 </div>
             </div>
@@ -1433,6 +1926,50 @@
 <button class="panel-toggle" id="toggleRight" title="Toggle Property Inspector">&#9654;</button>
 <button class="panel-toggle" id="toggleBottom" title="Toggle Bottom Panel">&#9660;</button>
 
+<!-- Cursor coordinate readout -->
+<div id="cursorCoords"></div>
+
+<!-- Run-mode HUD -->
+<div id="runHUD"></div>
+
+<!-- Help Dialog -->
+<div id="helpDialogOverlay">
+    <div class="help-dialog">
+        <h2>Keyboard Shortcuts</h2>
+
+        <div class="help-section-title">Global</div>
+        <div class="help-row"><span class="help-key">?</span><span class="help-desc">Toggle this help dialog</span></div>
+        <div class="help-row"><span class="help-key">Escape</span><span class="help-desc">Close dialog / cancel</span></div>
+
+        <div class="help-section-title">Build Mode</div>
+        <div class="help-row"><span class="help-key">Delete</span><span class="help-desc">Delete selected entity</span></div>
+        <div class="help-row"><span class="help-key">Click palette</span><span class="help-desc">Select entity to place</span></div>
+        <div class="help-row"><span class="help-key">Click globe</span><span class="help-desc">Place entity at location</span></div>
+        <div class="help-row"><span class="help-key">Right-click</span><span class="help-desc">Context menu (focus, duplicate, delete)</span></div>
+
+        <div class="help-section-title">Run Mode</div>
+        <div class="help-row"><span class="help-key">Space</span><span class="help-desc">Pause / Resume simulation</span></div>
+        <div class="help-row"><span class="help-key">+ / =</span><span class="help-desc">Increase time warp (2x)</span></div>
+        <div class="help-row"><span class="help-key">- / _</span><span class="help-desc">Decrease time warp (0.5x)</span></div>
+
+        <div class="help-section-title">Build Mode</div>
+        <div class="help-row"><span class="help-key">V</span><span class="help-desc">Open visual event editor</span></div>
+        <div class="help-row"><span class="help-key">Delete</span><span class="help-desc">Delete selected entity</span></div>
+
+        <div class="help-section-title">Export</div>
+        <div class="help-row"><span class="help-key">Export Sim</span><span class="help-desc">Live ECS physics in viewer</span></div>
+        <div class="help-row"><span class="help-key">Export Model</span><span class="help-desc">CZML rapid playback (no overhead)</span></div>
+        <div class="help-row"><span class="help-key">Export DIS</span><span class="help-desc">IEEE 1278 binary PDU file</span></div>
+
+        <div class="help-section-title">DIS</div>
+        <div class="help-row"><span class="help-key">DIS: ON/OFF</span><span class="help-desc">Toggle real-time DIS streaming</span></div>
+        <div class="help-row"><span class="help-key">Green dot</span><span class="help-desc">Streaming active</span></div>
+        <div class="help-row"><span class="help-key">Red dot</span><span class="help-desc">Connection error</span></div>
+
+        <div class="help-close-hint">Press ? or Escape to close</div>
+    </div>
+</div>
+
 
 <!-- ================================================================
      SCRIPT LOADING
@@ -1447,6 +1984,7 @@
 
 <!-- ECS framework -->
 <script src="js/framework/constants.js"></script>
+<script src="js/framework/sim_rng.js"></script>
 <script src="js/framework/ecs.js"></script>
 <script src="js/framework/registry.js"></script>
 <script src="js/framework/sensor_system.js"></script>
@@ -1455,6 +1993,8 @@
 <script src="js/framework/systems.js"></script>
 <script src="js/framework/tle_parser.js"></script>
 <script src="js/framework/loader.js"></script>
+<script src="js/framework/dis_protocol.js"></script>
+<script src="js/framework/dis_manager.js"></script>
 
 <!-- Components: Physics -->
 <script src="js/components/physics/flight3dof.js"></script>
@@ -1466,12 +2006,16 @@
 <!-- Components: AI -->
 <script src="js/components/ai/waypoint_patrol.js"></script>
 <script src="js/components/ai/intercept.js"></script>
+<script src="js/components/ai/orbital_combat.js"></script>
 
 <!-- Components: Sensors -->
 <script src="js/components/sensors/radar.js"></script>
 
 <!-- Components: Weapons -->
 <script src="js/components/weapons/sam_battery.js"></script>
+<script src="js/components/weapons/fighter_loadout.js"></script>
+<script src="js/components/weapons/a2a_missile.js"></script>
+<script src="js/components/weapons/kinetic_kill.js"></script>
 
 <!-- Components: Visual -->
 <script src="js/components/visual/cesium_entity.js"></script>
@@ -1480,6 +2024,7 @@
 <script src="js/components/visual/radar_coverage.js"></script>
 
 <!-- Builder modules -->
+<script src="js/builder/orbital_arena.js"></script>
 <script src="js/builder/satellite_dialog.js"></script>
 <script src="js/builder/builder_app.js"></script>
 <script src="js/builder/scenario_io.js"></script>
@@ -1489,6 +2034,11 @@
 <script src="js/builder/entity_tree.js"></script>
 <script src="js/builder/timeline_panel.js"></script>
 <script src="js/builder/analysis_overlay.js"></script>
+<script src="js/builder/run_inspector.js"></script>
+<script src="js/builder/event_editor.js"></script>
+<script src="js/builder/mc_runner.js"></script>
+<script src="js/builder/mc_analysis.js"></script>
+<script src="js/builder/mc_panel.js"></script>
 
 <!-- ================================================================
      BOOTSTRAP
@@ -1502,6 +2052,27 @@
     }
     // Wait for all scripts to load, then init
     BuilderApp.init('cesiumContainer');
+
+    // Wire help button
+    var btnHelp = document.getElementById('btnHelp');
+    if (btnHelp) {
+        btnHelp.addEventListener('click', function() {
+            var overlay = document.getElementById('helpDialogOverlay');
+            if (overlay) {
+                overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+            }
+        });
+    }
+
+    // Click overlay background to close help
+    var helpOverlay = document.getElementById('helpDialogOverlay');
+    if (helpOverlay) {
+        helpOverlay.addEventListener('click', function(e) {
+            if (e.target === helpOverlay) {
+                helpOverlay.style.display = 'none';
+            }
+        });
+    }
 })();
 </script>
 

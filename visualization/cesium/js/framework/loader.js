@@ -29,6 +29,7 @@ const ScenarioLoader = (function() {
     function build(scenario, viewer) {
         const world = new ECS.World();
         world.viewer = viewer;
+        world.headless = !viewer;
         world.scenarioMeta = scenario.metadata || {};
 
         // Environment
@@ -57,14 +58,20 @@ const ScenarioLoader = (function() {
             }
         }
 
-        // Register default systems
-        Systems.registerDefaults(world);
+        // Register systems (headless mode omits visual/HUD/UI)
+        if (world.headless) {
+            Systems.registerHeadless(world);
+        } else {
+            Systems.registerDefaults(world);
+        }
 
         // Init all components
         world.initAll();
 
-        // Setup initial camera
-        _setupCamera(world);
+        // Setup initial camera (skip in headless mode)
+        if (!world.headless) {
+            _setupCamera(world);
+        }
 
         return world;
     }

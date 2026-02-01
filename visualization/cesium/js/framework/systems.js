@@ -174,6 +174,27 @@ const Systems = (function() {
         world.addSystem('ui', UISystem);
     }
 
+    /**
+     * Register only simulation-logic systems (no rendering).
+     * Used by Monte Carlo headless runner.
+     */
+    function registerHeadless(world) {
+        world.addSystem('ai', AISystem);
+        world.addSystem('control', ControlSystem);
+        world.addSystem('physics', PhysicsSystem);
+
+        if (typeof SensorSystem !== 'undefined') {
+            world.addSystem('sensors', SensorSystem.update);
+        }
+        if (typeof WeaponSystem !== 'undefined') {
+            world.addSystem('weapons', WeaponSystem.update);
+        }
+        if (typeof EventSystem !== 'undefined') {
+            world.addSystem('events', EventSystem.update);
+        }
+        // Deliberately omit: visualization, hud, ui
+    }
+
     return {
         ControlSystem: ControlSystem,
         PhysicsSystem: PhysicsSystem,
@@ -181,6 +202,7 @@ const Systems = (function() {
         VisualizationSystem: VisualizationSystem,
         HUDSystem: HUDSystem,
         UISystem: UISystem,
-        registerDefaults: registerDefaults
+        registerDefaults: registerDefaults,
+        registerHeadless: registerHeadless
     };
 })();

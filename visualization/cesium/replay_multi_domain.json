@@ -1,0 +1,161 @@
+{
+  "format": "replay_v1",
+  "config": {
+    "seed": 42,
+    "duration": 600,
+    "sampleInterval": 2
+  },
+  "timeline": {
+    "endTime": 0,
+    "sampleTimes": [
+      0
+    ]
+  },
+  "entities": [
+    {
+      "id": "iss_001",
+      "name": "ISS Zarya",
+      "team": "blue",
+      "type": "satellite",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          4671334.98259001,
+          2750431.41983437,
+          4069325.12544366
+        ]
+      ]
+    },
+    {
+      "id": "leo_recon_002",
+      "name": "RECON-3",
+      "team": "blue",
+      "type": "satellite",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          773263.347688659,
+          430575.912433405,
+          6813765.7429662
+        ]
+      ]
+    },
+    {
+      "id": "gps_003",
+      "name": "GPS IIR-11",
+      "team": "neutral",
+      "type": "satellite",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          18694591.6114932,
+          10722777.2355584,
+          15313712.9357025
+        ]
+      ]
+    },
+    {
+      "id": "gps_004",
+      "name": "GPS IIR-16",
+      "team": "neutral",
+      "type": "satellite",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          4819701.63658681,
+          23748338.5380637,
+          10997004.1636142
+        ]
+      ]
+    },
+    {
+      "id": "geo_005",
+      "name": "MILSTAR-6",
+      "team": "blue",
+      "type": "satellite",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -7330007.31659374,
+          -41522696.8440266,
+          -36235.3979100644
+        ]
+      ]
+    },
+    {
+      "id": "eagle_006",
+      "name": "EAGLE 1",
+      "team": "blue",
+      "type": "aircraft",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -2450748.44160212,
+          -4632567.93610634,
+          3631634.4455285
+        ]
+      ]
+    },
+    {
+      "id": "bandit_007",
+      "name": "BANDIT 1",
+      "team": "red",
+      "type": "aircraft",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -2321699.25103209,
+          -4656608.29346773,
+          3686652.19627715
+        ]
+      ]
+    },
+    {
+      "id": "gnd_008",
+      "name": "Edwards TT&C",
+      "team": "blue",
+      "type": "ground",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -2449005.55852589,
+          -4628491.64835525,
+          3629228.63559791
+        ]
+      ]
+    },
+    {
+      "id": "gnd_009",
+      "name": "Vandenberg GND",
+      "team": "blue",
+      "type": "ground",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -2668471.93195855,
+          -4517896.59112933,
+          3613928.39979153
+        ]
+      ]
+    }
+  ],
+  "events": [
+  ],
+  "summary": {
+    "blueAlive": 1,
+    "blueTotal": 1,
+    "redAlive": 0,
+    "redTotal": 0,
+    "totalKills": 0,
+    "totalLaunches": 0
+  }
+}

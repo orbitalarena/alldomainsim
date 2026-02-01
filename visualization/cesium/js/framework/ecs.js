@@ -87,6 +87,8 @@ const ECS = (function() {
             this.camera = {};               // camera config from scenario JSON
             this._lastTickTime = null;
             this._componentIndex = {};      // componentName -> Set<entityId>
+            this.rng = null;                // SimRNG instance (set by loader or MC runner)
+            this.headless = false;          // true when running without Cesium viewer
         }
 
         addEntity(entity) {

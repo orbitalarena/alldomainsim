@@ -1,0 +1,41 @@
+{
+  "format": "replay_v1",
+  "config": {
+    "seed": 42,
+    "duration": 300,
+    "sampleInterval": 2
+  },
+  "timeline": {
+    "endTime": 0,
+    "sampleTimes": [
+      0
+    ]
+  },
+  "entities": [
+    {
+      "id": "player",
+      "name": "EAGLE 1",
+      "team": "blue",
+      "type": "aircraft",
+      "role": null,
+      "deathTime": null,
+      "positions": [
+        [
+          -2450903.32766781,
+          -4632097.88916097,
+          3632126.14381448
+        ]
+      ]
+    }
+  ],
+  "events": [
+  ],
+  "summary": {
+    "blueAlive": 1,
+    "blueTotal": 1,
+    "redAlive": 0,
+    "redTotal": 0,
+    "totalKills": 0,
+    "totalLaunches": 0
+  }
+}

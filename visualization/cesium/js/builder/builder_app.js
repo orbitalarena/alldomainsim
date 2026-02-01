@@ -25,6 +25,10 @@ const BuilderApp = (function() {
     var _inspectorBound = false;     // whether inspector field events are wired
     var _entityListThrottleTimer = null;
     var _entityListPendingUpdate = false;
+    var _disEnabled = false;         // DIS streaming toggle
+    var _scenarioName = 'Untitled Scenario';
+    var _fpsFrames = [];             // rolling FPS tracker
+    var _runHudInterval = null;      // run-mode HUD update interval
 
     // Team colors for build-mode point markers
     var _teamColors = {
@@ -91,6 +95,16 @@ const BuilderApp = (function() {
             AnalysisOverlay.init(_viewer);
         }
 
+        // Initialize run inspector (click-to-inspect in RUN mode)
+        if (typeof RunInspector !== 'undefined') {
+            RunInspector.init(_viewer);
+        }
+
+        // Initialize Monte Carlo panel
+        if (typeof MCPanel !== 'undefined') {
+            MCPanel.init();
+        }
+
         // Build palette template map from ObjectPalette
         _buildPaletteTemplateMap();
 
@@ -126,8 +140,22 @@ const BuilderApp = (function() {
         // Dismiss loading overlay
         _dismissLoadingOverlay();
 
-        // Wire up keyboard shortcuts (time warp, etc.)
+        // Wire up keyboard shortcuts (time warp, help, etc.)
         _wireKeyboard();
+
+        // Cursor coordinate readout
+        _wireCursorCoords();
+
+        // Scenario name editor
+        _wireScenarioName();
+
+        // Initialize DIS manager
+        if (typeof DISManager !== 'undefined') {
+            DISManager.init();
+            DISManager.onStatus(function(status) {
+                _updateDISIndicator(status);
+            });
+        }
 
         console.log('BuilderApp initialized');
     }
@@ -183,6 +211,13 @@ const BuilderApp = (function() {
 
         _updateInspectorUI();
         _doUpdateEntityListUI();  // bypass throttle for full rebuild
+        _updatePaletteCount();
+
+        // Update scenario name from loaded data
+        _scenarioName = (json.metadata && json.metadata.name) || 'Untitled Scenario';
+        var nameDisplay = document.getElementById('scenarioNameDisplay');
+        if (nameDisplay) nameDisplay.textContent = _scenarioName;
+
         showMessage('Scenario loaded: ' + (json.metadata.name || 'Untitled'));
     }
 
@@ -328,6 +363,7 @@ const BuilderApp = (function() {
         }
 
         _updateEntityListUI();
+        _updatePaletteCount();
         showMessage('Added: ' + (entityDef.name || entityDef.id));
         return entityDef.id;
     }
@@ -365,6 +401,7 @@ const BuilderApp = (function() {
 
         _updateInspectorUI();
         _updateEntityListUI();
+        _updatePaletteCount();
         showMessage('Removed entity');
     }
 
@@ -508,6 +545,10 @@ const BuilderApp = (function() {
             if (_world && _mode === 'RUN') {
                 _world.tick();
 
+                // Track FPS
+                _fpsFrames.push(Date.now());
+                if (_fpsFrames.length > 60) _fpsFrames.shift();
+
                 // Throttle UI updates to ~4 Hz (every 15 frames at 60fps)
                 _uiFrameCounter++;
                 if (_uiFrameCounter >= 15) {
@@ -526,6 +567,15 @@ const BuilderApp = (function() {
         };
         _viewer.clock.onTick.addEventListener(_tickHandler);
 
+        // Start DIS streaming if enabled
+        if (_disEnabled && typeof DISManager !== 'undefined') {
+            DISManager.startStreaming(_world);
+        }
+
+        // Start run-mode HUD updates (4 Hz)
+        _showRunHUD(true);
+        _runHudInterval = setInterval(_updateRunHUD, 250);
+
         showMessage('Simulation started');
     }
 
@@ -533,6 +583,23 @@ const BuilderApp = (function() {
         if (_tickHandler) {
             _viewer.clock.onTick.removeEventListener(_tickHandler);
             _tickHandler = null;
+        }
+
+        // Stop DIS streaming
+        if (typeof DISManager !== 'undefined') {
+            DISManager.stopStreaming();
+        }
+
+        // Hide run inspector
+        if (typeof RunInspector !== 'undefined') {
+            RunInspector.hide();
+        }
+
+        // Hide run-mode HUD
+        _showRunHUD(false);
+        if (_runHudInterval) {
+            clearInterval(_runHudInterval);
+            _runHudInterval = null;
         }
 
         // Stop analysis recording
@@ -581,6 +648,35 @@ const BuilderApp = (function() {
     function _loadDemoScenario(scenarioName) {
         if (_mode !== 'BUILD') {
             showMessage('Switch to BUILD mode first');
+            return;
+        }
+
+        // Programmatic generators (no JSON file needed)
+        if (scenarioName === '__orbital_arena_v1' && typeof OrbitalArena !== 'undefined') {
+            showMessage('Generating Orbital Arena v1 (1000 entities)...');
+            setTimeout(function() {
+                try {
+                    var json = OrbitalArena.generate();
+                    setScenarioData(json);
+                } catch (err) {
+                    showMessage('Generation failed: ' + err.message);
+                    console.error('OAv1 generation error:', err);
+                }
+            }, 10);
+            return;
+        }
+
+        if (scenarioName === '__orbital_arena_small' && typeof OrbitalArena !== 'undefined') {
+            showMessage('Generating Orbital Arena Small (100 entities, 30° arc)...');
+            setTimeout(function() {
+                try {
+                    var json = OrbitalArena.generateSmall();
+                    setScenarioData(json);
+                } catch (err) {
+                    showMessage('Generation failed: ' + err.message);
+                    console.error('OA Small generation error:', err);
+                }
+            }, 10);
             return;
         }
 
@@ -730,16 +826,65 @@ const BuilderApp = (function() {
         var templates = ObjectPalette.getTemplates();
         // Map by lowercase name fragment and type
         var subtypeNameMap = {
+            // Aircraft — Blue
             'f16': 'F-16C Fighting Falcon',
-            'mig29': 'MiG-29 Fulcrum',
+            'f15': 'F-15E Strike Eagle',
+            'f22': 'F-22A Raptor',
+            'f35': 'F-35A Lightning II',
+            'f18': 'F/A-18E Super Hornet',
+            'a10': 'A-10C Thunderbolt II',
+            'b2': 'B-2A Spirit',
+            'b1b': 'B-1B Lancer',
+            'e3_awacs': 'E-3G Sentry AWACS',
+            'c130': 'C-130J Super Hercules',
+            'mq9': 'MQ-9A Reaper',
+            'rq4': 'RQ-4B Global Hawk',
             'spaceplane': 'X-37S Spaceplane',
+            // Aircraft — Red
+            'mig29': 'MiG-29 Fulcrum',
+            'su27': 'Su-27S Flanker',
+            'su35': 'Su-35S Flanker-E',
+            'su57': 'Su-57 Felon',
+            'tu160': 'Tu-160 Blackjack',
+            'tu22m': 'Tu-22M3 Backfire',
+            'tb2': 'Bayraktar TB2',
+            // Spacecraft
             'leo_sat': 'LEO Satellite',
             'gps_sat': 'GPS Satellite',
             'geo_comms': 'GEO Comms Satellite',
+            'sat_inspector': 'Satellite Inspector',
+            'img_sat': 'Imaging Satellite',
+            'sso_weather': 'SSO Weather Sat',
+            'molniya_sat': 'Molniya Orbit Sat',
+            'kosmos_sat': 'Kosmos Radar Sat',
+            'asat': 'Co-Orbital ASAT',
+            // Ground — Blue
             'ground_station': 'Ground Station',
+            'gps_receiver': 'GPS Receiver',
+            'm1a2': 'M1A2 Abrams',
+            'hmmwv': 'HMMWV',
+            'patriot': 'Patriot Battery',
+            'thaad': 'THAAD Battery',
+            'avenger': 'Avenger SHORAD',
+            'cmd_post': 'Command Post',
+            // Ground — Red
             'sam_battery': 'SAM Battery',
             'ew_radar': 'EW Radar',
-            'gps_receiver': 'GPS Receiver'
+            't90': 'T-90 Main Battle Tank',
+            's400': 'S-400 Triumf',
+            'pantsir': 'Pantsir-S1',
+            'tor_m2': 'Tor-M2',
+            // Naval — Blue
+            'cvn_nimitz': 'CVN Nimitz Carrier',
+            'ddg_burke': 'DDG Arleigh Burke',
+            'ssn_virginia': 'SSN Virginia',
+            'ffg_const': 'FFG Constellation',
+            'lhd_wasp': 'LHD Wasp',
+            // Naval — Red
+            'kirov': 'Kirov Battlecruiser',
+            'kuznetsov': 'Admiral Kuznetsov',
+            'kilo_sub': 'Kilo-class Submarine',
+            'slava': 'Slava-class Cruiser'
         };
         for (var subtype in subtypeNameMap) {
             var tpl = ObjectPalette.getTemplateByName(subtypeNameMap[subtype]);
@@ -1022,12 +1167,78 @@ const BuilderApp = (function() {
             }, 100);
         });
 
+        // Export DIS — binary PDU file
+        _bindButton('btnExportDIS', function() {
+            var menu = document.getElementById('exportDropdownMenu');
+            if (menu) menu.classList.remove('open');
+
+            if (typeof DISManager === 'undefined') {
+                showMessage('DIS module not loaded');
+                return;
+            }
+
+            var durationStr = prompt('Simulation duration (seconds):', '600');
+            if (!durationStr) return;
+            var duration = parseFloat(durationStr);
+            if (isNaN(duration) || duration <= 0) {
+                showMessage('Invalid duration');
+                return;
+            }
+
+            showMessage('Running headless DIS export for ' + duration + 's...', 5000);
+
+            setTimeout(function() {
+                DISManager.exportBatch(getScenarioData(), _viewer, duration)
+                    .then(function(result) {
+                        showMessage('DIS exported: ' + result.pduCount + ' PDUs, ' +
+                                    (result.bytesTotal / 1024).toFixed(1) + ' KB → ' + result.filename, 4000);
+                    })
+                    .catch(function(err) {
+                        if (err.message !== 'Export cancelled') {
+                            showMessage('DIS export failed: ' + err.message);
+                            console.error('DIS export error:', err);
+                        }
+                    });
+            }, 100);
+        });
+
+        // DIS streaming toggle
+        _bindButton('btnDISToggle', function() {
+            _disEnabled = !_disEnabled;
+            var btn = document.getElementById('btnDISToggle');
+            if (btn) {
+                btn.textContent = _disEnabled ? 'DIS: ON' : 'DIS: OFF';
+                btn.style.borderColor = _disEnabled ? '#00ff00' : '#1a2a44';
+                btn.style.color = _disEnabled ? '#00ff00' : '#a0b0c8';
+            }
+
+            // If currently running, start/stop streaming
+            if (_mode === 'RUN' && _world && typeof DISManager !== 'undefined') {
+                if (_disEnabled) {
+                    DISManager.startStreaming(_world);
+                    showMessage('DIS streaming started');
+                } else {
+                    DISManager.stopStreaming();
+                    showMessage('DIS streaming stopped');
+                }
+            }
+        });
+
         _bindButton('btnImportTLE', function() {
             ScenarioIO.importTLEFile().catch(function(err) {
                 if (err.message !== 'No file selected') {
                     showMessage('TLE import: ' + err.message);
                 }
             });
+        });
+
+        // Events editor
+        _bindButton('btnEvents', function() {
+            if (typeof EventEditor !== 'undefined') {
+                EventEditor.show(_scenarioData);
+            } else {
+                showMessage('Event Editor not loaded');
+            }
         });
 
         // Demo dropdown toggle
@@ -1051,12 +1262,14 @@ const BuilderApp = (function() {
             })(demoItems[d]);
         }
 
-        // Close dropdown when clicking elsewhere
+        // Close demo dropdown when clicking elsewhere
         document.addEventListener('click', function(e) {
-            var dropdown = document.querySelector('.demo-dropdown');
             var menu = document.getElementById('demoDropdownMenu');
-            if (menu && dropdown && !dropdown.contains(e.target)) {
-                menu.classList.remove('open');
+            if (menu) {
+                var dropdown = menu.parentElement;
+                if (dropdown && !dropdown.contains(e.target)) {
+                    menu.classList.remove('open');
+                }
             }
         });
 
@@ -1074,6 +1287,16 @@ const BuilderApp = (function() {
 
         _bindButton('btnAnalyze', function() {
             switchMode('ANALYZE');
+        });
+
+        _bindButton('btnMonteCarlo', function() {
+            if (_mode !== 'BUILD') {
+                showMessage('Switch to BUILD mode first');
+                return;
+            }
+            if (typeof MCPanel !== 'undefined') {
+                MCPanel.show();
+            }
         });
 
         _bindButton('btnReset', function() {
@@ -1110,6 +1333,8 @@ const BuilderApp = (function() {
         _setButtonEnabled('btnSave', _mode === 'BUILD');
         _setButtonEnabled('btnExport', _mode === 'BUILD');
         _setButtonEnabled('btnImportTLE', _mode === 'BUILD');
+        _setButtonEnabled('btnEvents', _mode === 'BUILD');
+        _setButtonEnabled('btnMonteCarlo', _mode === 'BUILD');
         _setButtonEnabled('btnLoadDemo', _mode === 'BUILD');
 
         // Update pause button text
@@ -1497,6 +1722,43 @@ const BuilderApp = (function() {
             var tag = e.target.tagName;
             if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
+            // Help dialog — ? key works in any mode
+            if (e.key === '?') {
+                e.preventDefault();
+                _toggleHelpDialog();
+                return;
+            }
+
+            // Escape closes help dialog
+            if (e.key === 'Escape') {
+                var helpOverlay = document.getElementById('helpDialogOverlay');
+                if (helpOverlay && helpOverlay.style.display !== 'none') {
+                    helpOverlay.style.display = 'none';
+                    return;
+                }
+            }
+
+            // V key for Event Editor in BUILD mode
+            if (_mode === 'BUILD' && (e.key === 'v' || e.key === 'V')) {
+                e.preventDefault();
+                if (typeof EventEditor !== 'undefined') {
+                    EventEditor.show(_scenarioData);
+                }
+                return;
+            }
+
+            // Delete key in BUILD mode
+            if (_mode === 'BUILD' && (e.key === 'Delete' || e.key === 'Backspace')) {
+                if (_selectedEntityId) {
+                    var def = _findEntityDef(_selectedEntityId);
+                    var name = def ? (def.name || def.id) : _selectedEntityId;
+                    if (confirm('Delete entity "' + name + '"?')) {
+                        removeEntity(_selectedEntityId);
+                    }
+                }
+                return;
+            }
+
             if (_mode === 'RUN' && _world) {
                 if (e.key === '=' || e.key === '+') {
                     // Increase time warp
@@ -1520,6 +1782,224 @@ const BuilderApp = (function() {
                 }
             }
         });
+    }
+
+    // -------------------------------------------------------------------
+    // Cursor Coordinate Readout
+    // -------------------------------------------------------------------
+
+    function _wireCursorCoords() {
+        var coordsEl = document.getElementById('cursorCoords');
+        if (!coordsEl || !_viewer) return;
+
+        var handler = new Cesium.ScreenSpaceEventHandler(_viewer.scene.canvas);
+        handler.setInputAction(function(movement) {
+            if (_mode !== 'BUILD') {
+                coordsEl.style.display = 'none';
+                return;
+            }
+
+            var cartesian = _viewer.scene.pickPosition(movement.endPosition);
+            if (!cartesian) {
+                // Try globe pick as fallback
+                var ray = _viewer.camera.getPickRay(movement.endPosition);
+                cartesian = _viewer.scene.globe.pick(ray, _viewer.scene);
+            }
+
+            if (cartesian) {
+                var carto = Cesium.Cartographic.fromCartesian(cartesian);
+                var latDeg = Cesium.Math.toDegrees(carto.latitude);
+                var lonDeg = Cesium.Math.toDegrees(carto.longitude);
+                var alt = carto.height;
+
+                var latDir = latDeg >= 0 ? 'N' : 'S';
+                var lonDir = lonDeg >= 0 ? 'E' : 'W';
+
+                coordsEl.textContent =
+                    Math.abs(latDeg).toFixed(4) + '\u00B0' + latDir + '  ' +
+                    Math.abs(lonDeg).toFixed(4) + '\u00B0' + lonDir + '  ' +
+                    'ALT: ' + (alt > 1000 ? (alt / 1000).toFixed(1) + 'km' : Math.round(alt) + 'm');
+                coordsEl.style.display = 'block';
+            } else {
+                coordsEl.style.display = 'none';
+            }
+        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    }
+
+    // -------------------------------------------------------------------
+    // Scenario Name Editor
+    // -------------------------------------------------------------------
+
+    function _wireScenarioName() {
+        var nameDisplay = document.getElementById('scenarioNameDisplay');
+        var nameInput = document.getElementById('scenarioNameInput');
+        if (!nameDisplay || !nameInput) return;
+
+        nameDisplay.addEventListener('click', function() {
+            nameDisplay.style.display = 'none';
+            nameInput.style.display = 'inline-block';
+            nameInput.value = _scenarioName;
+            nameInput.focus();
+            nameInput.select();
+        });
+
+        function commitName() {
+            var val = nameInput.value.trim();
+            if (val) _scenarioName = val;
+            nameDisplay.textContent = _scenarioName;
+            nameDisplay.style.display = 'inline-block';
+            nameInput.style.display = 'none';
+
+            // Update scenario data metadata
+            if (_scenarioData && _scenarioData.metadata) {
+                _scenarioData.metadata.name = _scenarioName;
+            }
+        }
+
+        nameInput.addEventListener('blur', commitName);
+        nameInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                commitName();
+            }
+            if (e.key === 'Escape') {
+                nameDisplay.style.display = 'inline-block';
+                nameInput.style.display = 'none';
+            }
+        });
+    }
+
+    function getScenarioName() {
+        return _scenarioName;
+    }
+
+    // -------------------------------------------------------------------
+    // Help Dialog
+    // -------------------------------------------------------------------
+
+    function _toggleHelpDialog() {
+        var overlay = document.getElementById('helpDialogOverlay');
+        if (!overlay) return;
+
+        if (overlay.style.display === 'none' || !overlay.style.display) {
+            overlay.style.display = 'flex';
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // Run-Mode HUD
+    // -------------------------------------------------------------------
+
+    function _showRunHUD(visible) {
+        var hud = document.getElementById('runHUD');
+        if (hud) hud.style.display = visible ? 'block' : 'none';
+    }
+
+    function _updateRunHUD() {
+        var hud = document.getElementById('runHUD');
+        if (!hud || _mode !== 'RUN') return;
+
+        // FPS calculation
+        var now = Date.now();
+        while (_fpsFrames.length > 0 && now - _fpsFrames[0] > 1000) {
+            _fpsFrames.shift();
+        }
+        var fps = _fpsFrames.length;
+
+        // Sim time
+        var simTime = _world ? _world.simTime : 0;
+        var h = Math.floor(simTime / 3600);
+        var m = Math.floor((simTime % 3600) / 60);
+        var s = Math.floor(simTime % 60);
+
+        // Entity counts
+        var totalEntities = 0;
+        var activeEntities = 0;
+        if (_world) {
+            _world.entities.forEach(function(e) {
+                totalEntities++;
+                if (e.active) activeEntities++;
+            });
+        }
+
+        // Sensor detections
+        var detections = 0;
+        if (_world) {
+            _world.entities.forEach(function(e) {
+                var radar = e.getComponent('sensors');
+                if (radar && radar._detectedEntities) {
+                    detections += radar._detectedEntities.size || 0;
+                }
+            });
+        }
+
+        // Weapon engagements
+        var engagements = 0;
+        if (_world) {
+            _world.entities.forEach(function(e) {
+                var wep = e.getComponent('weapons');
+                if (wep && wep._engagements) {
+                    engagements += wep._engagements.length || 0;
+                }
+            });
+        }
+
+        // DIS stats
+        var disLine = '';
+        if (_disEnabled && typeof DISManager !== 'undefined') {
+            var disStats = DISManager.getStats();
+            disLine = 'DIS ' + disStats.pdusSent + ' PDUs  ' +
+                (disStats.bytesTotal / 1024).toFixed(1) + ' KB';
+        }
+
+        // Build HUD text
+        var lines = [
+            'SIM  ' + _pad2(h) + ':' + _pad2(m) + ':' + _pad2(s) + '  ' + (_world ? _world.timeWarp : 1) + 'x',
+            'FPS  ' + fps,
+            'ENT  ' + activeEntities + '/' + totalEntities,
+            'DET  ' + detections,
+            'WPN  ' + engagements
+        ];
+        if (disLine) lines.push(disLine);
+
+        hud.textContent = lines.join('\n');
+    }
+
+    // -------------------------------------------------------------------
+    // DIS Indicator
+    // -------------------------------------------------------------------
+
+    function _updateDISIndicator(status) {
+        var dot = document.getElementById('disStatusDot');
+        if (!dot) return;
+
+        if (status === 'connected' || status === 'streaming') {
+            dot.style.background = '#00ff00';
+            dot.title = 'DIS: Streaming';
+        } else if (status === 'http-fallback') {
+            dot.style.background = '#ffaa00';
+            dot.title = 'DIS: HTTP fallback';
+        } else if (status === 'error') {
+            dot.style.background = '#ff4444';
+            dot.title = 'DIS: Error';
+        } else {
+            dot.style.background = '#444';
+            dot.title = 'DIS: Disconnected';
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // Entity Count Badge
+    // -------------------------------------------------------------------
+
+    function _updatePaletteCount() {
+        var badge = document.getElementById('paletteCountBadge');
+        if (badge && _scenarioData) {
+            var count = (_scenarioData.entities || []).length;
+            badge.textContent = count;
+        }
     }
 
     // -------------------------------------------------------------------
@@ -1573,6 +2053,7 @@ const BuilderApp = (function() {
         updateEntityDef: updateEntityDef,
         switchMode: switchMode,
         newScenario: newScenario,
-        showMessage: showMessage
+        showMessage: showMessage,
+        getScenarioName: getScenarioName
     };
 })();
