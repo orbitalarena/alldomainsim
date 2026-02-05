@@ -834,15 +834,27 @@ var ObjectPalette = (function() {
     var _container = null;
     var _activeIndex = -1;       // currently highlighted template index
     var _collapsedCats = {};     // category name -> bool (collapsed)
+    var _customTemplates = [];   // user-defined custom platforms
 
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
 
-    /** Group templates by category, preserving insertion order. */
+    /** Group templates by category, preserving insertion order. Custom first. */
     function _groupByCategory() {
         var groups = {};
         var order = [];
+
+        // Custom templates first
+        if (_customTemplates.length > 0) {
+            groups['Custom'] = [];
+            order.push('Custom');
+            for (var c = 0; c < _customTemplates.length; c++) {
+                groups['Custom'].push({ template: _customTemplates[c], index: 'custom_' + c, isCustom: true });
+            }
+        }
+
+        // Built-in templates
         for (var i = 0; i < TEMPLATES.length; i++) {
             var cat = TEMPLATES[i].category;
             if (!groups[cat]) {
@@ -858,6 +870,7 @@ var ObjectPalette = (function() {
     function _createItem(entry) {
         var tpl = entry.template;
         var idx = entry.index;
+        var isCustom = entry.isCustom || false;
 
         var item = document.createElement('div');
         item.className = 'palette-item';
@@ -865,6 +878,9 @@ var ObjectPalette = (function() {
             item.classList.add('palette-item-active');
         }
         item.setAttribute('data-template-index', idx);
+        if (isCustom) {
+            item.setAttribute('data-custom', 'true');
+        }
 
         // Icon dot
         var icon = document.createElement('span');
@@ -879,6 +895,9 @@ var ObjectPalette = (function() {
         var nameEl = document.createElement('div');
         nameEl.className = 'palette-item-name';
         nameEl.textContent = tpl.name;
+        if (isCustom) {
+            nameEl.innerHTML += ' <span style="color:#4af;font-size:9px;">★</span>';
+        }
         info.appendChild(nameEl);
 
         var descEl = document.createElement('div');
@@ -892,7 +911,12 @@ var ObjectPalette = (function() {
         item.addEventListener('click', function() {
             _setActive(idx);
             if (typeof BuilderApp !== 'undefined') {
-                BuilderApp.startPlacement(TEMPLATES[idx]);
+                if (isCustom) {
+                    var customIdx = parseInt(String(idx).replace('custom_', ''), 10);
+                    BuilderApp.startPlacement(_customTemplates[customIdx]);
+                } else {
+                    BuilderApp.startPlacement(TEMPLATES[idx]);
+                }
             }
         });
 
@@ -1074,6 +1098,13 @@ var ObjectPalette = (function() {
         /** Look up a template by name (case-insensitive). */
         getTemplateByName: function(name) {
             var lower = name.toLowerCase();
+            // Check custom templates first
+            for (var c = 0; c < _customTemplates.length; c++) {
+                if (_customTemplates[c].name.toLowerCase() === lower) {
+                    return _customTemplates[c];
+                }
+            }
+            // Check built-in templates
             for (var i = 0; i < TEMPLATES.length; i++) {
                 if (TEMPLATES[i].name.toLowerCase() === lower) {
                     return TEMPLATES[i];
@@ -1084,6 +1115,49 @@ var ObjectPalette = (function() {
 
         /** Force a full re-render. */
         refresh: function() {
+            _render();
+        },
+
+        /**
+         * Add a custom platform template.
+         * @param {object} template - The custom platform definition
+         */
+        addCustomTemplate: function(template) {
+            // Check for duplicate by id
+            for (var i = 0; i < _customTemplates.length; i++) {
+                if (_customTemplates[i].id === template.id) {
+                    console.warn('[ObjectPalette] Custom template already exists:', template.id);
+                    return;
+                }
+            }
+            _customTemplates.push(template);
+            _render();
+            console.log('[ObjectPalette] Added custom template:', template.name);
+        },
+
+        /**
+         * Remove a custom platform template by id.
+         * @param {string} id - The custom platform id
+         */
+        removeCustomTemplate: function(id) {
+            for (var i = 0; i < _customTemplates.length; i++) {
+                if (_customTemplates[i].id === id) {
+                    _customTemplates.splice(i, 1);
+                    _render();
+                    return true;
+                }
+            }
+            return false;
+        },
+
+        /** Get all custom templates. */
+        getCustomTemplates: function() {
+            return _customTemplates.slice(); // Return copy
+        },
+
+        /** Clear all custom templates. */
+        clearCustomTemplates: function() {
+            _customTemplates = [];
             _render();
         }
     };

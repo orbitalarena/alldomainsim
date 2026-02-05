@@ -149,13 +149,28 @@
                 if (help) help.style.display = help.style.display === 'none' ? 'block' : 'none';
             }
 
-            // Propulsion mode cycle (spaceplane only)
-            if (this._mode === 'spaceplane' && _consume('KeyP')) {
-                const modes = FighterSimEngine.PROP_MODES;
-                const cur = state.forcedPropMode || 'AIR';
-                const idx = modes.indexOf(cur);
-                state.forcedPropMode = modes[(idx + 1) % modes.length];
-                _showMessage('PROPULSION: ' + state.forcedPropMode);
+            // Propulsion mode cycle (spaceplane or custom platform with multiple engines)
+            if (_consume('KeyP')) {
+                const propulsion = this._getPropulsionConfig();
+                if (propulsion && propulsion.modes && propulsion.modes.length > 1) {
+                    const modes = propulsion.modes.map(m => m.toUpperCase());
+                    const cur = state.forcedPropMode || modes[0];
+                    const idx = modes.indexOf(cur);
+                    state.forcedPropMode = modes[(idx + 1) % modes.length];
+                    _showMessage('PROPULSION: ' + state.forcedPropMode);
+                } else if (this._mode === 'spaceplane' && typeof FighterSimEngine !== 'undefined') {
+                    // Legacy spaceplane behavior
+                    const modes = FighterSimEngine.PROP_MODES;
+                    const cur = state.forcedPropMode || 'AIR';
+                    const idx = modes.indexOf(cur);
+                    state.forcedPropMode = modes[(idx + 1) % modes.length];
+                    _showMessage('PROPULSION: ' + state.forcedPropMode);
+                }
+            }
+
+            // Sensor view toggle (S key)
+            if (_consume('KeyS')) {
+                this._toggleSensorView(world);
             }
 
             // Panel toggles (1/2/3)
@@ -167,6 +182,83 @@
             }
             if (_consume('Tab')) {
                 _toggleAllPanels();
+            }
+        }
+
+        /**
+         * Get propulsion config from entity definition (for custom platforms).
+         * Returns { modes: ['air', 'hypersonic', 'rocket'], defaultMode: 'air' } or null.
+         */
+        _getPropulsionConfig() {
+            const entity = this.entity;
+            // Check for custom platform propulsion component
+            if (entity.def && entity.def.components && entity.def.components.propulsion) {
+                return entity.def.components.propulsion;
+            }
+            // Check for _custom metadata (from PlatformBuilder)
+            if (entity.def && entity.def._custom && entity.def._custom.propulsion) {
+                const p = entity.def._custom.propulsion;
+                const modes = [];
+                if (p.air) modes.push('air');
+                if (p.hypersonic) modes.push('hypersonic');
+                if (p.rocket) modes.push('rocket');
+                if (modes.length > 0) {
+                    return { modes: modes, defaultMode: p.defaultMode || modes[0] };
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Toggle sensor view mode (S key).
+         * Switches camera to nadir view and applies post-processing effects.
+         */
+        _toggleSensorView(world) {
+            const entity = this.entity;
+
+            // Check if entity has optical sensor
+            const hasOptical = this._hasOpticalSensor();
+            if (!hasOptical) {
+                _showMessage('NO SENSOR');
+                return;
+            }
+
+            // Toggle sensor view mode
+            if (typeof SensorViewMode !== 'undefined') {
+                SensorViewMode.toggle(world, entity);
+            } else {
+                // Fallback: just toggle camera and apply basic effects
+                this._toggleSensorViewFallback(world);
+            }
+        }
+
+        _hasOpticalSensor() {
+            const entity = this.entity;
+            // Check components
+            if (entity.def && entity.def.components) {
+                if (entity.def.components.optical) return true;
+                if (entity.def.components.sensors && entity.def.components.sensors.type === 'optical_camera') return true;
+            }
+            // Check _custom metadata
+            if (entity.def && entity.def._custom && entity.def._custom.sensors) {
+                return entity.def._custom.sensors.optical && entity.def._custom.sensors.optical.enabled;
+            }
+            return false;
+        }
+
+        _toggleSensorViewFallback(world) {
+            const viewer = world.viewer;
+            const container = document.getElementById('cesiumContainer');
+
+            // Toggle grayscale filter on Cesium container
+            if (container.classList.contains('sensor-view-active')) {
+                container.classList.remove('sensor-view-active');
+                container.style.filter = '';
+                _showMessage('SENSOR VIEW OFF');
+            } else {
+                container.classList.add('sensor-view-active');
+                container.style.filter = 'grayscale(1) contrast(1.2)';
+                _showMessage('SENSOR VIEW ON');
             }
         }
     }

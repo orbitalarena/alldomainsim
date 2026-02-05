@@ -1299,6 +1299,7 @@
             <div class="toolbar-separator"></div>
             <button class="toolbar-btn" id="btnImportTLE" title="Import satellites from TLE file">Import TLE</button>
             <button class="toolbar-btn" id="btnEvents" title="Edit scenario events (V)">Events</button>
+            <button class="toolbar-btn primary" id="btnAddPlatform" title="Create custom platform template">+ Platform</button>
             <div class="toolbar-separator"></div>
             <div class="demo-dropdown">
                 <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
@@ -1372,6 +1373,17 @@
          ============================================================ -->
     <div id="leftSidebar">
         <div class="sidebar-header">Object Palette <span class="palette-count-badge" id="paletteCountBadge">0</span></div>
+
+        <!-- Custom Platforms Section (dynamically populated) -->
+        <div class="palette-section" id="paletteCustom" style="display: none;">
+            <div class="palette-section-header open" data-section="custom">
+                Custom <span style="color: #4af;">★</span>
+                <span class="chevron">&#9654;</span>
+            </div>
+            <div class="palette-section-body open" id="paletteSectionCustom">
+                <!-- Custom platforms will be added here dynamically -->
+            </div>
+        </div>
 
         <!-- Aircraft Section -->
         <div class="palette-section" id="paletteAircraft">
@@ -2036,10 +2048,12 @@
 <!-- Builder modules -->
 <script src="js/builder/orbital_arena.js"></script>
 <script src="js/builder/satellite_dialog.js"></script>
+<script src="js/builder/object_palette.js"></script>
+<script src="js/builder/platform_builder.js"></script>
+<script src="js/builder/sensor_view_mode.js"></script>
 <script src="js/builder/builder_app.js"></script>
 <script src="js/builder/scenario_io.js"></script>
 <script src="js/builder/globe_interaction.js"></script>
-<script src="js/builder/object_palette.js"></script>
 <script src="js/builder/property_inspector.js"></script>
 <script src="js/builder/entity_tree.js"></script>
 <script src="js/builder/timeline_panel.js"></script>

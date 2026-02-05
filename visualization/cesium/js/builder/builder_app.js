@@ -107,6 +107,11 @@ const BuilderApp = (function() {
             MCPanel.init();
         }
 
+        // Initialize Platform Builder dialog
+        if (typeof PlatformBuilder !== 'undefined') {
+            PlatformBuilder.init();
+        }
+
         // Build palette template map from ObjectPalette
         _buildPaletteTemplateMap();
 
@@ -1226,6 +1231,21 @@ const BuilderApp = (function() {
 
         _bindButton('btnSave', function() {
             ScenarioIO.saveFile(getScenarioData());
+        });
+
+        // Add Platform button
+        _bindButton('btnAddPlatform', function() {
+            if (typeof PlatformBuilder !== 'undefined') {
+                PlatformBuilder.show().then(function(platform) {
+                    showMessage('Created platform: ' + platform.name, 3000);
+                    // Refresh the palette to show the new custom template
+                    if (typeof ObjectPalette !== 'undefined') {
+                        ObjectPalette.refresh();
+                    }
+                }).catch(function(err) {
+                    // User cancelled - do nothing
+                });
+            }
         });
 
         // Export dropdown toggle

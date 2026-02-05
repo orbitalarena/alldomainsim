@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: C++ MC Engine + Chart.js Dashboard + Multi-Regime Orbital Arena
+**Team**: Human + Claude | **Status**: Platform Builder + Nuclear/Environment Systems + MC Engine
 
 ## Quick Start
 
@@ -45,6 +45,38 @@ Interactive multi-domain scenario editor with three modes:
 - **Satellites**: LEO, GPS, GEO with Classical Orbital Elements dialog (SMA, eccentricity, inclination, RAAN, arg perigee, mean anomaly)
 - **Ground**: SAM batteries (F2T2EA kill chain), ground stations, GPS receivers, EW radar
 - **AI**: Waypoint patrol, intercept pursuit
+- **Custom Platforms**: Create any entity via the Platform Builder (see below)
+
+### Platform Builder
+Click **"+ Platform"** in the Scenario Builder toolbar to create fully custom entities. Five configuration tabs:
+
+**PHYSICS** — Choose the motion model:
+- **TLE**: Paste Two-Line Element for real satellite orbits
+- **COE**: Classical Orbital Elements (SMA, ecc, inc, RAAN, arg perigee, MA)
+- **Atmospheric**: 3-DOF flight with configurable aircraft type (F-16, F-22, MiG-29, Spaceplane, Bomber, AWACS, etc.)
+
+**PROPULSION** — Select multiple engine types (P key cycles in sim):
+- Air-breathing (turbofan), Hypersonic (scramjet), Rocket, Ion/Electric, RCS thrusters
+- Available for ALL physics types — satellites can have thrusters, spaceplanes can re-enter
+
+**SENSORS** — Add sensor packages (S key opens sensor view):
+- Search Radar, Electro-Optical camera, Infrared/Thermal, SAR (all-weather)
+- SIGINT/ESM (passive), LIDAR (3D mapping)
+
+**PAYLOAD** — Multiple weapon/effect systems:
+- *Weapons*: A2A missiles, A2G ordnance, Kinetic Kill Vehicle (ASAT)
+- *EW*: Jammer/ECM, Decoys/Chaff/Flares
+- *Debris*: Space debris (collision-triggered), Air debris (destruction)
+- *Special*: Cargo deployer (cubesats, drones), ☢ Nuclear warhead (Starfish Prime style), ☢ Nuclear cruise missile
+
+**ENVIRON** — Configure scenario environment:
+- *Gravity*: Earth, Moon, Mars, Jupiter, Venus, or custom μ
+- *Atmosphere*: Earth Standard, Mars, Venus, Titan, or vacuum
+- *Magnetic Field*: Earth dipole, Jupiter (14x), custom — required for EMP effects
+- *Ionosphere*: Standard, Solar Max/Min, disturbance levels (including "Nuclear EMP Event")
+- *Radiation Belts*: Van Allen, Starfish-Enhanced, Jupiter-level
+
+Custom platforms are saved to localStorage and embedded in scenario JSON.
 
 ### Export Modes
 - **Export Sim** — Writes scenario JSON to `scenarios/`, opens in the Scenario Viewer with live ECS physics
@@ -208,12 +240,14 @@ visualization/cesium/js/
     ├── builder_app.js         Main app controller (BUILD/RUN/ANALYZE)
     ├── scenario_io.js         Save/load/export/validate + CZML model export
     ├── globe_interaction.js   Click/drag/context menu on Cesium globe
-    ├── object_palette.js      Entity template definitions
+    ├── object_palette.js      Entity template definitions + custom platforms
     ├── property_inspector.js  Entity property editing panel
     ├── entity_tree.js         Bottom panel entity list
     ├── satellite_dialog.js    COE input dialog for satellite placement
     ├── timeline_panel.js      Canvas timeline with playhead + events
-    └── analysis_overlay.js    Post-run track/coverage/engagement overlays
+    ├── analysis_overlay.js    Post-run track/coverage/engagement overlays
+    ├── platform_builder.js    Modular platform composer (5-tab dialog)
+    └── sensor_view_mode.js    Camera switching for optical sensor view
 ```
 
 ## The "We Crushed It" Scenario
@@ -247,6 +281,9 @@ The end goal — all in one continuous simulation:
 - [x] **MC Engine**: C++ headless Monte Carlo (batch + replay), Node.js bridge, Chart.js dashboard
 - [x] **Replay Viewer**: Range rings, missile trails, engagement timeline, 11 pre-generated replays
 - [x] **Orbital Arena Large**: 1700-entity multi-regime scenario (LEO/GTO/GEO/Lunar)
+- [x] **Platform Builder**: Modular entity composer with 5 tabs (Physics/Propulsion/Sensors/Payload/Environment)
+- [x] **Nuclear Systems**: Warhead (Starfish Prime EMP), cruise missile, ionosphere/magnetic field interaction
+- [x] **Environment Config**: Multi-body gravity (Jupiter), atmospheres, radiation belts
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -266,6 +303,6 @@ The end goal — all in one continuous simulation:
 - [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-02-01
+*Last Updated*: 2026-02-05
 *Team*: Human + Claude
-*Status*: C++ MC engine with Chart.js dashboard, progress pipeline, replay viewer with range rings + missile trails, 1700-entity multi-regime orbital arena
+*Status*: Platform Builder with modular entity composition, nuclear/EMP systems, multi-body environments, C++ MC engine, Chart.js dashboard

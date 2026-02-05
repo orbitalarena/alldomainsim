@@ -4,7 +4,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: MC Dashboard + Progress Pipeline + Multi-Regime Orbital Arena
+## Current Status: Platform Builder + Nuclear/Environment Systems + MC Engine
 
 ### C++ Backend (Milestones 0-4 + Phases 2-3 + MC Engine):
 - **M0**: Project skeleton, CMake build system, Git setup
@@ -16,7 +16,22 @@ An integrated Earth-Air-Space simulation for multi-domain scenarios from ground 
 - **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
 - **MC Engine**: Headless Monte Carlo simulation engine — see detailed section below
 
-### Recent Session (2026-01-31): MC Pipeline + Orbital Arena Large
+### Recent Session (2026-02-05): Platform Builder + Nuclear + Environment Systems
+Major feature: Modular platform composer for creating custom entities with any combination of physics, propulsion, sensors, payloads, and environment settings.
+
+- **Platform Builder** (`platform_builder.js`): 5-tab modal dialog (Physics/Propulsion/Sensors/Payload/Environment)
+  - Physics: TLE paste, COE (orbital elements), or Atmospheric flight with 10 aircraft configs
+  - Propulsion: Air/Hypersonic/Rocket/Ion/RCS — P key cycles through enabled modes at runtime
+  - Sensors: Radar, EO, IR, SAR, SIGINT, LIDAR — S key opens sensor view mode
+  - Payloads (multi-select): A2A/A2G missiles, KKV, Jammer, Decoys, Space/Air debris, Cargo deployer
+  - Nuclear: Warhead (10kt-50Mt, exoatmospheric EMP), Cruise missile (AGM-86B style)
+  - Environment: Multi-body gravity (Earth/Moon/Mars/Jupiter), atmospheres, magnetic field, ionosphere, radiation belts
+- **Sensor View Mode** (`sensor_view_mode.js`): Camera switching with B&W filter, noise overlay, HUD for optical sensors
+- **Player Input Extended**: P key propulsion cycling, S key sensor view toggle
+- **Object Palette Extended**: Custom platform category with localStorage persistence
+- **Scenario Builder UI**: "+ Platform" button in toolbar, Custom section in palette
+
+### Previous Session (2026-01-31): MC Pipeline + Orbital Arena Large
 Completed features across C++, Node.js, and browser:
 
 - **C++ Combat Fixes**: SAM target filtering (skips STATIC/ground entities), racetrack AI pattern for player_input entities (4-waypoint 50km×20km loop), maxRange field in replay JSON
@@ -32,6 +47,7 @@ Interactive drag-and-drop editor with ECS simulation engine. No C++ needed.
 
 - **ECS Framework**: Entity-Component-System with indexed component lookups, 9-system pipeline (AI→Control→Physics→Sensor→Weapon→Event→Viz→HUD→UI)
 - **Entity types**: F-16, MiG-29, Spaceplane, LEO/GPS/GEO satellites (with COE dialog), SAM batteries, ground stations, EW radar, GPS receivers
+- **Custom Platforms**: Platform Builder creates entities with any combination of physics/propulsion/sensors/payloads/environment
 - **Components**: flight3dof, orbital_2body (Kepler + TLE), radar sensor, SAM battery (F2T2EA kill chain), waypoint patrol AI, intercept AI
 - **Three modes**: BUILD (place/configure), RUN (simulate), ANALYZE (post-run overlays)
 - **Export**: Sim (live ECS in viewer) + Model (headless run → CZML rapid playback) + C++ Replay (via Node.js bridge)
@@ -211,6 +227,64 @@ Cesium-based 3D playback of replay JSON:
 
 ---
 
+## What Was Completed (2026-02-05 Session)
+
+### Platform Builder — Modular Entity Composer
+Created a comprehensive 5-tab dialog for building custom entities with any combination of capabilities.
+
+**New Files:**
+- `platform_builder.js` (~2100 lines): Modal dialog with Physics/Propulsion/Sensors/Payload/Environment tabs
+- `sensor_view_mode.js` (~315 lines): Camera switching and post-processing for optical sensor view
+
+**Modified Files:**
+- `builder_app.js`: PlatformBuilder.init() call, btnAddPlatform click handler
+- `object_palette.js`: Custom platform category, addCustomTemplate(), localStorage sync
+- `player_input.js`: P key propulsion cycling, S key sensor view toggle
+- `scenario_builder.html`: "+ Platform" button, Custom palette section
+
+### Physics Tab
+- TLE: Paste Two-Line Element for real satellite orbits
+- COE: Classical Orbital Elements (SMA, eccentricity, inclination, RAAN, arg perigee, mean anomaly) with live Pe/Ap/Period computation
+- Atmospheric: 3-DOF flight with 10 aircraft configs (F-16, F-22, MiG-29, Su-27, F-15, Spaceplane, Bomber, AWACS, Transport, MQ-9)
+
+### Propulsion Tab (P key cycles at runtime)
+- Air-Breathing (turbofan, 90-160 kN with density lapse)
+- Hypersonic (scramjet, 400 kN constant, Mach 2-10)
+- Rocket (2 MN, works in vacuum)
+- Ion/Electric (0.5 N, high Isp, station-keeping)
+- RCS Thrusters (attitude control, proximity ops)
+- Available for ALL physics types (satellites can have thrusters, spaceplanes can re-enter)
+
+### Sensors Tab (S key opens sensor view)
+- Search Radar: Range, FOV, scan rate, detection probability
+- Electro-Optical: FOV, GSD (ground sample distance)
+- Infrared/Thermal: FOV, sensitivity levels
+- SAR (Synthetic Aperture): Resolution, swath width
+- SIGINT/ESM: Passive signal detection range
+- LIDAR: 3D mapping range and resolution
+
+### Payload Tab (multi-select)
+- **Weapons**: A2A missiles (loadout configs), A2G ordnance, Kinetic Kill Vehicle
+- **Electronic Warfare**: Jammer/ECM, Decoys/Chaff/Flares
+- **Debris/Effects**: Space debris (collision trigger), Air debris
+- **Special**: Cargo deployer (cubesats, drones, sensors, decoy sats)
+- **Nuclear**: Warhead (10kt-50Mt, exoatmospheric EMP), Cruise missile (AGM-86B style)
+
+### Environment Tab
+- Gravity: Earth, Moon, Mars, Jupiter, Venus, or custom μ
+- Atmosphere: Earth Standard, Mars, Venus, Titan, or vacuum
+- Magnetic Field: Earth dipole, Jupiter (14x), custom intensity — required for EMP effects
+- Ionosphere: Standard, Solar Max/Min, disturbance levels (Minor/Major storm, Nuclear EMP Event)
+- Radiation Belts: Van Allen, Starfish-Enhanced, Jupiter-level
+
+### Runtime Integration
+- Custom platforms saved to localStorage + embedded in scenario JSON
+- P key cycles through enabled propulsion modes
+- S key toggles sensor view (nadir camera, B&W filter, noise overlay, HUD)
+- Custom category appears in Object Palette when platforms are created
+
+---
+
 ## What Was Completed (2026-01-31 Session)
 
 ### Phase 1: C++ Combat Fixes + Replay Enhancement
@@ -340,7 +414,7 @@ builder/
   builder_app.js         - Main controller: BUILD/RUN/ANALYZE modes
   scenario_io.js         - File open/save, exportToViewer, exportModel
   globe_interaction.js   - Click-to-place, drag-to-move
-  object_palette.js      - Entity templates (aircraft, sats, ground, naval)
+  object_palette.js      - Entity templates (aircraft, sats, ground, naval) + custom platforms
   property_inspector.js  - Entity property editing panel
   entity_tree.js         - Bottom panel entity list
   satellite_dialog.js    - COE input dialog
@@ -354,6 +428,9 @@ builder/
   mc_panel.js            - MC UI panel with C++ engine polling integration
   orbital_arena.js       - Orbital Arena scenario generators (Small/100/Large)
                            generateLarge: 1700 entities across 4 orbital regimes
+  platform_builder.js    - Modular platform composer (5-tab dialog: Physics,
+                           Propulsion, Sensors, Payload, Environment)
+  sensor_view_mode.js    - Camera switching + post-processing for optical sensor view
 ```
 
 ### Executables:
