@@ -4,6 +4,9 @@ cmake-build-*/
 bin/
 lib/
 
+# Offline mode assets (downloaded by setup_offline.sh)
+visualization/cesium/lib/
+
 # CMake
 CMakeCache.txt
 CMakeFiles/

@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>GEO Intercept - Sensor View</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="lib/Cesium/Cesium.js"></script>
     <script src="cesium_config.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link href="lib/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #cesiumContainer { width: 100%; height: 100%; }
@@ -219,10 +219,11 @@
             selectionIndicator: false,
             sceneModePicker: false,
             navigationHelpButton: false,
-            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
-                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-            })
+            imageryProvider: false // Set by cesium_config.js setupImagery()
         });
+
+        // Setup imagery (offline-aware)
+        setupImagery(viewer);
 
         // Initial scene settings (will toggle based on view mode)
         viewer.scene.globe.enableLighting = false;

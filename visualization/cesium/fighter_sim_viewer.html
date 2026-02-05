@@ -6,8 +6,8 @@
     <title>F-16 Fighter Simulator - All Domain Sim</title>
 
     <!-- Cesium -->
-    <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css">
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
+    <script src="lib/Cesium/Cesium.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -351,13 +351,9 @@
             shouldAnimate: true,
         });
 
-        // Terrain (async, non-blocking)
-        Cesium.createWorldTerrainAsync().then(function(terrain) {
-            viewer.terrainProvider = terrain;
-        }).catch(function(e) {
-            console.warn('World terrain unavailable:', e);
-        });
-
+        // Terrain and imagery (offline-aware)
+        setupTerrain(viewer);
+        setupImagery(viewer);
         addArcGISProviders(viewer);
         viewer.scene.globe.enableLighting = true;
 

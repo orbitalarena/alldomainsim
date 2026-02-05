@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>IADS Engagement — F2T2EA Kill Chain</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Cesium.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.95/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="lib/Cesium/Cesium.js"></script>
+    <link href="lib/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
@@ -551,8 +551,9 @@ window.onerror = function(msg, src, line, col, err) {
         fullscreenButton: false, vrButton: false, infoBox: false,
         selectionIndicator: false, shadows: false, shouldAnimate: true,
     });
-    try { Cesium.createWorldTerrainAsync().then(function(t) { viewer.terrainProvider = t; }).catch(function(){}); }
-    catch(e) { try { viewer.terrainProvider = Cesium.createWorldTerrain(); } catch(e2) {} }
+    // Terrain and imagery (offline-aware)
+    try { setupTerrain(viewer); } catch(e) {}
+    try { setupImagery(viewer); } catch(e) {}
     try { addArcGISProviders(viewer); } catch(e) {}
     viewer.scene.globe.enableLighting = true;
 

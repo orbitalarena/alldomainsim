@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>LEO Imaging Satellite Constellation</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="lib/Cesium/Cesium.js"></script>
     <script src="cesium_config.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link href="lib/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -326,11 +326,30 @@
         // Disable Cesium's built-in lighting on sensor view - we control darkness via overlay
         sensorViewer.scene.globe.enableLighting = false;
 
-        // Add ArcGIS imagery to sensor view (async)
+        // Add imagery to sensor view (async, offline-aware)
         async function setupSensorImagery() {
             const statusEl = document.getElementById('infoImagery');
-            statusEl.textContent = 'Loading ArcGIS...';
 
+            if (OFFLINE_MODE) {
+                statusEl.textContent = 'Loading offline...';
+                try {
+                    const provider = await Cesium.TileMapServiceImageryProvider.fromUrl(
+                        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+                    );
+                    sensorViewer.imageryLayers.removeAll();
+                    sensorViewer.imageryLayers.addImageryProvider(provider);
+                    console.log('NaturalEarthII imagery loaded for sensor view (offline)');
+                    statusEl.textContent = 'Offline Ready';
+                    statusEl.style.color = '#ff4';
+                } catch (e) {
+                    console.error('Failed to load offline imagery:', e);
+                    statusEl.textContent = 'FAILED';
+                    statusEl.style.color = '#f44';
+                }
+                return;
+            }
+
+            statusEl.textContent = 'Loading ArcGIS...';
             try {
                 // Try the modern async way first
                 const arcGisProvider = await Cesium.ArcGisMapServerImageryProvider.fromUrl(

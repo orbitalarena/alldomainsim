@@ -67,13 +67,15 @@ const BuilderApp = (function() {
             shouldAnimate: true
         });
 
-        Cesium.createWorldTerrainAsync().then(function(terrain) {
-            _viewer.terrainProvider = terrain;
-        }).catch(function(e) {
-            console.warn('World terrain unavailable:', e);
-        });
+        // Terrain and imagery (offline-aware)
+        if (typeof setupTerrain === 'function') {
+            setupTerrain(_viewer);
+        }
+        if (typeof setupImagery === 'function') {
+            setupImagery(_viewer);
+        }
 
-        // ArcGIS imagery if available
+        // ArcGIS imagery if available (online only)
         if (typeof addArcGISProviders === 'function') {
             addArcGISProviders(_viewer);
         }

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Telescope Coverage Analysis - OneWeb 7-Day</title>
+    <script src="lib/Cesium/Cesium.js"></script>
+    <script src="cesium_config.js"></script>
+    <script src="lib/chart.umd.min.js"></script>
+    <link href="lib/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        #cesiumContainer { width: 100%; height: calc(100% - 80px); }
+
+        #dayIndicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: #fff;
+            padding: 8px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        #dayIndicator .day { font-size: 32px; font-weight: bold; color: #4af; }
+        #dayIndicator .time { font-size: 14px; color: #aaa; }
+        #dayIndicator .collected { font-size: 24px; color: #4f4; font-weight: bold; }
+
+        #leftPanel {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            background: rgba(0,0,0,0.92);
+            color: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            width: 280px;
+            max-height: calc(100% - 160px);
+            overflow-y: auto;
+            z-index: 100;
+        }
+        #leftPanel h3 { margin: 10px 0 6px 0; color: #4af; font-size: 12px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+
+        .chart-container { width: 100%; height: 120px; margin: 5px 0; }
+        .chart-container-small { width: 100%; height: 80px; margin: 5px 0; }
+
+        #pieRow { display: flex; gap: 10px; align-items: center; }
+        #pieContainer { width: 100px; height: 100px; }
+        #pieStats { flex: 1; font-size: 11px; }
+        #pieStats .big { font-size: 28px; color: #4f4; font-weight: bold; line-height: 1; }
+        #pieStats .sub { color: #888; }
+
+        .station { margin: 4px 0; padding: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; font-size: 10px; display: flex; justify-content: space-between; }
+        .station-name { font-weight: bold; }
+        .station-count { color: #4f4; }
+
+        #rightPanel {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            background: rgba(0,0,0,0.92);
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 100;
+            width: 200px;
+        }
+        #rightPanel h3 { margin: 0 0 8px 0; color: #4af; font-size: 12px; }
+        #rightPanel button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            margin: 2px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        #rightPanel button:hover { background: #555; }
+        #rightPanel button.active { background: #4a4; }
+
+        #legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 10px;
+        }
+        .legend-item { display: flex; align-items: center; }
+        .legend-color { width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+        #bottomBar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            padding: 5px 10px;
+            box-sizing: border-box;
+        }
+        #timelineCanvas { width: 100%; height: 50px; cursor: pointer; }
+        #bottomStats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        #obsLog {
+            position: absolute;
+            bottom: 90px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            color: #fff;
+            padding: 8px;
+            border-radius: 8px;
+            width: 220px;
+            max-height: 140px;
+            overflow-y: auto;
+            font-size: 10px;
+            z-index: 100;
+        }
+        #obsLog h4 { margin: 0 0 5px 0; color: #4af; font-size: 11px; }
+        .obs-entry { padding: 2px 0; border-bottom: 1px solid #222; }
+        .obs-new { color: #4f4; }
+        .obs-repeat { color: #666; }
+
+        /* Activity heatmap */
+        #activityBar {
+            position: absolute;
+            bottom: 85px;
+            left: 300px;
+            right: 240px;
+            height: 20px;
+            background: rgba(0,0,0,0.8);
+            border-radius: 4px;
+            z-index: 100;
+            display: flex;
+        }
+        .activity-segment {
+            flex: 1;
+            height: 100%;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="dayIndicator">
+        <div>Day <span class="day" id="currentDay">1</span><span style="color:#666;font-size:14px;"> / 7</span></div>
+        <div class="time" id="currentTime">00:00:00 UTC</div>
+        <div><span class="collected" id="collectedCount">0</span><span style="color:#888;font-size:12px;"> / 651</span></div>
+    </div>
+
+    <div id="leftPanel">
+        <h3>COVERAGE PROGRESS</h3>
+        <div id="pieRow">
+            <div id="pieContainer"><canvas id="pieChart"></canvas></div>
+            <div id="pieStats">
+                <div class="big" id="pctCollected">0%</div>
+                <div class="sub"><span id="remainingCount">651</span> remaining</div>
+                <div class="sub" style="margin-top:5px;color:#f84;" id="neverCollected">236 unreachable</div>
+            </div>
+        </div>
+
+        <h3>COLLECTION RATE</h3>
+        <div class="chart-container">
+            <canvas id="drawdownChart"></canvas>
+        </div>
+
+        <h3>DAILY BREAKDOWN</h3>
+        <div class="chart-container-small">
+            <canvas id="dailyChart"></canvas>
+        </div>
+
+        <h3>STATION PERFORMANCE</h3>
+        <div id="stationsDiv"></div>
+
+        <h3>HOURLY ACTIVITY</h3>
+        <div class="chart-container-small">
+            <canvas id="hourlyChart"></canvas>
+        </div>
+    </div>
+
+    <div id="rightPanel">
+        <h3>PLAYBACK</h3>
+        <button id="btnPlay">▶ Play</button>
+        <button id="btnPause">⏸</button>
+        <br>
+        <button id="btn1x">1x</button>
+        <button id="btn60x">60x</button>
+        <button id="btn600x" class="active">600x</button>
+        <button id="btn3600x">1h/s</button>
+
+        <h3 style="margin-top:12px;">DISPLAY</h3>
+        <button id="btnUncollected" class="active">Uncollected</button>
+        <button id="btnCollected" class="active">Collected</button>
+        <button id="btnStations" class="active">Stations</button>
+        <button id="btnOrbits">Orbits</button>
+
+        <div id="legend">
+            <div class="legend-item"><div class="legend-color" style="background:#4f4;"></div>Telescope</div>
+            <div class="legend-item"><div class="legend-color" style="background:#68f;"></div>Uncollected</div>
+            <div class="legend-item"><div class="legend-color" style="background:#f84;"></div>Collected</div>
+            <div class="legend-item"><div class="legend-color" style="background:#ff0;"></div>Active</div>
+        </div>
+    </div>
+
+    <div id="obsLog">
+        <h4>COLLECTION LOG</h4>
+        <div id="logEntries"></div>
+    </div>
+
+    <div id="activityBar"></div>
+
+    <div id="bottomBar">
+        <canvas id="timelineCanvas"></canvas>
+        <div id="bottomStats">
+            <span>2026-02-03 00:00 UTC</span>
+            <span id="timelineInfo">Click timeline to seek</span>
+            <span>2026-02-09 24:00 UTC</span>
+        </div>
+    </div>
+
+    <script>
+        let viewer, data;
+        let satEntities = {};
+        let stationEntities = {};
+        let startTime, endTime;
+        let pieChart, drawdownChart, dailyChart, hourlyChart;
+        let collectedSatellites = new Set();
+        let showUncollected = true, showCollected = true, showStations = true, showOrbits = false;
+        let logEntries = [];
+        let drawdownData = [];
+        let timelineCtx, timelineWidth, timelineHeight;
+
+        async function init() {
+            const resp = await fetch('telescope_analysis.json');
+            data = await resp.json();
+
+            startTime = Cesium.JulianDate.fromIso8601(data.config.start_time);
+            endTime = Cesium.JulianDate.addHours(startTime, data.config.duration_hours, new Cesium.JulianDate());
+
+            // Initialize drawdown tracking
+            initDrawdownData();
+
+            viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: !OFFLINE_MODE,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: false,
+                timeline: false,
+                fullscreenButton: false,
+                vrButton: false,
+                infoBox: false,
+                selectionIndicator: false,
+                shadows: false,
+                shouldAnimate: true
+            });
+
+            setupTerrain(viewer);
+            setupImagery(viewer);
+
+            viewer.clock.startTime = startTime.clone();
+            viewer.clock.stopTime = endTime.clone();
+            viewer.clock.currentTime = startTime.clone();
+            viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+            viewer.clock.multiplier = 600;
+
+            viewer.scene.globe.enableLighting = true;
+
+            addStations();
+            addSatellites();
+            setupCharts();
+            setupTimeline();
+            setupControls();
+            preprocessObservations();
+            buildActivityBar();
+
+            viewer.clock.onTick.addEventListener(onTick);
+
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(-100, 20, 22000000),
+                duration: 0
+            });
+
+            updateStationsPanel();
+        }
+
+        function initDrawdownData() {
+            // Create time series for drawdown chart
+            const totalHours = data.config.duration_hours;
+            for (let h = 0; h <= totalHours; h++) {
+                drawdownData.push({ hour: h, remaining: data.summary.total_satellites, collected: 0 });
+            }
+
+            // Pre-populate from observations
+            const sortedObs = [...data.observations].filter(o => o.is_first_collect).sort((a, b) => a.time.localeCompare(b.time));
+            let collected = 0;
+            sortedObs.forEach(obs => {
+                const obsTime = new Date(obs.time);
+                const startDt = new Date(data.config.start_time);
+                const hoursSinceStart = (obsTime - startDt) / (1000 * 60 * 60);
+                collected++;
+                for (let h = Math.ceil(hoursSinceStart); h < drawdownData.length; h++) {
+                    drawdownData[h].collected = collected;
+                    drawdownData[h].remaining = data.summary.total_satellites - collected;
+                }
+            });
+        }
+
+        function addStations() {
+            const colors = [
+                Cesium.Color.LIME,
+                Cesium.Color.CYAN,
+                Cesium.Color.YELLOW,
+                Cesium.Color.ORANGE,
+                Cesium.Color.MAGENTA
+            ];
+
+            data.stations.forEach((station, idx) => {
+                const color = colors[idx % colors.length];
+                const pos = Cesium.Cartesian3.fromDegrees(station.lon, station.lat, station.alt_km * 1000);
+
+                const entity = viewer.entities.add({
+                    name: station.name,
+                    position: pos,
+                    point: {
+                        pixelSize: 14,
+                        color: color,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2,
+                        show: new Cesium.CallbackProperty(() => showStations, false)
+                    },
+                    label: {
+                        text: station.name.split('_')[0],
+                        font: '11px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -12),
+                        show: new Cesium.CallbackProperty(() => showStations, false)
+                    },
+                    ellipse: {
+                        semiMajorAxis: 2000000,
+                        semiMinorAxis: 2000000,
+                        material: color.withAlpha(0.08),
+                        outline: true,
+                        outlineColor: color.withAlpha(0.4),
+                        height: 0,
+                        show: new Cesium.CallbackProperty(() => showStations, false)
+                    }
+                });
+
+                stationEntities[station.name] = { entity, color, pos, colorHex: color.toCssColorString() };
+            });
+        }
+
+        function addSatellites() {
+            const interval = data.config.sample_interval_sec;
+
+            data.satellites.forEach(sat => {
+                const positions = new Cesium.SampledPositionProperty();
+                positions.setInterpolationOptions({
+                    interpolationDegree: 1,
+                    interpolationAlgorithm: Cesium.LinearApproximation
+                });
+
+                sat.positions.forEach((pos, i) => {
+                    if (pos) {
+                        const time = Cesium.JulianDate.addSeconds(startTime, i * interval, new Cesium.JulianDate());
+                        positions.addSample(time, new Cesium.Cartesian3(pos[0], pos[1], pos[2]));
+                    }
+                });
+
+                const entity = viewer.entities.add({
+                    name: sat.name,
+                    position: positions,
+                    point: {
+                        pixelSize: new Cesium.CallbackProperty(() => {
+                            return collectedSatellites.has(sat.idx) ? 3 : 4;
+                        }, false),
+                        color: new Cesium.CallbackProperty(() => {
+                            if (collectedSatellites.has(sat.idx)) {
+                                return Cesium.Color.CORAL.withAlpha(0.7);
+                            }
+                            return Cesium.Color.CORNFLOWERBLUE;
+                        }, false),
+                        show: new Cesium.CallbackProperty(() => {
+                            if (collectedSatellites.has(sat.idx)) return showCollected;
+                            return showUncollected;
+                        }, false)
+                    },
+                    path: {
+                        show: new Cesium.CallbackProperty(() => showOrbits && !collectedSatellites.has(sat.idx), false),
+                        leadTime: 2700,
+                        trailTime: 2700,
+                        width: 1,
+                        material: Cesium.Color.CORNFLOWERBLUE.withAlpha(0.3)
+                    }
+                });
+
+                satEntities[sat.idx] = { entity, collected: false };
+            });
+        }
+
+        let observationsByTime = [];
+        function preprocessObservations() {
+            observationsByTime = data.observations.map(obs => ({
+                ...obs,
+                time_jd: Cesium.JulianDate.fromIso8601(obs.time)
+            })).sort((a, b) => Cesium.JulianDate.compare(a.time_jd, b.time_jd));
+        }
+
+        function buildActivityBar() {
+            const bar = document.getElementById('activityBar');
+            const hours = data.config.duration_hours;
+            const hourlyObs = new Array(hours).fill(0);
+
+            data.observations.forEach(obs => {
+                const obsTime = new Date(obs.time);
+                const startDt = new Date(data.config.start_time);
+                const hour = Math.floor((obsTime - startDt) / (1000 * 60 * 60));
+                if (hour >= 0 && hour < hours) hourlyObs[hour]++;
+            });
+
+            const maxObs = Math.max(...hourlyObs, 1);
+
+            for (let h = 0; h < hours; h++) {
+                const seg = document.createElement('div');
+                seg.className = 'activity-segment';
+                const intensity = hourlyObs[h] / maxObs;
+                if (intensity > 0) {
+                    seg.style.background = `rgba(68, 255, 68, ${intensity * 0.8})`;
+                } else {
+                    seg.style.background = 'rgba(100, 100, 100, 0.3)';
+                }
+                seg.title = `Hour ${h}: ${hourlyObs[h]} observations`;
+                bar.appendChild(seg);
+            }
+        }
+
+        let lastProcessedObsIdx = -1;
+        let activeObservation = null;
+        let obsLineEntity = null;
+
+        function onTick(clock) {
+            const currentTime = clock.currentTime;
+            const secondsSinceStart = Cesium.JulianDate.secondsDifference(currentTime, startTime);
+            const currentDay = Math.floor(secondsSinceStart / 86400) + 1;
+            const currentHour = secondsSinceStart / 3600;
+            const dt = Cesium.JulianDate.toDate(currentTime);
+
+            document.getElementById('currentDay').textContent = Math.min(Math.max(currentDay, 1), 7);
+            document.getElementById('currentTime').textContent = dt.toISOString().substr(11, 8) + ' UTC';
+
+            // Handle rewind
+            if (secondsSinceStart < 0 || (lastProcessedObsIdx >= 0 && observationsByTime[lastProcessedObsIdx] &&
+                Cesium.JulianDate.greaterThan(observationsByTime[lastProcessedObsIdx].time_jd, currentTime))) {
+                resetState();
+            }
+
+            // Process observations
+            for (let i = lastProcessedObsIdx + 1; i < observationsByTime.length; i++) {
+                const obs = observationsByTime[i];
+                if (Cesium.JulianDate.lessThanOrEquals(obs.time_jd, currentTime)) {
+                    if (obs.is_first_collect && !collectedSatellites.has(obs.satellite_idx)) {
+                        collectedSatellites.add(obs.satellite_idx);
+                        addLogEntry(obs, true);
+                    }
+                    lastProcessedObsIdx = i;
+                } else {
+                    break;
+                }
+            }
+
+            // Active observation
+            activeObservation = null;
+            for (let i = Math.max(0, lastProcessedObsIdx - 5); i < observationsByTime.length; i++) {
+                const obs = observationsByTime[i];
+                const diff = Cesium.JulianDate.secondsDifference(currentTime, obs.time_jd);
+                if (diff >= -10 && diff <= 10) {
+                    activeObservation = obs;
+                    break;
+                }
+                if (diff < -20) break;
+            }
+
+            updateObservationLine();
+            updateStats(currentHour);
+            updateTimelinePlayhead(secondsSinceStart);
+        }
+
+        function updateObservationLine() {
+            if (activeObservation) {
+                const station = stationEntities[activeObservation.station];
+                if (station) {
+                    const satPos = new Cesium.Cartesian3(
+                        activeObservation.position_ecef[0],
+                        activeObservation.position_ecef[1],
+                        activeObservation.position_ecef[2]
+                    );
+
+                    if (!obsLineEntity) {
+                        obsLineEntity = viewer.entities.add({
+                            polyline: {
+                                positions: [station.pos, satPos],
+                                width: 5,
+                                material: new Cesium.PolylineGlowMaterialProperty({
+                                    glowPower: 0.5,
+                                    color: Cesium.Color.YELLOW
+                                })
+                            }
+                        });
+                    } else {
+                        obsLineEntity.polyline.positions = [station.pos, satPos];
+                        obsLineEntity.show = true;
+                    }
+
+                    const satEntity = satEntities[activeObservation.satellite_idx];
+                    if (satEntity) satEntity.entity.point.pixelSize = 12;
+                }
+            } else {
+                if (obsLineEntity) obsLineEntity.show = false;
+                Object.values(satEntities).forEach(s => {
+                    if (!collectedSatellites.has(s.entity.name)) {
+                        s.entity.point.pixelSize = 4;
+                    }
+                });
+            }
+        }
+
+        function addLogEntry(obs, isNew) {
+            const time = new Date(obs.time).toISOString().substr(11, 8);
+            logEntries.unshift({
+                time,
+                station: obs.station.split('_')[0],
+                satellite: obs.satellite.replace('ONEWEB-', ''),
+                isNew
+            });
+            if (logEntries.length > 15) logEntries.pop();
+
+            document.getElementById('logEntries').innerHTML = logEntries.map(e => `
+                <div class="obs-entry ${e.isNew ? 'obs-new' : 'obs-repeat'}">
+                    ${e.time} ${e.station} → ${e.satellite} ${e.isNew ? '★' : ''}
+                </div>
+            `).join('');
+        }
+
+        function resetState() {
+            collectedSatellites.clear();
+            lastProcessedObsIdx = -1;
+            logEntries = [];
+            document.getElementById('logEntries').innerHTML = '';
+        }
+
+        function setupCharts() {
+            // Pie chart
+            pieChart = new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Collected', 'Remaining', 'Unreachable'],
+                    datasets: [{
+                        data: [0, data.summary.total_satellites - (data.summary.total_satellites - data.summary.total_unique_satellites), data.summary.total_satellites - data.summary.total_unique_satellites],
+                        backgroundColor: ['#f84', '#68f', '#444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    cutout: '55%',
+                    animation: { duration: 0 }
+                }
+            });
+
+            // Drawdown chart
+            const drawdownLabels = [];
+            const drawdownRemaining = [];
+            const drawdownCollected = [];
+            for (let d = 0; d <= 7; d++) {
+                const idx = d * 24;
+                if (idx < drawdownData.length) {
+                    drawdownLabels.push(`Day ${d}`);
+                    drawdownRemaining.push(drawdownData[idx].remaining);
+                    drawdownCollected.push(drawdownData[idx].collected);
+                }
+            }
+
+            drawdownChart = new Chart(document.getElementById('drawdownChart'), {
+                type: 'line',
+                data: {
+                    labels: drawdownLabels,
+                    datasets: [
+                        {
+                            label: 'Remaining',
+                            data: drawdownRemaining,
+                            borderColor: '#68f',
+                            backgroundColor: 'rgba(100,130,255,0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Collected',
+                            data: drawdownCollected,
+                            borderColor: '#f84',
+                            backgroundColor: 'rgba(255,130,70,0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#888', font: { size: 9 } }, grid: { color: '#333' } },
+                        y: { ticks: { color: '#888', font: { size: 9 } }, grid: { color: '#333' }, min: 0, max: 700 }
+                    },
+                    animation: { duration: 0 }
+                }
+            });
+
+            // Daily chart
+            dailyChart = new Chart(document.getElementById('dailyChart'), {
+                type: 'bar',
+                data: {
+                    labels: data.daily_stats.map(d => `D${d.day}`),
+                    datasets: [{
+                        label: 'New',
+                        data: data.daily_stats.map((d, i) => i === 0 ? d.cumulative : d.cumulative - data.daily_stats[i-1].cumulative),
+                        backgroundColor: '#4f4'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#888', font: { size: 9 } }, grid: { display: false } },
+                        y: { ticks: { color: '#888', font: { size: 9 } }, grid: { color: '#333' } }
+                    }
+                }
+            });
+
+            // Hourly chart
+            const hourlyData = new Array(24).fill(0);
+            data.observations.forEach(obs => {
+                const hour = new Date(obs.time).getUTCHours();
+                hourlyData[hour]++;
+            });
+
+            hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+                type: 'bar',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => i),
+                    datasets: [{
+                        data: hourlyData,
+                        backgroundColor: hourlyData.map(v => v > 0 ? '#4af' : '#333')
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#666', font: { size: 7 } }, grid: { display: false } },
+                        y: { display: false }
+                    }
+                }
+            });
+        }
+
+        function setupTimeline() {
+            const canvas = document.getElementById('timelineCanvas');
+            timelineCtx = canvas.getContext('2d');
+
+            // Set actual size
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            timelineCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            timelineWidth = rect.width;
+            timelineHeight = rect.height;
+
+            drawTimeline();
+
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const pct = x / timelineWidth;
+                const seconds = pct * data.config.duration_hours * 3600;
+                const newTime = Cesium.JulianDate.addSeconds(startTime, seconds, new Cesium.JulianDate());
+                viewer.clock.currentTime = newTime;
+            });
+        }
+
+        function drawTimeline() {
+            const ctx = timelineCtx;
+            const w = timelineWidth;
+            const h = timelineHeight;
+
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, w, h);
+
+            // Day separators
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 1;
+            for (let d = 1; d <= 7; d++) {
+                const x = (d / 7) * w;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+
+                ctx.fillStyle = '#666';
+                ctx.font = '10px sans-serif';
+                ctx.fillText(`Day ${d}`, (d - 0.5) / 7 * w - 15, 12);
+            }
+
+            // Observation markers
+            const stationColors = {};
+            data.stations.forEach((s, i) => {
+                stationColors[s.name] = ['#4f4', '#0ff', '#ff0', '#f80', '#f0f'][i];
+            });
+
+            data.observations.forEach(obs => {
+                const obsTime = new Date(obs.time);
+                const startDt = new Date(data.config.start_time);
+                const pct = (obsTime - startDt) / (data.config.duration_hours * 3600 * 1000);
+                const x = pct * w;
+
+                ctx.fillStyle = obs.is_first_collect ? stationColors[obs.station] : '#555';
+                ctx.fillRect(x - 1, obs.is_first_collect ? 18 : 25, 2, obs.is_first_collect ? 25 : 18);
+            });
+        }
+
+        let lastPlayheadX = 0;
+        function updateTimelinePlayhead(secondsSinceStart) {
+            const pct = secondsSinceStart / (data.config.duration_hours * 3600);
+            const x = pct * timelineWidth;
+
+            // Only redraw if moved significantly
+            if (Math.abs(x - lastPlayheadX) > 2) {
+                drawTimeline();
+
+                timelineCtx.fillStyle = '#fff';
+                timelineCtx.fillRect(x - 1, 0, 2, timelineHeight);
+
+                lastPlayheadX = x;
+            }
+        }
+
+        function updateStats(currentHour) {
+            const collected = collectedSatellites.size;
+            const total = data.summary.total_satellites;
+            const unreachable = total - data.summary.total_unique_satellites;
+            const remaining = total - collected;
+
+            document.getElementById('collectedCount').textContent = collected;
+            document.getElementById('pctCollected').textContent = Math.round(100 * collected / total) + '%';
+            document.getElementById('remainingCount').textContent = remaining;
+
+            pieChart.data.datasets[0].data = [collected, remaining - unreachable, unreachable];
+            pieChart.update('none');
+
+            // Update drawdown chart current position
+            const hourIdx = Math.min(Math.floor(currentHour), drawdownData.length - 1);
+            if (hourIdx >= 0) {
+                document.getElementById('timelineInfo').textContent =
+                    `Hour ${Math.floor(currentHour)}: ${collected} collected, ${remaining} remaining`;
+            }
+        }
+
+        function updateStationsPanel() {
+            const stationCounts = {};
+            data.stations.forEach(s => stationCounts[s.name] = { total: 0, new: 0 });
+            data.observations.forEach(obs => {
+                stationCounts[obs.station].total++;
+                if (obs.is_first_collect) stationCounts[obs.station].new++;
+            });
+
+            document.getElementById('stationsDiv').innerHTML = data.stations.map((s, i) => {
+                const colors = ['#4f4', '#0ff', '#ff0', '#f80', '#f0f'];
+                return `
+                    <div class="station">
+                        <span class="station-name" style="color:${colors[i]}">${s.name.split('_')[0]}</span>
+                        <span class="station-count">${stationCounts[s.name].new} new / ${stationCounts[s.name].total}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function setupControls() {
+            document.getElementById('btnPlay').onclick = () => viewer.clock.shouldAnimate = true;
+            document.getElementById('btnPause').onclick = () => viewer.clock.shouldAnimate = false;
+
+            const speedBtns = { btn1x: 1, btn60x: 60, btn600x: 600, btn3600x: 3600 };
+            Object.entries(speedBtns).forEach(([id, speed]) => {
+                document.getElementById(id).onclick = () => {
+                    viewer.clock.multiplier = speed;
+                    Object.keys(speedBtns).forEach(b => document.getElementById(b).classList.remove('active'));
+                    document.getElementById(id).classList.add('active');
+                };
+            });
+
+            document.getElementById('btnUncollected').onclick = function() {
+                showUncollected = !showUncollected;
+                this.classList.toggle('active');
+            };
+            document.getElementById('btnCollected').onclick = function() {
+                showCollected = !showCollected;
+                this.classList.toggle('active');
+            };
+            document.getElementById('btnStations').onclick = function() {
+                showStations = !showStations;
+                this.classList.toggle('active');
+            };
+            document.getElementById('btnOrbits').onclick = function() {
+                showOrbits = !showOrbits;
+                this.classList.toggle('active');
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>

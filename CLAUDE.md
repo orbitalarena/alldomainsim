@@ -411,6 +411,28 @@ python3 serve.py 8000
 # http://localhost:8000/                           — Hub page
 ```
 
+### Offline Mode
+The visualization can run completely offline without internet access. Run the setup script once to download local copies of Cesium and Chart.js:
+
+```bash
+cd visualization/cesium
+./setup_offline.sh    # Downloads ~70MB, extracts to lib/
+```
+
+Then use offline mode by adding `?offline=true` to any viewer URL:
+```
+http://localhost:8000/scenario_builder.html?offline=true
+http://localhost:8000/replay_viewer.html?offline=true&replay=replay_iads.json
+```
+
+**Offline mode differences:**
+- Uses NaturalEarthII imagery (~10km/pixel resolution) instead of Bing Maps
+- No terrain elevation (flat WGS84 ellipsoid)
+- BaseLayerPicker disabled (all its options require network)
+- ArcGIS/OpenStreetMap providers fall back to NaturalEarthII
+
+The `lib/` directory is gitignored — each developer runs `setup_offline.sh` once to set up their local assets.
+
 ## Phase 2 — Orbital Perturbation Models (C++)
 
 ### Unified Perturbation Accumulator (`orbital_perturbations.hpp`)

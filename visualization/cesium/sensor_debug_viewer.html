@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <title>Sensor Debug Viewer</title>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Cesium.js"></script>
+    <script src="lib/Cesium/Cesium.js"></script>
     <script src="cesium_config.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.111/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link href="lib/Cesium/Widgets/widgets.css" rel="stylesheet">
     <style>
         html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
         #cesiumContainer { width: 100%; height: 100%; }
@@ -164,11 +164,11 @@
             selectionIndicator: false,
             sceneModePicker: false,
             navigationHelpButton: false,
-            // Start with ArcGIS
-            imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
-                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-            })
+            imageryProvider: false // Set by cesium_config.js setupImagery()
         });
+
+        // Setup imagery (offline-aware)
+        setupImagery(viewer);
 
         // Disable ALL lighting and atmosphere effects
         viewer.scene.globe.enableLighting = false;
@@ -364,14 +364,28 @@
             let provider;
             switch(type) {
                 case 'arcgis':
-                    provider = new Cesium.ArcGisMapServerImageryProvider({
-                        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-                    });
+                    if (OFFLINE_MODE) {
+                        // Fall back to NaturalEarthII in offline mode
+                        provider = Cesium.TileMapServiceImageryProvider.fromUrl(
+                            Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+                        );
+                    } else {
+                        provider = new Cesium.ArcGisMapServerImageryProvider({
+                            url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+                        });
+                    }
                     break;
                 case 'osm':
-                    provider = new Cesium.OpenStreetMapImageryProvider({
-                        url: 'https://a.tile.openstreetmap.org/'
-                    });
+                    if (OFFLINE_MODE) {
+                        // Fall back to NaturalEarthII in offline mode
+                        provider = Cesium.TileMapServiceImageryProvider.fromUrl(
+                            Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+                        );
+                    } else {
+                        provider = new Cesium.OpenStreetMapImageryProvider({
+                            url: 'https://a.tile.openstreetmap.org/'
+                        });
+                    }
                     break;
                 case 'natural':
                     provider = Cesium.TileMapServiceImageryProvider.fromUrl(
