@@ -82,6 +82,18 @@ const BuilderApp = (function() {
 
         _viewer.scene.globe.enableLighting = true;
 
+        // Recover from model shader compilation failures (Cesium 1.111 + certain .glb files)
+        _viewer.scene.renderError.addEventListener(function(scene, error) {
+            console.error('[BuilderApp] Cesium render error — removing 3D models:', error);
+            var entities = _viewer.entities.values;
+            for (var i = 0; i < entities.length; i++) {
+                if (entities[i].model) entities[i].model = undefined;
+            }
+            _viewer.useDefaultRenderLoop = false;
+            setTimeout(function() { _viewer.useDefaultRenderLoop = true; }, 100);
+            showMessage('3D model rendering failed — using point markers', 5000);
+        });
+
         // Initialize globe interaction
         if (typeof GlobeInteraction !== 'undefined') {
             GlobeInteraction.init(_viewer);
@@ -1030,6 +1042,9 @@ const BuilderApp = (function() {
     function _wirePaletteItems() {
         var items = document.querySelectorAll('.palette-item');
         for (var i = 0; i < items.length; i++) {
+            // Skip custom platform items — they have their own handler from _addToDOMPalette
+            if (items[i].hasAttribute('data-custom-id')) continue;
+
             (function(item) {
                 item.addEventListener('click', function() {
                     var subtype = item.getAttribute('data-subtype');
@@ -1395,6 +1410,42 @@ const BuilderApp = (function() {
                     showMessage('DIS streaming stopped');
                 }
             }
+        });
+
+        // Launch Sim — save .sim file and open live sim viewer with splash screen
+        _bindButton('btnLaunchSim', function() {
+            var menu = document.getElementById('exportDropdownMenu');
+            if (menu) menu.classList.remove('open');
+
+            var scenarioData = getScenarioData();
+            if (!scenarioData || !scenarioData.entities || scenarioData.entities.length === 0) {
+                showMessage('No entities in scenario');
+                return;
+            }
+
+            // Save as .sim file, then open live sim viewer (splash screen handles entity selection)
+            var name = (scenarioData.metadata && scenarioData.metadata.name) || _scenarioName || 'Untitled';
+            showMessage('Saving sim...', 2000);
+
+            fetch('/api/sim/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, scenario: scenarioData })
+            })
+            .then(function(resp) { return resp.json(); })
+            .then(function(result) {
+                if (result.error) {
+                    showMessage('Save failed: ' + result.error);
+                    return;
+                }
+                // Open live sim viewer — splash screen handles entity selection
+                var liveUrl = 'live_sim_viewer.html?sim=' + encodeURIComponent(result.filename);
+                window.open(liveUrl, '_blank');
+                showMessage('Sim saved: ' + result.filename, 2000);
+            })
+            .catch(function(err) {
+                showMessage('Launch failed: ' + err.message);
+            });
         });
 
         _bindButton('btnImportTLE', function() {

@@ -75,10 +75,15 @@ const SpaceplaneOrbital = (function() {
         const vy_ecef =  cosLon * vE + (-sinLat * sinLon) * vN + cosLat * sinLon * vU;
         const vz_ecef =                  cosLat * vN            + sinLat * vU;
 
-        // 4. Add Earth rotation velocity (ω × r) for inertial velocity
-        // ω × r = (-ω * y_ecef, ω * x_ecef, 0) for Earth rotation about Z
-        const vx_ecef_inertial = vx_ecef - OMEGA_EARTH * y_ecef;
-        const vy_ecef_inertial = vy_ecef + OMEGA_EARTH * x_ecef;
+        // 4. Earth rotation velocity correction
+        // The physics engine (fighter_sim_engine.js) uses non-rotating Earth equations:
+        //   centrifugal = V²/R  →  circular orbit when V = sqrt(μ/R)
+        // So state.speed is already the INERTIAL speed. Adding ω×r would double-count
+        // Earth rotation, inflating ECI velocity by ~494 m/s at the equator and causing
+        // SMA to oscillate wildly (±1000km) as latitude changes during orbit.
+        // Do NOT add ω×r — the velocity is already inertial in this physics model.
+        const vx_ecef_inertial = vx_ecef;
+        const vy_ecef_inertial = vy_ecef;
         const vz_ecef_inertial = vz_ecef;
 
         // 5. ECEF → ECI rotation by GMST (rotate about Z by gmst)
@@ -301,7 +306,7 @@ const SpaceplaneOrbital = (function() {
         if (!elems || !isOK(elems.eccentricity) || !isOK(elems.sma)) {
             return [];
         }
-        if (elems.eccentricity >= 1.0 || elems.sma <= 0) {
+        if (elems.eccentricity >= 0.99 || elems.sma <= 0 || elems.energy >= 0) {
             return [];
         }
         // Skip only truly pathological orbits (periapsis near center of Earth)
@@ -326,6 +331,8 @@ const SpaceplaneOrbital = (function() {
         if (M0 < 0) M0 += 2 * Math.PI;
 
         const period = elems.period || 2 * Math.PI / n_mean;
+        // Sanity: reject orbits with period > 30 days (near-escape, would create huge arrays)
+        if (!isFinite(period) || period > 2592000) return [];
         const positions = [];
 
         // Perifocal → ECI rotation matrix components
@@ -559,6 +566,14 @@ const SpaceplaneOrbital = (function() {
             return;
         }
         flightRegime = detectFlightRegime(orbitalElements, state.alt);
+
+        // Escape trajectory — clear orbit display immediately
+        if (flightRegime === 'ESCAPE') {
+            currentOrbitPositions = [];
+            apoapsisPosition = null;
+            periapsisPosition = null;
+            return;
+        }
 
         // Update orbit visualization (less frequently)
         // Show orbit path when not purely atmospheric, OR when trajectory has

@@ -50,6 +50,10 @@
             this._isPlayer = false;
             this._cachedPosition = null; // reuse Cartesian3
             this._cachedAlt = 0;
+            // Model orientation offsets (radians)
+            this._modelHeadingOffset = 0;
+            this._modelPitchOffset = 0;
+            this._modelRollOffset = 0;
         }
 
         init(world) {
@@ -96,6 +100,31 @@
                     pixelOffset: new Cesium.Cartesian2(0, -12),
                     disableDepthTestDistance: Number.POSITIVE_INFINITY
                 };
+            }
+
+            // 3D Model rendering (optional — from Platform Builder model selection)
+            if (cfg.model) {
+                self._modelHeadingOffset = (cfg.modelHeading || 0) * Math.PI / 180;
+                self._modelPitchOffset = (cfg.modelPitch || 0) * Math.PI / 180;
+                self._modelRollOffset = (cfg.modelRoll || 0) * Math.PI / 180;
+
+                entityOpts.orientation = new Cesium.CallbackProperty(function() {
+                    var h = (state.heading || 0) + self._modelHeadingOffset;
+                    var p = (state.gamma || state.pitch || 0) + self._modelPitchOffset;
+                    var r = (state.roll || 0) + self._modelRollOffset;
+                    var hpr = new Cesium.HeadingPitchRoll(h, p, r);
+                    return Cesium.Transforms.headingPitchRollQuaternion(self._cachedPosition, hpr);
+                }, false);
+
+                entityOpts.model = {
+                    uri: cfg.model,
+                    minimumPixelSize: 32,
+                    maximumScale: (cfg.modelScale || 1.0) * 500,
+                    scale: cfg.modelScale || 1.0,
+                };
+
+                // Reduce point size when model is present (point serves as far-distance fallback)
+                entityOpts.point.pixelSize = 4;
             }
 
             this._cesiumEntity = viewer.entities.add(entityOpts);

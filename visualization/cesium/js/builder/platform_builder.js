@@ -20,6 +20,7 @@ const PlatformBuilder = (function() {
     let _dialog = null;
     let _resolvePromise = null;
     let _rejectPromise = null;
+    let _editingId = null; // Non-null when editing an existing platform
 
     // Tab state
     let _activeTab = 'physics';
@@ -72,6 +73,13 @@ const PlatformBuilder = (function() {
             magneticField: { enabled: false, model: 'earth_dipole', intensity: 1.0 },
             ionosphere: { enabled: false, model: 'standard', disturbance: 'none' },
             radiationBelt: { enabled: false, model: 'van_allen', intensity: 1.0 }
+        },
+        model: {
+            file: '',
+            scale: 1.0,
+            heading: 0,
+            pitch: 0,
+            roll: 0
         }
     };
 
@@ -170,6 +178,7 @@ const PlatformBuilder = (function() {
 
         const tabDefs = [
             { id: 'physics', label: 'PHYSICS' },
+            { id: 'model', label: 'MODEL' },
             { id: 'propulsion', label: 'PROPULSION' },
             { id: 'sensors', label: 'SENSORS' },
             { id: 'payload', label: 'PAYLOAD' },
@@ -194,6 +203,7 @@ const PlatformBuilder = (function() {
         container.className = 'pb-tab-contents';
 
         _tabContents.physics = _createPhysicsTab();
+        _tabContents.model = _createModelTab();
         _tabContents.propulsion = _createPropulsionTab();
         _tabContents.sensors = _createSensorsTab();
         _tabContents.payload = _createPayloadTab();
@@ -299,6 +309,272 @@ const PlatformBuilder = (function() {
         `;
 
         return tab;
+    }
+
+    // -------------------------------------------------------------------------
+    // Model Tab
+    // -------------------------------------------------------------------------
+    function _createModelTab() {
+        const tab = document.createElement('div');
+        tab.className = 'pb-tab-content';
+
+        tab.innerHTML = `
+            <div class="pb-section-title">3D MODEL</div>
+            <div class="pb-hint">Select a .glb model file. Entity uses a point marker if no model is selected.</div>
+
+            <div style="margin: 12px 0;">
+                <select id="pb-model-file" class="pb-model-select">
+                    <option value="">None (point marker only)</option>
+                </select>
+                <div id="pb-model-info" style="color:#666;font-size:11px;margin-top:6px;">Using point marker only.</div>
+            </div>
+
+            <div id="pb-model-orient-section" style="display:none;">
+                <div class="pb-model-preview-wrap">
+                    <div id="pb-model-preview-container" class="pb-model-preview-box">
+                        <div id="pb-model-preview-placeholder" class="pb-model-placeholder">Select a model</div>
+                    </div>
+                    <div class="pb-model-axis-overlay" id="pb-model-axis-overlay">
+                        <canvas id="pb-model-axes" width="80" height="80"></canvas>
+                    </div>
+                    <div class="pb-model-drag-hint">Drag to rotate &bull; Scroll to zoom</div>
+                </div>
+
+                <div class="pb-section-title" style="margin-top:12px;">ORIENTATION OFFSET</div>
+                <div class="pb-hint">Orient the model so its nose points right (&rarr;). This aligns it with the velocity vector at runtime.</div>
+
+                <div class="pb-model-controls-row">
+                    <div class="pb-coe-field">
+                        <label>Heading (°)</label>
+                        <input type="number" id="pb-model-heading" value="0" step="5" />
+                    </div>
+                    <div class="pb-coe-field">
+                        <label>Pitch (°)</label>
+                        <input type="number" id="pb-model-pitch" value="0" step="5" />
+                    </div>
+                    <div class="pb-coe-field">
+                        <label>Roll (°)</label>
+                        <input type="number" id="pb-model-roll" value="0" step="5" />
+                    </div>
+                    <div class="pb-coe-field">
+                        <label>Scale</label>
+                        <input type="number" id="pb-model-scale" value="1.0" step="0.1" min="0.1" max="100" />
+                    </div>
+                </div>
+                <button id="pb-model-reset" class="pb-btn pb-btn-cancel" style="margin-top:6px;width:100%;padding:6px;">Reset Orientation</button>
+            </div>
+        `;
+
+        return tab;
+    }
+
+    function _loadModelList() {
+        fetch('/api/models/list')
+            .then(r => r.json())
+            .then(data => {
+                const select = document.getElementById('pb-model-file');
+                if (!select || !data.models) return;
+                // Clear existing options beyond the first "None" option
+                while (select.options.length > 1) select.remove(1);
+                data.models.forEach(m => {
+                    if (m.size < 100) return; // Skip placeholder files
+                    const opt = document.createElement('option');
+                    opt.value = m.path;
+                    var name = m.filename.replace('.glb', '').replace('.gltf', '');
+                    var sizeStr = m.size > 1024 * 1024 ?
+                        (m.size / 1024 / 1024).toFixed(1) + ' MB' :
+                        (m.size / 1024).toFixed(0) + ' KB';
+                    opt.textContent = name + ' (' + sizeStr + ')';
+                    select.appendChild(opt);
+                });
+                // Restore selection if model was previously set
+                if (_formState.model.file) {
+                    select.value = _formState.model.file;
+                }
+            })
+            .catch(() => {});
+    }
+
+    let _modelViewerEl = null;
+    let _modelDragging = false;
+    let _modelDragLastX = 0;
+    let _modelDragLastY = 0;
+
+    function _updateModelUI() {
+        const orientSection = document.getElementById('pb-model-orient-section');
+        const infoEl = document.getElementById('pb-model-info');
+        const container = document.getElementById('pb-model-preview-container');
+        const placeholder = document.getElementById('pb-model-preview-placeholder');
+
+        if (_formState.model.file) {
+            if (orientSection) orientSection.style.display = 'block';
+            if (infoEl) infoEl.textContent = 'Model: ' + _formState.model.file;
+
+            // Create or update <model-viewer>
+            if (!_modelViewerEl) {
+                _modelViewerEl = document.createElement('model-viewer');
+                // No camera-controls or auto-rotate — we handle drag ourselves
+                _modelViewerEl.setAttribute('shadow-intensity', '0.3');
+                _modelViewerEl.setAttribute('environment-image', 'neutral');
+                _modelViewerEl.setAttribute('interaction-prompt', 'none');
+                _modelViewerEl.setAttribute('camera-orbit', '0deg 75deg 105%');
+                _modelViewerEl.style.cssText = 'width:100%;height:100%;background:#0a0a14;border-radius:4px;--poster-color:#0a0a14;cursor:grab;';
+                if (container) {
+                    if (placeholder) placeholder.style.display = 'none';
+                    container.appendChild(_modelViewerEl);
+                }
+                _wireModelDrag(_modelViewerEl);
+            }
+            _modelViewerEl.src = _formState.model.file;
+            _updateModelOrientation();
+            _drawModelAxes();
+        } else {
+            if (orientSection) orientSection.style.display = 'none';
+            if (infoEl) infoEl.textContent = 'Using point marker only.';
+            // Remove model-viewer
+            if (_modelViewerEl && _modelViewerEl.parentNode) {
+                _modelViewerEl.parentNode.removeChild(_modelViewerEl);
+                _modelViewerEl = null;
+            }
+            if (placeholder) placeholder.style.display = 'flex';
+        }
+    }
+
+    function _wireModelDrag(el) {
+        // Pointer drag → heading/pitch rotation
+        el.addEventListener('pointerdown', function(e) {
+            _modelDragging = true;
+            _modelDragLastX = e.clientX;
+            _modelDragLastY = e.clientY;
+            el.setPointerCapture(e.pointerId);
+            el.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        el.addEventListener('pointermove', function(e) {
+            if (!_modelDragging) return;
+            var dx = e.clientX - _modelDragLastX;
+            var dy = e.clientY - _modelDragLastY;
+            _modelDragLastX = e.clientX;
+            _modelDragLastY = e.clientY;
+
+            // Horizontal drag → heading (Y-axis), vertical drag → pitch (X-axis)
+            _formState.model.heading = ((_formState.model.heading || 0) + dx * 0.5) % 360;
+            _formState.model.pitch = Math.max(-90, Math.min(90,
+                (_formState.model.pitch || 0) - dy * 0.5));
+
+            _updateModelOrientation();
+            _drawModelAxes();
+            _syncModelInputs();
+        });
+
+        el.addEventListener('pointerup', function() {
+            _modelDragging = false;
+            if (_modelViewerEl) _modelViewerEl.style.cursor = 'grab';
+        });
+
+        el.addEventListener('lostpointercapture', function() {
+            _modelDragging = false;
+            if (_modelViewerEl) _modelViewerEl.style.cursor = 'grab';
+        });
+
+        // Scroll wheel → zoom via camera-orbit radius
+        el.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            try {
+                var orbit = el.getCameraOrbit();
+                var factor = e.deltaY > 0 ? 1.15 : 0.87;
+                var newR = orbit.radius * factor;
+                el.cameraOrbit = orbit.theta + 'rad ' + orbit.phi + 'rad ' + newR + 'm';
+            } catch (err) {
+                // getCameraOrbit may not be available until model loads
+            }
+        }, { passive: false });
+    }
+
+    function _syncModelInputs() {
+        var hEl = document.getElementById('pb-model-heading');
+        var pEl = document.getElementById('pb-model-pitch');
+        var rEl = document.getElementById('pb-model-roll');
+        if (hEl) hEl.value = Math.round(_formState.model.heading || 0);
+        if (pEl) pEl.value = Math.round(_formState.model.pitch || 0);
+        if (rEl) rEl.value = Math.round(_formState.model.roll || 0);
+    }
+
+    function _updateModelOrientation() {
+        if (!_modelViewerEl) return;
+        var h = _formState.model.heading || 0;
+        var p = _formState.model.pitch || 0;
+        var r = _formState.model.roll || 0;
+        // model-viewer orientation: "X Y Z" axes in degrees
+        _modelViewerEl.setAttribute('orientation', p + 'deg ' + h + 'deg ' + r + 'deg');
+        // Scale the model in the preview
+        var s = _formState.model.scale || 1.0;
+        _modelViewerEl.setAttribute('scale', s + ' ' + s + ' ' + s);
+    }
+
+    function _drawModelAxes() {
+        // Fixed reference frame — these axes never rotate.
+        // FWD = velocity direction at runtime.  Rotate the 3D model
+        // until its nose visually aligns with the green FWD arrow.
+        const canvas = document.getElementById('pb-model-axes');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        const cx = w / 2, cy = h / 2;
+        const len = w * 0.33;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Isometric projection (fixed viewpoint)
+        function project(v) {
+            var px = v[0] * 0.866 + v[1] * (-0.866);
+            var py = -v[0] * 0.5 - v[1] * 0.5 + v[2] * 1.0;
+            return [cx + px * len, cy - py * len];
+        }
+
+        // Static reference axes (never change)
+        var axes = [
+            { dir: [1, 0, 0], color: '#00ff00', label: 'FWD' },
+            { dir: [0, 1, 0], color: '#ff4444', label: 'RIGHT' },
+            { dir: [0, 0, 1], color: '#4488ff', label: 'UP' }
+        ];
+
+        var origin = project([0, 0, 0]);
+
+        axes.forEach(function(axis) {
+            var end = project(axis.dir);
+
+            ctx.beginPath();
+            ctx.strokeStyle = axis.color;
+            ctx.lineWidth = 2.5;
+            ctx.moveTo(origin[0], origin[1]);
+            ctx.lineTo(end[0], end[1]);
+            ctx.stroke();
+
+            // Arrow head
+            var adx = end[0] - origin[0], ady = end[1] - origin[1];
+            var angle = Math.atan2(ady, adx);
+            var arrowSize = Math.max(4, w * 0.06);
+            ctx.beginPath();
+            ctx.moveTo(end[0], end[1]);
+            ctx.lineTo(end[0] - arrowSize * Math.cos(angle - 0.4), end[1] - arrowSize * Math.sin(angle - 0.4));
+            ctx.moveTo(end[0], end[1]);
+            ctx.lineTo(end[0] - arrowSize * Math.cos(angle + 0.4), end[1] - arrowSize * Math.sin(angle + 0.4));
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = axis.color;
+            var fontSize = Math.max(8, Math.round(w * 0.11));
+            ctx.font = 'bold ' + fontSize + 'px monospace';
+            ctx.fillText(axis.label, end[0] + 3, end[1] - 3);
+        });
+
+        // Center dot
+        ctx.beginPath();
+        ctx.fillStyle = '#888';
+        ctx.arc(origin[0], origin[1], 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     // -------------------------------------------------------------------------
@@ -991,6 +1267,39 @@ const PlatformBuilder = (function() {
             _formState.physics.atmospheric.heading = parseFloat(e.target.value) || 90;
         });
 
+        // Model tab
+        document.getElementById('pb-model-file')?.addEventListener('change', e => {
+            _formState.model.file = e.target.value;
+            _updateModelUI();
+        });
+        _loadModelList();
+
+        ['heading', 'pitch', 'roll', 'scale'].forEach(field => {
+            const el = document.getElementById('pb-model-' + field);
+            if (el) {
+                el.addEventListener('input', e => {
+                    _formState.model[field] = parseFloat(e.target.value) || (field === 'scale' ? 1.0 : 0);
+                    _updateModelOrientation();
+                    _drawModelAxes();
+                });
+            }
+        });
+
+        document.getElementById('pb-model-reset')?.addEventListener('click', () => {
+            _formState.model.heading = 0;
+            _formState.model.pitch = 0;
+            _formState.model.roll = 0;
+            _formState.model.scale = 1.0;
+            ['heading', 'pitch', 'roll'].forEach(f => {
+                const el = document.getElementById('pb-model-' + f);
+                if (el) el.value = '0';
+            });
+            const scaleEl = document.getElementById('pb-model-scale');
+            if (scaleEl) scaleEl.value = '1.0';
+            _updateModelOrientation();
+            _drawModelAxes();
+        });
+
         // Propulsion checkboxes
         ['air', 'hypersonic', 'rocket', 'ion', 'rcs'].forEach(mode => {
             document.getElementById(`pb-prop-${mode}`)?.addEventListener('change', e => {
@@ -1344,6 +1653,23 @@ const PlatformBuilder = (function() {
             };
         }
 
+        // 3D Model (optional — applied to visual component)
+        if (_formState.model.file) {
+            platform._custom.model = {
+                file: _formState.model.file,
+                scale: _formState.model.scale || 1.0,
+                heading: _formState.model.heading || 0,
+                pitch: _formState.model.pitch || 0,
+                roll: _formState.model.roll || 0
+            };
+            // Add model info to visual component config
+            platform.components.visual.model = _formState.model.file;
+            platform.components.visual.modelScale = _formState.model.scale || 1.0;
+            platform.components.visual.modelHeading = _formState.model.heading || 0;
+            platform.components.visual.modelPitch = _formState.model.pitch || 0;
+            platform.components.visual.modelRoll = _formState.model.roll || 0;
+        }
+
         // Propulsion modes (available for ALL physics types - satellites can have thrusters, spaceplanes can re-enter)
         const enabledModes = [];
         if (_formState.propulsion.air) enabledModes.push('air');
@@ -1676,14 +2002,37 @@ const PlatformBuilder = (function() {
         }
     }
 
-    function _saveToStorage(platform) {
+    function _saveToStorage(platform, replaceId) {
         try {
             const stored = localStorage.getItem(STORAGE_KEY);
             const platforms = stored ? JSON.parse(stored) : [];
-            platforms.push(platform);
+            if (replaceId) {
+                var found = false;
+                for (var i = 0; i < platforms.length; i++) {
+                    if (platforms[i].id === replaceId) {
+                        platforms[i] = platform;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) platforms.push(platform);
+            } else {
+                platforms.push(platform);
+            }
             localStorage.setItem(STORAGE_KEY, JSON.stringify(platforms));
         } catch (e) {
             console.warn('[PlatformBuilder] Failed to save to storage:', e);
+        }
+    }
+
+    function _deleteFromStorage(id) {
+        try {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (!stored) return;
+            const platforms = JSON.parse(stored).filter(p => p.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(platforms));
+        } catch (e) {
+            console.warn('[PlatformBuilder] Failed to delete from storage:', e);
         }
     }
 
@@ -1706,6 +2055,7 @@ const PlatformBuilder = (function() {
 
             // Reset form state
             _formState.name = 'Custom Platform';
+            _formState.model = { file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 };
             _activeTab = 'physics';
 
             _overlay.style.display = 'flex';
@@ -1714,6 +2064,105 @@ const PlatformBuilder = (function() {
             _updateCOEComputed();
             _updatePropulsionAvailability();
             _updateDefaultModeOptions();
+            _updateModelUI();
+
+            document.getElementById('pb-name')?.focus();
+        });
+    }
+
+    function edit(existingPlatform) {
+        return new Promise((resolve, reject) => {
+            _resolvePromise = resolve;
+            _rejectPromise = reject;
+            _editingId = existingPlatform.id;
+
+            // Populate _formState from the platform's _custom snapshot
+            var c = existingPlatform._custom || {};
+            _formState.name = existingPlatform.name || 'Custom Platform';
+            _formState.team = existingPlatform.team || 'blue';
+
+            // Physics
+            if (c.physics) {
+                _formState.physics.mode = c.physics.mode || 'coe';
+                if (c.physics.tle) Object.assign(_formState.physics.tle, c.physics.tle);
+                if (c.physics.coe) Object.assign(_formState.physics.coe, c.physics.coe);
+                if (c.physics.atmospheric) Object.assign(_formState.physics.atmospheric, c.physics.atmospheric);
+            }
+
+            // Propulsion
+            if (c.propulsion) Object.assign(_formState.propulsion, c.propulsion);
+
+            // Sensors
+            if (c.sensors) {
+                Object.keys(c.sensors).forEach(function(key) {
+                    if (_formState.sensors[key]) {
+                        Object.assign(_formState.sensors[key], c.sensors[key]);
+                    }
+                });
+            }
+
+            // Payload
+            if (c.payload) {
+                Object.keys(c.payload).forEach(function(key) {
+                    if (_formState.payload[key]) {
+                        Object.assign(_formState.payload[key], c.payload[key]);
+                    }
+                });
+            }
+
+            // Environment
+            if (c.environment) {
+                Object.keys(c.environment).forEach(function(key) {
+                    if (_formState.environment[key]) {
+                        Object.assign(_formState.environment[key], c.environment[key]);
+                    }
+                });
+            }
+
+            // Model
+            if (c.model) {
+                _formState.model = Object.assign({ file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 }, c.model);
+            } else {
+                _formState.model = { file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 };
+            }
+
+            _activeTab = 'physics';
+            _overlay.style.display = 'flex';
+            _switchTab('physics');
+            _attachEventListeners();
+
+            // Populate DOM fields from restored state
+            var nameEl = document.getElementById('pb-name');
+            if (nameEl) nameEl.value = _formState.name;
+            var teamEl = document.getElementById('pb-team');
+            if (teamEl) teamEl.value = _formState.team;
+
+            // Physics radio
+            var physRadio = document.querySelector('input[name="pb-physics"][value="' + _formState.physics.mode + '"]');
+            if (physRadio) { physRadio.checked = true; physRadio.dispatchEvent(new Event('change')); }
+
+            // Propulsion checkboxes
+            ['air', 'hypersonic', 'rocket', 'ion', 'rcs'].forEach(function(m) {
+                var cb = document.getElementById('pb-prop-' + m);
+                if (cb) cb.checked = !!_formState.propulsion[m];
+            });
+            var defMode = document.getElementById('pb-default-mode');
+            if (defMode) defMode.value = _formState.propulsion.defaultMode || 'rocket';
+
+            // Model select
+            var modelSel = document.getElementById('pb-model-file');
+            if (modelSel) modelSel.value = _formState.model.file || '';
+            ['heading', 'pitch', 'roll'].forEach(function(f) {
+                var el = document.getElementById('pb-model-' + f);
+                if (el) el.value = _formState.model[f] || 0;
+            });
+            var scaleEl = document.getElementById('pb-model-scale');
+            if (scaleEl) scaleEl.value = _formState.model.scale || 1.0;
+
+            _updateCOEComputed();
+            _updatePropulsionAvailability();
+            _updateDefaultModeOptions();
+            _updateModelUI();
 
             document.getElementById('pb-name')?.focus();
         });
@@ -1744,18 +2193,29 @@ const PlatformBuilder = (function() {
 
         const platform = _generatePlatformTemplate();
 
-        // Add to DOM palette
-        _addToDOMPalette(platform);
-
-        // Add to ObjectPalette (for getTemplates/getTemplateByName)
-        if (typeof ObjectPalette !== 'undefined' && ObjectPalette.addCustomTemplate) {
-            ObjectPalette.addCustomTemplate(platform);
+        if (_editingId) {
+            // Edit mode: preserve original id, update in-place
+            platform.id = _editingId;
+            _saveToStorage(platform, _editingId);
+            if (typeof ObjectPalette !== 'undefined' && ObjectPalette.updateCustomTemplate) {
+                ObjectPalette.updateCustomTemplate(platform);
+            }
+        } else {
+            // New mode: add to palette + storage
+            _addToDOMPalette(platform);
+            if (typeof ObjectPalette !== 'undefined' && ObjectPalette.addCustomTemplate) {
+                ObjectPalette.addCustomTemplate(platform);
+            }
+            _saveToStorage(platform);
         }
 
-        // Save to localStorage
-        _saveToStorage(platform);
-
         _overlay.style.display = 'none';
+        _editingId = null;
+        // Clean up model-viewer to free WebGL context
+        if (_modelViewerEl && _modelViewerEl.parentNode) {
+            _modelViewerEl.parentNode.removeChild(_modelViewerEl);
+            _modelViewerEl = null;
+        }
         if (_resolvePromise) _resolvePromise(platform);
         _resolvePromise = null;
         _rejectPromise = null;
@@ -1774,7 +2234,7 @@ const PlatformBuilder = (function() {
 
         // Create palette item
         const item = document.createElement('div');
-        item.className = 'palette-item';
+        item.className = 'palette-item custom-palette-item';
         item.setAttribute('data-entity-type', platform.type);
         item.setAttribute('data-custom-id', platform.id);
         item.setAttribute('data-team', platform.team);
@@ -1786,6 +2246,8 @@ const PlatformBuilder = (function() {
 
         const info = document.createElement('div');
         info.className = 'palette-item-info';
+        info.style.flex = '1';
+        info.style.minWidth = '0';
 
         const nameEl = document.createElement('div');
         nameEl.className = 'palette-item-name';
@@ -1799,11 +2261,73 @@ const PlatformBuilder = (function() {
 
         item.appendChild(info);
 
+        // --- Actions: placement dropdown + edit + delete ---
+        var actions = document.createElement('div');
+        actions.className = 'custom-actions';
+
+        // Placement mode dropdown
+        var modeSelect = document.createElement('select');
+        modeSelect.className = 'custom-placement-mode';
+        var isAtmospheric = platform.components && platform.components.physics &&
+            platform.components.physics.type === 'flight3dof';
+        var defaultMode = isAtmospheric ? 'aircraft' : 'spacecraft';
+        [{ v: 'spacecraft', l: 'Space' }, { v: 'aircraft', l: 'Air' }, { v: 'ground', l: 'Ground' }].forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.v;
+            opt.textContent = m.l;
+            if (m.v === defaultMode) opt.selected = true;
+            modeSelect.appendChild(opt);
+        });
+        modeSelect.addEventListener('click', function(e) { e.stopPropagation(); });
+        modeSelect.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+        actions.appendChild(modeSelect);
+
+        // Edit button
+        var editBtn = document.createElement('button');
+        editBtn.className = 'custom-action-btn custom-edit-btn';
+        editBtn.innerHTML = '&#9998;';
+        editBtn.title = 'Edit platform';
+        editBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            edit(platform).then(function(updated) {
+                // Refresh: remove old DOM item and re-add
+                _removeDOMPaletteItem(platform.id);
+                _addToDOMPalette(updated);
+                if (typeof BuilderApp !== 'undefined' && BuilderApp.showMessage) {
+                    BuilderApp.showMessage('Updated: ' + updated.name, 3000);
+                }
+            }).catch(function() {});
+        });
+        actions.appendChild(editBtn);
+
+        // Delete button
+        var delBtn = document.createElement('button');
+        delBtn.className = 'custom-action-btn custom-del-btn';
+        delBtn.innerHTML = '&times;';
+        delBtn.title = 'Delete platform';
+        delBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (!confirm('Delete "' + platform.name + '"?')) return;
+            _deleteFromStorage(platform.id);
+            _removeDOMPaletteItem(platform.id);
+            // Hide custom section if empty
+            var remaining = body.querySelectorAll('.palette-item');
+            if (remaining.length === 0) section.style.display = 'none';
+        });
+        actions.appendChild(delBtn);
+
+        item.appendChild(actions);
+
+        // Store mode select reference for click handler
+        item._modeSelect = modeSelect;
+
         // Click handler - start placement with this custom platform
         item.addEventListener('click', function() {
-            // Remove selected from all items
             document.querySelectorAll('.palette-item.selected').forEach(el => el.classList.remove('selected'));
             item.classList.add('selected');
+
+            // Set placement mode from dropdown
+            platform._placementMode = modeSelect.value;
 
             if (typeof BuilderApp !== 'undefined' && BuilderApp.startPlacement) {
                 BuilderApp.startPlacement(platform);
@@ -1813,8 +2337,20 @@ const PlatformBuilder = (function() {
         body.appendChild(item);
     }
 
+    /** Remove a custom platform DOM item by id. */
+    function _removeDOMPaletteItem(id) {
+        var el = document.querySelector('.palette-item[data-custom-id="' + id + '"]');
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+    }
+
     function _cancel() {
         _overlay.style.display = 'none';
+        _editingId = null;
+        // Clean up model-viewer to free WebGL context
+        if (_modelViewerEl && _modelViewerEl.parentNode) {
+            _modelViewerEl.parentNode.removeChild(_modelViewerEl);
+            _modelViewerEl = null;
+        }
         if (_rejectPromise) _rejectPromise(new Error('Cancelled'));
         _resolvePromise = null;
         _rejectPromise = null;
@@ -2146,6 +2682,76 @@ const PlatformBuilder = (function() {
                 border-radius: 4px;
                 margin-top: 6px;
             }
+            .pb-model-select {
+                width: 100%;
+                padding: 8px;
+                background: #0a0a14;
+                border: 1px solid #333;
+                color: #ddd;
+                border-radius: 3px;
+                font-size: 12px;
+            }
+            .pb-model-preview-wrap {
+                position: relative;
+                width: 100%;
+                margin-bottom: 8px;
+            }
+            .pb-model-preview-box {
+                width: 100%;
+                height: 220px;
+                background: #0a0a14;
+                border: 1px solid #333;
+                border-radius: 4px;
+                overflow: hidden;
+                position: relative;
+            }
+            .pb-model-placeholder {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                height: 100%;
+                color: #444;
+                font-size: 12px;
+                font-style: italic;
+            }
+            .pb-model-axis-overlay {
+                position: absolute;
+                bottom: 6px;
+                left: 6px;
+                pointer-events: none;
+                opacity: 0.8;
+            }
+            .pb-model-axis-overlay canvas {
+                background: rgba(10, 10, 20, 0.7);
+                border-radius: 3px;
+            }
+            .pb-model-drag-hint {
+                position: absolute;
+                bottom: 6px;
+                right: 6px;
+                pointer-events: none;
+                color: #555;
+                font-size: 10px;
+                background: rgba(10, 10, 20, 0.7);
+                padding: 2px 6px;
+                border-radius: 3px;
+            }
+            .pb-model-controls-row {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 1fr;
+                gap: 8px;
+                margin-top: 8px;
+            }
+            .pb-model-controls-row .pb-coe-field input {
+                width: 100%;
+                box-sizing: border-box;
+                background: #0a0a14;
+                border: 1px solid #333;
+                color: #ddd;
+                padding: 6px 8px;
+                border-radius: 3px;
+            }
         `;
         document.head.appendChild(style);
     }
@@ -2156,6 +2762,8 @@ const PlatformBuilder = (function() {
     return {
         init,
         show,
+        edit,
+        deleteTemplate: _deleteFromStorage,
         getAllCustomPlatforms: _getAllCustomPlatforms
     };
 })();

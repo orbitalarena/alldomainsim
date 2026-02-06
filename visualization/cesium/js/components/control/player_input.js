@@ -120,11 +120,35 @@
                 _showMessage(state.brakesOn ? 'BRAKES ON' : 'BRAKES OFF');
             }
 
-            // Pause
-            if (_consume('Space')) {
+            // Pause (Escape)
+            if (_consume('Escape')) {
                 world.isPaused = !world.isPaused;
                 _showMessage(world.isPaused ? 'PAUSED' : 'RESUMED');
                 if (!world.isPaused) world._lastTickTime = null;
+            }
+
+            // Fire weapon (Space)
+            if (_consume('Space')) {
+                _showMessage('FIRE');
+            }
+
+            // Cycle weapon (W)
+            if (_consume('KeyW')) {
+                _showMessage('WEAPON CYCLE');
+            }
+
+            // Cycle sensor (V)
+            if (_consume('KeyV')) {
+                _showMessage('SENSOR CYCLE');
+            }
+
+            // Trim (T / Shift+T)
+            if (_consume('KeyT')) {
+                var DEG_T = Math.PI / 180;
+                var dir = _keys['ShiftLeft'] || _keys['ShiftRight'] ? -1 : 1;
+                state.trimAlpha = (state.trimAlpha || 0) + dir * 0.5 * DEG_T;
+                state.trimAlpha = Math.max(-5 * DEG_T, Math.min(10 * DEG_T, state.trimAlpha));
+                _showMessage('TRIM: ' + (state.trimAlpha / DEG_T).toFixed(1) + '\u00b0');
             }
 
             // Time warp

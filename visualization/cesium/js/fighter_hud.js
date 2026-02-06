@@ -19,6 +19,21 @@ const FighterHUD = (function() {
     const HUD_ALERT = '#ff3333';
     const HUD_CYAN = '#00ffff';
 
+    // Per-element visibility toggles (all ON by default)
+    var _toggles = {
+        hud: true,          // Master switch
+        speedTape: true,    // Airspeed tape + Mach indicator
+        altTape: true,      // Altitude tape + vertical speed
+        heading: true,      // Heading tape
+        pitchLadder: true,  // Pitch ladder lines
+        fpm: true,          // Flight path marker + waterline
+        gMeter: true,       // G-load meter
+        engineFuel: true,   // Throttle + fuel gauge
+        weapons: true,      // Weapons status + target reticle + steer cue
+        warnings: true,     // Warnings + phase indicator + regime
+        orbital: true       // Orbital markers + navball
+    };
+
     let canvas, ctx;
     let width, height, cx, cy;
 
@@ -70,26 +85,29 @@ const FighterHUD = (function() {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        // Draw HUD elements
-        drawPitchLadder(state, scale, target);
-        drawOrbitalMarkers(state, scale, simTime);
-        drawAirspeedTape(state, scale);
-        drawAltitudeTape(state, scale);
-        drawHeadingTape(state, scale, target);
-        drawFlightPathMarker(state, scale);
-        drawWaterline(scale);
-        drawGMeter(state, scale);
-        drawThrottleFuel(state, scale);
-        drawWeaponsStatus(state, weapons, scale);
-        drawTargetReticle(state, target, scale);
-        drawTargetSteerCue(state, target, scale);
-        drawAutopilotStatus(autopilot, scale);
-        drawWarnings(state, scale);
-        drawPhaseIndicator(state, scale);
-        drawMachIndicator(state, scale);
-        drawVerticalSpeed(state, scale);
-        drawRegimeIndicator(state, scale);
-        drawCompactNavball(state, scale, simTime);
+        // Master HUD toggle
+        if (!_toggles.hud) { ctx.restore(); return; }
+
+        // Draw HUD elements (gated by per-element toggles)
+        if (_toggles.pitchLadder) drawPitchLadder(state, scale, target);
+        if (_toggles.orbital)     drawOrbitalMarkers(state, scale, simTime);
+        if (_toggles.speedTape)   drawAirspeedTape(state, scale);
+        if (_toggles.altTape)     drawAltitudeTape(state, scale);
+        if (_toggles.heading)     drawHeadingTape(state, scale, target);
+        if (_toggles.fpm)         drawFlightPathMarker(state, scale);
+        if (_toggles.fpm)         drawWaterline(scale);
+        if (_toggles.gMeter)      drawGMeter(state, scale);
+        if (_toggles.engineFuel)  drawThrottleFuel(state, scale);
+        if (_toggles.weapons)     drawWeaponsStatus(state, weapons, scale);
+        if (_toggles.weapons)     drawTargetReticle(state, target, scale);
+        if (_toggles.weapons)     drawTargetSteerCue(state, target, scale);
+        if (_toggles.warnings)    drawAutopilotStatus(autopilot, scale);
+        if (_toggles.warnings)    drawWarnings(state, scale);
+        if (_toggles.warnings)    drawPhaseIndicator(state, scale);
+        if (_toggles.speedTape)   drawMachIndicator(state, scale);
+        if (_toggles.altTape)     drawVerticalSpeed(state, scale);
+        if (_toggles.warnings)    drawRegimeIndicator(state, scale);
+        if (_toggles.orbital)     drawCompactNavball(state, scale, simTime);
 
         ctx.restore();
     }
@@ -570,27 +588,78 @@ const FighterHUD = (function() {
     }
 
     /**
-     * Draw weapons status (bottom-center)
+     * Draw weapons & sensor status (bottom-center)
+     * Shows active weapon, inventory, and sensor state
      */
     function drawWeaponsStatus(state, weapons, scale) {
-        if (!weapons) return;
-
         const x = cx;
-        const y = height - 50 * scale;
-
+        const baseY = height - 40 * scale;
+        const lineH = 14 * scale;
         ctx.textAlign = 'center';
         ctx.font = `${12 * scale}px 'Courier New', monospace`;
 
-        const selectedName = weapons.selectedWeapon || 'NONE';
-        const count = weapons.getCount ? weapons.getCount(weapons.selectedWeapon) : 0;
-        const inRange = weapons.inRange || false;
+        // --- Active weapon (large, center bottom) ---
+        if (weapons && weapons.selectedWeapon) {
+            var name = weapons.selectedWeapon;
+            var count = weapons.count !== undefined ? weapons.count : 0;
+            var isJammer = weapons.selectedType === 'jammer';
+            var isNuke = weapons.selectedType === 'nuclear' || weapons.selectedType === 'cruise';
 
-        ctx.fillStyle = inRange ? HUD_GREEN : HUD_DIM;
-        ctx.fillText(`${selectedName}  ×${count}`, x, y);
+            // Active weapon highlight
+            ctx.fillStyle = isNuke ? HUD_ALERT : isJammer ? HUD_CYAN : HUD_GREEN;
+            ctx.font = `bold ${14 * scale}px 'Courier New', monospace`;
+            if (isJammer) {
+                ctx.fillText(name + (weapons.active ? ' [ON]' : ' [OFF]'), x, baseY);
+            } else {
+                ctx.fillText(name + '  \u00d7' + count, x, baseY);
+            }
 
-        if (inRange) {
-            ctx.fillStyle = HUD_GREEN;
-            ctx.fillText('IN RANGE', x, y + 16 * scale);
+            // Weapon list (smaller, above active weapon)
+            if (weapons.allWeapons && weapons.allWeapons.length > 1) {
+                ctx.font = `${10 * scale}px 'Courier New', monospace`;
+                var listY = baseY - lineH * 1.2;
+                for (var i = weapons.allWeapons.length - 1; i >= 0; i--) {
+                    var w = weapons.allWeapons[i];
+                    var isSel = (i === weapons.weaponIndex);
+                    ctx.fillStyle = isSel ? HUD_GREEN : HUD_DIM;
+                    var prefix = isSel ? '\u25b6 ' : '  ';
+                    var wText = prefix + w.name + ' \u00d7' + w.count;
+                    if (w.type === 'jammer') wText = prefix + w.name + (w.active ? ' ON' : ' OFF');
+                    ctx.fillText(wText, x, listY);
+                    listY -= lineH * 0.9;
+                }
+            }
+
+            // Fire hint
+            ctx.font = `${9 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('[SPACE] FIRE  [W] CYCLE', x, baseY + lineH);
+        } else {
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('NO WEAPON', x, baseY);
+        }
+
+        // --- Sensor (bottom-right) ---
+        var sensor = state._sensor;
+        if (sensor) {
+            ctx.textAlign = 'right';
+            ctx.font = `${11 * scale}px 'Courier New', monospace`;
+            var sx = width - 20 * scale;
+            var sy = baseY;
+            ctx.fillStyle = HUD_CYAN;
+            ctx.fillText('SNR: ' + sensor.name, sx, sy);
+            ctx.font = `${9 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('[V] CYCLE', sx, sy + lineH * 0.9);
+        }
+
+        // --- Trim indicator (bottom-left) ---
+        if (state._trim !== undefined) {
+            ctx.textAlign = 'left';
+            ctx.font = `${11 * scale}px 'Courier New', monospace`;
+            var trimDeg = (state._trim * 180 / Math.PI).toFixed(1);
+            ctx.fillStyle = Math.abs(state._trim) > 0.01 ? HUD_WARN : HUD_DIM;
+            ctx.fillText('TRIM ' + trimDeg + '\u00b0', 20 * scale, baseY);
         }
     }
 
@@ -1280,10 +1349,27 @@ const FighterHUD = (function() {
         ctx.textBaseline = 'middle'; // reset
     }
 
+    /**
+     * Set a HUD element toggle.
+     * @param {string} key - toggle name (hud, speedTape, altTape, heading, pitchLadder, fpm, gMeter, engineFuel, weapons, warnings, orbital)
+     * @param {boolean} value - true to show, false to hide
+     */
+    function setToggle(key, value) {
+        if (key in _toggles) _toggles[key] = !!value;
+    }
+
+    /** Get current toggle states (copy). */
+    function getToggles() {
+        return Object.assign({}, _toggles);
+    }
+
     // Public API
     return {
         init,
         resize,
         render,
+        toggles: _toggles,
+        setToggle,
+        getToggles,
     };
 })();

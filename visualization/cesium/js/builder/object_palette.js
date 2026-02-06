@@ -907,13 +907,81 @@ var ObjectPalette = (function() {
 
         item.appendChild(info);
 
+        // Custom platform: add placement dropdown + edit/delete buttons
+        if (isCustom) {
+            var actions = document.createElement('div');
+            actions.className = 'palette-item-actions';
+
+            // Placement mode dropdown
+            var modeSelect = document.createElement('select');
+            modeSelect.className = 'palette-placement-mode';
+            var defaultMode = (tpl.components && tpl.components.physics &&
+                tpl.components.physics.type === 'flight3dof') ? 'aircraft' : 'spacecraft';
+            var modes = [
+                { value: 'spacecraft', label: 'Space' },
+                { value: 'aircraft', label: 'Air' },
+                { value: 'ground', label: 'Ground' }
+            ];
+            modes.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.value;
+                opt.textContent = m.label;
+                if (m.value === defaultMode) opt.selected = true;
+                modeSelect.appendChild(opt);
+            });
+            modeSelect.addEventListener('click', function(e) { e.stopPropagation(); });
+            modeSelect.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+            actions.appendChild(modeSelect);
+
+            // Edit button
+            var editBtn = document.createElement('button');
+            editBtn.className = 'palette-action-btn palette-edit-btn';
+            editBtn.innerHTML = '&#9998;';
+            editBtn.title = 'Edit platform';
+            editBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (typeof PlatformBuilder !== 'undefined') {
+                    PlatformBuilder.edit(tpl).then(function(updated) {
+                        if (typeof BuilderApp !== 'undefined') {
+                            BuilderApp.showMessage('Updated: ' + updated.name, 3000);
+                        }
+                    }).catch(function() {});
+                }
+            });
+            actions.appendChild(editBtn);
+
+            // Delete button
+            var delBtn = document.createElement('button');
+            delBtn.className = 'palette-action-btn palette-del-btn';
+            delBtn.innerHTML = '&times;';
+            delBtn.title = 'Delete platform';
+            delBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (!confirm('Delete "' + tpl.name + '"?')) return;
+                ObjectPalette.removeCustomTemplate(tpl.id);
+                if (typeof PlatformBuilder !== 'undefined') {
+                    PlatformBuilder.deleteTemplate(tpl.id);
+                }
+            });
+            actions.appendChild(delBtn);
+
+            item.appendChild(actions);
+
+            // Store reference to mode select for click handler
+            item._modeSelect = modeSelect;
+        }
+
         // Click handler
         item.addEventListener('click', function() {
             _setActive(idx);
             if (typeof BuilderApp !== 'undefined') {
                 if (isCustom) {
                     var customIdx = parseInt(String(idx).replace('custom_', ''), 10);
-                    BuilderApp.startPlacement(_customTemplates[customIdx]);
+                    var template = _customTemplates[customIdx];
+                    if (template && item._modeSelect) {
+                        template._placementMode = item._modeSelect.value;
+                    }
+                    BuilderApp.startPlacement(template);
                 } else {
                     BuilderApp.startPlacement(TEMPLATES[idx]);
                 }
@@ -1067,7 +1135,15 @@ var ObjectPalette = (function() {
             '.palette-icon { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-right: 8px; }',
             '.palette-item-info { overflow: hidden; }',
             '.palette-item-name { color: #ddd; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
-            '.palette-item-desc { color: #777; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'
+            '.palette-item-desc { color: #777; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+            '.palette-item-actions { display: flex; align-items: center; gap: 3px; margin-left: auto; flex-shrink: 0; opacity: 0; transition: opacity 0.15s; }',
+            '.palette-item:hover .palette-item-actions { opacity: 1; }',
+            '.palette-action-btn { background: none; border: 1px solid #444; color: #888; width: 20px; height: 20px; border-radius: 3px; cursor: pointer; font-size: 12px; padding: 0; line-height: 18px; text-align: center; }',
+            '.palette-action-btn:hover { border-color: #4488ff; color: #4488ff; }',
+            '.palette-del-btn:hover { border-color: #ff4444; color: #ff4444; }',
+            '.palette-placement-mode { background: #0a0a14; border: 1px solid #444; color: #aaa; font-size: 10px; padding: 1px 2px; border-radius: 3px; cursor: pointer; max-width: 60px; }',
+            '.palette-placement-mode:hover { border-color: #4488ff; }',
+            '.palette-item-info { overflow: hidden; flex: 1; min-width: 0; }'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -1133,6 +1209,24 @@ var ObjectPalette = (function() {
             _customTemplates.push(template);
             _render();
             console.log('[ObjectPalette] Added custom template:', template.name);
+        },
+
+        /**
+         * Update an existing custom platform template (replace by id).
+         * @param {object} template - The updated platform definition
+         */
+        updateCustomTemplate: function(template) {
+            for (var i = 0; i < _customTemplates.length; i++) {
+                if (_customTemplates[i].id === template.id) {
+                    _customTemplates[i] = template;
+                    _render();
+                    return true;
+                }
+            }
+            // Not found — add instead
+            _customTemplates.push(template);
+            _render();
+            return false;
         },
 
         /**

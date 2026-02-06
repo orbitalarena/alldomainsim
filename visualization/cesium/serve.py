@@ -28,6 +28,7 @@ import urllib.error
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 SCENARIOS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scenarios')
+SIMS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sims')
 
 # DIS multicast configuration
 DIS_CONFIG = {
@@ -100,6 +101,8 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_export()
         elif self.path == '/api/save_replay':
             self._handle_save_replay()
+        elif self.path == '/api/sim/save':
+            self._handle_sim_save()
         elif self.path == '/api/dis_export':
             self._handle_dis_export()
         elif self.path == '/api/dis_poll':
@@ -112,10 +115,20 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/api/dis_config':
             self._handle_dis_config_get()
+        elif self.path == '/api/sim/list':
+            self._handle_sim_list()
+        elif self.path == '/api/models/list':
+            self._handle_models_list()
         elif self.path.startswith('/api/mc/'):
             self._proxy_mc_get(self.path)
         else:
             super().do_GET()
+
+    def do_DELETE(self):
+        if self.path.startswith('/api/sim/delete/'):
+            self._handle_sim_delete()
+        else:
+            self.send_error(404, 'Not found')
 
     def do_PUT(self):
         if self.path == '/api/dis_config':
@@ -298,6 +311,117 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._json_response(500, {'error': str(e)})
 
+    def _handle_sim_save(self):
+        """Save a .sim file (scenario snapshot from builder)."""
+        try:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            payload = json.loads(body)
+
+            scenario = payload.get('scenario')
+            name = payload.get('name', '')
+
+            if not scenario or not isinstance(scenario, dict):
+                self._json_response(400, {'error': 'Missing scenario object'})
+                return
+
+            if not name:
+                name = 'untitled'
+            filename = sanitize_filename(name) + '.sim'
+            filepath = os.path.join(SIMS_DIR, filename)
+
+            os.makedirs(SIMS_DIR, exist_ok=True)
+
+            with open(filepath, 'w') as f:
+                json.dump(scenario, f, indent=2)
+
+            self._json_response(200, {
+                'ok': True,
+                'filename': filename,
+                'path': 'sims/' + filename
+            })
+
+            print(f'  Sim saved: {filepath}')
+
+        except json.JSONDecodeError:
+            self._json_response(400, {'error': 'Invalid JSON'})
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
+    def _handle_sim_list(self):
+        """List all .sim files in the sims directory."""
+        try:
+            os.makedirs(SIMS_DIR, exist_ok=True)
+            sims = []
+            for f in sorted(os.listdir(SIMS_DIR)):
+                if not f.endswith('.sim'):
+                    continue
+                filepath = os.path.join(SIMS_DIR, f)
+                stat = os.stat(filepath)
+                # Read scenario to extract metadata
+                meta = {}
+                entity_count = 0
+                try:
+                    with open(filepath, 'r') as fh:
+                        data = json.load(fh)
+                        meta = data.get('metadata', {})
+                        entity_count = len(data.get('entities', []))
+                except Exception:
+                    pass
+                sims.append({
+                    'filename': f,
+                    'path': 'sims/' + f,
+                    'name': meta.get('name', f.replace('.sim', '')),
+                    'entityCount': entity_count,
+                    'size': stat.st_size,
+                    'modified': stat.st_mtime,
+                })
+            self._json_response(200, {'sims': sims})
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
+    def _handle_sim_delete(self):
+        """Delete a .sim file."""
+        try:
+            # Extract filename from path: /api/sim/delete/{filename}
+            parts = self.path.split('/')
+            if len(parts) < 5 or parts[3] != 'delete':
+                self._json_response(400, {'error': 'Invalid path'})
+                return
+            filename = parts[4]
+            if not filename.endswith('.sim'):
+                self._json_response(400, {'error': 'Not a .sim file'})
+                return
+            filepath = os.path.join(SIMS_DIR, filename)
+            if not os.path.exists(filepath):
+                self._json_response(404, {'error': 'File not found'})
+                return
+            os.remove(filepath)
+            self._json_response(200, {'ok': True, 'deleted': filename})
+            print(f'  Sim deleted: {filepath}')
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
+    def _handle_models_list(self):
+        """List all .glb/.gltf model files in the models directory."""
+        try:
+            models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+            os.makedirs(models_dir, exist_ok=True)
+            models = []
+            for f in sorted(os.listdir(models_dir)):
+                if not (f.endswith('.glb') or f.endswith('.gltf')):
+                    continue
+                filepath = os.path.join(models_dir, f)
+                stat = os.stat(filepath)
+                models.append({
+                    'filename': f,
+                    'path': 'models/' + f,
+                    'size': stat.st_size,
+                })
+            self._json_response(200, {'models': models})
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
     def _handle_dis_config_get(self):
         """Return current DIS configuration."""
         self._json_response(200, DIS_CONFIG)
@@ -347,6 +471,7 @@ if __name__ == '__main__':
         print(f'  DIS Export:  POST /api/dis_export')
         print(f'  DIS Config:  GET/PUT /api/dis_config')
         print(f'  DIS Relay:   POST /api/dis_poll → UDP {DIS_CONFIG["multicastGroup"]}:{DIS_CONFIG["multicastPort"]}')
+        print(f'  Sim Files:   POST /api/sim/save | GET /api/sim/list | DELETE /api/sim/delete/{{name}}')
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

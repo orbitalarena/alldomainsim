@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Sim - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
+    <script src="lib/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+        }
+
+        #hudCanvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(10, 15, 10, 0.85);
+            border: 1px solid #00aa00;
+            border-radius: 4px;
+            padding: 10px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 20;
+            pointer-events: auto;
+        }
+
+        #flightDataPanel { top: 70px; left: 10px; width: 200px; }
+        #systemsPanel { top: 70px; right: 10px; width: 210px; }
+
+        #orbitalPanel {
+            top: 70px; right: 230px; width: 220px;
+            border-color: #0088ff;
+            display: none;
+        }
+        #orbitalPanel h3 { color: #44aaff; border-bottom-color: #003366; }
+        #orbitalPanel .data-label { color: #0088cc; }
+        #orbitalPanel .data-value { color: #44ccff; }
+
+        #entityListPanel {
+            bottom: 10px; right: 10px; width: 220px;
+            max-height: 200px; overflow-y: auto;
+        }
+
+        #controlsHelp {
+            bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            max-width: 800px;
+            display: none;
+        }
+
+        #statusBar {
+            top: 5px; left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #modeIndicator {
+            position: absolute;
+            top: 40px; left: 50%;
+            transform: translateX(-50%);
+            color: #44ccff;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            z-index: 20;
+            pointer-events: none;
+            display: none;
+        }
+
+        .panel h3 {
+            color: #00ff88;
+            font-size: 11px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #005500;
+            padding-bottom: 3px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+            line-height: 1.4;
+        }
+
+        .data-label { color: #00aa00; }
+        .data-value { color: #00ff00; text-align: right; }
+        .data-value.warn { color: #ffff00; }
+        .data-value.alert { color: #ff3333; }
+        .data-value.blue { color: #44ccff; }
+
+        .key-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 2px 10px;
+        }
+        .key { color: #00ffff; font-weight: bold; }
+        .key-desc { color: #00aa00; }
+
+        .entity-row {
+            margin: 2px 0;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .entity-name { color: #00ff00; }
+        .entity-type { color: #006600; font-size: 10px; }
+
+        /* ===================== SPLASH SCREEN ===================== */
+        #splashOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 5, 15, 0.95);
+            z-index: 300;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 60px;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+            overflow-y: auto;
+        }
+
+        #splashOverlay h1 {
+            font-size: 42px;
+            color: #44aaff;
+            text-shadow: 0 0 30px rgba(68, 170, 255, 0.6);
+            margin-bottom: 8px;
+            letter-spacing: 4px;
+        }
+
+        #splashOverlay .splash-subtitle {
+            color: #006600;
+            font-size: 13px;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+
+        #splashOverlay .splash-section-title {
+            color: #00ff88;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #003300;
+            padding-bottom: 6px;
+            width: 600px;
+            max-width: 90vw;
+        }
+
+        #splashOverlay .splash-status {
+            color: #00aa00;
+            font-size: 13px;
+            margin: 10px 0;
+        }
+
+        #splashOverlay .splash-error {
+            color: #ff3333;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .sim-card {
+            width: 600px;
+            max-width: 90vw;
+            background: rgba(0, 30, 0, 0.6);
+            border: 1px solid #004400;
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin: 6px 0;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .sim-card:hover {
+            border-color: #00ff00;
+            background: rgba(0, 60, 0, 0.5);
+        }
+        .sim-card.selected {
+            border-color: #44aaff;
+            background: rgba(0, 40, 80, 0.5);
+            box-shadow: 0 0 12px rgba(68, 170, 255, 0.3);
+        }
+        .sim-card-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #44aaff;
+            margin-bottom: 4px;
+        }
+        .sim-card-meta {
+            font-size: 11px;
+            color: #006600;
+        }
+        .sim-card-meta span { margin-right: 14px; }
+
+        .entity-card {
+            width: 600px;
+            max-width: 90vw;
+            background: rgba(0, 30, 0, 0.6);
+            border: 1px solid #004400;
+            border-radius: 6px;
+            padding: 12px 18px;
+            margin: 4px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .entity-card:hover {
+            border-color: #00ff00;
+            background: rgba(0, 60, 0, 0.5);
+        }
+        .entity-card.selected {
+            border-color: #44aaff;
+            background: rgba(0, 40, 80, 0.5);
+            box-shadow: 0 0 12px rgba(68, 170, 255, 0.3);
+        }
+        .entity-card .team-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .entity-card-info { flex: 1; }
+        .entity-card-name { font-size: 14px; font-weight: bold; color: #00ff00; }
+        .entity-card-detail { font-size: 11px; color: #006600; margin-top: 2px; }
+        .entity-card-physics {
+            font-size: 10px; color: #44aaff;
+            background: rgba(68, 170, 255, 0.15);
+            padding: 2px 8px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        .splash-btn {
+            background: rgba(0, 100, 0, 0.5);
+            border: 1px solid #00aa00;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 10px 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 20px 6px;
+            letter-spacing: 1px;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .splash-btn:hover {
+            background: rgba(0, 160, 0, 0.5);
+            border-color: #00ff00;
+        }
+        .splash-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .splash-btn.primary {
+            background: rgba(0, 60, 120, 0.6);
+            border-color: #44aaff;
+            color: #44aaff;
+            font-size: 16px;
+            padding: 12px 40px;
+        }
+        .splash-btn.primary:hover {
+            background: rgba(0, 80, 160, 0.6);
+            border-color: #88ccff;
+        }
+
+        .splash-back-link {
+            color: #005500;
+            font-size: 11px;
+            cursor: pointer;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .splash-back-link:hover { color: #00aa00; }
+
+        .splash-empty {
+            color: #444;
+            font-size: 13px;
+            margin: 20px 0;
+            font-style: italic;
+        }
+
+        /* ===================== LOADING OVERLAY ===================== */
+        #loadingOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 250;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+        }
+
+        #loadingOverlay h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #44aaff;
+            text-shadow: 0 0 20px rgba(68, 170, 255, 0.5);
+        }
+
+        #loadingStatus { color: #00aa00; font-size: 14px; }
+        #loadingError { color: #ff3333; font-size: 14px; margin-top: 10px; display: none; }
+
+        #msgOverlay {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+            z-index: 50;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* ===================== SETTINGS GEAR ===================== */
+        #settingsBtn {
+            position: absolute;
+            top: 8px; right: 10px;
+            width: 32px; height: 32px;
+            background: rgba(10, 15, 10, 0.7);
+            border: 1px solid #005500;
+            border-radius: 4px;
+            color: #00aa00;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 30;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: border-color 0.15s;
+        }
+        #settingsBtn:hover { border-color: #00ff00; color: #00ff00; }
+        #settingsBtn.open { border-color: #44aaff; color: #44aaff; }
+
+        #settingsDropdown {
+            position: absolute;
+            top: 44px; right: 10px;
+            background: rgba(10, 15, 10, 0.92);
+            border: 1px solid #00aa00;
+            border-radius: 4px;
+            padding: 8px 0;
+            z-index: 30;
+            display: none;
+            min-width: 190px;
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #005500 transparent;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        #settingsDropdown.open { display: block; }
+
+        .settings-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 14px;
+            cursor: pointer;
+            color: #00aa00;
+            gap: 8px;
+            transition: background 0.1s;
+        }
+        .settings-item:hover { background: rgba(0, 60, 0, 0.5); }
+        .settings-item .settings-check {
+            width: 14px; height: 14px;
+            border: 1px solid #005500;
+            border-radius: 2px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; color: #00ff00;
+            flex-shrink: 0;
+        }
+        .settings-item.active .settings-check {
+            border-color: #00ff00;
+            background: rgba(0, 100, 0, 0.4);
+        }
+        .settings-item .settings-label { flex: 1; }
+        .settings-item .settings-key {
+            color: #006600; font-size: 10px;
+        }
+        .settings-sep {
+            height: 1px;
+            background: #003300;
+            margin: 4px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    <canvas id="hudCanvas"></canvas>
+
+    <!-- Status Bar -->
+    <div id="statusBar" class="panel" style="display:none">
+        <span id="playerNameDisplay">---</span> |
+        <span id="simTime">0:00</span> |
+        <span id="timeWarpDisplay">1x</span> |
+        <span id="pauseStatus">RUNNING</span> |
+        <span id="propModeDisplay">---</span> |
+        <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span>
+    </div>
+
+    <!-- Mode Indicator -->
+    <div id="modeIndicator">PLANNER MODE - Press M to return to cockpit</div>
+
+    <!-- Flight Data Panel (Left) -->
+    <div id="flightDataPanel" class="panel" style="display:none">
+        <h3>Flight Data</h3>
+        <div class="data-row"><span class="data-label">IAS</span><span class="data-value" id="fdIAS">0 KT</span></div>
+        <div class="data-row"><span class="data-label">TAS</span><span class="data-value" id="fdTAS">0 KT</span></div>
+        <div class="data-row"><span class="data-label">Mach</span><span class="data-value" id="fdMach">0.00</span></div>
+        <div class="data-row"><span class="data-label">V Inertial</span><span class="data-value" id="fdVInertial">---</span></div>
+        <div class="data-row"><span class="data-label">ALT MSL</span><span class="data-value" id="fdAlt">0 FT</span></div>
+        <div class="data-row"><span class="data-label">ALT AGL</span><span class="data-value" id="fdAGL">0 FT</span></div>
+        <div class="data-row"><span class="data-label">HDG</span><span class="data-value" id="fdHdg">000</span></div>
+        <div class="data-row"><span class="data-label">VS</span><span class="data-value" id="fdVS">0 FPM</span></div>
+        <div class="data-row"><span class="data-label">G-Load</span><span class="data-value" id="fdG">1.0</span></div>
+        <div class="data-row"><span class="data-label">AoA</span><span class="data-value" id="fdAoA">0.0</span></div>
+        <div class="data-row"><span class="data-label">Throttle</span><span class="data-value" id="fdThr">0%</span></div>
+        <div class="data-row"><span class="data-label">Orb V%</span><span class="data-value" id="fdOrbV">0%</span></div>
+        <div class="data-row"><span class="data-label">Dyn Q</span><span class="data-value" id="fdDynQ">---</span></div>
+        <div class="data-row"><span class="data-label">Lat</span><span class="data-value" id="fdLat">0.0000</span></div>
+        <div class="data-row"><span class="data-label">Lon</span><span class="data-value" id="fdLon">0.0000</span></div>
+    </div>
+
+    <!-- Systems Panel (Right) -->
+    <div id="systemsPanel" class="panel" style="display:none">
+        <h3>Systems</h3>
+        <div class="data-row"><span class="data-label">Engine</span><span class="data-value" id="sysEngine">OFF</span></div>
+        <div class="data-row"><span class="data-label">Propulsion</span><span class="data-value" id="sysProp">---</span></div>
+        <div class="data-row"><span class="data-label">Gear</span><span class="data-value" id="sysGear">DOWN</span></div>
+        <div class="data-row"><span class="data-label">Flaps</span><span class="data-value" id="sysFlaps">UP</span></div>
+        <div class="data-row"><span class="data-label">Brakes</span><span class="data-value" id="sysBrakes">OFF</span></div>
+        <div class="data-row"><span class="data-label">Regime</span><span class="data-value" id="sysRegime">ATMOSPHERIC</span></div>
+
+        <h3 style="margin-top:10px">Autopilot</h3>
+        <div class="data-row"><span class="data-label">Status</span><span class="data-value" id="apStatus">OFF</span></div>
+        <div class="data-row"><span class="data-label">Mode</span><span class="data-value" id="apMode">---</span></div>
+        <div class="data-row"><span class="data-label">Target ALT</span><span class="data-value" id="apAlt">---</span></div>
+        <div class="data-row"><span class="data-label">Target HDG</span><span class="data-value" id="apHdg">---</span></div>
+        <div class="data-row"><span class="data-label">Target SPD</span><span class="data-value" id="apSpd">---</span></div>
+
+        <h3 style="margin-top:10px">Camera</h3>
+        <div class="data-row"><span class="data-label">Mode</span><span class="data-value" id="camMode">CHASE</span></div>
+    </div>
+
+    <!-- Orbital Elements Panel -->
+    <div id="orbitalPanel" class="panel">
+        <h3>Orbital Elements</h3>
+        <div class="data-row"><span class="data-label">Apoapsis</span><span class="data-value" id="orbAP">---</span></div>
+        <div class="data-row"><span class="data-label">Periapsis</span><span class="data-value" id="orbPE">---</span></div>
+        <div class="data-row"><span class="data-label">Incl</span><span class="data-value" id="orbINC">---</span></div>
+        <div class="data-row"><span class="data-label">Ecc</span><span class="data-value" id="orbECC">---</span></div>
+        <div class="data-row"><span class="data-label">SMA</span><span class="data-value" id="orbSMA">---</span></div>
+        <div class="data-row"><span class="data-label">Period</span><span class="data-value" id="orbPeriod">---</span></div>
+        <div class="data-row"><span class="data-label">T to AP</span><span class="data-value" id="orbTAP">---</span></div>
+        <div class="data-row"><span class="data-label">T to PE</span><span class="data-value" id="orbTPE">---</span></div>
+        <h3 style="margin-top:10px">Maneuver Node</h3>
+        <div class="data-row"><span class="data-label">dV</span><span class="data-value" id="nodeDV">---</span></div>
+        <div class="data-row"><span class="data-label">Burn T</span><span class="data-value" id="nodeBurnT">---</span></div>
+        <div class="data-row"><span class="data-label">Post AP</span><span class="data-value" id="nodePostAP">---</span></div>
+        <div class="data-row"><span class="data-label">Post PE</span><span class="data-value" id="nodePostPE">---</span></div>
+    </div>
+
+    <!-- Entity List Panel (Bottom Right) -->
+    <div id="entityListPanel" class="panel" style="display:none">
+        <h3>Entities</h3>
+        <div id="entityListInner"></div>
+    </div>
+
+    <!-- Controls Help (Bottom, toggled with H) -->
+    <div id="controlsHelp" class="panel">
+        <h3>Controls (Press H to hide)</h3>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="key-grid">
+                <span class="key">W / S</span><span class="key-desc">Throttle up/down</span>
+                <span class="key">Down / Up</span><span class="key-desc">Pitch up/down</span>
+                <span class="key">Left / Right</span><span class="key-desc">Roll left/right</span>
+                <span class="key">Q / D</span><span class="key-desc">Yaw left/right</span>
+                <span class="key">E</span><span class="key-desc">Engine start/stop</span>
+                <span class="key">G</span><span class="key-desc">Toggle gear</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">F</span><span class="key-desc">Toggle flaps</span>
+                <span class="key">B</span><span class="key-desc">Wheel brakes</span>
+                <span class="key">Esc</span><span class="key-desc">Pause</span>
+                <span class="key">A</span><span class="key-desc">Toggle autopilot</span>
+                <span class="key">C</span><span class="key-desc">Cycle camera</span>
+                <span class="key">M</span><span class="key-desc">Toggle planner mode</span>
+                <span class="key">P</span><span class="key-desc">Cycle propulsion mode</span>
+                <span class="key">T / Shift+T</span><span class="key-desc">Trim nose up/down</span>
+            </div>
+            <div class="key-grid">
+                <span class="key" style="color:#00ffff">Combat:</span><span class="key-desc"></span>
+                <span class="key">Space</span><span class="key-desc">Fire / activate weapon</span>
+                <span class="key">W</span><span class="key-desc">Cycle weapon</span>
+                <span class="key">V</span><span class="key-desc">Cycle sensor</span>
+            </div>
+            <div class="key-grid">
+                <span class="key">+ / -</span><span class="key-desc">Time warp</span>
+                <span class="key">H</span><span class="key-desc">Toggle controls help</span>
+                <span class="key">N</span><span class="key-desc">Create maneuver node</span>
+                <span class="key">Del</span><span class="key-desc">Delete maneuver node</span>
+                <span class="key">Enter</span><span class="key-desc">Execute maneuver node</span>
+                <span class="key">1 / 2 / 3</span><span class="key-desc">Toggle panels</span>
+                <span class="key">O</span><span class="key-desc">Toggle orbital panel</span>
+                <span class="key">Tab</span><span class="key-desc">Hide/show all panels</span>
+            </div>
+            <div class="key-grid">
+                <span class="key" style="color:#ff8800">Planner:</span><span class="key-desc"></span>
+                <span class="key">W/S</span><span class="key-desc">Prograde/Retrograde</span>
+                <span class="key">A/D</span><span class="key-desc">Normal/Anti-normal</span>
+                <span class="key">Q/E</span><span class="key-desc">Radial in/out</span>
+                <span class="key">Up/Dn</span><span class="key-desc">Adjust node dV</span>
+                <span class="key">Lt/Rt</span><span class="key-desc">Move node time</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Gear -->
+    <div id="settingsBtn">&#9881;</div>
+    <div id="settingsDropdown">
+        <div class="settings-item active" data-panel="flightData">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Flight Data</span>
+            <span class="settings-key">1</span>
+        </div>
+        <div class="settings-item active" data-panel="systems">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Systems</span>
+            <span class="settings-key">2</span>
+        </div>
+        <div class="settings-item" data-panel="orbital">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Orbital Elements</span>
+            <span class="settings-key">O</span>
+        </div>
+        <div class="settings-item active" data-panel="entityList">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Entity List</span>
+            <span class="settings-key">3</span>
+        </div>
+        <div class="settings-item" data-panel="help">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Controls Help</span>
+            <span class="settings-key">H</span>
+        </div>
+        <div class="settings-sep"></div>
+        <div class="settings-item active" data-panel="statusBar">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Status Bar</span>
+        </div>
+        <div class="settings-sep"></div>
+        <div style="padding:3px 14px;color:#006600;font-size:10px;text-transform:uppercase;letter-spacing:1px;">HUD Elements</div>
+        <div class="settings-item active" data-hud="hud">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">HUD (master)</span>
+        </div>
+        <div class="settings-item active" data-hud="speedTape">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Speed Tape</span>
+        </div>
+        <div class="settings-item active" data-hud="altTape">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Altitude Tape</span>
+        </div>
+        <div class="settings-item active" data-hud="heading">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Heading</span>
+        </div>
+        <div class="settings-item active" data-hud="pitchLadder">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Pitch Ladder</span>
+        </div>
+        <div class="settings-item active" data-hud="fpm">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Flight Path Marker</span>
+        </div>
+        <div class="settings-item active" data-hud="gMeter">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">G-Meter</span>
+        </div>
+        <div class="settings-item active" data-hud="engineFuel">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Engine / Fuel</span>
+        </div>
+        <div class="settings-item active" data-hud="weapons">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Weapons / Target</span>
+        </div>
+        <div class="settings-item active" data-hud="warnings">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Warnings / Status</span>
+        </div>
+        <div class="settings-item active" data-hud="orbital">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Orbital / Navball</span>
+        </div>
+    </div>
+
+    <!-- ===================== SPLASH SCREEN ===================== -->
+    <div id="splashOverlay">
+        <h1>LIVE SIM</h1>
+        <div class="splash-subtitle">ALL-DOMAIN SIMULATION</div>
+
+        <!-- Step 1: Select sim file -->
+        <div id="splashStep1">
+            <div class="splash-section-title">Select Scenario</div>
+            <div id="simFileList"></div>
+            <div id="simFileStatus" class="splash-status">Loading sim files...</div>
+        </div>
+
+        <!-- Step 2: Select entity -->
+        <div id="splashStep2" style="display:none">
+            <div class="splash-back-link" id="btnBackToSims">&lt; Back to scenario list</div>
+            <div class="splash-section-title">Select Your Entity</div>
+            <div id="entityPickList"></div>
+            <div id="entityPickStatus" class="splash-status"></div>
+            <button class="splash-btn primary" id="btnLaunchCockpit" disabled>LAUNCH</button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay (shown during scenario build) -->
+    <div id="loadingOverlay">
+        <h1>LIVE SIM</h1>
+        <div id="loadingStatus">Initializing...</div>
+        <div id="loadingError"></div>
+    </div>
+
+    <!-- Temporary Message Overlay -->
+    <div id="msgOverlay"></div>
+
+    <!-- Scripts: Cesium config -->
+    <script src="cesium_config.js"></script>
+
+    <!-- Scripts: Standalone sim modules (reused) -->
+    <script src="js/fighter_atmosphere.js"></script>
+    <script src="js/fighter_sim_engine.js"></script>
+    <script src="js/fighter_hud.js"></script>
+    <script src="js/fighter_autopilot.js"></script>
+    <script src="js/fighter_weapons.js"></script>
+    <script src="js/spaceplane_orbital.js"></script>
+    <script src="js/spaceplane_hud.js"></script>
+    <script src="js/spaceplane_planner.js"></script>
+    <script src="js/gamepad_input.js"></script>
+
+    <!-- Scripts: ECS Framework -->
+    <script src="js/framework/constants.js"></script>
+    <script src="js/framework/sim_rng.js"></script>
+    <script src="js/framework/ecs.js"></script>
+    <script src="js/framework/registry.js"></script>
+    <script src="js/framework/sensor_system.js"></script>
+    <script src="js/framework/weapon_system.js"></script>
+    <script src="js/framework/event_system.js"></script>
+    <script src="js/framework/systems.js"></script>
+    <script src="js/framework/tle_parser.js"></script>
+    <script src="js/framework/loader.js"></script>
+
+    <!-- Scripts: ECS Components -->
+    <script src="js/components/physics/flight3dof.js"></script>
+    <script src="js/components/physics/orbital_2body.js"></script>
+    <script src="js/builder/sensor_view_mode.js"></script>
+    <script src="js/components/control/player_input.js"></script>
+    <script src="js/components/ai/waypoint_patrol.js"></script>
+    <script src="js/components/ai/intercept.js"></script>
+    <script src="js/components/ai/orbital_combat.js"></script>
+    <script src="js/components/sensors/radar.js"></script>
+    <script src="js/components/weapons/sam_battery.js"></script>
+    <script src="js/components/weapons/fighter_loadout.js"></script>
+    <script src="js/components/weapons/a2a_missile.js"></script>
+    <script src="js/components/weapons/kinetic_kill.js"></script>
+    <script src="js/components/visual/cesium_entity.js"></script>
+    <script src="js/components/visual/satellite_visual.js"></script>
+    <script src="js/components/visual/ground_station.js"></script>
+    <script src="js/components/visual/radar_coverage.js"></script>
+
+    <!-- Scripts: Live Sim Engine -->
+    <script src="js/live_sim_engine.js"></script>
+
+    <script>
+    // =========================================================================
+    // LIVE SIM VIEWER — SPLASH SCREEN + MAIN
+    // =========================================================================
+    'use strict';
+
+    (function() {
+        var _params = new URLSearchParams(window.location.search);
+        var _preselectedSim = _params.get('sim');      // e.g. "my_scenario.sim"
+        var _preselectedScenario = _params.get('scenario'); // legacy: direct scenario path
+        var _preselectedPlayer = _params.get('player');
+
+        var _selectedSimPath = null;
+        var _selectedPlayerId = null;
+        var _scenarioJson = null;
+        var _viewer = null;
+
+        // =====================================================================
+        // Splash Step 1: Load sim file list
+        // =====================================================================
+        function initSplash() {
+            // If legacy ?scenario= param is used, skip splash and go straight to launch
+            if (_preselectedScenario) {
+                _selectedSimPath = _preselectedScenario;
+                if (_preselectedPlayer) {
+                    _selectedPlayerId = _preselectedPlayer;
+                    launchSim();
+                } else {
+                    // Load scenario to show entity picker
+                    loadScenarioForEntityPick(_preselectedScenario);
+                }
+                return;
+            }
+
+            // If ?sim= param, pre-select that sim file
+            if (_preselectedSim) {
+                _selectedSimPath = 'sims/' + _preselectedSim;
+                loadScenarioForEntityPick(_selectedSimPath);
+                return;
+            }
+
+            // Normal flow: fetch sim list
+            loadSimList();
+        }
+
+        function loadSimList() {
+            var statusEl = document.getElementById('simFileStatus');
+            var listEl = document.getElementById('simFileList');
+            statusEl.textContent = 'Loading sim files...';
+
+            fetch('/api/sim/list')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        statusEl.textContent = '';
+                        statusEl.innerHTML = '<span class="splash-error">' + data.error + '</span>';
+                        return;
+                    }
+
+                    var sims = data.sims || [];
+                    if (sims.length === 0) {
+                        statusEl.textContent = '';
+                        listEl.innerHTML = '<div class="splash-empty">No sim files found. ' +
+                            'Use the Scenario Builder to create and save sims.</div>';
+                        // Also show built-in scenario files
+                        loadBuiltinScenarios(listEl, statusEl);
+                        return;
+                    }
+
+                    statusEl.textContent = sims.length + ' sim file' + (sims.length > 1 ? 's' : '') + ' available';
+                    renderSimList(sims, listEl);
+
+                    // Also append built-in scenarios section
+                    loadBuiltinScenarios(listEl, null);
+                })
+                .catch(function(err) {
+                    statusEl.textContent = '';
+                    statusEl.innerHTML = '<span class="splash-error">Failed to load: ' + err.message + '</span>';
+                    // Fallback: show built-in scenarios
+                    loadBuiltinScenarios(listEl, statusEl);
+                });
+        }
+
+        function renderSimList(sims, container) {
+            var html = '';
+            for (var i = 0; i < sims.length; i++) {
+                var sim = sims[i];
+                var dateStr = sim.modified ? new Date(sim.modified * 1000).toLocaleDateString() : '';
+                var sizeStr = sim.size > 1024 ? (sim.size / 1024).toFixed(0) + ' KB' : sim.size + ' B';
+                html += '<div class="sim-card" data-path="' + sim.path + '">' +
+                    '<div class="sim-card-name">' + _escHtml(sim.name) + '</div>' +
+                    '<div class="sim-card-meta">' +
+                        '<span>' + sim.entityCount + ' entities</span>' +
+                        '<span>' + sizeStr + '</span>' +
+                        '<span>' + dateStr + '</span>' +
+                    '</div>' +
+                '</div>';
+            }
+            container.innerHTML = html + container.innerHTML;
+
+            // Bind clicks
+            var cards = container.querySelectorAll('.sim-card');
+            for (var j = 0; j < cards.length; j++) {
+                cards[j].addEventListener('click', function() {
+                    var path = this.getAttribute('data-path');
+                    _selectedSimPath = path;
+                    loadScenarioForEntityPick(path);
+                });
+            }
+        }
+
+        function loadBuiltinScenarios(container, statusEl) {
+            // Offer some built-in scenario files as fallback
+            var builtins = [
+                { name: 'IADS Engagement', path: 'scenarios/demo_iads_engagement.json', entities: 10 },
+                { name: 'Strike Package', path: 'scenarios/template_strike_package.json', entities: 8 },
+                { name: 'Multi-Domain', path: 'scenarios/demo_multi_domain.json', entities: 9 },
+                { name: 'GPS Coverage', path: 'scenarios/template_gps_coverage.json', entities: 10 },
+                { name: 'Contested Orbit', path: 'scenarios/template_contested_orbit.json', entities: 7 },
+            ];
+
+            var heading = document.createElement('div');
+            heading.className = 'splash-section-title';
+            heading.style.marginTop = '24px';
+            heading.textContent = 'Built-in Scenarios';
+            container.appendChild(heading);
+
+            for (var i = 0; i < builtins.length; i++) {
+                var b = builtins[i];
+                var card = document.createElement('div');
+                card.className = 'sim-card';
+                card.setAttribute('data-path', b.path);
+                card.innerHTML = '<div class="sim-card-name">' + _escHtml(b.name) + '</div>' +
+                    '<div class="sim-card-meta"><span>~' + b.entities + ' entities</span><span>built-in</span></div>';
+                container.appendChild(card);
+
+                card.addEventListener('click', (function(path) {
+                    return function() {
+                        _selectedSimPath = path;
+                        loadScenarioForEntityPick(path);
+                    };
+                })(b.path));
+            }
+
+            if (statusEl) statusEl.textContent = '';
+        }
+
+        // =====================================================================
+        // Splash Step 2: Load scenario and show entity picker
+        // =====================================================================
+        function loadScenarioForEntityPick(path) {
+            document.getElementById('splashStep1').style.display = 'none';
+            document.getElementById('splashStep2').style.display = 'block';
+
+            var statusEl = document.getElementById('entityPickStatus');
+            var listEl = document.getElementById('entityPickList');
+            var launchBtn = document.getElementById('btnLaunchCockpit');
+
+            statusEl.textContent = 'Loading scenario...';
+            listEl.innerHTML = '';
+            launchBtn.disabled = true;
+            _selectedPlayerId = null;
+
+            fetch(path)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function(json) {
+                    _scenarioJson = json;
+
+                    var entities = json.entities || [];
+                    if (entities.length === 0) {
+                        statusEl.innerHTML = '<span class="splash-error">No entities in scenario</span>';
+                        return;
+                    }
+
+                    // Find entities with physics (controllable)
+                    var controllable = [];
+                    var others = [];
+                    for (var i = 0; i < entities.length; i++) {
+                        var ent = entities[i];
+                        var comps = ent.components || {};
+                        var physType = comps.physics && comps.physics.type;
+                        if (physType === 'flight3dof' || physType === 'orbital_2body') {
+                            controllable.push(ent);
+                        } else {
+                            others.push(ent);
+                        }
+                    }
+
+                    if (controllable.length === 0) {
+                        statusEl.innerHTML = '<span class="splash-error">No controllable entities found (need flight3dof or orbital_2body physics)</span>';
+                        return;
+                    }
+
+                    statusEl.textContent = controllable.length + ' controllable, ' + others.length + ' AI/static';
+                    renderEntityPicker(controllable, listEl, launchBtn);
+                })
+                .catch(function(err) {
+                    statusEl.innerHTML = '<span class="splash-error">Failed to load: ' + err.message + '</span>';
+                });
+        }
+
+        function renderEntityPicker(entities, container, launchBtn) {
+            var html = '';
+            for (var i = 0; i < entities.length; i++) {
+                var ent = entities[i];
+                var comps = ent.components || {};
+                var physType = comps.physics ? comps.physics.type : 'none';
+                var physConfig = comps.physics && comps.physics.config ? comps.physics.config : '';
+                var teamColor = ent.team === 'blue' ? '#4488ff' :
+                    ent.team === 'red' ? '#ff4444' : '#888888';
+                var physLabel = physType === 'flight3dof' ? (physConfig || 'aircraft').toUpperCase() :
+                    physType === 'orbital_2body' ? 'ORBITAL' : physType.toUpperCase();
+
+                var detailParts = [ent.team || 'neutral'];
+                if (ent.type) detailParts.push(ent.type);
+                // Show custom propulsion info
+                if (ent._custom && ent._custom.propulsion) {
+                    var modes = [];
+                    var p = ent._custom.propulsion;
+                    if (p.air) modes.push('Air');
+                    if (p.hypersonic) modes.push('Hyper');
+                    if (p.rocket) modes.push('Rocket');
+                    if (p.ion) modes.push('Ion');
+                    if (p.rcs) modes.push('RCS');
+                    if (modes.length) detailParts.push(modes.join('/'));
+                }
+                // Show weapons info
+                if (ent._custom && ent._custom.payloads) {
+                    var plds = ent._custom.payloads;
+                    var wpns = [];
+                    if (plds.a2a) wpns.push('A2A');
+                    if (plds.a2g) wpns.push('A2G');
+                    if (plds.kkv) wpns.push('KKV');
+                    if (plds.nuclear_warhead) wpns.push('NUCLEAR');
+                    if (wpns.length) detailParts.push(wpns.join('/'));
+                }
+
+                html += '<div class="entity-card" data-id="' + _escHtml(ent.id) + '">' +
+                    '<div class="team-dot" style="background:' + teamColor + '"></div>' +
+                    '<div class="entity-card-info">' +
+                        '<div class="entity-card-name">' + _escHtml(ent.name || ent.id) + '</div>' +
+                        '<div class="entity-card-detail">' + detailParts.join(' | ') + '</div>' +
+                    '</div>' +
+                    '<div class="entity-card-physics">' + physLabel + '</div>' +
+                '</div>';
+            }
+            container.innerHTML = html;
+
+            // Bind clicks — single selection
+            var cards = container.querySelectorAll('.entity-card');
+            for (var j = 0; j < cards.length; j++) {
+                cards[j].addEventListener('click', function() {
+                    // Deselect all
+                    for (var k = 0; k < cards.length; k++) cards[k].classList.remove('selected');
+                    // Select this one
+                    this.classList.add('selected');
+                    _selectedPlayerId = this.getAttribute('data-id');
+                    launchBtn.disabled = false;
+                });
+            }
+
+            // Auto-select if only one
+            if (entities.length === 1) {
+                cards[0].classList.add('selected');
+                _selectedPlayerId = entities[0].id;
+                launchBtn.disabled = false;
+            }
+        }
+
+        // =====================================================================
+        // Launch
+        // =====================================================================
+        function launchSim() {
+            // Hide splash, show loading
+            document.getElementById('splashOverlay').style.display = 'none';
+            var loadEl = document.getElementById('loadingOverlay');
+            loadEl.style.display = 'flex';
+            document.getElementById('loadingStatus').textContent = 'Building scenario...';
+
+            // Init Cesium viewer
+            try {
+                _viewer = new Cesium.Viewer('cesiumContainer', {
+                    baseLayerPicker: true,
+                    geocoder: false,
+                    homeButton: false,
+                    sceneModePicker: false,
+                    navigationHelpButton: false,
+                    animation: false,
+                    timeline: false,
+                    fullscreenButton: false,
+                    vrButton: false,
+                    infoBox: false,
+                    selectionIndicator: false,
+                    shadows: false,
+                    shouldAnimate: true,
+                });
+
+                if (typeof setupTerrain === 'function') setupTerrain(_viewer);
+                if (typeof setupImagery === 'function') setupImagery(_viewer);
+                if (typeof addArcGISProviders === 'function') addArcGISProviders(_viewer);
+                _viewer.scene.globe.enableLighting = true;
+            } catch (e) {
+                _showLoadError('Cesium initialization failed: ' + e.message);
+                return;
+            }
+
+            document.getElementById('loadingStatus').textContent = 'Initializing sim engine...';
+
+            LiveSimEngine.init(_selectedSimPath, _selectedPlayerId, _viewer)
+                .then(function(info) {
+                    document.title = info.playerName + ' - Live Sim';
+                    document.getElementById('playerNameDisplay').textContent = info.playerName;
+                    document.getElementById('loadingStatus').textContent =
+                        'Ready: ' + info.playerName + ' (' + info.entityCount + ' entities)';
+
+                    return new Promise(function(r) { setTimeout(r, 400); });
+                })
+                .then(function() {
+                    // Hide loading, show cockpit UI via settings-aware method
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    LiveSimEngine.showUI();
+
+                    // Wire up game loop
+                    _viewer.clock.onTick.addEventListener(function() {
+                        LiveSimEngine.tick();
+                    });
+                })
+                .catch(function(e) {
+                    _showLoadError(e.message);
+                    console.error(e);
+                });
+        }
+
+        function _showLoadError(msg) {
+            var errEl = document.getElementById('loadingError');
+            if (errEl) {
+                errEl.textContent = msg;
+                errEl.style.display = 'block';
+            }
+            document.getElementById('loadingStatus').textContent = 'Failed';
+        }
+
+        // =====================================================================
+        // Event bindings
+        // =====================================================================
+
+        // Back button
+        document.getElementById('btnBackToSims').addEventListener('click', function() {
+            document.getElementById('splashStep2').style.display = 'none';
+            document.getElementById('splashStep1').style.display = 'block';
+            _selectedSimPath = null;
+            _selectedPlayerId = null;
+            _scenarioJson = null;
+        });
+
+        // Launch button
+        document.getElementById('btnLaunchCockpit').addEventListener('click', function() {
+            if (!_selectedSimPath || !_selectedPlayerId) return;
+            launchSim();
+        });
+
+        // =====================================================================
+        // Helpers
+        // =====================================================================
+        function _escHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        // =====================================================================
+        // Start
+        // =====================================================================
+        initSplash();
+    })();
+    </script>
+</body>
+</html>

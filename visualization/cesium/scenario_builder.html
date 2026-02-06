@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
     <script src="lib/Cesium/Cesium.js"></script>
     <script src="lib/chart.umd.min.js"></script>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 
     <style>
         /* ================================================================
@@ -269,6 +270,43 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        /* Custom platform action buttons */
+        .custom-actions {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            margin-left: auto;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .custom-palette-item:hover .custom-actions { opacity: 1; }
+        .custom-action-btn {
+            background: none;
+            border: 1px solid #334;
+            color: #688;
+            width: 20px; height: 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0;
+            line-height: 18px;
+            text-align: center;
+        }
+        .custom-action-btn:hover { border-color: #4a9eff; color: #4a9eff; }
+        .custom-del-btn:hover { border-color: #ff4444; color: #ff4444; }
+        .custom-placement-mode {
+            background: #0c1220;
+            border: 1px solid #334;
+            color: #8aa;
+            font-size: 10px;
+            padding: 1px 2px;
+            border-radius: 3px;
+            cursor: pointer;
+            max-width: 60px;
+        }
+        .custom-placement-mode:hover { border-color: #4a9eff; }
 
         #placementStatus {
             flex-shrink: 0;
@@ -1293,6 +1331,11 @@
                     <button class="demo-dropdown-item" id="btnExportDIS">
                         <div class="demo-item-name" style="color:#ff6688;">Export DIS</div>
                         <div class="demo-item-desc">IEEE 1278 binary PDU file for DIS federation</div>
+                    </button>
+                    <div class="demo-dropdown-sep"></div>
+                    <button class="demo-dropdown-item" id="btnLaunchSim">
+                        <div class="demo-item-name" style="color:#44aaff;">Launch Sim</div>
+                        <div class="demo-item-desc">Cockpit view with HUD, weapons, and AI entities</div>
                     </button>
                 </div>
             </div>

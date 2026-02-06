@@ -463,7 +463,7 @@ const TLEParser = (function() {
             (coeff1 * pos[2] - rdotv * vel[2]) / MU
         ];
         var ecc = _vecMag(e_vec);
-        if (ecc >= 1.0) return [];
+        if (ecc >= 0.99) return [];  // near-parabolic/hyperbolic — no closed orbit
 
         // Orbital elements
         var inc = Math.acos(_clamp(h[2] / hMag, -1, 1));
@@ -509,6 +509,8 @@ const TLEParser = (function() {
 
         var n_mean = Math.sqrt(MU / (sma * sma * sma));
         var period = TWO_PI / n_mean;
+        // Reject orbits with period > 30 days (would create enormous position arrays)
+        if (!isFinite(period) || period > 2592000) return [];
         var gmst = OMEGA_EARTH * simTime;
 
         var positions = [];

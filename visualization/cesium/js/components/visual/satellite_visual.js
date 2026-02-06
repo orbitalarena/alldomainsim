@@ -44,6 +44,11 @@
             this._groundTrackPositions = [];
             this._apPosition = null;
             this._pePosition = null;
+            // Model orientation
+            this._modelHeadingOffset = 0;
+            this._modelPitchOffset = 0;
+            this._modelRollOffset = 0;
+            this._cachedOrientation = null;
             // Stagger updates across satellites to avoid frame spikes
             this._updateOffset = Math.floor(Math.random() * ORBIT_UPDATE_INTERVAL);
             this._frameCounter = 0;
@@ -67,8 +72,8 @@
             }
             this._color = color;
 
-            // 1. Point marker + label
-            this._pointEntity = viewer.entities.add({
+            // 1. Point marker + label (+ optional 3D model)
+            var pointEntityOpts = {
                 name: entity.name,
                 position: new Cesium.CallbackProperty(function() {
                     return Cesium.Cartesian3.fromRadians(state.lon, state.lat, state.alt);
@@ -92,7 +97,30 @@
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     scale: 0.85
                 }
-            });
+            };
+
+            // 3D Model rendering (optional — from Platform Builder model selection)
+            if (cfg.model) {
+                self._modelHeadingOffset = (cfg.modelHeading || 0) * Math.PI / 180;
+                self._modelPitchOffset = (cfg.modelPitch || 0) * Math.PI / 180;
+                self._modelRollOffset = (cfg.modelRoll || 0) * Math.PI / 180;
+
+                pointEntityOpts.orientation = new Cesium.CallbackProperty(function() {
+                    return self._cachedOrientation || Cesium.Quaternion.IDENTITY;
+                }, false);
+
+                pointEntityOpts.model = {
+                    uri: cfg.model,
+                    minimumPixelSize: 32,
+                    maximumScale: (cfg.modelScale || 1.0) * 500,
+                    scale: cfg.modelScale || 1.0,
+                };
+
+                // Reduce point size when model is present
+                pointEntityOpts.point.pixelSize = 4;
+            }
+
+            this._pointEntity = viewer.entities.add(pointEntityOpts);
 
             // 2. Orbit path polyline
             if (cfg.orbitPath !== false) {
@@ -188,10 +216,47 @@
         update(dt, world) {
             this._frameCounter++;
 
+            // Update model orientation from ECI velocity (every frame for smooth rotation)
+            if (this.config.model) {
+                this._updateModelOrientation();
+            }
+
             // Stagger orbit path updates across satellites
             if ((this._frameCounter + this._updateOffset) % ORBIT_UPDATE_INTERVAL === 0) {
                 this._computeOrbitPath(world);
             }
+        }
+
+        _updateModelOrientation() {
+            var state = this.entity.state;
+            var vel = state._eci_vel;
+            if (!vel) return;
+
+            var lat = state.lat, lon = state.lon;
+            var sinLat = Math.sin(lat), cosLat = Math.cos(lat);
+            var sinLon = Math.sin(lon), cosLon = Math.cos(lon);
+
+            // ENU basis vectors at geodetic position
+            var eE = [-sinLon, cosLon, 0];
+            var eN = [-sinLat * cosLon, -sinLat * sinLon, cosLat];
+            var eU = [cosLat * cosLon, cosLat * sinLon, sinLat];
+
+            // Project ECI velocity into ENU
+            var vE = vel[0] * eE[0] + vel[1] * eE[1] + vel[2] * eE[2];
+            var vN = vel[0] * eN[0] + vel[1] * eN[1] + vel[2] * eN[2];
+            var vU = vel[0] * eU[0] + vel[1] * eU[1] + vel[2] * eU[2];
+
+            var heading = Math.atan2(vE, vN);
+            var vHoriz = Math.sqrt(vE * vE + vN * vN);
+            var pitch = Math.atan2(vU, vHoriz);
+
+            var h = heading + this._modelHeadingOffset;
+            var p = pitch + this._modelPitchOffset;
+            var r = this._modelRollOffset;
+
+            var pos = Cesium.Cartesian3.fromRadians(state.lon, state.lat, state.alt);
+            var hpr = new Cesium.HeadingPitchRoll(h, p, r);
+            this._cachedOrientation = Cesium.Transforms.headingPitchRollQuaternion(pos, hpr);
         }
 
         _computeOrbitPath(world) {

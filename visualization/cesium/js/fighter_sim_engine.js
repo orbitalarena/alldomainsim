@@ -80,10 +80,10 @@ const FighterSimEngine = (function() {
         tsfc_mil: 0.022,     tsfc_ab: 0.058,
 
         // HYPERSONIC mode (Mach 2-10): scramjet-like, no density lapse, works everywhere
-        thrust_hypersonic: 400000,  // N (flat, no lapse)
+        thrust_hypersonic: 800000,  // N (flat, no lapse)
 
         // ROCKET mode (Mach 10+): massive thrust for orbit insertion
-        thrust_rocket: 2000000,  // N (2 MN — dramatic kick)
+        thrust_rocket: 5000000,  // N (5 MN — dramatic kick)
 
         // Structural
         max_g: 6.0,  min_g: -2.0,
@@ -742,8 +742,8 @@ const FighterSimEngine = (function() {
             const pitchRate = controls.pitch * config.max_pitch_rate;
             state.alpha += pitchRate * dt;
         } else if (!inVacuum) {
-            // Trim to ~2° AoA for level flight (disabled in vacuum)
-            const trimAlpha = 2 * DEG;
+            // Trim to configured AoA for level flight (disabled in vacuum)
+            const trimAlpha = (state.trimAlpha !== undefined) ? state.trimAlpha : 2 * DEG;
             state.alpha += (trimAlpha - state.alpha) * 1.5 * dt;
         }
 

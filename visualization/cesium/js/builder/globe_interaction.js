@@ -134,8 +134,18 @@ const GlobeInteraction = (function() {
 
         var latLon = _cartesianToLatLon(cartesian);
 
+        // Check explicit placement mode (from custom platform dropdown)
+        var placementMode = template._placementMode;
+        if (placementMode === 'ground') {
+            return _placeGround(latLon, template);
+        }
+        if (placementMode === 'aircraft') {
+            return _placeAircraft(latLon, template);
+        }
+        // placementMode === 'spacecraft' falls through to satellite path
+
         // Satellite placement: show COE dialog
-        if (_isSatelliteTemplate(template) && typeof SatelliteDialog !== 'undefined') {
+        if ((placementMode === 'spacecraft' || _isSatelliteTemplate(template)) && typeof SatelliteDialog !== 'undefined') {
             // Exit placement mode immediately so cursor resets
             BuilderApp.cancelPlacement();
 
@@ -206,6 +216,80 @@ const GlobeInteraction = (function() {
         BuilderApp.selectEntity(newId);
 
         // Exit placement mode (one-shot)
+        BuilderApp.cancelPlacement();
+    }
+
+    // -------------------------------------------------------------------
+    // Placement Helpers (Ground / Aircraft)
+    // -------------------------------------------------------------------
+
+    /**
+     * Place a ground entity at the clicked surface position.
+     */
+    function _placeGround(latLon, template) {
+        var entityDef = {
+            id: (template.type || 'ground') + '_' + Date.now(),
+            name: template.name || 'Ground Station',
+            type: template.type || 'ground_station',
+            team: template.team || 'neutral',
+            initialState: {
+                lat: latLon.lat,
+                lon: latLon.lon,
+                alt: 0,
+                speed: 0,
+                heading: 0,
+                gamma: 0,
+                throttle: 0,
+                engineOn: false,
+                infiniteFuel: false
+            },
+            components: Object.assign({}, template.components || {}, {
+                physics: null // No physics — static entity
+            })
+        };
+
+        var newId = BuilderApp.addEntity(entityDef);
+        BuilderApp.selectEntity(newId);
+        BuilderApp.cancelPlacement();
+    }
+
+    /**
+     * Place an aircraft entity at the clicked position with default flight params.
+     */
+    function _placeAircraft(latLon, template) {
+        var atmo = (template._custom && template._custom.physics && template._custom.physics.atmospheric) || {};
+        var config = atmo.config || 'f16';
+        var alt = atmo.alt || 5000;
+        var speed = atmo.speed || 200;
+        var heading = atmo.heading || 90;
+
+        var entityDef = {
+            id: (template.type || 'aircraft') + '_' + Date.now(),
+            name: template.name || 'Aircraft',
+            type: template.type || 'aircraft',
+            team: template.team || 'neutral',
+            initialState: {
+                lat: latLon.lat,
+                lon: latLon.lon,
+                alt: alt,
+                speed: speed,
+                heading: heading,
+                gamma: 0,
+                throttle: 0.6,
+                engineOn: true,
+                infiniteFuel: true
+            },
+            components: Object.assign({}, template.components || {}, {
+                physics: {
+                    type: 'flight3dof',
+                    config: config
+                },
+                control: { type: 'player_input' }
+            })
+        };
+
+        var newId = BuilderApp.addEntity(entityDef);
+        BuilderApp.selectEntity(newId);
         BuilderApp.cancelPlacement();
     }
 

@@ -122,6 +122,9 @@ const ScenarioLoader = (function() {
             state: state
         });
 
+        // Preserve original definition for runtime access (propulsion modes, _custom, etc.)
+        entity.def = def;
+
         // Attach components from JSON
         const comps = def.components || {};
         for (const category in comps) {
