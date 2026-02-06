@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Maneuver Planner - All Domain Sim</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.104/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            font-family: 'Consolas', 'Courier New', monospace;
+            color: #c8cdd5;
+        }
+
+        /* ---- Layout ---- */
+        #app { display: flex; width: 100%; height: 100%; }
+
+        #leftPanel {
+            width: 420px; min-width: 420px; height: 100%;
+            background: #0d1320;
+            border-right: 1px solid #1e2a42;
+            overflow-y: auto; overflow-x: hidden;
+            z-index: 10;
+        }
+
+        #rightPanel {
+            flex: 1; height: 100%; position: relative;
+        }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+        }
+
+        /* ---- Scrollbar ---- */
+        #leftPanel::-webkit-scrollbar { width: 6px; }
+        #leftPanel::-webkit-scrollbar-track { background: #0a0e17; }
+        #leftPanel::-webkit-scrollbar-thumb { background: #1e2a42; border-radius: 3px; }
+        #leftPanel::-webkit-scrollbar-thumb:hover { background: #2a3a5a; }
+
+        /* ---- Panel header ---- */
+        .panel-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #1e2a42;
+            background: linear-gradient(135deg, #0d1320 0%, #141c2e 100%);
+            position: sticky; top: 0; z-index: 10;
+        }
+        .panel-header h1 {
+            font-size: 15px; font-weight: 600; color: #e8ecf2;
+            letter-spacing: -0.3px;
+        }
+        .panel-header h1 span { color: #4a9eff; }
+        .panel-header .subtitle {
+            font-size: 10px; color: #6b7a90; margin-top: 3px;
+            text-transform: uppercase; letter-spacing: 0.8px;
+        }
+
+        /* ---- Sections ---- */
+        .section {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1e2a42;
+        }
+        .section-title {
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            margin-bottom: 10px; display: flex;
+            align-items: center; gap: 8px;
+        }
+        .section-title .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            display: inline-block;
+        }
+        .section-title.blue { color: #4a9eff; }
+        .section-title.blue .dot { background: #4a9eff; }
+        .section-title.green { color: #10b981; }
+        .section-title.green .dot { background: #10b981; }
+        .section-title.gold { color: #f59e0b; }
+        .section-title.gold .dot { background: #f59e0b; }
+        .section-title.orange { color: #f97316; }
+        .section-title.orange .dot { background: #f97316; }
+        .section-title.cyan { color: #4af0ff; }
+        .section-title.cyan .dot { background: #4af0ff; }
+
+        /* ---- Field grid ---- */
+        .field-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+        }
+        .field-grid.two-col {
+            grid-template-columns: 1fr 1fr;
+        }
+        .field {
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .field label {
+            font-size: 9px; color: #6b7a90;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .field input {
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            color: #c8cdd5; padding: 5px 6px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px; width: 100%;
+            outline: none; transition: border-color 0.15s;
+            -moz-appearance: textfield;
+        }
+        .field input::-webkit-inner-spin-button { -webkit-appearance: none; }
+        .field input:focus { border-color: #4a9eff; }
+
+        /* ---- Preset buttons ---- */
+        .preset-row {
+            display: flex; flex-wrap: wrap;
+            gap: 4px; margin-top: 8px;
+        }
+        .preset-btn {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            color: #6b7a90;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 10px; padding: 3px 8px;
+            cursor: pointer; transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .preset-btn:hover {
+            background: #1a2a3c;
+            border-color: #4a9eff;
+            color: #c8cdd5;
+        }
+        .preset-btn.active {
+            background: #1a3050;
+            border-color: #4a9eff;
+            color: #4a9eff;
+        }
+
+        /* ---- Computed displays ---- */
+        .computed-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 3px 10px; margin-top: 8px;
+            padding: 6px 8px; background: rgba(0,0,0,0.25);
+            border-radius: 4px; border: 1px solid #131a2a;
+        }
+        .computed-item {
+            display: flex; justify-content: space-between;
+            font-size: 10px;
+        }
+        .computed-item .clabel { color: #6b7a90; }
+        .computed-item .cvalue { color: #c8cdd5; font-weight: 600; }
+
+        /* ---- Compute button ---- */
+        .compute-btn {
+            width: 100%; padding: 10px;
+            background: linear-gradient(135deg, #1a3a5c, #0d2240);
+            border: 1px solid #4a9eff;
+            border-radius: 4px; color: #4a9eff;
+            font-size: 13px; font-weight: 700;
+            font-family: 'Consolas', 'Courier New', monospace;
+            cursor: pointer; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 1.5px;
+        }
+        .compute-btn:hover {
+            background: linear-gradient(135deg, #234a70, #163050);
+            color: #6ab8ff;
+            box-shadow: 0 0 15px rgba(74,158,255,0.2);
+        }
+        .compute-btn:active { transform: scale(0.98); }
+
+        /* ---- Result cards ---- */
+        .result-card {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 4px; margin: 6px 0;
+            padding: 10px 12px;
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .result-card:hover { border-color: #4a9eff; }
+        .result-card.selected {
+            border-color: #4a9eff;
+            box-shadow: 0 0 8px rgba(74,158,255,0.15);
+        }
+        .rc-title {
+            font-size: 12px; font-weight: 700; color: #e8ecf2;
+            margin-bottom: 6px; display: flex;
+            justify-content: space-between; align-items: center;
+        }
+        .badge {
+            font-size: 9px; font-weight: 700;
+            padding: 1px 6px; border-radius: 2px;
+            letter-spacing: 0.3px; text-transform: uppercase;
+        }
+        .badge.best {
+            background: #064e3b;
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+        .rc-row {
+            display: flex; justify-content: space-between;
+            font-size: 11px; padding: 2px 0;
+        }
+        .rc-row .rc-label { color: #6b7a90; }
+        .rc-row .rc-value { color: #c8cdd5; }
+        .dv-green { color: #10b981 !important; }
+        .dv-yellow { color: #f59e0b !important; }
+        .dv-red { color: #ef4444 !important; }
+        .rc-note {
+            font-size: 10px; color: #6b7a90;
+            font-style: italic; padding: 2px 0;
+        }
+        .rc-burns {
+            display: flex; gap: 4px;
+            margin-top: 6px; flex-wrap: wrap;
+        }
+        .rc-burn {
+            font-size: 10px; padding: 2px 6px;
+            border-radius: 2px; border: 1px solid;
+        }
+        .rc-burn.b1 { background: rgba(74,158,255,0.1); border-color: #4a9eff; color: #4a9eff; }
+        .rc-burn.b2 { background: rgba(16,185,129,0.1); border-color: #10b981; color: #10b981; }
+        .rc-burn.b3 { background: rgba(245,158,11,0.1); border-color: #f59e0b; color: #f59e0b; }
+        .fuel-bar-bg {
+            margin-top: 6px; background: #0a0e17;
+            border-radius: 2px; height: 6px; overflow: hidden;
+        }
+        .fuel-bar { height: 100%; border-radius: 2px; transition: width 0.3s; }
+        .fuel-ok { background: #10b981; }
+        .fuel-warn { background: #f59e0b; }
+        .fuel-bad { background: #ef4444; }
+        .fuel-info {
+            display: flex; justify-content: space-between;
+            font-size: 10px; margin-top: 2px;
+        }
+        .fuel-info .fi-left { color: #6b7a90; }
+        .fuel-info .fi-right { font-weight: 600; }
+
+        /* ---- Chart ---- */
+        #chartSection { padding: 12px 16px; }
+        #dvChart {
+            width: 100%; height: 160px;
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+        }
+
+        .no-results {
+            text-align: center; color: #3a4a60;
+            font-size: 12px; padding: 24px 16px;
+        }
+
+        /* ---- Orbit info overlay ---- */
+        #orbitInfo {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(13,19,32,0.9);
+            border: 1px solid #1e2a42;
+            border-radius: 4px; padding: 10px 14px;
+            z-index: 100; font-size: 11px; min-width: 200px;
+        }
+        #orbitInfo h4 {
+            font-size: 11px; color: #4a9eff;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .oi-row {
+            display: flex; justify-content: space-between; padding: 1px 0;
+        }
+        .oi-row .oi-label { color: #6b7a90; }
+        .oi-row .oi-value { color: #c8cdd5; }
+
+        /* ---- Legend overlay ---- */
+        #legend {
+            position: absolute; bottom: 10px; left: 10px;
+            background: rgba(13,19,32,0.9);
+            border: 1px solid #1e2a42;
+            border-radius: 4px; padding: 10px 14px;
+            z-index: 100; font-size: 11px;
+        }
+        .legend-item {
+            display: flex; align-items: center;
+            gap: 8px; padding: 2px 0;
+        }
+        .legend-swatch {
+            width: 18px; height: 3px; border-radius: 1px;
+        }
+
+        /* ---- Cesium overrides ---- */
+        .cesium-viewer-bottom { display: none !important; }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 900px) {
+            #app { flex-direction: column; }
+            #leftPanel {
+                width: 100%; min-width: unset;
+                height: 50%; border-right: none;
+                border-bottom: 1px solid #1e2a42;
+            }
+            #rightPanel { height: 50%; }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <!-- ============================================ -->
+    <!-- LEFT PANEL                                   -->
+    <!-- ============================================ -->
+    <div id="leftPanel">
+        <div class="panel-header">
+            <h1><span>ORBITAL</span> MANEUVER PLANNER</h1>
+            <div class="subtitle">Transfer orbit calculator with 3D visualization</div>
+        </div>
+
+        <!-- Source Orbit -->
+        <div class="section" id="sectionSource">
+            <div class="section-title blue"><span class="dot"></span> Source Orbit</div>
+            <div class="field-grid">
+                <div class="field">
+                    <label>SMA (km)</label>
+                    <input type="number" id="srcSMA" value="6771" step="1">
+                </div>
+                <div class="field">
+                    <label>Eccentricity</label>
+                    <input type="number" id="srcEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                </div>
+                <div class="field">
+                    <label>Inc (deg)</label>
+                    <input type="number" id="srcInc" value="51.6" step="0.1">
+                </div>
+                <div class="field">
+                    <label>RAAN (deg)</label>
+                    <input type="number" id="srcRAAN" value="0" step="1">
+                </div>
+                <div class="field">
+                    <label>Arg Pe (deg)</label>
+                    <input type="number" id="srcArgPe" value="0" step="1">
+                </div>
+                <div class="field">
+                    <label>True Anom (deg)</label>
+                    <input type="number" id="srcTA" value="0" step="1">
+                </div>
+            </div>
+            <div class="computed-grid" id="srcComputed">
+                <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="srcPeDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="srcApDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="srcPeriodDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="srcVcircDisp">--</span></div>
+            </div>
+            <div class="preset-row" id="srcPresets">
+                <button class="preset-btn" data-preset="leo">LEO 400km</button>
+                <button class="preset-btn" data-preset="sunsync">Sun-Sync</button>
+                <button class="preset-btn" data-preset="gto">GTO</button>
+                <button class="preset-btn" data-preset="geo">GEO</button>
+            </div>
+        </div>
+
+        <!-- Target Orbit -->
+        <div class="section" id="sectionTarget">
+            <div class="section-title green"><span class="dot"></span> Target Orbit</div>
+            <div class="field-grid">
+                <div class="field">
+                    <label>SMA (km)</label>
+                    <input type="number" id="tgtSMA" value="42164" step="1">
+                </div>
+                <div class="field">
+                    <label>Eccentricity</label>
+                    <input type="number" id="tgtEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                </div>
+                <div class="field">
+                    <label>Inc (deg)</label>
+                    <input type="number" id="tgtInc" value="0" step="0.1">
+                </div>
+                <div class="field">
+                    <label>RAAN (deg)</label>
+                    <input type="number" id="tgtRAAN" value="0" step="1">
+                </div>
+                <div class="field">
+                    <label>Arg Pe (deg)</label>
+                    <input type="number" id="tgtArgPe" value="0" step="1">
+                </div>
+                <div class="field">
+                    <label>True Anom (deg)</label>
+                    <input type="number" id="tgtTA" value="0" step="1">
+                </div>
+            </div>
+            <div class="computed-grid" id="tgtComputed">
+                <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="tgtPeDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="tgtApDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="tgtPeriodDisp">--</span></div>
+                <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="tgtVcircDisp">--</span></div>
+            </div>
+            <div class="preset-row" id="tgtPresets">
+                <button class="preset-btn" data-preset="iss">ISS</button>
+                <button class="preset-btn" data-preset="gps">GPS</button>
+                <button class="preset-btn" data-preset="geo">GEO</button>
+                <button class="preset-btn" data-preset="molniya">Molniya</button>
+                <button class="preset-btn" data-preset="lunar">Lunar</button>
+            </div>
+        </div>
+
+        <!-- Spacecraft Parameters -->
+        <div class="section" id="sectionSpacecraft">
+            <div class="section-title gold"><span class="dot"></span> Spacecraft</div>
+            <div class="field-grid two-col">
+                <div class="field">
+                    <label>Dry Mass (kg)</label>
+                    <input type="number" id="scDryMass" value="1000" step="10" min="1">
+                </div>
+                <div class="field">
+                    <label>Fuel Mass (kg)</label>
+                    <input type="number" id="scFuelMass" value="500" step="10" min="0">
+                </div>
+                <div class="field">
+                    <label>Isp (s)</label>
+                    <input type="number" id="scIsp" value="320" step="1" min="1">
+                </div>
+                <div class="field">
+                    <label>Thrust (N)</label>
+                    <input type="number" id="scThrust" value="50000" step="100" min="0">
+                </div>
+            </div>
+            <div class="preset-row" id="scPresets">
+                <button class="preset-btn" data-preset="smallsat">Small Sat</button>
+                <button class="preset-btn" data-preset="leobus">LEO Bus</button>
+                <button class="preset-btn" data-preset="geoplatform">GEO Platform</button>
+                <button class="preset-btn" data-preset="ion">Ion Thruster</button>
+            </div>
+        </div>
+
+        <!-- Bielliptic Options -->
+        <div class="section">
+            <div class="section-title orange"><span class="dot"></span> Bielliptic Options</div>
+            <div class="field-grid two-col">
+                <div class="field">
+                    <label>Intermediate R Mult</label>
+                    <input type="number" id="biellipticMult" value="2.0" step="0.1" min="1.01">
+                </div>
+                <div class="field">
+                    <label>Intermediate Alt (km)</label>
+                    <input type="number" id="biellipticAlt" value="0" readonly style="color:#6b7a90;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Compute Button -->
+        <div class="section" style="border-bottom:none; padding-top:8px;">
+            <button class="compute-btn" id="btnCompute">COMPUTE TRANSFERS</button>
+        </div>
+
+        <!-- Results -->
+        <div class="section" id="resultsSection" style="display:none;">
+            <div class="section-title cyan"><span class="dot"></span> Transfer Results</div>
+            <div id="resultsContainer"></div>
+        </div>
+
+        <!-- Delta-V Chart -->
+        <div id="chartSection" style="display:none;">
+            <div class="section">
+                <div class="section-title blue"><span class="dot"></span> Delta-V Budget</div>
+                <canvas id="dvChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- RIGHT PANEL (Cesium)                        -->
+    <!-- ============================================ -->
+    <div id="rightPanel">
+        <div id="cesiumContainer"></div>
+
+        <div id="orbitInfo">
+            <h4>Orbit Summary</h4>
+            <div class="oi-row"><span class="oi-label">Source Pe</span><span class="oi-value" id="oiSrcPe">--</span></div>
+            <div class="oi-row"><span class="oi-label">Source Ap</span><span class="oi-value" id="oiSrcAp">--</span></div>
+            <div class="oi-row"><span class="oi-label">Target Pe</span><span class="oi-value" id="oiTgtPe">--</span></div>
+            <div class="oi-row"><span class="oi-label">Target Ap</span><span class="oi-value" id="oiTgtAp">--</span></div>
+            <div class="oi-row"><span class="oi-label">Plane Change</span><span class="oi-value" id="oiPlaneChange">--</span></div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-item">
+                <span class="legend-swatch" style="background:#4a9eff;"></span>
+                <span>Source Orbit</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch" style="background:#10b981;"></span>
+                <span>Target Orbit</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch" style="background:#f59e0b;"></span>
+                <span>Transfer Orbit</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch" style="background:#ef4444;"></span>
+                <span>Burn Location</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// =========================================================================
+// CONSTANTS
+// =========================================================================
+var MU = 3.986004418e14;    // m^3/s^2
+var R_EARTH = 6371000;      // m
+var g0 = 9.80665;           // m/s^2
+var DEG = Math.PI / 180;
+var RAD = 180 / Math.PI;
+var TWO_PI = 2 * Math.PI;
+
+// =========================================================================
+// PRESETS
+// =========================================================================
+var SRC_PRESETS = {
+    leo:     { sma: 6771,  ecc: 0.0001, inc: 51.6, raan: 0, argPe: 0, ta: 0 },
+    sunsync: { sma: 7078,  ecc: 0.001,  inc: 98.2, raan: 0, argPe: 0, ta: 0 },
+    gto:     { sma: 24364, ecc: 0.7306, inc: 28.5, raan: 0, argPe: 180, ta: 0 },
+    geo:     { sma: 42164, ecc: 0.0001, inc: 0,    raan: 0, argPe: 0, ta: 0 }
+};
+
+var TGT_PRESETS = {
+    iss:     { sma: 6791,   ecc: 0.0002, inc: 51.6, raan: 0, argPe: 0, ta: 0 },
+    gps:     { sma: 26571,  ecc: 0.001,  inc: 55.0, raan: 0, argPe: 0, ta: 0 },
+    geo:     { sma: 42164,  ecc: 0.0001, inc: 0,    raan: 0, argPe: 0, ta: 0 },
+    molniya: { sma: 26600,  ecc: 0.74,   inc: 63.4, raan: 0, argPe: 270, ta: 0 },
+    lunar:   { sma: 390771, ecc: 0.001,  inc: 28.5, raan: 0, argPe: 0, ta: 0 }
+};
+
+var SC_PRESETS = {
+    smallsat:    { dry: 100,  fuel: 50,   isp: 220,  thrust: 5000 },
+    leobus:      { dry: 500,  fuel: 200,  isp: 320,  thrust: 50000 },
+    geoplatform: { dry: 2000, fuel: 1500, isp: 320,  thrust: 100000 },
+    ion:         { dry: 500,  fuel: 100,  isp: 3000, thrust: 0.5 }
+};
+
+// =========================================================================
+// INPUT HELPERS
+// =========================================================================
+function readOrbit(prefix) {
+    return {
+        sma:   parseFloat(document.getElementById(prefix + 'SMA').value) * 1000,
+        ecc:   parseFloat(document.getElementById(prefix + 'Ecc').value),
+        inc:   parseFloat(document.getElementById(prefix + 'Inc').value) * DEG,
+        raan:  parseFloat(document.getElementById(prefix + 'RAAN').value) * DEG,
+        argPe: parseFloat(document.getElementById(prefix + 'ArgPe').value) * DEG,
+        ta:    parseFloat(document.getElementById(prefix + 'TA').value) * DEG
+    };
+}
+
+function readSpacecraft() {
+    return {
+        dryMass:  parseFloat(document.getElementById('scDryMass').value),
+        fuelMass: parseFloat(document.getElementById('scFuelMass').value),
+        isp:      parseFloat(document.getElementById('scIsp').value),
+        thrust:   parseFloat(document.getElementById('scThrust').value)
+    };
+}
+
+function applyOrbitPreset(prefix, presets, key) {
+    var p = presets[key];
+    if (!p) return;
+    document.getElementById(prefix + 'SMA').value = p.sma;
+    document.getElementById(prefix + 'Ecc').value = p.ecc;
+    document.getElementById(prefix + 'Inc').value = p.inc;
+    document.getElementById(prefix + 'RAAN').value = p.raan;
+    document.getElementById(prefix + 'ArgPe').value = p.argPe;
+    document.getElementById(prefix + 'TA').value = p.ta;
+    updateComputedDisplay(prefix);
+    updateBiellipticAlt();
+}
+
+function applyScPreset(key) {
+    var p = SC_PRESETS[key];
+    if (!p) return;
+    document.getElementById('scDryMass').value = p.dry;
+    document.getElementById('scFuelMass').value = p.fuel;
+    document.getElementById('scIsp').value = p.isp;
+    document.getElementById('scThrust').value = p.thrust;
+}
+
+function highlightPreset(container, key) {
+    var btns = container.querySelectorAll('.preset-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-preset') === key);
+    }
+}
+
+function updateBiellipticAlt() {
+    var tgtSMA = parseFloat(document.getElementById('tgtSMA').value) || 42164;
+    var mult = parseFloat(document.getElementById('biellipticMult').value) || 2.0;
+    var altKm = (tgtSMA * mult) - R_EARTH / 1000;
+    document.getElementById('biellipticAlt').value = Math.round(altKm);
+}
+
+// =========================================================================
+// ORBITAL MECHANICS (pure math, no Cesium)
+// =========================================================================
+function periapsis(sma, ecc) { return sma * (1 - ecc); }
+function apoapsis(sma, ecc)  { return sma * (1 + ecc); }
+
+function visViva(r, a) {
+    var v2 = MU * (2.0 / r - 1.0 / a);
+    return v2 > 0 ? Math.sqrt(v2) : 0;
+}
+
+function orbitalPeriod(sma) {
+    return TWO_PI * Math.sqrt(sma * sma * sma / MU);
+}
+
+function orbitNormal(inc, raan) {
+    return [
+        Math.sin(inc) * Math.sin(raan),
+        -Math.sin(inc) * Math.cos(raan),
+        Math.cos(inc)
+    ];
+}
+
+function planeChangeAngle(src, tgt) {
+    var n1 = orbitNormal(src.inc, src.raan);
+    var n2 = orbitNormal(tgt.inc, tgt.raan);
+    var dot = n1[0]*n2[0] + n1[1]*n2[1] + n1[2]*n2[2];
+    dot = Math.max(-1, Math.min(1, dot));
+    return Math.acos(dot);
+}
+
+function fuelRequired(dv, dryMass, isp) {
+    return dryMass * (Math.exp(dv / (g0 * isp)) - 1);
+}
+
+function formatTime(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '--';
+    var d = Math.floor(seconds / 86400);
+    var h = Math.floor((seconds % 86400) / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm ' + Math.floor(seconds % 60) + 's';
+}
+
+function formatDV(dv) {
+    if (dv < 1) return dv.toFixed(3) + ' m/s';
+    if (dv < 10000) return dv.toFixed(1) + ' m/s';
+    return (dv / 1000).toFixed(3) + ' km/s';
+}
+
+function formatAltKm(r_m) {
+    return ((r_m - R_EARTH) / 1000).toFixed(1) + ' km';
+}
+
+// =========================================================================
+// TRANSFER COMPUTATIONS
+// =========================================================================
+
+// 1. Hohmann Transfer
+function hohmannTransfer(src, tgt) {
+    var r1 = src.sma;
+    var r2 = tgt.sma;
+    var aT = (r1 + r2) / 2;
+
+    var v1_circ = Math.sqrt(MU / r1);
+    var v2_circ = Math.sqrt(MU / r2);
+    var v1_trans = visViva(r1, aT);
+    var v2_trans = visViva(r2, aT);
+
+    var dv1 = Math.abs(v1_trans - v1_circ);
+    var dv2 = Math.abs(v2_circ - v2_trans);
+    var tof = Math.PI * Math.sqrt(aT * aT * aT / MU);
+
+    var isCirc = src.ecc < 0.01 && tgt.ecc < 0.01;
+    var theta = planeChangeAngle(src, tgt);
+    var isCoplanar = theta < 1 * DEG;
+
+    var note = '';
+    if (isCirc && isCoplanar) {
+        note = 'Optimal for circular coplanar orbits';
+    } else {
+        var parts = [];
+        if (!isCirc) parts.push('non-circular');
+        if (!isCoplanar) parts.push('non-coplanar');
+        note = 'Approximate (' + parts.join(', ') + ')';
+    }
+
+    return {
+        name: 'Hohmann Transfer',
+        burns: [
+            { label: 'Departure burn', dv: dv1, location: 'Source periapsis' },
+            { label: 'Arrival burn', dv: dv2, location: 'Target orbit' }
+        ],
+        dvTotal: dv1 + dv2,
+        tof: tof,
+        transferSMA: aT,
+        transferEcc: Math.abs(r2 - r1) / (r1 + r2),
+        applicable: true,
+        note: note
+    };
+}
+
+// 2. Bielliptic Transfer
+function biellipticTransfer(src, tgt) {
+    var r1 = src.sma;
+    var r2 = tgt.sma;
+    var mult = parseFloat(document.getElementById('biellipticMult').value) || 2.0;
+    var rI = Math.max(r1, r2) * mult;
+
+    var aT1 = (r1 + rI) / 2;
+    var aT2 = (rI + r2) / 2;
+
+    var v1_circ = Math.sqrt(MU / r1);
+    var v2_circ = Math.sqrt(MU / r2);
+
+    var v1_t1 = visViva(r1, aT1);
+    var vI_t1 = visViva(rI, aT1);
+    var vI_t2 = visViva(rI, aT2);
+    var v2_t2 = visViva(r2, aT2);
+
+    var dv1 = Math.abs(v1_t1 - v1_circ);
+    var dv2 = Math.abs(vI_t2 - vI_t1);
+    var dv3 = Math.abs(v2_circ - v2_t2);
+
+    var tof1 = Math.PI * Math.sqrt(aT1 * aT1 * aT1 / MU);
+    var tof2 = Math.PI * Math.sqrt(aT2 * aT2 * aT2 / MU);
+
+    var ratio = Math.max(r2, r1) / Math.min(r2, r1);
+    var note = ratio > 11.94
+        ? 'More efficient than Hohmann (r2/r1 > 11.94)'
+        : 'Less efficient than Hohmann for this ratio';
+
+    return {
+        name: 'Bielliptic Transfer',
+        burns: [
+            { label: 'Burn 1 (depart)', dv: dv1, location: 'Source periapsis' },
+            { label: 'Burn 2 (adjust)', dv: dv2, location: 'Intermediate apoapsis' },
+            { label: 'Burn 3 (circ.)', dv: dv3, location: 'Target orbit' }
+        ],
+        dvTotal: dv1 + dv2 + dv3,
+        tof: tof1 + tof2,
+        transferSMA: aT1,
+        transferEcc: (rI - r1) / (rI + r1),
+        transferSMA2: aT2,
+        transferEcc2: Math.abs(rI - r2) / (rI + r2),
+        intermediateR: rI,
+        applicable: true,
+        note: note
+    };
+}
+
+// 3. Simple Plane Change
+function simplePlaneChange(src, tgt) {
+    var theta = planeChangeAngle(src, tgt);
+
+    if (theta < 0.001 * DEG) {
+        return {
+            name: 'Simple Plane Change',
+            burns: [],
+            dvTotal: 0,
+            tof: 0,
+            applicable: false,
+            note: 'Orbits are coplanar (plane change < 0.001 deg)'
+        };
+    }
+
+    var rApo = apoapsis(src.sma, src.ecc);
+    var vApo = visViva(rApo, src.sma);
+    var vPe = visViva(periapsis(src.sma, src.ecc), src.sma);
+
+    var dvApo = 2 * vApo * Math.sin(theta / 2);
+    var dvPe = 2 * vPe * Math.sin(theta / 2);
+
+    return {
+        name: 'Simple Plane Change',
+        burns: [
+            { label: 'Plane change at apoapsis', dv: dvApo, location: 'Apoapsis / node crossing' }
+        ],
+        dvTotal: dvApo,
+        tof: orbitalPeriod(src.sma) / 2,
+        applicable: true,
+        note: 'Angle: ' + (theta * RAD).toFixed(2) + ' deg. At periapsis: ' + dvPe.toFixed(1) + ' m/s',
+        planeAngle: theta
+    };
+}
+
+// 4. Combined Hohmann + Plane Change
+function combinedTransfer(src, tgt) {
+    var r1 = src.sma;
+    var r2 = tgt.sma;
+    var theta = planeChangeAngle(src, tgt);
+
+    var aT = (r1 + r2) / 2;
+    var v1_circ = Math.sqrt(MU / r1);
+    var v2_circ = Math.sqrt(MU / r2);
+    var v1_trans = visViva(r1, aT);
+    var v2_trans = visViva(r2, aT);
+
+    // Option A: plane change at arrival (slower, cheaper)
+    var dvDepartA = Math.abs(v1_trans - v1_circ);
+    var dvArriveA = Math.sqrt(v2_circ * v2_circ + v2_trans * v2_trans - 2 * v2_circ * v2_trans * Math.cos(theta));
+    var dvA = dvDepartA + dvArriveA;
+
+    // Option B: plane change at departure
+    var dvDepartB = Math.sqrt(v1_circ * v1_circ + v1_trans * v1_trans - 2 * v1_circ * v1_trans * Math.cos(theta));
+    var dvArriveB = Math.abs(v2_circ - v2_trans);
+    var dvB = dvDepartB + dvArriveB;
+
+    var useA = dvA <= dvB;
+    var dv1_burn = useA ? dvDepartA : dvDepartB;
+    var dv2_burn = useA ? dvArriveA : dvArriveB;
+    var tof = Math.PI * Math.sqrt(aT * aT * aT / MU);
+
+    return {
+        name: 'Combined (Hohmann + Plane Change)',
+        burns: [
+            { label: useA ? 'Departure (coplanar)' : 'Departure (+ plane chg)', dv: dv1_burn, location: 'Source orbit' },
+            { label: useA ? 'Arrival (+ plane chg)' : 'Arrival (coplanar)', dv: dv2_burn, location: 'Target orbit' }
+        ],
+        dvTotal: dv1_burn + dv2_burn,
+        tof: tof,
+        transferSMA: aT,
+        transferEcc: Math.abs(r2 - r1) / (r1 + r2),
+        applicable: true,
+        note: (theta * RAD).toFixed(2) + ' deg plane change combined with ' + (useA ? 'arrival' : 'departure') + ' burn',
+        planeAngle: theta,
+        combinedAtArrival: useA
+    };
+}
+
+// 5. General Two-Impulse
+function generalTwoImpulse(src, tgt) {
+    var rPe1 = periapsis(src.sma, src.ecc);
+    var rPe2 = periapsis(tgt.sma, tgt.ecc);
+
+    var vDepart_src = visViva(rPe1, src.sma);
+    var vArrive_tgt = visViva(rPe2, tgt.sma);
+
+    var aT = (rPe1 + rPe2) / 2;
+    var vDepart_trans = visViva(rPe1, aT);
+    var vArrive_trans = visViva(rPe2, aT);
+
+    var theta = planeChangeAngle(src, tgt);
+
+    var dv1, dv2;
+    if (theta > 0.001 * DEG) {
+        if (rPe2 >= rPe1) {
+            dv1 = Math.abs(vDepart_trans - vDepart_src);
+            dv2 = Math.sqrt(vArrive_tgt * vArrive_tgt + vArrive_trans * vArrive_trans
+                            - 2 * vArrive_tgt * vArrive_trans * Math.cos(theta));
+        } else {
+            dv1 = Math.sqrt(vDepart_src * vDepart_src + vDepart_trans * vDepart_trans
+                            - 2 * vDepart_src * vDepart_trans * Math.cos(theta));
+            dv2 = Math.abs(vArrive_tgt - vArrive_trans);
+        }
+    } else {
+        dv1 = Math.abs(vDepart_trans - vDepart_src);
+        dv2 = Math.abs(vArrive_tgt - vArrive_trans);
+    }
+
+    var tof = Math.PI * Math.sqrt(aT * aT * aT / MU);
+    var eT = Math.abs(rPe2 - rPe1) / (rPe2 + rPe1);
+
+    return {
+        name: 'General Two-Impulse',
+        burns: [
+            { label: 'Departure burn', dv: dv1, location: 'Source periapsis (' + ((rPe1 - R_EARTH)/1000).toFixed(0) + ' km)' },
+            { label: 'Arrival burn', dv: dv2, location: 'Target periapsis (' + ((rPe2 - R_EARTH)/1000).toFixed(0) + ' km)' }
+        ],
+        dvTotal: dv1 + dv2,
+        tof: tof,
+        transferSMA: aT,
+        transferEcc: eT,
+        applicable: true,
+        note: 'Pe-to-Pe transfer' + (theta > 0.001 * DEG ? ', incl. ' + (theta * RAD).toFixed(2) + ' deg plane change' : '')
+    };
+}
+
+// =========================================================================
+// MAIN COMPUTE
+// =========================================================================
+var lastResults = [];
+var selectedIdx = -1;
+
+function computeTransfers() {
+    var src = readOrbit('src');
+    var tgt = readOrbit('tgt');
+    var sc = readSpacecraft();
+
+    if (src.sma <= R_EARTH || tgt.sma <= R_EARTH) {
+        alert('SMA must be greater than Earth radius (6371 km)');
+        return;
+    }
+
+    var results = [];
+
+    // 1. Hohmann
+    results.push(hohmannTransfer(src, tgt));
+
+    // 2. Bielliptic
+    results.push(biellipticTransfer(src, tgt));
+
+    // 3. Simple Plane Change
+    var pc = simplePlaneChange(src, tgt);
+    if (pc.applicable) results.push(pc);
+
+    // 4. Combined
+    results.push(combinedTransfer(src, tgt));
+
+    // 5. General Two-Impulse
+    results.push(generalTwoImpulse(src, tgt));
+
+    // Add fuel info
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        if (!r.applicable || r.dvTotal === 0) continue;
+        r.fuelRequired = fuelRequired(r.dvTotal, sc.dryMass, sc.isp);
+        r.fuelPercent = (r.fuelRequired / sc.fuelMass) * 100;
+        r.hasFuel = r.fuelRequired <= sc.fuelMass;
+    }
+
+    // Find best
+    var bestIdx = -1;
+    var bestDv = Infinity;
+    for (var i = 0; i < results.length; i++) {
+        if (results[i].applicable && results[i].dvTotal > 0 && results[i].dvTotal < bestDv) {
+            bestDv = results[i].dvTotal;
+            bestIdx = i;
+        }
+    }
+
+    lastResults = results;
+    selectedIdx = bestIdx;
+
+    renderResults(results, bestIdx, sc);
+    drawDeltaVChart(results);
+    updateVisualization(src, tgt, results, bestIdx);
+    updateOrbitInfoOverlay(src, tgt);
+}
+
+// =========================================================================
+// RESULTS RENDERING
+// =========================================================================
+function renderResults(results, bestIdx, sc) {
+    var section = document.getElementById('resultsSection');
+    section.style.display = '';
+    var container = document.getElementById('resultsContainer');
+    container.innerHTML = '';
+
+    for (var i = 0; i < results.length; i++) {
+        var r = results[i];
+        if (!r.applicable) continue;
+
+        var card = document.createElement('div');
+        card.className = 'result-card' + (i === bestIdx ? ' selected' : '');
+        card.setAttribute('data-idx', i);
+        card.addEventListener('click', (function(idx) {
+            return function() { selectTransfer(idx); };
+        })(i));
+
+        var dvClass = 'dv-green';
+        if (r.dvTotal > 3000) dvClass = 'dv-red';
+        else if (r.dvTotal > 1000) dvClass = 'dv-yellow';
+
+        var html = '<div class="rc-title">' + r.name;
+        if (i === bestIdx) html += ' <span class="badge best">BEST</span>';
+        html += '</div>';
+
+        html += '<div class="rc-row"><span class="rc-label">Total Delta-V</span><span class="rc-value ' + dvClass + '">' + formatDV(r.dvTotal) + '</span></div>';
+        html += '<div class="rc-row"><span class="rc-label">Transfer Time</span><span class="rc-value">' + formatTime(r.tof) + '</span></div>';
+
+        if (r.note) {
+            html += '<div class="rc-note">' + r.note + '</div>';
+        }
+
+        if (r.burns.length > 0) {
+            html += '<div class="rc-burns">';
+            for (var bi = 0; bi < r.burns.length; bi++) {
+                var cls = bi === 0 ? 'b1' : bi === 1 ? 'b2' : 'b3';
+                html += '<span class="rc-burn ' + cls + '">' + r.burns[bi].label + ': ' + r.burns[bi].dv.toFixed(1) + ' m/s</span>';
+            }
+            html += '</div>';
+        }
+
+        if (r.fuelRequired !== undefined) {
+            var pct = Math.min(r.fuelPercent, 100);
+            var barClass = r.hasFuel ? (r.fuelPercent > 80 ? 'fuel-warn' : 'fuel-ok') : 'fuel-bad';
+            html += '<div class="fuel-bar-bg"><div class="fuel-bar ' + barClass + '" style="width:' + pct + '%;"></div></div>';
+            html += '<div class="fuel-info">';
+            html += '<span class="fi-left">' + r.fuelRequired.toFixed(1) + ' kg of ' + sc.fuelMass + ' kg</span>';
+            html += '<span class="fi-right" style="color:' + (r.hasFuel ? '#10b981' : '#ef4444') + ';">';
+            html += r.hasFuel ? r.fuelPercent.toFixed(1) + '% used' : 'INSUFFICIENT';
+            html += '</span></div>';
+        }
+
+        card.innerHTML = html;
+        container.appendChild(card);
+    }
+}
+
+function selectTransfer(idx) {
+    selectedIdx = idx;
+    var cards = document.querySelectorAll('.result-card');
+    for (var i = 0; i < cards.length; i++) {
+        cards[i].classList.remove('selected');
+        if (parseInt(cards[i].getAttribute('data-idx')) === idx) {
+            cards[i].classList.add('selected');
+        }
+    }
+    var src = readOrbit('src');
+    var tgt = readOrbit('tgt');
+    updateVisualization(src, tgt, lastResults, idx);
+}
+
+// =========================================================================
+// DELTA-V BAR CHART
+// =========================================================================
+function drawDeltaVChart(results) {
+    var section = document.getElementById('chartSection');
+    section.style.display = '';
+
+    var canvas = document.getElementById('dvChart');
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var W = rect.width;
+    var H = rect.height;
+    ctx.clearRect(0, 0, W, H);
+
+    var applicable = [];
+    for (var i = 0; i < results.length; i++) {
+        if (results[i].applicable && results[i].dvTotal > 0) applicable.push(results[i]);
+    }
+    if (applicable.length === 0) return;
+
+    var maxDv = 0;
+    for (var i = 0; i < applicable.length; i++) {
+        if (applicable[i].dvTotal > maxDv) maxDv = applicable[i].dvTotal;
+    }
+    maxDv *= 1.15;
+
+    var burnColors = ['#4a9eff', '#10b981', '#f59e0b'];
+    var labelWidth = 130;
+    var rightPad = 65;
+    var topPad = 10;
+    var bottomPad = 20;
+    var barHeight = 18;
+    var barGap = 8;
+    var chartLeft = labelWidth;
+    var chartWidth = W - labelWidth - rightPad;
+
+    for (var i = 0; i < applicable.length; i++) {
+        var r = applicable[i];
+        var y = topPad + i * (barHeight + barGap);
+
+        // Label
+        ctx.fillStyle = '#6b7a90';
+        ctx.font = '10px Consolas, Courier New, monospace';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        var name = r.name;
+        if (name.length > 20) name = name.substring(0, 18) + '..';
+        ctx.fillText(name, labelWidth - 8, y + barHeight / 2);
+
+        // Stacked burn bars
+        var x = chartLeft;
+        for (var bi = 0; bi < r.burns.length; bi++) {
+            var w = (r.burns[bi].dv / maxDv) * chartWidth;
+            ctx.fillStyle = burnColors[bi % burnColors.length];
+            ctx.globalAlpha = 0.85;
+            ctx.fillRect(x, y, Math.max(w, 1), barHeight);
+            ctx.globalAlpha = 1.0;
+            x += w;
+        }
+
+        // Total label
+        ctx.fillStyle = '#c8cdd5';
+        ctx.textAlign = 'left';
+        ctx.font = '10px Consolas, Courier New, monospace';
+        ctx.fillText(r.dvTotal.toFixed(0) + ' m/s', x + 6, y + barHeight / 2);
+    }
+
+    // X-axis gridlines
+    ctx.strokeStyle = '#1e2a42';
+    ctx.lineWidth = 1;
+    var numTicks = 5;
+    for (var i = 0; i <= numTicks; i++) {
+        var xPos = chartLeft + (i / numTicks) * chartWidth;
+        ctx.beginPath();
+        ctx.moveTo(xPos, topPad - 2);
+        ctx.lineTo(xPos, topPad + applicable.length * (barHeight + barGap));
+        ctx.stroke();
+        var val = (i / numTicks) * maxDv;
+        ctx.fillStyle = '#3a4a60';
+        ctx.font = '9px Consolas, Courier New, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(val.toFixed(0), xPos, H - 4);
+    }
+}
+
+// =========================================================================
+// COMPUTED DISPLAYS
+// =========================================================================
+function updateComputedDisplay(prefix) {
+    var orbit = readOrbit(prefix);
+    var pe = periapsis(orbit.sma, orbit.ecc);
+    var ap = apoapsis(orbit.sma, orbit.ecc);
+    var period = orbitalPeriod(orbit.sma);
+    var vcirc = Math.sqrt(MU / orbit.sma);
+
+    document.getElementById(prefix + 'PeDisp').textContent = formatAltKm(pe);
+    document.getElementById(prefix + 'ApDisp').textContent = formatAltKm(ap);
+    document.getElementById(prefix + 'PeriodDisp').textContent = formatTime(period);
+    document.getElementById(prefix + 'VcircDisp').textContent = vcirc.toFixed(1) + ' m/s';
+}
+
+function updateOrbitInfoOverlay(src, tgt) {
+    var srcPe = periapsis(src.sma, src.ecc);
+    var srcAp = apoapsis(src.sma, src.ecc);
+    var tgtPe = periapsis(tgt.sma, tgt.ecc);
+    var tgtAp = apoapsis(tgt.sma, tgt.ecc);
+    var theta = planeChangeAngle(src, tgt);
+
+    document.getElementById('oiSrcPe').textContent = formatAltKm(srcPe);
+    document.getElementById('oiSrcAp').textContent = formatAltKm(srcAp);
+    document.getElementById('oiTgtPe').textContent = formatAltKm(tgtPe);
+    document.getElementById('oiTgtAp').textContent = formatAltKm(tgtAp);
+    document.getElementById('oiPlaneChange').textContent = (theta * RAD).toFixed(2) + ' deg';
+}
+
+// =========================================================================
+// CESIUM VISUALIZATION
+// =========================================================================
+var viewer = null;
+var vizEntities = [];
+
+function initCesium() {
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWMxNTZjNi02NjRlLTQxNjQtYTFmMC01NTkzNTRhMTRmYTciLCJpZCI6MjkzMjQ4LCJpYXQiOjE3NDQ5MTY4MjN9.bVBMlsOSmFYnAXuIGm9IOMmxNYm-MgSEMEY8VxDXaew';
+
+    viewer = new Cesium.Viewer('cesiumContainer', {
+        baseLayerPicker: true,
+        geocoder: false,
+        homeButton: true,
+        sceneModePicker: true,
+        navigationHelpButton: false,
+        animation: false,
+        timeline: false,
+        fullscreenButton: false,
+        selectionIndicator: false,
+        infoBox: false,
+        scene3DOnly: false
+    });
+
+    viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#0a0e17');
+    viewer.scene.globe.enableLighting = false;
+
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(0, 20, 80000000),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-85), roll: 0 }
+    });
+}
+
+function orbitToCartesian(sma_m, ecc, inc_rad, raan_rad, argPe_rad, numPoints) {
+    var points = [];
+    var cosO = Math.cos(raan_rad), sinO = Math.sin(raan_rad);
+    var cosI = Math.cos(inc_rad),  sinI = Math.sin(inc_rad);
+    var cosW = Math.cos(argPe_rad), sinW = Math.sin(argPe_rad);
+
+    var Px = cosO * cosW - sinO * sinW * cosI;
+    var Py = sinO * cosW + cosO * sinW * cosI;
+    var Pz = sinW * sinI;
+    var Qx = -cosO * sinW - sinO * cosW * cosI;
+    var Qy = -sinO * sinW + cosO * cosW * cosI;
+    var Qz = cosW * sinI;
+
+    var p = sma_m * (1 - ecc * ecc);
+
+    for (var i = 0; i <= numPoints; i++) {
+        var nu = (i / numPoints) * TWO_PI;
+        var denom = 1 + ecc * Math.cos(nu);
+        if (denom <= 0) continue;
+        var r = p / denom;
+        if (r <= 0 || !isFinite(r)) continue;
+        if (r < R_EARTH * 0.95) continue;
+
+        var xP = r * Math.cos(nu);
+        var yP = r * Math.sin(nu);
+
+        var x = Px * xP + Qx * yP;
+        var y = Py * xP + Qy * yP;
+        var z = Pz * xP + Qz * yP;
+
+        if (isFinite(x) && isFinite(y) && isFinite(z)) {
+            points.push(new Cesium.Cartesian3(x, y, z));
+        }
+    }
+    return points;
+}
+
+function orbitArcToCartesian(sma_m, ecc, inc_rad, raan_rad, argPe_rad, nuStart, nuEnd, numPoints) {
+    var points = [];
+    var cosO = Math.cos(raan_rad), sinO = Math.sin(raan_rad);
+    var cosI = Math.cos(inc_rad),  sinI = Math.sin(inc_rad);
+    var cosW = Math.cos(argPe_rad), sinW = Math.sin(argPe_rad);
+
+    var Px = cosO * cosW - sinO * sinW * cosI;
+    var Py = sinO * cosW + cosO * sinW * cosI;
+    var Pz = sinW * sinI;
+    var Qx = -cosO * sinW - sinO * cosW * cosI;
+    var Qy = -sinO * sinW + cosO * cosW * cosI;
+    var Qz = cosW * sinI;
+
+    var p = sma_m * (1 - ecc * ecc);
+
+    for (var i = 0; i <= numPoints; i++) {
+        var nu = nuStart + (i / numPoints) * (nuEnd - nuStart);
+        var denom = 1 + ecc * Math.cos(nu);
+        if (denom <= 0) continue;
+        var r = p / denom;
+        if (r <= 0 || !isFinite(r)) continue;
+
+        var xP = r * Math.cos(nu);
+        var yP = r * Math.sin(nu);
+
+        var x = Px * xP + Qx * yP;
+        var y = Py * xP + Qy * yP;
+        var z = Pz * xP + Qz * yP;
+
+        if (isFinite(x) && isFinite(y) && isFinite(z)) {
+            points.push(new Cesium.Cartesian3(x, y, z));
+        }
+    }
+    return points;
+}
+
+function positionAtNu(sma_m, ecc, inc_rad, raan_rad, argPe_rad, nu) {
+    var pts = orbitArcToCartesian(sma_m, ecc, inc_rad, raan_rad, argPe_rad, nu, nu, 1);
+    return pts.length > 0 ? pts[0] : null;
+}
+
+function clearVisualization() {
+    for (var i = 0; i < vizEntities.length; i++) {
+        viewer.entities.remove(vizEntities[i]);
+    }
+    vizEntities = [];
+}
+
+function addPolyline(positions, color, width, dashed, id) {
+    if (positions.length < 2) return;
+    var material;
+    if (dashed) {
+        material = new Cesium.PolylineDashMaterialProperty({ color: color, dashLength: 16 });
+    } else {
+        material = new Cesium.ColorMaterialProperty(color);
+    }
+    var ent = viewer.entities.add({
+        id: id,
+        polyline: { positions: positions, width: width, material: material, clampToGround: false }
+    });
+    vizEntities.push(ent);
+}
+
+function addMarker(position, color, size, label, id) {
+    if (!position) return;
+    var opts = {
+        id: id,
+        position: position,
+        point: { pixelSize: size, color: color, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 }
+    };
+    if (label) {
+        opts.label = {
+            text: label,
+            font: '11px Consolas, Courier New, monospace',
+            fillColor: color,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -14),
+            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            showBackground: true,
+            backgroundColor: new Cesium.Color(0.05, 0.07, 0.12, 0.8),
+            backgroundPadding: new Cesium.Cartesian2(6, 3),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        };
+    }
+    var ent = viewer.entities.add(opts);
+    vizEntities.push(ent);
+}
+
+function updateVisualization(src, tgt, results, selIdx) {
+    clearVisualization();
+
+    var srcColor = Cesium.Color.fromCssColorString('#4a9eff');
+    var tgtColor = Cesium.Color.fromCssColorString('#10b981');
+    var xferColor = Cesium.Color.fromCssColorString('#f59e0b');
+    var xfer2Color = Cesium.Color.fromCssColorString('#f97316');
+    var burnColor = Cesium.Color.fromCssColorString('#ef4444');
+    var apPeColor = Cesium.Color.fromCssColorString('#8b5cf6');
+
+    // Source orbit
+    var srcPts = orbitToCartesian(src.sma, src.ecc, src.inc, src.raan, src.argPe, 360);
+    addPolyline(srcPts, srcColor, 2, true, 'v_src');
+
+    // Source Pe/Ap
+    var srcPePos = positionAtNu(src.sma, src.ecc, src.inc, src.raan, src.argPe, 0);
+    var srcApPos = positionAtNu(src.sma, src.ecc, src.inc, src.raan, src.argPe, Math.PI);
+    addMarker(srcPePos, srcColor.withAlpha(0.7), 6, 'Pe ' + formatAltKm(periapsis(src.sma, src.ecc)), 'v_src_pe');
+    if (src.ecc > 0.005) {
+        addMarker(srcApPos, srcColor.withAlpha(0.7), 6, 'Ap ' + formatAltKm(apoapsis(src.sma, src.ecc)), 'v_src_ap');
+    }
+
+    // Target orbit
+    var tgtPts = orbitToCartesian(tgt.sma, tgt.ecc, tgt.inc, tgt.raan, tgt.argPe, 360);
+    addPolyline(tgtPts, tgtColor, 2, true, 'v_tgt');
+
+    // Target Pe/Ap
+    var tgtPePos = positionAtNu(tgt.sma, tgt.ecc, tgt.inc, tgt.raan, tgt.argPe, 0);
+    var tgtApPos = positionAtNu(tgt.sma, tgt.ecc, tgt.inc, tgt.raan, tgt.argPe, Math.PI);
+    addMarker(tgtPePos, tgtColor.withAlpha(0.7), 6, 'Pe ' + formatAltKm(periapsis(tgt.sma, tgt.ecc)), 'v_tgt_pe');
+    if (tgt.ecc > 0.005) {
+        addMarker(tgtApPos, tgtColor.withAlpha(0.7), 6, 'Ap ' + formatAltKm(apoapsis(tgt.sma, tgt.ecc)), 'v_tgt_ap');
+    }
+
+    // Spacecraft marker
+    var scPos = positionAtNu(src.sma, src.ecc, src.inc, src.raan, src.argPe, src.ta);
+    addMarker(scPos, Cesium.Color.WHITE, 10, 'S/C', 'v_sc');
+
+    // Transfer orbit
+    if (selIdx >= 0 && selIdx < results.length) {
+        var r = results[selIdx];
+        if (r.applicable && r.transferSMA) {
+            if (r.name === 'Bielliptic Transfer') {
+                // First arc: source to intermediate
+                var arc1 = orbitArcToCartesian(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, 0, Math.PI, 180);
+                addPolyline(arc1, xferColor, 3, false, 'v_xfer1');
+
+                // Second arc: intermediate to target
+                if (r.transferSMA2 !== undefined) {
+                    var arc2 = orbitArcToCartesian(r.transferSMA2, r.transferEcc2, src.inc, src.raan, src.argPe, Math.PI, TWO_PI, 180);
+                    addPolyline(arc2, xfer2Color, 3, false, 'v_xfer2');
+                }
+
+                // Intermediate marker
+                if (r.intermediateR) {
+                    var intPos = positionAtNu(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, Math.PI);
+                    addMarker(intPos, xfer2Color, 8, 'Intermediate ' + formatAltKm(r.intermediateR), 'v_intermediate');
+                }
+            } else {
+                // Half-ellipse transfer arc
+                var arcPts = orbitArcToCartesian(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, 0, Math.PI, 180);
+                addPolyline(arcPts, xferColor, 3, false, 'v_xfer');
+            }
+
+            // Transfer Pe/Ap markers
+            var xPePos = positionAtNu(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, 0);
+            var xApPos = positionAtNu(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, Math.PI);
+            addMarker(xPePos, apPeColor.withAlpha(0.5), 4, null, 'v_xfer_pe');
+            addMarker(xApPos, apPeColor.withAlpha(0.5), 4, null, 'v_xfer_ap');
+
+            // Burn markers
+            for (var bi = 0; bi < r.burns.length; bi++) {
+                var burnPos = null;
+                if (bi === 0) {
+                    burnPos = positionAtNu(src.sma, src.ecc, src.inc, src.raan, src.argPe, 0);
+                } else if (bi === 1 && r.name !== 'Bielliptic Transfer') {
+                    burnPos = positionAtNu(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, Math.PI);
+                } else if (bi === 1 && r.name === 'Bielliptic Transfer') {
+                    burnPos = positionAtNu(r.transferSMA, r.transferEcc, src.inc, src.raan, src.argPe, Math.PI);
+                } else if (bi === 2 && r.transferSMA2 !== undefined) {
+                    burnPos = positionAtNu(r.transferSMA2, r.transferEcc2, src.inc, src.raan, src.argPe, TWO_PI);
+                }
+                if (burnPos) {
+                    addMarker(burnPos, burnColor, 12, 'Burn ' + (bi + 1) + ': ' + r.burns[bi].dv.toFixed(1) + ' m/s', 'v_burn_' + bi);
+                }
+            }
+        }
+    }
+
+    // Camera
+    var maxSMA = Math.max(src.sma, tgt.sma);
+    // For bielliptic, check intermediate
+    if (selIdx >= 0 && results[selIdx] && results[selIdx].intermediateR) {
+        maxSMA = Math.max(maxSMA, results[selIdx].intermediateR);
+    }
+    var camDist = maxSMA * 3;
+    if (camDist < R_EARTH * 3) camDist = R_EARTH * 3;
+
+    var inc = Math.max(src.inc, tgt.inc);
+    var camLat = Math.min(inc * RAD + 15, 80);
+
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(0, camLat, camDist),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-75), roll: 0 },
+        duration: 1.2
+    });
+}
+
+// =========================================================================
+// EVENT WIRING
+// =========================================================================
+function init() {
+    initCesium();
+    updateBiellipticAlt();
+    updateComputedDisplay('src');
+    updateComputedDisplay('tgt');
+
+    // Source presets
+    document.getElementById('srcPresets').addEventListener('click', function(e) {
+        if (!e.target.classList.contains('preset-btn')) return;
+        var key = e.target.getAttribute('data-preset');
+        applyOrbitPreset('src', SRC_PRESETS, key);
+        highlightPreset(document.getElementById('srcPresets'), key);
+    });
+
+    // Target presets
+    document.getElementById('tgtPresets').addEventListener('click', function(e) {
+        if (!e.target.classList.contains('preset-btn')) return;
+        var key = e.target.getAttribute('data-preset');
+        applyOrbitPreset('tgt', TGT_PRESETS, key);
+        highlightPreset(document.getElementById('tgtPresets'), key);
+    });
+
+    // Spacecraft presets
+    document.getElementById('scPresets').addEventListener('click', function(e) {
+        if (!e.target.classList.contains('preset-btn')) return;
+        var key = e.target.getAttribute('data-preset');
+        applyScPreset(key);
+        highlightPreset(document.getElementById('scPresets'), key);
+    });
+
+    // Bielliptic multiplier updates
+    document.getElementById('biellipticMult').addEventListener('input', updateBiellipticAlt);
+    document.getElementById('tgtSMA').addEventListener('input', updateBiellipticAlt);
+
+    // Compute button
+    document.getElementById('btnCompute').addEventListener('click', computeTransfers);
+
+    // Live orbit computed updates (debounced)
+    var updateTimer = null;
+    var allInputs = document.querySelectorAll('#sectionSource input, #sectionTarget input');
+    for (var i = 0; i < allInputs.length; i++) {
+        allInputs[i].addEventListener('input', function() {
+            clearTimeout(updateTimer);
+            updateTimer = setTimeout(function() {
+                updateComputedDisplay('src');
+                updateComputedDisplay('tgt');
+            }, 200);
+        });
+    }
+
+    // Enter key to compute
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            computeTransfers();
+        }
+    });
+
+    // Window resize => redraw chart
+    window.addEventListener('resize', function() {
+        if (lastResults.length > 0) drawDeltaVChart(lastResults);
+    });
+
+    // Draw initial orbits
+    var src = readOrbit('src');
+    var tgt = readOrbit('tgt');
+    updateVisualization(src, tgt, [], -1);
+    updateOrbitInfoOverlay(src, tgt);
+
+    // Auto-compute after brief delay
+    setTimeout(computeTransfers, 800);
+}
+
+init();
+</script>
+</body>
+</html>

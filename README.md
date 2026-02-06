@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: Live Cockpit Combat + Orbital Fix + Platform Builder + MC Engine
+**Team**: Human + Claude | **Status**: DOE Analysis + Analytic Tools + Live Cockpit Combat + MC Engine
 
 ## Quick Start
 
@@ -32,6 +32,18 @@ Then open: **http://localhost:8000/**
 | **GEO Sim** | `/geo_sim_viewer.html` | GEO rendezvous with Newton-Raphson intercept planner. |
 | **Launch Trajectory** | `/launch_viewer.html` | Gravity turn rocket launch with multiple scenario demos. |
 | **Orbit Viewer** | `/orbit_viewer.html` | TLE-based orbit visualization with ground tracks. |
+| **Solar System** | `/solar_system_viewer.html` | Inner/outer solar system with Hohmann transfer planner. |
+
+### Analytic Tools
+
+| Tool | URL | Description |
+|------|-----|-------------|
+| **Ballistic Planner** | `/ballistic_planner.html` | Ballistic trajectory calculator with adaptive angle selection and Newton-Raphson optimization. Min-energy, lofted, and depressed trajectories. |
+| **TLE Intercept Planner** | `/intercept_planner.html` | Satellite intercept planning from TLE data. Lambert solver, phase angle analysis, delta-V budget. |
+| **Orbital Maneuver Planner** | `/maneuver_planner.html` | Hohmann, bi-elliptic, plane change, and combined transfer calculator with delta-V bar charts and fuel budget. |
+| **Satellite Visibility** | `/visibility_planner.html` | Ground station pass prediction, access windows, elevation profiles, coverage gap analysis. |
+| **Radar Horizon** | `/radar_horizon.html` | Radar line-of-sight calculator with terrain masking, atmospheric refraction, and detection probability. |
+| **RF Link Budget** | `/link_budget.html` | End-to-end RF link budget analyzer: transmitter, path loss, atmospheric attenuation, receiver sensitivity, link margin. |
 
 ## Scenario Builder
 
@@ -90,6 +102,16 @@ Run batch Monte Carlo simulations (JS or C++ engine) and view results in a Chart
 - **Weapons**: Weapon effectiveness doughnut chart, kill chain funnel (SAM F2T2EA success rates)
 - **Timeline**: Engagement scatter plot (time vs run index, colored by event type)
 - **Raw Data**: Per-run tables, CSV/JSON export
+
+### DOE (Design of Experiments)
+Click **"DOE"** in the Scenario Builder toolbar to run multi-variable parameter sweeps across Orbital Arena role compositions. Deterministic full-factorial analysis — not random MC.
+
+- **Configuration**: Set min/max/step ranges for 5 roles (HVA, Defender, Attacker, Escort, Sweep). Live permutation count preview.
+- **Execution**: Generates Cartesian product of all role ranges, runs each through C++ mc_engine with fixed seed.
+- **Data Table**: Sortable spreadsheet of all permutations with color-coded HVA survival rates.
+- **Heat Map**: Canvas 2D heat map with selectable X/Y axes and metric. Hover tooltips.
+- **Sensitivity**: Pearson correlation showing which role most impacts HVA survival.
+- **Export**: CSV, JSON, and clipboard export of full results.
 
 ### Scenario Templates
 | Template | Description |
@@ -290,6 +312,9 @@ The end goal — all in one continuous simulation:
 - [x] **Nuclear Systems**: Warhead (Starfish Prime EMP), cruise missile, ionosphere/magnetic field interaction
 - [x] **Environment Config**: Multi-body gravity (Jupiter), atmospheres, radiation belts
 - [x] **Live Sim Cockpit**: Weapons HUD, sensor cycling, pitch trim, chase camera with bank, orbital mechanics fix
+- [x] **DOE Analysis**: Design of Experiments parameter sweeps for Orbital Arena role compositions
+- [x] **Analytic Tools**: Ballistic planner, TLE intercept, orbital maneuver, visibility, radar horizon, RF link budget
+- [x] **Solar System Fix**: Position scaling for WebGL float32 precision at outer planet distances
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -311,4 +336,4 @@ The end goal — all in one continuous simulation:
 ---
 *Last Updated*: 2026-02-06
 *Team*: Human + Claude
-*Status*: Live cockpit combat, orbital mechanics fix, platform builder, C++ MC engine, Chart.js dashboard
+*Status*: DOE analysis, analytic tools, live cockpit combat, C++ MC engine, Chart.js dashboard

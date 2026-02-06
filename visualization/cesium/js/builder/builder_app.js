@@ -119,6 +119,11 @@ const BuilderApp = (function() {
             MCPanel.init();
         }
 
+        // Initialize DOE panel
+        if (typeof DOEPanel !== 'undefined') {
+            DOEPanel.init();
+        }
+
         // Initialize Platform Builder dialog
         if (typeof PlatformBuilder !== 'undefined') {
             PlatformBuilder.init();
@@ -1523,6 +1528,16 @@ const BuilderApp = (function() {
             }
         });
 
+        _bindButton('btnDOE', function() {
+            if (_mode !== 'BUILD') {
+                showMessage('Switch to BUILD mode first');
+                return;
+            }
+            if (typeof DOEPanel !== 'undefined') {
+                DOEPanel.show();
+            }
+        });
+
         _bindButton('btnReset', function() {
             switchMode('BUILD');
         });
@@ -1559,6 +1574,7 @@ const BuilderApp = (function() {
         _setButtonEnabled('btnImportTLE', _mode === 'BUILD');
         _setButtonEnabled('btnEvents', _mode === 'BUILD');
         _setButtonEnabled('btnMonteCarlo', _mode === 'BUILD');
+        _setButtonEnabled('btnDOE', _mode === 'BUILD');
         _setButtonEnabled('btnLoadDemo', _mode === 'BUILD');
 
         // Update pause button text

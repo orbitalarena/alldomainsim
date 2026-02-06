@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launch Intercept Planner - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="cesium_config.js"></script>
+    <script src="js/framework/tle_parser.js"></script>
+
+    <style>
+        /* ================================================================
+           RESET & BASE
+           ================================================================ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        /* ================================================================
+           LAYOUT
+           ================================================================ */
+        #appLayout {
+            display: flex;
+            width: 100%; height: 100%;
+        }
+
+        #leftPanel {
+            width: 320px;
+            min-width: 320px;
+            height: 100%;
+            background: #0d1320;
+            border-right: 1px solid #1e2a42;
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #cesiumContainer {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+
+        /* ================================================================
+           LEFT PANEL SECTIONS
+           ================================================================ */
+        .panel-header {
+            padding: 14px 16px 10px;
+            border-bottom: 1px solid #1e2a42;
+            background: linear-gradient(135deg, #0d1320 0%, #141c2e 100%);
+            flex-shrink: 0;
+        }
+
+        .panel-header h1 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #e8ecf2;
+            letter-spacing: -0.3px;
+        }
+
+        .panel-header h1 span {
+            color: #4a9eff;
+        }
+
+        .panel-header .subtitle {
+            font-size: 11px;
+            color: #6b7a90;
+            margin-top: 3px;
+        }
+
+        .section {
+            padding: 12px 16px;
+            border-bottom: 1px solid #1e2a42;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #6b7a90;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .section-title .num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(74, 158, 255, 0.15);
+            color: #4a9eff;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        /* ================================================================
+           FORM CONTROLS
+           ================================================================ */
+        label {
+            display: block;
+            font-size: 11px;
+            color: #6b7a90;
+            margin-bottom: 4px;
+            margin-top: 8px;
+        }
+
+        label:first-child {
+            margin-top: 0;
+        }
+
+        textarea, input[type="text"], input[type="number"], select {
+            width: 100%;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 6px 8px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        textarea:focus, input:focus, select:focus {
+            border-color: #4a9eff;
+            box-shadow: 0 0 6px rgba(74, 158, 255, 0.15);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 72px;
+            line-height: 1.4;
+        }
+
+        select {
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7a90'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 24px;
+        }
+
+        .row-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .row-3col {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        /* ================================================================
+           BUTTONS
+           ================================================================ */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 4px;
+            border: 1px solid #1e2a42;
+            background: rgba(30, 44, 68, 0.8);
+            color: #a0b0c8;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: rgba(50, 70, 100, 0.9);
+            border-color: #4a9eff;
+            color: #e0e8f0;
+            box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
+        }
+
+        .btn:active {
+            background: rgba(74, 158, 255, 0.3);
+        }
+
+        .btn.primary {
+            background: rgba(40, 80, 140, 0.6);
+            border-color: #4a9eff;
+            color: #e0e8f0;
+            width: 100%;
+        }
+
+        .btn.primary:hover {
+            background: rgba(74, 158, 255, 0.4);
+            box-shadow: 0 0 12px rgba(74, 158, 255, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn:disabled:hover {
+            background: rgba(30, 44, 68, 0.8);
+            border-color: #1e2a42;
+            color: #a0b0c8;
+            box-shadow: none;
+        }
+
+        /* ================================================================
+           SATELLITE INFO BOX
+           ================================================================ */
+        .sat-info {
+            background: rgba(74, 158, 255, 0.05);
+            border: 1px solid rgba(74, 158, 255, 0.15);
+            border-radius: 4px;
+            padding: 8px 10px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .sat-info.visible {
+            display: block;
+        }
+
+        .sat-info .sat-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a9eff;
+            margin-bottom: 4px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+
+        .info-label {
+            color: #6b7a90;
+            font-size: 11px;
+        }
+
+        .info-value {
+            color: #c8cdd5;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* ================================================================
+           RESULTS TABLE
+           ================================================================ */
+        .results-section {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        #resultsTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+
+        #resultsTable th {
+            text-align: left;
+            padding: 5px 6px;
+            color: #6b7a90;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #1e2a42;
+            position: sticky;
+            top: 0;
+            background: #0d1320;
+        }
+
+        #resultsTable td {
+            padding: 5px 6px;
+            border-bottom: 1px solid rgba(30, 42, 66, 0.4);
+            color: #c8cdd5;
+            cursor: pointer;
+        }
+
+        #resultsTable tr:hover td {
+            background: rgba(74, 158, 255, 0.08);
+        }
+
+        #resultsTable tr.selected td {
+            background: rgba(74, 158, 255, 0.15);
+            border-color: rgba(74, 158, 255, 0.3);
+        }
+
+        .dv-good { color: #2ecc71; }
+        .dv-ok { color: #FFD700; }
+        .dv-bad { color: #e74c3c; }
+
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            font-size: 9px;
+            font-weight: 700;
+        }
+
+        .rank-1 { background: #FFD700; color: #0a0e17; }
+        .rank-2 { background: #c0c0c0; color: #0a0e17; }
+        .rank-3 { background: #cd7f32; color: #0a0e17; }
+
+        /* ================================================================
+           PROGRESS BAR
+           ================================================================ */
+        .progress-container {
+            display: none;
+            margin-top: 8px;
+        }
+
+        .progress-container.visible {
+            display: block;
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #1e2a42;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #4a9eff, #2ecc71);
+            border-radius: 3px;
+            transition: width 0.1s;
+        }
+
+        .progress-text {
+            font-size: 10px;
+            color: #6b7a90;
+            margin-top: 3px;
+            text-align: center;
+        }
+
+        /* ================================================================
+           PORKCHOP PLOT
+           ================================================================ */
+        .porkchop-container {
+            margin-top: 10px;
+            position: relative;
+            display: none;
+        }
+
+        .porkchop-container.visible {
+            display: block;
+        }
+
+        #porkchopCanvas {
+            width: 100%;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            cursor: crosshair;
+            image-rendering: pixelated;
+        }
+
+        .porkchop-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+        }
+
+        .porkchop-axis-label {
+            font-size: 10px;
+            color: #6b7a90;
+        }
+
+        .porkchop-colorbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            font-size: 10px;
+            color: #6b7a90;
+        }
+
+        .colorbar-gradient {
+            flex: 1;
+            height: 8px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #0044ff, #00bbff, #00ff88, #ffdd00, #ff4400);
+        }
+
+        /* ================================================================
+           HELP OVERLAY
+           ================================================================ */
+        #helpOverlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 14, 23, 0.92);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #helpOverlay.visible {
+            display: flex;
+        }
+
+        .help-box {
+            background: #0d1320;
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 24px 32px;
+            max-width: 500px;
+            color: #c8cdd5;
+        }
+
+        .help-box h2 {
+            font-size: 16px;
+            color: #4a9eff;
+            margin-bottom: 14px;
+        }
+
+        .help-box .key-row {
+            display: flex;
+            gap: 12px;
+            margin: 6px 0;
+            align-items: center;
+        }
+
+        .help-box kbd {
+            display: inline-block;
+            min-width: 28px;
+            text-align: center;
+            padding: 2px 8px;
+            background: #1e2a42;
+            border: 1px solid #2a3a56;
+            border-radius: 3px;
+            color: #4a9eff;
+            font-size: 12px;
+        }
+
+        .help-box .key-desc {
+            color: #8a96a6;
+            font-size: 12px;
+        }
+
+        /* ================================================================
+           STATUS / ERROR MESSAGES
+           ================================================================ */
+        .msg {
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .msg.visible {
+            display: block;
+        }
+
+        .msg.error {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+
+        .msg.success {
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
+
+        .msg.info {
+            background: rgba(74, 158, 255, 0.1);
+            border: 1px solid rgba(74, 158, 255, 0.3);
+            color: #4a9eff;
+        }
+
+        /* ================================================================
+           TOOLTIP ON PORKCHOP
+           ================================================================ */
+        #porkchopTooltip {
+            position: absolute;
+            background: rgba(13, 19, 32, 0.95);
+            border: 1px solid #4a9eff;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 11px;
+            color: #c8cdd5;
+            pointer-events: none;
+            display: none;
+            z-index: 30;
+            white-space: nowrap;
+        }
+
+        /* ================================================================
+           SCROLLBAR
+           ================================================================ */
+        #leftPanel::-webkit-scrollbar { width: 6px; }
+        #leftPanel::-webkit-scrollbar-track { background: transparent; }
+        #leftPanel::-webkit-scrollbar-thumb {
+            background: #1e2a42;
+            border-radius: 3px;
+        }
+        #leftPanel::-webkit-scrollbar-thumb:hover { background: #2a3a56; }
+
+        .results-section::-webkit-scrollbar { width: 5px; }
+        .results-section::-webkit-scrollbar-track { background: transparent; }
+        .results-section::-webkit-scrollbar-thumb {
+            background: #1e2a42;
+            border-radius: 3px;
+        }
+
+        /* ================================================================
+           CESIUM OVERRIDES
+           ================================================================ */
+        .cesium-viewer-bottom { display: none; }
+    </style>
+</head>
+<body>
+    <div id="appLayout">
+        <!-- LEFT PANEL -->
+        <div id="leftPanel">
+            <div class="panel-header">
+                <h1><span>Launch</span> Intercept Planner</h1>
+                <div class="subtitle">TLE-based optimal launch window computation</div>
+            </div>
+
+            <!-- 1. TLE INPUT -->
+            <div class="section">
+                <div class="section-title"><span class="num">1</span> Target TLE</div>
+                <textarea id="tleInput" spellcheck="false" placeholder="Paste 3-line TLE (name + line1 + line2)...">ISS (ZARYA)
+1 25544U 98067A   24045.51736111  .00020000  00000+0  35000-3 0  9997
+2 25544  51.6420 247.3662 0006760  33.5510  326.5990 15.49997500484742</textarea>
+                <button class="btn" id="btnParse" style="margin-top: 8px;">Parse TLE</button>
+                <div id="msgParse" class="msg"></div>
+                <div id="satInfo" class="sat-info">
+                    <div class="sat-name" id="satName"></div>
+                    <div class="info-row"><span class="info-label">Altitude</span><span class="info-value" id="satAlt"></span></div>
+                    <div class="info-row"><span class="info-label">Period</span><span class="info-value" id="satPeriod"></span></div>
+                    <div class="info-row"><span class="info-label">Inclination</span><span class="info-value" id="satInc"></span></div>
+                    <div class="info-row"><span class="info-label">Eccentricity</span><span class="info-value" id="satEcc"></span></div>
+                    <div class="info-row"><span class="info-label">Periapsis</span><span class="info-value" id="satPe"></span></div>
+                    <div class="info-row"><span class="info-label">Apoapsis</span><span class="info-value" id="satAp"></span></div>
+                </div>
+            </div>
+
+            <!-- 2. LAUNCH SITE -->
+            <div class="section">
+                <div class="section-title"><span class="num">2</span> Launch Site</div>
+                <select id="launchSiteSelect">
+                    <option value="cape">Cape Canaveral (28.40N, 80.61W)</option>
+                    <option value="vandenberg">Vandenberg (34.73S, 120.57W)</option>
+                    <option value="baikonur">Baikonur (45.97N, 63.31E)</option>
+                    <option value="kourou">Kourou (5.23N, 52.78W)</option>
+                    <option value="tanegashima">Tanegashima (30.40N, 131.00E)</option>
+                    <option value="custom">Custom...</option>
+                </select>
+                <div id="customLatLon" style="display:none;">
+                    <div class="row-2col">
+                        <div>
+                            <label>Latitude (deg)</label>
+                            <input type="number" id="customLat" value="28.396" step="0.001">
+                        </div>
+                        <div>
+                            <label>Longitude (deg)</label>
+                            <input type="number" id="customLon" value="-80.605" step="0.001">
+                        </div>
+                    </div>
+                </div>
+                <label>Parking Orbit Altitude (km)</label>
+                <input type="number" id="parkingAlt" value="200" min="100" max="2000" step="10">
+            </div>
+
+            <!-- 3. SWEEP PARAMETERS -->
+            <div class="section">
+                <div class="section-title"><span class="num">3</span> Sweep Parameters</div>
+                <div class="row-2col">
+                    <div>
+                        <label>Window (periods)</label>
+                        <input type="number" id="windowPeriods" value="10" min="1" max="50" step="1">
+                    </div>
+                    <div>
+                        <label>Time Res (min)</label>
+                        <input type="number" id="timeRes" value="5" min="1" max="60" step="1">
+                    </div>
+                </div>
+                <div class="row-3col">
+                    <div>
+                        <label>TOF Min (min)</label>
+                        <input type="number" id="tofMin" value="30" min="5" max="600" step="5">
+                    </div>
+                    <div>
+                        <label>TOF Max (min)</label>
+                        <input type="number" id="tofMax" value="240" min="10" max="1440" step="10">
+                    </div>
+                    <div>
+                        <label>TOF Res (min)</label>
+                        <input type="number" id="tofRes" value="10" min="1" max="60" step="1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. COMPUTE -->
+            <div class="section">
+                <div class="section-title"><span class="num">4</span> Results</div>
+                <button class="btn primary" id="btnCompute" disabled>Compute Launch Windows</button>
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                <div id="msgResults" class="msg"></div>
+
+                <!-- Porkchop plot -->
+                <div class="porkchop-container" id="porkchopContainer">
+                    <canvas id="porkchopCanvas" width="280" height="200"></canvas>
+                    <div id="porkchopTooltip"></div>
+                    <div class="porkchop-labels">
+                        <span class="porkchop-axis-label">Launch Time (T+min) ---></span>
+                        <span class="porkchop-axis-label">| TOF (min)</span>
+                    </div>
+                    <div class="porkchop-colorbar">
+                        <span>Low dV</span>
+                        <div class="colorbar-gradient"></div>
+                        <span>High dV</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. RESULTS TABLE -->
+            <div class="section results-section" id="resultsSection" style="display:none;">
+                <div class="section-title">Top 10 Windows</div>
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>T+ (min)</th>
+                            <th>TOF (min)</th>
+                            <th>dV (m/s)</th>
+                            <th>Az (deg)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CESIUM GLOBE -->
+        <div id="cesiumContainer"></div>
+    </div>
+
+    <!-- HELP OVERLAY -->
+    <div id="helpOverlay">
+        <div class="help-box">
+            <h2>Keyboard Shortcuts</h2>
+            <div class="key-row"><kbd>Enter</kbd><span class="key-desc">Compute launch windows</span></div>
+            <div class="key-row"><kbd>Esc</kbd><span class="key-desc">Clear selection / close help</span></div>
+            <div class="key-row"><kbd>H</kbd><span class="key-desc">Toggle this help overlay</span></div>
+            <div class="key-row"><kbd>R</kbd><span class="key-desc">Reset camera view</span></div>
+            <div style="margin-top: 14px; font-size: 11px; color: #6b7a90;">
+                Click a row in the results table or a point on the porkchop plot to visualize the transfer on the globe.
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ======================================================================
+    // INTERCEPT PLANNER - All computation in-browser using TLEParser
+    // ======================================================================
+    (function() {
+        'use strict';
+
+        // --- Constants ---
+        var MU = TLEParser.MU;
+        var R_EARTH = TLEParser.R_EARTH;
+        var OMEGA_EARTH = TLEParser.OMEGA_EARTH;
+        var DEG = Math.PI / 180;
+        var RAD = 180 / Math.PI;
+        var TWO_PI = 2 * Math.PI;
+
+        // --- Launch Sites ---
+        var LAUNCH_SITES = {
+            cape:        { name: 'Cape Canaveral',  lat: 28.396,  lon: -80.605 },
+            vandenberg:  { name: 'Vandenberg SFB',  lat: -34.733, lon: -120.568 },
+            baikonur:    { name: 'Baikonur',        lat: 45.965,  lon: 63.305 },
+            kourou:      { name: 'Kourou (CSG)',     lat: 5.232,   lon: -52.775 },
+            tanegashima: { name: 'Tanegashima',      lat: 30.400,  lon: 131.000 }
+        };
+
+        // --- State ---
+        var parsedSat = null;
+        var satECI = null;
+        var viewer = null;
+        var computing = false;
+        var gridData = null;
+        var topResults = [];
+        var selectedIdx = -1;
+
+        // Cesium entities for visualization
+        var vizEntities = {
+            launchSite: null,
+            targetOrbit: null,
+            targetAtLaunch: null,
+            targetAtIntercept: null,
+            transferArc: null,
+            azimuthArrow: null,
+            satCurrentPos: null
+        };
+
+        // ======================================================================
+        // INITIALIZATION
+        // ======================================================================
+
+        function init() {
+            try {
+                viewer = createConfiguredViewer('cesiumContainer');
+            } catch (e) {
+                console.error('Failed to create Cesium viewer:', e);
+                document.getElementById('cesiumContainer').innerHTML =
+                    '<div style="color:#e74c3c;padding:40px;font-size:14px;">Failed to initialize Cesium viewer. Check console for details.</div>';
+                return;
+            }
+            viewer.scene.globe.enableLighting = true;
+
+            resetView();
+
+            // Wire up UI
+            document.getElementById('btnParse').addEventListener('click', handleParseTLE);
+            document.getElementById('btnCompute').addEventListener('click', handleCompute);
+            document.getElementById('launchSiteSelect').addEventListener('change', handleSiteChange);
+            document.getElementById('porkchopCanvas').addEventListener('mousemove', handlePorkchopHover);
+            document.getElementById('porkchopCanvas').addEventListener('mouseleave', handlePorkchopLeave);
+            document.getElementById('porkchopCanvas').addEventListener('click', handlePorkchopClick);
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                var tag = e.target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                    if (e.key === 'Enter' && tag !== 'TEXTAREA') {
+                        e.preventDefault();
+                        handleCompute();
+                    }
+                    return;
+                }
+
+                switch (e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        handleCompute();
+                        break;
+                    case 'Escape':
+                        if (document.getElementById('helpOverlay').classList.contains('visible')) {
+                            toggleHelp();
+                        } else {
+                            clearSelection();
+                        }
+                        break;
+                    case 'h': case 'H':
+                        toggleHelp();
+                        break;
+                    case 'r': case 'R':
+                        resetView();
+                        break;
+                }
+            });
+
+            // Auto-parse on load
+            handleParseTLE();
+        }
+
+        // ======================================================================
+        // TLE PARSING
+        // ======================================================================
+
+        function handleParseTLE() {
+            var text = document.getElementById('tleInput').value.trim();
+            var msgEl = document.getElementById('msgParse');
+            var infoEl = document.getElementById('satInfo');
+
+            parsedSat = null;
+            satECI = null;
+            infoEl.classList.remove('visible');
+            document.getElementById('btnCompute').disabled = true;
+
+            if (!text) {
+                showMsg(msgEl, 'error', 'Please paste a TLE set.');
+                return;
+            }
+
+            var lines = text.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 0; });
+
+            if (lines.length < 2) {
+                showMsg(msgEl, 'error', 'TLE requires at least 2 lines (line1 + line2).');
+                return;
+            }
+
+            var name = '', line1, line2;
+            if (lines.length >= 3 && lines[0].charAt(0) !== '1') {
+                name = lines[0];
+                line1 = lines[1];
+                line2 = lines[2];
+            } else {
+                line1 = lines[0];
+                line2 = lines[1];
+            }
+
+            var sat = TLEParser.parseTLE(name, line1, line2);
+            if (!sat) {
+                showMsg(msgEl, 'error', 'Failed to parse TLE. Check format.');
+                return;
+            }
+
+            parsedSat = sat;
+            satECI = TLEParser.tleToECI(sat);
+
+            if (!satECI || !isFinite(satECI.pos[0]) || !isFinite(satECI.vel[0])) {
+                showMsg(msgEl, 'error', 'TLE produced invalid orbital state.');
+                parsedSat = null;
+                satECI = null;
+                return;
+            }
+
+            // Show satellite info
+            document.getElementById('satName').textContent = sat.name;
+            document.getElementById('satAlt').textContent = sat.altitudeKm.toFixed(1) + ' km';
+            document.getElementById('satPeriod').textContent = (sat.period / 60).toFixed(1) + ' min';
+            document.getElementById('satInc').textContent = sat.inclination.toFixed(2) + '\u00B0';
+            document.getElementById('satEcc').textContent = sat.eccentricity.toFixed(6);
+            document.getElementById('satPe').textContent = sat.periapsisAltKm.toFixed(1) + ' km';
+            document.getElementById('satAp').textContent = sat.apoapsisAltKm.toFixed(1) + ' km';
+            infoEl.classList.add('visible');
+
+            showMsg(msgEl, 'success', 'TLE parsed successfully.');
+            document.getElementById('btnCompute').disabled = false;
+
+            updateGlobePreview();
+        }
+
+        // ======================================================================
+        // LAUNCH SITE
+        // ======================================================================
+
+        function handleSiteChange() {
+            var val = document.getElementById('launchSiteSelect').value;
+            document.getElementById('customLatLon').style.display = val === 'custom' ? 'block' : 'none';
+            if (parsedSat) updateGlobePreview();
+        }
+
+        function getLaunchSite() {
+            var val = document.getElementById('launchSiteSelect').value;
+            if (val === 'custom') {
+                return {
+                    name: 'Custom',
+                    lat: parseFloat(document.getElementById('customLat').value) || 0,
+                    lon: parseFloat(document.getElementById('customLon').value) || 0
+                };
+            }
+            return LAUNCH_SITES[val];
+        }
+
+        // ======================================================================
+        // VECTOR MATH
+        // ======================================================================
+
+        function vecMag(v) {
+            return Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        }
+
+        function vecSub(a, b) {
+            return [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+        }
+
+        function vecAdd(a, b) {
+            return [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+        }
+
+        function vecScale(v, s) {
+            return [v[0]*s, v[1]*s, v[2]*s];
+        }
+
+        function vecNorm(v) {
+            var m = vecMag(v);
+            return m > 0 ? [v[0]/m, v[1]/m, v[2]/m] : [0,0,0];
+        }
+
+        function vecDot(a, b) {
+            return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+        }
+
+        function vecCross(a, b) {
+            return [
+                a[1]*b[2] - a[2]*b[1],
+                a[2]*b[0] - a[0]*b[2],
+                a[0]*b[1] - a[1]*b[0]
+            ];
+        }
+
+        function clamp(v, lo, hi) {
+            return v < lo ? lo : (v > hi ? hi : v);
+        }
+
+        // ======================================================================
+        // GEODETIC -> ECI
+        // ======================================================================
+
+        function geodeticToECI(latRad, lonRad, altM, gmst) {
+            var R = R_EARTH + altM;
+            var theta = gmst + lonRad;
+            var cosLat = Math.cos(latRad);
+            var sinLat = Math.sin(latRad);
+            return [
+                R * cosLat * Math.cos(theta),
+                R * cosLat * Math.sin(theta),
+                R * sinLat
+            ];
+        }
+
+        function eciToECEF(posECI, gmst) {
+            var cosG = Math.cos(-gmst);
+            var sinG = Math.sin(-gmst);
+            var x = cosG * posECI[0] - sinG * posECI[1];
+            var y = sinG * posECI[0] + cosG * posECI[1];
+            var z = posECI[2];
+            if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+            return new Cesium.Cartesian3(x, y, z);
+        }
+
+        // ======================================================================
+        // LAMBERT SOLVER (Universal Variable / Stumpff Method)
+        // ======================================================================
+
+        function stumpffC(psi) {
+            if (psi > 1e-6) return (1 - Math.cos(Math.sqrt(psi))) / psi;
+            if (psi < -1e-6) return (Math.cosh(Math.sqrt(-psi)) - 1) / (-psi);
+            return 1.0 / 2.0;
+        }
+
+        function stumpffS(psi) {
+            if (psi > 1e-6) {
+                var sq = Math.sqrt(psi);
+                return (sq - Math.sin(sq)) / (psi * sq);
+            }
+            if (psi < -1e-6) {
+                var sq2 = Math.sqrt(-psi);
+                return (Math.sinh(sq2) - sq2) / ((-psi) * sq2);
+            }
+            return 1.0 / 6.0;
+        }
+
+        /**
+         * Solve Lambert's problem using universal variable iteration.
+         * Given departure position r1, arrival position r2, and time of flight tof,
+         * finds the departure and arrival velocities of the transfer orbit.
+         *
+         * @param {number[]} r1 - departure position ECI [m]
+         * @param {number[]} r2 - arrival position ECI [m]
+         * @param {number} tof - time of flight [s]
+         * @param {boolean} prograde - true for prograde (short-way) transfer
+         * @returns {{ v1: number[], v2: number[] }|null}
+         */
+        function solveLambert(r1, r2, tof, prograde) {
+            if (tof <= 0) return null;
+
+            var r1mag = vecMag(r1);
+            var r2mag = vecMag(r2);
+            if (r1mag < 1000 || r2mag < 1000) return null;
+
+            var cosTA = clamp(vecDot(r1, r2) / (r1mag * r2mag), -1, 1);
+            var crossZ = r1[0] * r2[1] - r1[1] * r2[0];
+            var sinTA;
+
+            if (prograde) {
+                sinTA = crossZ >= 0 ? Math.sqrt(Math.max(0, 1 - cosTA * cosTA))
+                                    : -Math.sqrt(Math.max(0, 1 - cosTA * cosTA));
+            } else {
+                sinTA = crossZ < 0 ? Math.sqrt(Math.max(0, 1 - cosTA * cosTA))
+                                   : -Math.sqrt(Math.max(0, 1 - cosTA * cosTA));
+            }
+
+            var dTheta = Math.atan2(sinTA, cosTA);
+            if (dTheta < 0) dTheta += TWO_PI;
+            if (dTheta < 0.01 || dTheta > TWO_PI - 0.01) return null;
+
+            var A = Math.sqrt(r1mag * r2mag * (1 + cosTA));
+            if (sinTA < 0) A = -A;
+            if (Math.abs(A) < 1e-6) return null;
+
+            // Universal variable bisection iteration
+            var psi_n = 0;
+            var psi_up = 4 * Math.PI * Math.PI;
+            var psi_lo = -4 * Math.PI * Math.PI;
+            var converged = false;
+            var c2, c3, y, chi, tof_n;
+
+            for (var iter = 0; iter < 80; iter++) {
+                c2 = stumpffC(psi_n);
+                c3 = stumpffS(psi_n);
+
+                var sqrtC2 = Math.sqrt(c2);
+                if (sqrtC2 < 1e-15) sqrtC2 = 1e-15;
+
+                y = r1mag + r2mag + A * (psi_n * c3 - 1) / sqrtC2;
+
+                if (y < 0) {
+                    psi_lo = psi_n;
+                    psi_n = (psi_n + psi_up) / 2;
+                    continue;
+                }
+
+                chi = Math.sqrt(y / c2);
+                tof_n = (chi * chi * chi * c3 + A * Math.sqrt(y)) / Math.sqrt(MU);
+
+                if (Math.abs(tof_n - tof) < 0.5) {
+                    converged = true;
+                    break;
+                }
+
+                if (tof_n < tof) {
+                    psi_up = psi_n;
+                } else {
+                    psi_lo = psi_n;
+                }
+
+                psi_n = (psi_up + psi_lo) / 2;
+            }
+
+            if (!converged) return null;
+
+            // Lagrange coefficients
+            var f = 1 - y / r1mag;
+            var gdot = 1 - y / r2mag;
+            var g = A * Math.sqrt(y / MU);
+
+            if (Math.abs(g) < 1e-12) return null;
+
+            var v1 = [
+                (r2[0] - f * r1[0]) / g,
+                (r2[1] - f * r1[1]) / g,
+                (r2[2] - f * r1[2]) / g
+            ];
+
+            var v2 = [
+                (gdot * r2[0] - r1[0]) / g,
+                (gdot * r2[1] - r1[1]) / g,
+                (gdot * r2[2] - r1[2]) / g
+            ];
+
+            // Sanity check
+            var v1mag = vecMag(v1);
+            var v2mag = vecMag(v2);
+            if (!isFinite(v1mag) || !isFinite(v2mag) || v1mag > 30000 || v2mag > 30000) {
+                return null;
+            }
+
+            return { v1: v1, v2: v2 };
+        }
+
+        // ======================================================================
+        // MAIN COMPUTATION
+        // ======================================================================
+
+        function handleCompute() {
+            if (computing) return;
+            if (!parsedSat || !satECI) {
+                showMsg(document.getElementById('msgResults'), 'error', 'Parse a TLE first.');
+                return;
+            }
+
+            computing = true;
+            document.getElementById('btnCompute').disabled = true;
+
+            // Read parameters
+            var site = getLaunchSite();
+            var parkingAltM = parseFloat(document.getElementById('parkingAlt').value) * 1000;
+            var windowPeriods = parseInt(document.getElementById('windowPeriods').value);
+            var timeResMin = parseFloat(document.getElementById('timeRes').value);
+            var tofMinMin = parseFloat(document.getElementById('tofMin').value);
+            var tofMaxMin = parseFloat(document.getElementById('tofMax').value);
+            var tofResMin = parseFloat(document.getElementById('tofRes').value);
+
+            // Validate and clamp
+            if (!isFinite(parkingAltM) || parkingAltM < 100000) parkingAltM = 200000;
+            windowPeriods = clamp(windowPeriods, 1, 50);
+            if (timeResMin < 1) timeResMin = 1;
+            if (tofMinMin < 5) tofMinMin = 5;
+            if (tofMaxMin <= tofMinMin) tofMaxMin = tofMinMin + 30;
+            if (tofResMin < 1) tofResMin = 1;
+
+            var windowSec = windowPeriods * parsedSat.period;
+            var timeResSec = timeResMin * 60;
+            var tofMinSec = tofMinMin * 60;
+            var tofMaxSec = tofMaxMin * 60;
+            var tofResSec = tofResMin * 60;
+
+            var launchTimes = [];
+            for (var t = 0; t <= windowSec; t += timeResSec) {
+                launchTimes.push(t);
+            }
+
+            var tofValues = [];
+            for (var tf = tofMinSec; tf <= tofMaxSec; tf += tofResSec) {
+                tofValues.push(tf);
+            }
+
+            var totalPoints = launchTimes.length * tofValues.length;
+
+            // Cap at 10,000 grid points
+            if (totalPoints > 10000) {
+                var factor = Math.ceil(totalPoints / 10000);
+                if (launchTimes.length > tofValues.length) {
+                    var newTimeRes = timeResSec * factor;
+                    launchTimes = [];
+                    for (var t2 = 0; t2 <= windowSec; t2 += newTimeRes) {
+                        launchTimes.push(t2);
+                    }
+                } else {
+                    var newTofRes = tofResSec * factor;
+                    tofValues = [];
+                    for (var tf2 = tofMinSec; tf2 <= tofMaxSec; tf2 += newTofRes) {
+                        tofValues.push(tf2);
+                    }
+                }
+                totalPoints = launchTimes.length * tofValues.length;
+            }
+
+            showMsg(document.getElementById('msgResults'), 'info',
+                'Computing ' + totalPoints + ' grid points...');
+
+            document.getElementById('progressContainer').classList.add('visible');
+
+            // Parking orbit velocity (circular)
+            var rParking = R_EARTH + parkingAltM;
+            var vParking = Math.sqrt(MU / rParking);
+
+            var latRad = site.lat * DEG;
+            var lonRad = site.lon * DEG;
+
+            var pos0 = satECI.pos;
+            var vel0 = satECI.vel;
+
+            // Grid storage
+            var grid = [];
+            for (var i = 0; i < launchTimes.length; i++) {
+                grid.push(new Float64Array(tofValues.length));
+                grid[i].fill(Infinity);
+            }
+
+            // Chunked async computation
+            var chunkSize = 40;
+            var currentRow = 0;
+
+            function computeChunk() {
+                var endRow = Math.min(currentRow + chunkSize, launchTimes.length);
+
+                for (var i = currentRow; i < endRow; i++) {
+                    var tLaunch = launchTimes[i];
+
+                    // Propagate target to launch time
+                    var stateAtLaunch = TLEParser.propagateKepler(pos0, vel0, tLaunch);
+                    if (!stateAtLaunch || !isFinite(stateAtLaunch.pos[0])) continue;
+
+                    // Launch site ECI at launch time
+                    var gmstLaunch = OMEGA_EARTH * tLaunch;
+                    var launchECI = geodeticToECI(latRad, lonRad, parkingAltM, gmstLaunch);
+
+                    for (var j = 0; j < tofValues.length; j++) {
+                        var tof = tofValues[j];
+
+                        // Propagate target to intercept time
+                        var stateAtIntercept = TLEParser.propagateKepler(
+                            stateAtLaunch.pos, stateAtLaunch.vel, tof
+                        );
+                        if (!stateAtIntercept || !isFinite(stateAtIntercept.pos[0])) continue;
+
+                        // Try prograde Lambert
+                        var lambert = solveLambert(launchECI, stateAtIntercept.pos, tof, true);
+                        if (!lambert) {
+                            // Try retrograde
+                            lambert = solveLambert(launchECI, stateAtIntercept.pos, tof, false);
+                        }
+                        if (!lambert) continue;
+
+                        // Departure dV: difference between transfer departure speed and parking orbit speed
+                        var v1mag = vecMag(lambert.v1);
+                        var dv1 = Math.abs(v1mag - vParking);
+
+                        // Arrival dV: match target velocity
+                        var dv2 = vecMag(vecSub(stateAtIntercept.vel, lambert.v2));
+
+                        var totalDV = dv1 + dv2;
+
+                        // Filter extreme values
+                        if (totalDV > 20000) continue;
+
+                        grid[i][j] = totalDV;
+                    }
+                }
+
+                currentRow = endRow;
+                var pct = Math.round(100 * currentRow / launchTimes.length);
+                document.getElementById('progressFill').style.width = pct + '%';
+                document.getElementById('progressText').textContent =
+                    pct + '% (' + currentRow + '/' + launchTimes.length + ' launch times)';
+
+                if (currentRow < launchTimes.length) {
+                    setTimeout(computeChunk, 0);
+                } else {
+                    finishComputation(grid, launchTimes, tofValues, site, parkingAltM, vParking);
+                }
+            }
+
+            setTimeout(computeChunk, 10);
+        }
+
+        function finishComputation(grid, launchTimes, tofValues, site, parkingAltM, vParking) {
+            computing = false;
+            document.getElementById('btnCompute').disabled = false;
+
+            // Collect valid results
+            var results = [];
+            var minDV = Infinity, maxDV = 0;
+
+            for (var i = 0; i < launchTimes.length; i++) {
+                for (var j = 0; j < tofValues.length; j++) {
+                    var dv = grid[i][j];
+                    if (isFinite(dv) && dv > 0) {
+                        results.push({
+                            launchIdx: i,
+                            tofIdx: j,
+                            launchTime: launchTimes[i],
+                            tof: tofValues[j],
+                            dv: dv
+                        });
+                        if (dv < minDV) minDV = dv;
+                        if (dv > maxDV) maxDV = dv;
+                    }
+                }
+            }
+
+            if (results.length === 0) {
+                showMsg(document.getElementById('msgResults'), 'error',
+                    'No valid transfer solutions found. Try wider TOF range or longer window.');
+                document.getElementById('progressContainer').classList.remove('visible');
+                return;
+            }
+
+            results.sort(function(a, b) { return a.dv - b.dv; });
+
+            // Compute launch azimuth for top results
+            var latRad = site.lat * DEG;
+            var lonRad = site.lon * DEG;
+            var pos0 = satECI.pos;
+            var vel0 = satECI.vel;
+
+            topResults = results.slice(0, 10).map(function(r) {
+                var gmst = OMEGA_EARTH * r.launchTime;
+                var launchECI = geodeticToECI(latRad, lonRad, parkingAltM, gmst);
+                var stateAtLaunch = TLEParser.propagateKepler(pos0, vel0, r.launchTime);
+                var stateAtIntercept = TLEParser.propagateKepler(
+                    stateAtLaunch.pos, stateAtLaunch.vel, r.tof
+                );
+
+                var lambert = solveLambert(launchECI, stateAtIntercept.pos, r.tof, true);
+                if (!lambert) lambert = solveLambert(launchECI, stateAtIntercept.pos, r.tof, false);
+
+                var azimuth = 0;
+                if (lambert) {
+                    // Convert departure velocity to ENU at launch site
+                    var vECI = lambert.v1;
+                    var sinLat = Math.sin(latRad);
+                    var cosLat = Math.cos(latRad);
+                    var sinLon = Math.sin(lonRad + gmst);
+                    var cosLon = Math.cos(lonRad + gmst);
+
+                    var vE = -sinLon * vECI[0] + cosLon * vECI[1];
+                    var vN = -sinLat * cosLon * vECI[0] - sinLat * sinLon * vECI[1] + cosLat * vECI[2];
+                    azimuth = Math.atan2(vE, vN) * RAD;
+                    if (azimuth < 0) azimuth += 360;
+                }
+
+                return {
+                    launchTime: r.launchTime,
+                    tof: r.tof,
+                    dv: r.dv,
+                    azimuth: azimuth,
+                    launchIdx: r.launchIdx,
+                    tofIdx: r.tofIdx
+                };
+            });
+
+            gridData = {
+                grid: grid,
+                launchTimes: launchTimes,
+                tofValues: tofValues,
+                minDV: minDV,
+                maxDV: maxDV,
+                site: site,
+                parkingAlt: parkingAltM
+            };
+
+            showMsg(document.getElementById('msgResults'), 'success',
+                results.length + ' solutions found. Best dV: ' + minDV.toFixed(1) + ' m/s');
+
+            renderPorkchopPlot(grid, launchTimes, tofValues, minDV, maxDV, topResults[0]);
+            renderResultsTable(topResults, minDV, maxDV);
+
+            document.getElementById('progressContainer').classList.remove('visible');
+
+            selectResult(0);
+        }
+
+        // ======================================================================
+        // PORKCHOP PLOT
+        // ======================================================================
+
+        function renderPorkchopPlot(grid, launchTimes, tofValues, minDV, maxDV, bestResult) {
+            var container = document.getElementById('porkchopContainer');
+            container.classList.add('visible');
+
+            var canvas = document.getElementById('porkchopCanvas');
+            var width = 280;
+            var height = 200;
+            canvas.width = width;
+            canvas.height = height;
+            var ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#0a0e17';
+            ctx.fillRect(0, 0, width, height);
+
+            var nX = launchTimes.length;
+            var nY = tofValues.length;
+
+            // Log scale for better contrast
+            var logMin = Math.log(minDV + 1);
+            var logMax = Math.log(maxDV + 1);
+            var logRange = logMax - logMin;
+            if (logRange < 1e-6) logRange = 1;
+
+            // Render via ImageData for speed
+            var imgData = ctx.createImageData(width, height);
+            var data = imgData.data;
+
+            for (var px = 0; px < width; px++) {
+                var i = Math.floor(px * nX / width);
+                if (i >= nX) i = nX - 1;
+
+                for (var py = 0; py < height; py++) {
+                    var j = nY - 1 - Math.floor(py * nY / height);
+                    if (j < 0) j = 0;
+
+                    var idx = (py * width + px) * 4;
+                    var dv = grid[i][j];
+
+                    if (!isFinite(dv)) {
+                        data[idx] = 15;
+                        data[idx+1] = 18;
+                        data[idx+2] = 28;
+                        data[idx+3] = 255;
+                    } else {
+                        var t = (Math.log(dv + 1) - logMin) / logRange;
+                        t = clamp(t, 0, 1);
+                        var rgb = dvToColor(t);
+                        data[idx] = rgb[0];
+                        data[idx+1] = rgb[1];
+                        data[idx+2] = rgb[2];
+                        data[idx+3] = 255;
+                    }
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            // Mark optimal point with gold star
+            if (bestResult) {
+                var bx = (bestResult.launchIdx + 0.5) * width / nX;
+                var by = height - (bestResult.tofIdx + 0.5) * height / nY;
+                drawStar(ctx, bx, by, 6, '#FFD700');
+            }
+
+            // Mark selected point if different from best
+            if (selectedIdx > 0 && selectedIdx < topResults.length) {
+                var sel = topResults[selectedIdx];
+                var sx = (sel.launchIdx + 0.5) * width / nX;
+                var sy = height - (sel.tofIdx + 0.5) * height / nY;
+                ctx.strokeStyle = '#4a9eff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(sx, sy, 7, 0, TWO_PI);
+                ctx.stroke();
+            }
+        }
+
+        function dvToColor(t) {
+            var r, g, b;
+            if (t < 0.25) {
+                var s = t / 0.25;
+                r = 0;
+                g = Math.round(s * 187);
+                b = Math.round(255 - s * 68);
+            } else if (t < 0.5) {
+                var s = (t - 0.25) / 0.25;
+                r = 0;
+                g = Math.round(187 + s * 68);
+                b = Math.round(187 - s * 51);
+            } else if (t < 0.75) {
+                var s = (t - 0.5) / 0.25;
+                r = Math.round(s * 255);
+                g = Math.round(255 - s * 34);
+                b = Math.round(136 - s * 136);
+            } else {
+                var s = (t - 0.75) / 0.25;
+                r = 255;
+                g = Math.round(221 - s * 153);
+                b = 0;
+            }
+            return [r, g, b];
+        }
+
+        function drawStar(ctx, cx, cy, r, color) {
+            ctx.beginPath();
+            for (var i = 0; i < 5; i++) {
+                var angle = -Math.PI / 2 + i * 2 * Math.PI / 5;
+                var x = cx + r * Math.cos(angle);
+                var y = cy + r * Math.sin(angle);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                angle += Math.PI / 5;
+                x = cx + r * 0.4 * Math.cos(angle);
+                y = cy + r * 0.4 * Math.sin(angle);
+                ctx.lineTo(x, y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#0a0e17';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        function handlePorkchopHover(e) {
+            if (!gridData) return;
+            var canvas = document.getElementById('porkchopCanvas');
+            var rect = canvas.getBoundingClientRect();
+            var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            var nX = gridData.launchTimes.length;
+            var nY = gridData.tofValues.length;
+            var i = Math.floor(mx * nX / canvas.width);
+            var j = nY - 1 - Math.floor(my * nY / canvas.height);
+
+            if (i < 0 || i >= nX || j < 0 || j >= nY) {
+                document.getElementById('porkchopTooltip').style.display = 'none';
+                return;
+            }
+
+            var dv = gridData.grid[i][j];
+            var tLaunch = gridData.launchTimes[i] / 60;
+            var tof = gridData.tofValues[j] / 60;
+
+            var tooltip = document.getElementById('porkchopTooltip');
+            tooltip.style.display = 'block';
+
+            // Position tooltip relative to porkchop container
+            var containerRect = document.getElementById('porkchopContainer').getBoundingClientRect();
+            tooltip.style.left = (e.clientX - containerRect.left + 12) + 'px';
+            tooltip.style.top = (e.clientY - containerRect.top - 30) + 'px';
+
+            if (isFinite(dv)) {
+                tooltip.innerHTML = 'T+' + tLaunch.toFixed(0) + ' min | TOF ' + tof.toFixed(0) +
+                    ' min<br>dV: <b style="color:#4a9eff">' + dv.toFixed(1) + ' m/s</b>';
+            } else {
+                tooltip.innerHTML = 'T+' + tLaunch.toFixed(0) + ' min | TOF ' + tof.toFixed(0) +
+                    ' min<br><span style="color:#e74c3c">No solution</span>';
+            }
+        }
+
+        function handlePorkchopLeave() {
+            document.getElementById('porkchopTooltip').style.display = 'none';
+        }
+
+        function handlePorkchopClick(e) {
+            if (!gridData) return;
+            var canvas = document.getElementById('porkchopCanvas');
+            var rect = canvas.getBoundingClientRect();
+            var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            var my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            var nX = gridData.launchTimes.length;
+            var nY = gridData.tofValues.length;
+            var i = Math.floor(mx * nX / canvas.width);
+            var j = nY - 1 - Math.floor(my * nY / canvas.height);
+
+            if (i < 0 || i >= nX || j < 0 || j >= nY) return;
+
+            var dv = gridData.grid[i][j];
+            if (!isFinite(dv)) return;
+
+            // Check if clicking near a top result
+            var found = -1;
+            for (var k = 0; k < topResults.length; k++) {
+                if (topResults[k].launchIdx === i && topResults[k].tofIdx === j) {
+                    found = k;
+                    break;
+                }
+            }
+
+            if (found >= 0) {
+                selectResult(found);
+            } else {
+                // Visualize ad-hoc click point
+                visualizeTransfer(gridData.launchTimes[i], gridData.tofValues[j],
+                    gridData.site, gridData.parkingAlt);
+
+                // Mark on porkchop
+                if (gridData) {
+                    renderPorkchopPlot(gridData.grid, gridData.launchTimes, gridData.tofValues,
+                        gridData.minDV, gridData.maxDV, topResults[0]);
+                    // Draw ad-hoc ring
+                    var ctx = canvas.getContext('2d');
+                    var ax = (i + 0.5) * canvas.width / nX;
+                    var ay = canvas.height - (j + 0.5) * canvas.height / nY;
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(ax, ay, 7, 0, TWO_PI);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        // ======================================================================
+        // RESULTS TABLE
+        // ======================================================================
+
+        function renderResultsTable(results, minDV, maxDV) {
+            var section = document.getElementById('resultsSection');
+            section.style.display = 'block';
+            var tbody = document.getElementById('resultsBody');
+            tbody.innerHTML = '';
+
+            var dvRange = maxDV - minDV;
+            if (dvRange < 1) dvRange = 1;
+
+            results.forEach(function(r, idx) {
+                var tr = document.createElement('tr');
+                tr.setAttribute('data-idx', idx);
+                tr.addEventListener('click', function() {
+                    selectResult(idx);
+                });
+
+                var rankHTML;
+                if (idx < 3) {
+                    rankHTML = '<span class="rank-badge rank-' + (idx + 1) + '">' + (idx + 1) + '</span>';
+                } else {
+                    rankHTML = '<span style="color:#6b7a90">' + (idx + 1) + '</span>';
+                }
+
+                var dvNorm = (r.dv - minDV) / dvRange;
+                var dvClass = dvNorm < 0.33 ? 'dv-good' : (dvNorm < 0.66 ? 'dv-ok' : 'dv-bad');
+
+                tr.innerHTML =
+                    '<td>' + rankHTML + '</td>' +
+                    '<td>' + (r.launchTime / 60).toFixed(1) + '</td>' +
+                    '<td>' + (r.tof / 60).toFixed(1) + '</td>' +
+                    '<td class="' + dvClass + '">' + r.dv.toFixed(1) + '</td>' +
+                    '<td>' + r.azimuth.toFixed(1) + '\u00B0</td>';
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function selectResult(idx) {
+            selectedIdx = idx;
+
+            var rows = document.querySelectorAll('#resultsBody tr');
+            rows.forEach(function(row) { row.classList.remove('selected'); });
+            if (rows[idx]) rows[idx].classList.add('selected');
+
+            if (topResults[idx] && gridData) {
+                visualizeTransfer(
+                    topResults[idx].launchTime,
+                    topResults[idx].tof,
+                    gridData.site,
+                    gridData.parkingAlt
+                );
+
+                // Re-render porkchop with selection marker
+                renderPorkchopPlot(gridData.grid, gridData.launchTimes, gridData.tofValues,
+                    gridData.minDV, gridData.maxDV, topResults[0]);
+            }
+        }
+
+        function clearSelection() {
+            selectedIdx = -1;
+            var rows = document.querySelectorAll('#resultsBody tr');
+            rows.forEach(function(row) { row.classList.remove('selected'); });
+            clearTransferViz();
+            if (gridData) {
+                renderPorkchopPlot(gridData.grid, gridData.launchTimes, gridData.tofValues,
+                    gridData.minDV, gridData.maxDV, topResults[0]);
+            }
+        }
+
+        // ======================================================================
+        // GLOBE VISUALIZATION
+        // ======================================================================
+
+        function updateGlobePreview() {
+            clearAllViz();
+            if (!parsedSat || !satECI) return;
+
+            var site = getLaunchSite();
+
+            // 1. Launch site pin
+            vizEntities.launchSite = viewer.entities.add({
+                name: site.name,
+                position: Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 0),
+                billboard: {
+                    image: createPinCanvas('#FFD700'),
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    scale: 0.6,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                    text: site.name,
+                    font: '12px Consolas',
+                    fillColor: Cesium.Color.fromCssColorString('#FFD700'),
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -28),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+
+            // 2. Target orbit polyline (one full period)
+            var orbitPositions = TLEParser.predictOrbitPath(satECI.pos, satECI.vel, 120, 0);
+            if (orbitPositions.length > 2) {
+                vizEntities.targetOrbit = viewer.entities.add({
+                    name: parsedSat.name + ' orbit',
+                    polyline: {
+                        positions: orbitPositions,
+                        width: 1.5,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            color: Cesium.Color.WHITE.withAlpha(0.5),
+                            glowPower: 0.1
+                        }),
+                        clampToGround: false
+                    }
+                });
+            }
+
+            // 3. Satellite current position marker
+            var gmst0 = 0;
+            var satCartesian = TLEParser.eciToCesiumCartesian(satECI.pos, gmst0);
+            if (satCartesian) {
+                vizEntities.satCurrentPos = viewer.entities.add({
+                    name: parsedSat.name,
+                    position: satCartesian,
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.fromCssColorString('#4a9eff'),
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: parsedSat.name,
+                        font: '11px Consolas',
+                        fillColor: Cesium.Color.fromCssColorString('#4a9eff'),
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -12),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+            }
+        }
+
+        function visualizeTransfer(launchTimeSec, tofSec, site, parkingAltM) {
+            clearTransferViz();
+
+            var pos0 = satECI.pos;
+            var vel0 = satECI.vel;
+            var latRad = site.lat * DEG;
+            var lonRad = site.lon * DEG;
+
+            // Propagate target to launch time
+            var stateAtLaunch = TLEParser.propagateKepler(pos0, vel0, launchTimeSec);
+            if (!stateAtLaunch || !isFinite(stateAtLaunch.pos[0])) return;
+
+            // Propagate target to intercept time
+            var stateAtIntercept = TLEParser.propagateKepler(pos0, vel0, launchTimeSec + tofSec);
+            if (!stateAtIntercept || !isFinite(stateAtIntercept.pos[0])) return;
+
+            // Launch site ECI at launch time
+            var gmstLaunch = OMEGA_EARTH * launchTimeSec;
+            var launchECI = geodeticToECI(latRad, lonRad, parkingAltM, gmstLaunch);
+
+            // Solve Lambert for transfer orbit
+            var lambert = solveLambert(launchECI, stateAtIntercept.pos, tofSec, true);
+            if (!lambert) lambert = solveLambert(launchECI, stateAtIntercept.pos, tofSec, false);
+
+            // Target at launch time (green point)
+            var gmstAtLaunch = OMEGA_EARTH * launchTimeSec;
+            var tgtLaunchCart = TLEParser.eciToCesiumCartesian(stateAtLaunch.pos, gmstAtLaunch);
+            if (tgtLaunchCart) {
+                vizEntities.targetAtLaunch = viewer.entities.add({
+                    name: 'Target @ Launch',
+                    position: tgtLaunchCart,
+                    point: {
+                        pixelSize: 10,
+                        color: Cesium.Color.fromCssColorString('#2ecc71'),
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: 'Target @ T+' + (launchTimeSec / 60).toFixed(0) + 'm',
+                        font: '11px Consolas',
+                        fillColor: Cesium.Color.fromCssColorString('#2ecc71'),
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -12),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+            }
+
+            // Target at intercept time (red point)
+            var gmstIntercept = OMEGA_EARTH * (launchTimeSec + tofSec);
+            var tgtInterceptCart = TLEParser.eciToCesiumCartesian(stateAtIntercept.pos, gmstIntercept);
+            if (tgtInterceptCart) {
+                vizEntities.targetAtIntercept = viewer.entities.add({
+                    name: 'Intercept Point',
+                    position: tgtInterceptCart,
+                    point: {
+                        pixelSize: 12,
+                        color: Cesium.Color.fromCssColorString('#e74c3c'),
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 2,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: 'Intercept (TOF ' + (tofSec / 60).toFixed(0) + 'm)',
+                        font: '11px Consolas',
+                        fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -14),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                });
+            }
+
+            // Transfer arc (gold dashed polyline)
+            if (lambert) {
+                var transferPositions = [];
+                var numArcPts = 30;
+                for (var k = 0; k <= numArcPts; k++) {
+                    var frac = k / numArcPts;
+                    var dt = frac * tofSec;
+                    var state = TLEParser.propagateKepler(launchECI, lambert.v1, dt);
+                    if (!state || !isFinite(state.pos[0])) continue;
+
+                    var gmst = OMEGA_EARTH * (launchTimeSec + dt);
+                    var cart = TLEParser.eciToCesiumCartesian(state.pos, gmst);
+                    if (cart) transferPositions.push(cart);
+                }
+
+                if (transferPositions.length > 2) {
+                    vizEntities.transferArc = viewer.entities.add({
+                        name: 'Transfer Orbit',
+                        polyline: {
+                            positions: transferPositions,
+                            width: 3,
+                            material: new Cesium.PolylineDashMaterialProperty({
+                                color: Cesium.Color.fromCssColorString('#FFD700'),
+                                dashLength: 16
+                            }),
+                            clampToGround: false
+                        }
+                    });
+                }
+
+                // Launch azimuth arrow
+                var vDir = vecNorm(lambert.v1);
+                var arrowEnd = vecAdd(launchECI, vecScale(vDir, 500000));
+                var arrowStartCart = eciToECEF(launchECI, gmstLaunch);
+                var arrowEndCart = eciToECEF(arrowEnd, gmstLaunch);
+
+                if (arrowStartCart && arrowEndCart) {
+                    vizEntities.azimuthArrow = viewer.entities.add({
+                        name: 'Launch Azimuth',
+                        polyline: {
+                            positions: [arrowStartCart, arrowEndCart],
+                            width: 2,
+                            material: new Cesium.PolylineArrowMaterialProperty(
+                                Cesium.Color.fromCssColorString('#FFD700').withAlpha(0.8)
+                            ),
+                            clampToGround: false
+                        }
+                    });
+                }
+            }
+
+            // Fly camera to see transfer
+            if (tgtInterceptCart) {
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 5000000),
+                    duration: 1.5
+                });
+            }
+        }
+
+        function clearTransferViz() {
+            var transferKeys = ['targetAtLaunch', 'targetAtIntercept', 'transferArc', 'azimuthArrow'];
+            transferKeys.forEach(function(key) {
+                if (vizEntities[key]) {
+                    viewer.entities.remove(vizEntities[key]);
+                    vizEntities[key] = null;
+                }
+            });
+        }
+
+        function clearAllViz() {
+            Object.keys(vizEntities).forEach(function(key) {
+                if (vizEntities[key]) {
+                    viewer.entities.remove(vizEntities[key]);
+                    vizEntities[key] = null;
+                }
+            });
+        }
+
+        function createPinCanvas(color) {
+            var c = document.createElement('canvas');
+            c.width = 32;
+            c.height = 48;
+            var ctx = c.getContext('2d');
+
+            ctx.beginPath();
+            ctx.arc(16, 16, 12, Math.PI, 0);
+            ctx.lineTo(16, 46);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#0a0e17';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(16, 16, 5, 0, TWO_PI);
+            ctx.fillStyle = '#0a0e17';
+            ctx.fill();
+
+            return c;
+        }
+
+        function resetView() {
+            if (!viewer) return;
+            viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(-40, 20, 15000000),
+                orientation: {
+                    heading: 0,
+                    pitch: -Math.PI / 2,
+                    roll: 0
+                },
+                duration: 1
+            });
+        }
+
+        function toggleHelp() {
+            document.getElementById('helpOverlay').classList.toggle('visible');
+        }
+
+        // ======================================================================
+        // UI HELPERS
+        // ======================================================================
+
+        function showMsg(el, type, text) {
+            el.className = 'msg visible ' + type;
+            el.textContent = text;
+        }
+
+        // ======================================================================
+        // START
+        // ======================================================================
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+    </script>
+</body>
+</html>

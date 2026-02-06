@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radar Horizon &amp; Line-of-Sight Calculator</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="cesium_config.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            font-family: 'Consolas', 'Courier New', monospace;
+            color: #c8cdd5;
+        }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        /* ---- Left Panel ---- */
+        #leftPanel {
+            position: absolute; top: 0; left: 0; z-index: 100;
+            width: 320px; height: 100%;
+            background: rgba(13,19,32,0.92);
+            border-right: 1px solid #1e2a42;
+            overflow-y: auto; overflow-x: hidden;
+            padding: 14px 16px 60px 16px;
+            scrollbar-width: thin;
+            scrollbar-color: #1e2a42 #0d1320;
+        }
+        #leftPanel::-webkit-scrollbar { width: 6px; }
+        #leftPanel::-webkit-scrollbar-track { background: #0d1320; }
+        #leftPanel::-webkit-scrollbar-thumb { background: #1e2a42; border-radius: 3px; }
+
+        #leftPanel h2 {
+            font-size: 14px; color: #4a9eff; margin-bottom: 4px;
+            letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        #leftPanel .subtitle {
+            font-size: 10px; color: #6b7a90; margin-bottom: 14px;
+        }
+
+        .section {
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #1e2a42;
+        }
+        .section:last-child { border-bottom: none; }
+        .section-title {
+            font-size: 11px; color: #4a9eff; text-transform: uppercase;
+            letter-spacing: 0.8px; margin-bottom: 8px; font-weight: 600;
+        }
+
+        .field-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin: 5px 0; min-height: 24px;
+        }
+        .field-label { font-size: 11px; color: #6b7a90; flex-shrink: 0; }
+        .field-value {
+            font-size: 12px; color: #c8cdd5; text-align: right;
+            font-weight: 600;
+        }
+        .field-value.accent { color: #4a9eff; }
+        .field-value.green { color: #2ecc71; }
+        .field-value.gold { color: #FFD700; }
+        .field-value.red { color: #e74c3c; }
+
+        .instruction {
+            font-size: 10px; color: #6b7a90; font-style: italic;
+            margin-bottom: 8px; padding: 6px 8px;
+            background: rgba(74,158,255,0.06);
+            border-left: 2px solid #4a9eff;
+            border-radius: 2px;
+        }
+
+        select, input[type="number"] {
+            background: #0a0e17; color: #c8cdd5;
+            border: 1px solid #1e2a42; border-radius: 3px;
+            padding: 4px 6px; font-size: 11px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            outline: none; transition: border-color 0.2s;
+        }
+        select:focus, input[type="number"]:focus { border-color: #4a9eff; }
+        select { width: 100%; margin-bottom: 6px; cursor: pointer; }
+        input[type="number"] { width: 80px; text-align: right; }
+
+        input[type="range"] {
+            -webkit-appearance: none; appearance: none;
+            width: 100%; height: 4px; margin: 6px 0;
+            background: #1e2a42; border-radius: 2px; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #4a9eff; cursor: pointer; border: 2px solid #0d1320;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #4a9eff; cursor: pointer; border: 2px solid #0d1320;
+        }
+
+        .slider-row {
+            display: flex; align-items: center; gap: 8px; margin: 4px 0;
+        }
+        .slider-row input[type="range"] { flex: 1; }
+        .slider-row .slider-val {
+            font-size: 11px; color: #4a9eff; min-width: 50px;
+            text-align: right; font-weight: 600;
+        }
+
+        button {
+            background: #1e2a42; color: #c8cdd5;
+            border: 1px solid #2a3a5c; border-radius: 3px;
+            padding: 5px 10px; font-size: 11px; cursor: pointer;
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: all 0.15s;
+        }
+        button:hover { background: #2a3a5c; color: #fff; border-color: #4a9eff; }
+        button.primary { background: #1a3a6a; border-color: #4a9eff; color: #4a9eff; }
+        button.primary:hover { background: #4a9eff; color: #0a0e17; }
+        button.danger { border-color: #e74c3c; color: #e74c3c; }
+        button.danger:hover { background: #e74c3c; color: #fff; }
+
+        .radar-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 4px 6px; margin: 3px 0;
+            background: rgba(74,158,255,0.06); border-radius: 3px;
+            font-size: 10px;
+        }
+        .radar-list-item .radar-name { color: #4a9eff; font-weight: 600; }
+        .radar-list-item button { padding: 2px 6px; font-size: 9px; }
+
+        .result-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            margin: 4px 0; padding: 3px 0;
+        }
+        .result-label { font-size: 10px; color: #6b7a90; }
+        .result-value {
+            font-size: 12px; font-weight: 700;
+        }
+        .result-unit { font-size: 9px; color: #6b7a90; margin-left: 2px; }
+        .result-sub {
+            font-size: 9px; color: #6b7a90; text-align: right;
+            margin-top: -2px; margin-bottom: 2px;
+        }
+
+        /* ---- Help Overlay ---- */
+        #helpOverlay {
+            display: none; position: absolute; z-index: 200;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(13,19,32,0.96); border: 1px solid #1e2a42;
+            border-radius: 8px; padding: 24px 32px;
+            max-width: 460px; color: #c8cdd5; font-size: 12px;
+        }
+        #helpOverlay h3 { color: #4a9eff; margin-bottom: 12px; font-size: 14px; }
+        #helpOverlay table { width: 100%; border-collapse: collapse; }
+        #helpOverlay td {
+            padding: 3px 8px; border-bottom: 1px solid #1e2a42;
+        }
+        #helpOverlay td:first-child {
+            color: #FFD700; font-weight: 600; white-space: nowrap; width: 60px;
+        }
+        #helpOverlay .close-help {
+            margin-top: 14px; width: 100%;
+        }
+
+        /* ---- Status Bar ---- */
+        #statusBar {
+            position: absolute; bottom: 0; left: 320px; right: 0;
+            height: 28px; z-index: 90;
+            background: rgba(13,19,32,0.85);
+            border-top: 1px solid #1e2a42;
+            display: flex; align-items: center;
+            padding: 0 14px; font-size: 10px; color: #6b7a90;
+            gap: 20px;
+        }
+        #statusBar .status-item { display: flex; align-items: center; gap: 4px; }
+        #statusBar .status-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* Cesium credit tweaks */
+        .cesium-viewer-bottom { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<!-- Left Panel -->
+<div id="leftPanel">
+    <h2>Radar Horizon Calculator</h2>
+    <div class="subtitle">Line-of-Sight &amp; Coverage Analysis</div>
+
+    <!-- Section 1: Radar Placement -->
+    <div class="section">
+        <div class="section-title">1. Radar Placement</div>
+        <div class="instruction">Click the globe to place a radar site</div>
+        <div class="field-row">
+            <span class="field-label">Latitude</span>
+            <span class="field-value accent" id="dispLat">--</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Longitude</span>
+            <span class="field-value accent" id="dispLon">--</span>
+        </div>
+        <div class="field-row" style="margin-top:6px;">
+            <span class="field-label">Preset Site</span>
+        </div>
+        <select id="presetSite">
+            <option value="custom">Custom (click globe)</option>
+            <option value="thule">Thule AFB (76.53N, 68.75W)</option>
+            <option value="fylingdales">Fylingdales (54.36N, 0.67W)</option>
+            <option value="capecod">Cape Cod AFS (41.75N, 70.54W)</option>
+            <option value="beale">Beale AFB (39.14N, 121.35W)</option>
+            <option value="clear">Clear AFS (64.29N, 149.19W)</option>
+        </select>
+        <div class="field-row">
+            <span class="field-label">Antenna Height (m)</span>
+        </div>
+        <div class="slider-row">
+            <input type="range" id="antennaHeight" min="0" max="500" value="30" step="1">
+            <span class="slider-val" id="antennaHeightVal">30 m</span>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Site Elevation (m ASL)</span>
+        </div>
+        <div class="slider-row">
+            <input type="range" id="siteElevation" min="0" max="5000" value="0" step="10">
+            <span class="slider-val" id="siteElevationVal">0 m</span>
+        </div>
+    </div>
+
+    <!-- Section 2: Radar Parameters -->
+    <div class="section">
+        <div class="section-title">2. Radar Parameters</div>
+        <div class="field-row">
+            <span class="field-label">Radar Type</span>
+        </div>
+        <select id="radarType">
+            <option value="pavepaws">AN/FPS-132 PAVE PAWS</option>
+            <option value="thaad">AN/TPY-2 THAAD</option>
+            <option value="aegis">SPY-1 Aegis</option>
+            <option value="gator">AN/TPS-80 G/ATOR</option>
+            <option value="custom_radar">Custom</option>
+        </select>
+        <div class="field-row">
+            <span class="field-label">Max Range (km)</span>
+            <input type="number" id="maxRange" value="5600" min="1" max="40000" step="10">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Frequency (GHz)</span>
+            <input type="number" id="frequency" value="0.42" min="0.001" max="100" step="0.01">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Transmit Power (kW)</span>
+            <input type="number" id="txPower" value="600" min="0.1" max="100000" step="1">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Antenna Gain (dBi)</span>
+            <input type="number" id="antennaGain" value="40" min="0" max="80" step="0.5">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Min Detectable RCS (m2)</span>
+            <input type="number" id="minRCS" value="1.0" min="0.001" max="1000" step="0.1">
+        </div>
+    </div>
+
+    <!-- Section 3: Environment -->
+    <div class="section">
+        <div class="section-title">3. Environment</div>
+        <div class="field-row">
+            <span class="field-label">Refraction Model</span>
+        </div>
+        <select id="refractionModel">
+            <option value="1.333">Standard (k=4/3)</option>
+            <option value="1.0">No Refraction (k=1)</option>
+            <option value="2.0">Super-Refraction (k=2)</option>
+            <option value="0.9">Sub-Refraction (k=0.9)</option>
+        </select>
+        <div class="field-row">
+            <span class="field-label">Target Altitude (m)</span>
+        </div>
+        <div class="slider-row">
+            <input type="range" id="targetAlt" min="0" max="100000" value="10000" step="100">
+            <span class="slider-val" id="targetAltVal">10,000 m</span>
+        </div>
+    </div>
+
+    <!-- Section 4: Results -->
+    <div class="section" id="resultsSection">
+        <div class="section-title">4. Results</div>
+        <div id="resultsPlaceholder" class="instruction">Place a radar to see results</div>
+        <div id="resultsContent" style="display:none;">
+            <div class="result-row">
+                <span class="result-label">Geometric Horizon</span>
+                <span><span class="result-value green" id="resGeometric">--</span><span class="result-unit">km</span></span>
+            </div>
+            <div class="result-sub" id="resGeometricMi"></div>
+            <div class="result-row">
+                <span class="result-label">Radar Horizon (refracted)</span>
+                <span><span class="result-value accent" id="resRadarHorizon">--</span><span class="result-unit">km</span></span>
+            </div>
+            <div class="result-sub" id="resRadarHorizonMi"></div>
+            <div class="result-row">
+                <span class="result-label">Power-Limited Range</span>
+                <span><span class="result-value gold" id="resPowerRange">--</span><span class="result-unit">km</span></span>
+            </div>
+            <div class="result-sub" id="resPowerRangeMi"></div>
+            <div class="result-row">
+                <span class="result-label">Effective Range</span>
+                <span><span class="result-value" id="resEffective" style="color:#fff; font-size:14px;">--</span><span class="result-unit">km</span></span>
+            </div>
+            <div class="result-sub" id="resEffectiveMi"></div>
+            <div class="result-row">
+                <span class="result-label">Coverage Area</span>
+                <span><span class="result-value green" id="resCoverage">--</span><span class="result-unit">km2</span></span>
+            </div>
+            <div class="result-sub" id="resCoverageMi"></div>
+            <div class="result-row">
+                <span class="result-label">Horizon Angle</span>
+                <span><span class="result-value accent" id="resHorizonAngle">--</span><span class="result-unit">deg</span></span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">Blind Zone Radius</span>
+                <span><span class="result-value red" id="resBlindZone">--</span><span class="result-unit">km</span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 5: Multi-Radar -->
+    <div class="section">
+        <div class="section-title">5. Multi-Radar Mode</div>
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+            <button class="primary" id="btnAddRadar">Add Radar</button>
+            <button class="danger" id="btnClearAll">Clear All</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+            <input type="checkbox" id="chkCombined">
+            <label for="chkCombined" style="font-size:10px; color:#6b7a90; cursor:pointer;">Show Combined Coverage</label>
+        </div>
+        <div id="radarList"></div>
+        <div id="gapAnalysis" style="display:none; margin-top:8px;">
+            <div class="field-row">
+                <span class="field-label">0-radar coverage</span>
+                <span class="field-value red" id="gapZero">--</span>
+            </div>
+            <div class="field-row">
+                <span class="field-label">1-radar coverage</span>
+                <span class="field-value gold" id="gapOne">--</span>
+            </div>
+            <div class="field-row">
+                <span class="field-label">2+ radar coverage</span>
+                <span class="field-value green" id="gapTwo">--</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Bar -->
+<div id="statusBar">
+    <div class="status-item">
+        <span class="status-dot" style="background:#2ecc71;" id="statusDot"></span>
+        <span id="statusText">Ready - click globe to place radar</span>
+    </div>
+    <div class="status-item">
+        <span style="color:#6b7a90;">Radars:</span>
+        <span style="color:#4a9eff;" id="statusRadarCount">0</span>
+    </div>
+    <div class="status-item">
+        <span style="color:#6b7a90;">Rings:</span>
+        <span style="color:#2ecc71;" id="statusRingsToggle">ON</span>
+    </div>
+    <div class="status-item" style="margin-left:auto;">
+        <span style="color:#6b7a90;">Press H for help</span>
+    </div>
+</div>
+
+<!-- Help Overlay -->
+<div id="helpOverlay">
+    <h3>Keyboard Shortcuts</h3>
+    <table>
+        <tr><td>C</td><td>Clear all radars</td></tr>
+        <tr><td>R</td><td>Toggle range rings</td></tr>
+        <tr><td>M</td><td>Toggle multi-radar combined coverage</td></tr>
+        <tr><td>H</td><td>Toggle this help overlay</td></tr>
+        <tr><td>1</td><td>Select AN/FPS-132 PAVE PAWS</td></tr>
+        <tr><td>2</td><td>Select AN/TPY-2 THAAD</td></tr>
+        <tr><td>3</td><td>Select SPY-1 Aegis</td></tr>
+        <tr><td>4</td><td>Select AN/TPS-80 G/ATOR</td></tr>
+        <tr><td>5</td><td>Select Custom radar</td></tr>
+        <tr><td>+/-</td><td>Adjust antenna height +/- 10 m</td></tr>
+    </table>
+    <button class="close-help primary" onclick="toggleHelp()">Close (H)</button>
+</div>
+
+<script>
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+const R_EARTH = 6371000; // meters
+const C_LIGHT = 299792458; // m/s
+const K_BOLTZMANN = 1.380649e-23; // J/K
+const DEG = Math.PI / 180;
+const RAD = 180 / Math.PI;
+const KM_TO_MI = 0.621371;
+const KM2_TO_MI2 = 0.386102;
+
+// Minimum detectable signal (typical, Watts)
+const S_MIN = 1e-18;
+
+// ============================================================================
+// PRESET DATA
+// ============================================================================
+const SITE_PRESETS = {
+    thule:      { name: 'Thule AFB',      lat: 76.53,  lon: -68.75, elev: 77 },
+    fylingdales:{ name: 'RAF Fylingdales', lat: 54.36,  lon: -0.67,  elev: 262 },
+    capecod:    { name: 'Cape Cod AFS',    lat: 41.75,  lon: -70.54, elev: 25 },
+    beale:      { name: 'Beale AFB',       lat: 39.14,  lon: -121.35,elev: 34 },
+    clear:      { name: 'Clear AFS',       lat: 64.29,  lon: -149.19,elev: 168 }
+};
+
+const RADAR_PRESETS = {
+    pavepaws:    { name: 'AN/FPS-132 PAVE PAWS', range: 5600, freq: 0.42,  power: 600,  gain: 40 },
+    thaad:       { name: 'AN/TPY-2 THAAD',       range: 1000, freq: 9.0,   power: 81,   gain: 43 },
+    aegis:       { name: 'SPY-1 Aegis',           range: 400,  freq: 3.3,   power: 6000, gain: 42 },
+    gator:       { name: 'AN/TPS-80 G/ATOR',     range: 370,  freq: 10.0,  power: 50,   gain: 38 },
+    custom_radar:{ name: 'Custom',                range: 500,  freq: 3.0,   power: 100,  gain: 40 }
+};
+
+// ============================================================================
+// STATE
+// ============================================================================
+let viewer;
+let radars = [];  // Array of radar objects
+let activeRadarIndex = -1;
+let showRings = true;
+let showCombined = false;
+let combinedEntity = null;
+
+// Current placement state
+let currentLat = null;
+let currentLon = null;
+
+// ============================================================================
+// PHYSICS FUNCTIONS
+// ============================================================================
+
+/**
+ * Geometric horizon distance (no refraction) for antenna at height h
+ * looking at target at altitude h_target, both above a sphere of radius R.
+ */
+function geometricHorizon(h_antenna, h_target, R) {
+    // d = sqrt(2*R*h_ant + h_ant^2) + sqrt(2*R*h_tgt + h_tgt^2)
+    var d1 = Math.sqrt(2 * R * h_antenna + h_antenna * h_antenna);
+    var d2 = Math.sqrt(2 * R * h_target + h_target * h_target);
+    return d1 + d2;
+}
+
+/**
+ * Radar horizon distance with atmospheric refraction.
+ * Uses effective Earth radius R_eff = k * R_EARTH.
+ */
+function radarHorizon(h_antenna, h_target, k) {
+    var R_eff = k * R_EARTH;
+    var d1 = Math.sqrt(2 * R_eff * h_antenna + h_antenna * h_antenna);
+    var d2 = Math.sqrt(2 * R_eff * h_target + h_target * h_target);
+    return d1 + d2;
+}
+
+/**
+ * Radar range equation (simplified, monostatic).
+ * Returns max detection range in meters.
+ */
+function radarRangeEquation(P_t_watts, G_linear, lambda, sigma) {
+    // R_max = ( P_t * G^2 * lambda^2 * sigma / ((4*pi)^3 * S_min) )^(1/4)
+    var numerator = P_t_watts * G_linear * G_linear * lambda * lambda * sigma;
+    var denominator = Math.pow(4 * Math.PI, 3) * S_MIN;
+    if (numerator <= 0 || denominator <= 0) return 0;
+    return Math.pow(numerator / denominator, 0.25);
+}
+
+/**
+ * Horizon depression angle below horizontal (radians).
+ * For an observer at height h above a sphere of radius R (with refraction k).
+ */
+function horizonAngle(h, k) {
+    var R_eff = k * R_EARTH;
+    // angle = acos(R_eff / (R_eff + h))
+    return Math.acos(R_eff / (R_eff + h));
+}
+
+/**
+ * Blind zone radius: the minimum ground range at which a target at altitude
+ * h_target is visible, given a maximum elevation angle (90 degrees means
+ * directly overhead is NOT blind). For long-range radars with mechanical or
+ * phased array limits, the max elevation is typically ~85 degrees.
+ * Here we use 85 degrees as a representative max elevation.
+ */
+function blindZoneRadius(h_antenna, h_target, k) {
+    var maxEl = 85 * DEG; // max elevation angle
+    var dh = h_target - h_antenna;
+    if (dh <= 0) return 0;
+    // Flat-earth approximation for the blind zone (valid for small distances)
+    // At max elevation angle, ground range = dh / tan(maxEl)
+    var r = dh / Math.tan(maxEl);
+    return Math.max(0, r);
+}
+
+/**
+ * Compute all results for a given radar configuration.
+ */
+function computeResults(h_antenna_total, h_target, k, maxRangeKm, freqGHz, powerKW, gainDBi, rcsM2) {
+    var geom = geometricHorizon(h_antenna_total, h_target, R_EARTH);
+    var horizon = radarHorizon(h_antenna_total, h_target, k);
+
+    // Radar range equation
+    var P_t = powerKW * 1000; // W
+    var G_linear = Math.pow(10, gainDBi / 10);
+    var lambda = C_LIGHT / (freqGHz * 1e9);
+    var R_power = radarRangeEquation(P_t, G_linear, lambda, rcsM2);
+
+    // Instrument-limited max range
+    var R_instrument = maxRangeKm * 1000;
+
+    // Effective range: minimum of horizon, power, and instrument limits
+    var R_eff = Math.min(horizon, R_power, R_instrument);
+
+    // Coverage area (circular)
+    var area = Math.PI * R_eff * R_eff;
+
+    // Horizon angle
+    var hAngle = horizonAngle(h_antenna_total, k);
+
+    // Blind zone
+    var blind = blindZoneRadius(h_antenna_total, h_target, k);
+
+    return {
+        geometric_m: geom,
+        horizon_m: horizon,
+        powerRange_m: R_power,
+        instrumentRange_m: R_instrument,
+        effective_m: R_eff,
+        area_m2: area,
+        horizonAngle_rad: hAngle,
+        blindZone_m: blind
+    };
+}
+
+// ============================================================================
+// GLOBE VISUALIZATION HELPERS
+// ============================================================================
+
+/**
+ * Compute a destination point given start lat/lon (radians), bearing (radians),
+ * and angular distance (radians) on a sphere.
+ */
+function destinationPoint(lat, lon, bearing, angularDist) {
+    var sinLat = Math.sin(lat);
+    var cosLat = Math.cos(lat);
+    var sinD = Math.sin(angularDist);
+    var cosD = Math.cos(angularDist);
+
+    var lat2 = Math.asin(sinLat * cosD + cosLat * sinD * Math.cos(bearing));
+    var lon2 = lon + Math.atan2(
+        Math.sin(bearing) * sinD * cosLat,
+        cosD - sinLat * Math.sin(lat2)
+    );
+    return { lat: lat2, lon: lon2 };
+}
+
+/**
+ * Generate polygon points (Cartesian3 array) forming a circle on the globe
+ * centered at (latDeg, lonDeg) with the given radius in meters.
+ */
+function generateCirclePoints(latDeg, lonDeg, radiusM, numPoints) {
+    numPoints = numPoints || 120;
+    var latRad = latDeg * DEG;
+    var lonRad = lonDeg * DEG;
+    var angularDist = radiusM / R_EARTH;
+    var points = [];
+    for (var i = 0; i < numPoints; i++) {
+        var bearing = (2 * Math.PI * i) / numPoints;
+        var dest = destinationPoint(latRad, lonRad, bearing, angularDist);
+        points.push(Cesium.Cartesian3.fromRadians(dest.lon, dest.lat));
+    }
+    return points;
+}
+
+/**
+ * Generate an arc of points from the radar upward to the horizon,
+ * representing the elevation angle cross-section.
+ */
+function generateElevationArc(latDeg, lonDeg, h_antenna, horizonDist, k, numPoints) {
+    numPoints = numPoints || 40;
+    var latRad = latDeg * DEG;
+    var lonRad = lonDeg * DEG;
+    var points = [];
+    // Start at the radar site
+    points.push(Cesium.Cartesian3.fromDegrees(lonDeg, latDeg, h_antenna));
+    // Arc out to horizon
+    for (var i = 1; i <= numPoints; i++) {
+        var t = i / numPoints;
+        var groundDist = horizonDist * t;
+        var angularDist = groundDist / R_EARTH;
+        // Height decreases along the beam path (simplified)
+        // For a straight-line beam over curved earth, height at distance d:
+        // h(d) = h_antenna + d*tan(el) - d^2/(2*k*R_EARTH)
+        // At horizon, el = -horizonAngle, so the beam just touches 0 altitude
+        var R_eff = k * R_EARTH;
+        var el = -Math.acos(R_eff / (R_eff + h_antenna));
+        var h = h_antenna + groundDist * Math.tan(el) + groundDist * groundDist / (2 * R_eff);
+        if (h < 0) h = 0;
+        // Use bearing = 0 (north) for the cross-section
+        var dest = destinationPoint(latRad, lonRad, 0, angularDist);
+        points.push(Cesium.Cartesian3.fromRadians(dest.lon, dest.lat, Math.max(h, 0)));
+    }
+    return points;
+}
+
+// ============================================================================
+// RADAR MANAGEMENT
+// ============================================================================
+
+function getInputParams() {
+    return {
+        antennaHeight: parseFloat(document.getElementById('antennaHeight').value) || 30,
+        siteElevation: parseFloat(document.getElementById('siteElevation').value) || 0,
+        maxRange: parseFloat(document.getElementById('maxRange').value) || 500,
+        frequency: parseFloat(document.getElementById('frequency').value) || 3.0,
+        txPower: parseFloat(document.getElementById('txPower').value) || 100,
+        antennaGain: parseFloat(document.getElementById('antennaGain').value) || 40,
+        minRCS: parseFloat(document.getElementById('minRCS').value) || 1.0,
+        k: parseFloat(document.getElementById('refractionModel').value) || 1.333,
+        targetAlt: parseFloat(document.getElementById('targetAlt').value) || 10000
+    };
+}
+
+function createRadar(lat, lon, params, name) {
+    var idx = radars.length;
+    var radarName = name || ('Radar ' + (idx + 1));
+    var radar = {
+        id: 'radar_' + Date.now() + '_' + idx,
+        name: radarName,
+        lat: lat,
+        lon: lon,
+        params: Object.assign({}, params),
+        entities: {},
+        results: null
+    };
+
+    // Compute results
+    var h_total = params.antennaHeight + params.siteElevation;
+    radar.results = computeResults(
+        h_total, params.targetAlt, params.k,
+        params.maxRange, params.frequency, params.txPower,
+        params.antennaGain, params.minRCS
+    );
+
+    // Create Cesium entities
+    createRadarEntities(radar);
+
+    radars.push(radar);
+    activeRadarIndex = radars.length - 1;
+    return radar;
+}
+
+function createRadarEntities(radar) {
+    var res = radar.results;
+    var lat = radar.lat;
+    var lon = radar.lon;
+    var h = radar.params.antennaHeight + radar.params.siteElevation;
+
+    // 1. Radar site pin
+    radar.entities.pin = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, h),
+        point: {
+            pixelSize: 10,
+            color: Cesium.Color.fromCssColorString('#e74c3c'),
+            outlineColor: Cesium.Color.fromCssColorString('#ff6b6b'),
+            outlineWidth: 2,
+            heightReference: Cesium.HeightReference.NONE,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+            text: radar.name,
+            font: '12px Consolas',
+            fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            outlineWidth: 2,
+            outlineColor: Cesium.Color.BLACK,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -14),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+    });
+
+    // 2. Pulsing ring around radar site
+    radar.entities.pulse = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        ellipse: {
+            semiMajorAxis: 5000,
+            semiMinorAxis: 5000,
+            height: 0,
+            material: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.15),
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.6),
+            outlineWidth: 2
+        }
+    });
+
+    if (showRings) {
+        createRangeRings(radar);
+    }
+}
+
+function createRangeRings(radar) {
+    var res = radar.results;
+    var lat = radar.lat;
+    var lon = radar.lon;
+
+    // Remove existing rings if any
+    removeRangeRings(radar);
+
+    // 3. Radar horizon circle (green, on ground)
+    var horizonPoints = generateCirclePoints(lat, lon, res.horizon_m, 120);
+    radar.entities.horizonCircle = viewer.entities.add({
+        polygon: {
+            hierarchy: new Cesium.PolygonHierarchy(horizonPoints),
+            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.08),
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.7),
+            outlineWidth: 2,
+            height: 0,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+        }
+    });
+
+    // 4. Effective detection range ring (gold, if different from horizon)
+    if (res.effective_m < res.horizon_m * 0.98) {
+        var effectivePoints = generateCirclePoints(lat, lon, res.effective_m, 120);
+        radar.entities.effectiveCircle = viewer.entities.add({
+            polygon: {
+                hierarchy: new Cesium.PolygonHierarchy(effectivePoints),
+                material: Cesium.Color.fromCssColorString('#FFD700').withAlpha(0.05),
+                outline: true,
+                outlineColor: Cesium.Color.fromCssColorString('#FFD700').withAlpha(0.6),
+                outlineWidth: 2,
+                height: 0,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+    }
+
+    // 5. Target-altitude horizon ring (dashed style via polyline, if target alt > 0)
+    var targetAlt = radar.params.targetAlt;
+    if (targetAlt > 0) {
+        var targetHorizonPoints = generateCirclePoints(lat, lon, res.horizon_m, 120);
+        // Show as a polyline at target altitude
+        var positions = [];
+        for (var i = 0; i < targetHorizonPoints.length; i++) {
+            var carto = Cesium.Cartographic.fromCartesian(targetHorizonPoints[i]);
+            positions.push(Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, targetAlt));
+        }
+        // Close the loop
+        if (positions.length > 0) {
+            var firstCarto = Cesium.Cartographic.fromCartesian(targetHorizonPoints[0]);
+            positions.push(Cesium.Cartesian3.fromRadians(firstCarto.longitude, firstCarto.latitude, targetAlt));
+        }
+        radar.entities.targetAltRing = viewer.entities.add({
+            polyline: {
+                positions: positions,
+                width: 2,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.fromCssColorString('#4a9eff').withAlpha(0.5),
+                    dashLength: 16.0
+                }),
+                clampToGround: false
+            }
+        });
+    }
+
+    // 6. Elevation angle fan (vertical cross-section arc)
+    var h_total = radar.params.antennaHeight + radar.params.siteElevation;
+    // Only the antenna-to-ground horizon part (not target alt)
+    var groundHorizon = Math.sqrt(2 * radar.params.k * R_EARTH * h_total + h_total * h_total);
+    var arcPoints = generateElevationArc(lat, lon, h_total, groundHorizon, radar.params.k, 40);
+    radar.entities.elevationArc = viewer.entities.add({
+        polyline: {
+            positions: arcPoints,
+            width: 2,
+            material: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.4),
+            clampToGround: false
+        }
+    });
+
+    // 7. Blind zone circle (red, if non-trivial)
+    if (res.blindZone_m > 500) {
+        var blindPoints = generateCirclePoints(lat, lon, res.blindZone_m, 60);
+        radar.entities.blindZoneCircle = viewer.entities.add({
+            polygon: {
+                hierarchy: new Cesium.PolygonHierarchy(blindPoints),
+                material: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.12),
+                outline: true,
+                outlineColor: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.5),
+                outlineWidth: 1,
+                height: 0,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+    }
+}
+
+function removeRangeRings(radar) {
+    var ringKeys = ['horizonCircle', 'effectiveCircle', 'targetAltRing', 'elevationArc', 'blindZoneCircle'];
+    ringKeys.forEach(function(key) {
+        if (radar.entities[key]) {
+            viewer.entities.remove(radar.entities[key]);
+            radar.entities[key] = null;
+        }
+    });
+}
+
+function removeRadar(index) {
+    if (index < 0 || index >= radars.length) return;
+    var radar = radars[index];
+    // Remove all entities
+    Object.keys(radar.entities).forEach(function(key) {
+        if (radar.entities[key]) {
+            viewer.entities.remove(radar.entities[key]);
+        }
+    });
+    radars.splice(index, 1);
+    if (activeRadarIndex >= radars.length) {
+        activeRadarIndex = radars.length - 1;
+    }
+    updateRadarList();
+    updateCombinedCoverage();
+    updateStatusBar();
+    if (radars.length === 0) {
+        clearResults();
+    } else if (activeRadarIndex >= 0) {
+        displayResults(radars[activeRadarIndex].results);
+    }
+}
+
+function clearAllRadars() {
+    while (radars.length > 0) {
+        removeRadar(radars.length - 1);
+    }
+    currentLat = null;
+    currentLon = null;
+    document.getElementById('dispLat').textContent = '--';
+    document.getElementById('dispLon').textContent = '--';
+    setStatus('All radars cleared', '#e74c3c');
+}
+
+function updateRadar(radar) {
+    var params = radar.params;
+    var h_total = params.antennaHeight + params.siteElevation;
+    radar.results = computeResults(
+        h_total, params.targetAlt, params.k,
+        params.maxRange, params.frequency, params.txPower,
+        params.antennaGain, params.minRCS
+    );
+
+    // Update pin position
+    if (radar.entities.pin) {
+        radar.entities.pin.position = Cesium.Cartesian3.fromDegrees(radar.lon, radar.lat, h_total);
+    }
+
+    // Rebuild rings
+    if (showRings) {
+        createRangeRings(radar);
+    }
+}
+
+// ============================================================================
+// COMBINED COVERAGE
+// ============================================================================
+
+function updateCombinedCoverage() {
+    // Remove existing combined entity
+    if (combinedEntity) {
+        viewer.entities.remove(combinedEntity);
+        combinedEntity = null;
+    }
+
+    if (!showCombined || radars.length < 2) {
+        document.getElementById('gapAnalysis').style.display = 'none';
+        return;
+    }
+
+    // For combined coverage, create a multi-polygon representation
+    // We'll overlay each radar's coverage with increasing opacity where they overlap
+    // Simple approach: draw each radar's coverage with moderate alpha;
+    // overlapping areas naturally appear brighter
+    // For a proper gap analysis, we sample a grid
+
+    // Draw combined coverage as individual translucent circles
+    // (true union would require computational geometry; this visual approach works)
+    // The combined entity is not created here since each radar already has its own circle
+    // Instead, we do the gap analysis
+
+    performGapAnalysis();
+}
+
+function performGapAnalysis() {
+    if (radars.length < 2) {
+        document.getElementById('gapAnalysis').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('gapAnalysis').style.display = 'block';
+
+    // Determine bounding box of all radars
+    var minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+    radars.forEach(function(r) {
+        var extent = (r.results.effective_m / R_EARTH) * RAD;
+        minLat = Math.min(minLat, r.lat - extent);
+        maxLat = Math.max(maxLat, r.lat + extent);
+        minLon = Math.min(minLon, r.lon - extent);
+        maxLon = Math.max(maxLon, r.lon + extent);
+    });
+
+    // Sample grid (coarse for performance: ~40x40)
+    var gridRes = 40;
+    var totalSamples = 0;
+    var counts = [0, 0, 0]; // 0-coverage, 1-coverage, 2+-coverage
+
+    for (var i = 0; i < gridRes; i++) {
+        for (var j = 0; j < gridRes; j++) {
+            var sLat = minLat + (maxLat - minLat) * (i + 0.5) / gridRes;
+            var sLon = minLon + (maxLon - minLon) * (j + 0.5) / gridRes;
+            totalSamples++;
+
+            var coverCount = 0;
+            radars.forEach(function(r) {
+                var dLat = (sLat - r.lat) * DEG;
+                var dLon = (sLon - r.lon) * DEG * Math.cos(r.lat * DEG);
+                var dist = Math.sqrt(dLat * dLat + dLon * dLon) * R_EARTH;
+                if (dist <= r.results.effective_m) {
+                    coverCount++;
+                }
+            });
+
+            if (coverCount === 0) counts[0]++;
+            else if (coverCount === 1) counts[1]++;
+            else counts[2]++;
+        }
+    }
+
+    var pct0 = (100 * counts[0] / totalSamples).toFixed(1) + '%';
+    var pct1 = (100 * counts[1] / totalSamples).toFixed(1) + '%';
+    var pct2 = (100 * counts[2] / totalSamples).toFixed(1) + '%';
+
+    document.getElementById('gapZero').textContent = pct0;
+    document.getElementById('gapOne').textContent = pct1;
+    document.getElementById('gapTwo').textContent = pct2;
+}
+
+// ============================================================================
+// UI DISPLAY
+// ============================================================================
+
+function formatNumber(n, decimals) {
+    if (n === null || n === undefined || isNaN(n)) return '--';
+    decimals = decimals !== undefined ? decimals : 1;
+    return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function displayResults(results) {
+    document.getElementById('resultsPlaceholder').style.display = 'none';
+    document.getElementById('resultsContent').style.display = 'block';
+
+    var geomKm = results.geometric_m / 1000;
+    var horizonKm = results.horizon_m / 1000;
+    var powerKm = results.powerRange_m / 1000;
+    var effectiveKm = results.effective_m / 1000;
+    var areaKm2 = results.area_m2 / 1e6;
+    var angleDeg = results.horizonAngle_rad * RAD;
+    var blindKm = results.blindZone_m / 1000;
+
+    document.getElementById('resGeometric').textContent = formatNumber(geomKm);
+    document.getElementById('resGeometricMi').textContent = '(' + formatNumber(geomKm * KM_TO_MI) + ' mi)';
+
+    document.getElementById('resRadarHorizon').textContent = formatNumber(horizonKm);
+    document.getElementById('resRadarHorizonMi').textContent = '(' + formatNumber(horizonKm * KM_TO_MI) + ' mi)';
+
+    document.getElementById('resPowerRange').textContent = formatNumber(powerKm);
+    document.getElementById('resPowerRangeMi').textContent = '(' + formatNumber(powerKm * KM_TO_MI) + ' mi)';
+
+    document.getElementById('resEffective').textContent = formatNumber(effectiveKm);
+    document.getElementById('resEffectiveMi').textContent = '(' + formatNumber(effectiveKm * KM_TO_MI) + ' mi)';
+
+    document.getElementById('resCoverage').textContent = formatNumber(areaKm2, 0);
+    document.getElementById('resCoverageMi').textContent = '(' + formatNumber(areaKm2 * KM2_TO_MI2, 0) + ' mi2)';
+
+    document.getElementById('resHorizonAngle').textContent = formatNumber(angleDeg, 3);
+    document.getElementById('resBlindZone').textContent = formatNumber(blindKm, 2);
+
+    // Color the effective range based on what limits it
+    var effEl = document.getElementById('resEffective');
+    var limitingFactor = 'instrument';
+    if (results.effective_m <= results.horizon_m * 1.001 && results.horizon_m <= results.powerRange_m && results.horizon_m <= results.instrumentRange_m) {
+        limitingFactor = 'horizon';
+    } else if (results.effective_m <= results.powerRange_m * 1.001 && results.powerRange_m <= results.horizon_m && results.powerRange_m <= results.instrumentRange_m) {
+        limitingFactor = 'power';
+    }
+    if (limitingFactor === 'horizon') {
+        effEl.style.color = '#2ecc71'; // Green - horizon limited
+    } else if (limitingFactor === 'power') {
+        effEl.style.color = '#FFD700'; // Gold - power limited
+    } else {
+        effEl.style.color = '#4a9eff'; // Blue - instrument limited
+    }
+}
+
+function clearResults() {
+    document.getElementById('resultsPlaceholder').style.display = 'block';
+    document.getElementById('resultsContent').style.display = 'none';
+}
+
+function updateRadarList() {
+    var list = document.getElementById('radarList');
+    list.innerHTML = '';
+    radars.forEach(function(r, i) {
+        var div = document.createElement('div');
+        div.className = 'radar-list-item';
+        var effKm = r.results ? (r.results.effective_m / 1000).toFixed(0) : '--';
+        div.innerHTML =
+            '<span class="radar-name">' + r.name + '</span>' +
+            '<span style="color:#6b7a90; font-size:9px;">' + effKm + ' km</span>' +
+            '<button class="danger" onclick="removeRadar(' + i + ')" title="Remove">&times;</button>';
+        div.style.cursor = 'pointer';
+        div.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') return;
+            activeRadarIndex = i;
+            if (r.results) displayResults(r.results);
+            flyToRadar(r);
+        });
+        list.appendChild(div);
+    });
+    document.getElementById('statusRadarCount').textContent = radars.length;
+}
+
+function flyToRadar(radar) {
+    var range = Math.max(radar.results.effective_m * 3, 500000);
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(radar.lon, radar.lat, range),
+        orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-60),
+            roll: 0
+        },
+        duration: 1.5
+    });
+}
+
+function setStatus(text, color) {
+    document.getElementById('statusText').textContent = text;
+    document.getElementById('statusDot').style.background = color || '#2ecc71';
+}
+
+function updateStatusBar() {
+    document.getElementById('statusRadarCount').textContent = radars.length;
+    document.getElementById('statusRingsToggle').textContent = showRings ? 'ON' : 'OFF';
+    document.getElementById('statusRingsToggle').style.color = showRings ? '#2ecc71' : '#e74c3c';
+}
+
+// ============================================================================
+// EVENT HANDLERS
+// ============================================================================
+
+function onGlobeClick(click) {
+    var cartesian = viewer.scene.pickPosition(click.position);
+    if (!cartesian) {
+        // Fallback: pick on ellipsoid
+        var ray = viewer.camera.getPickRay(click.position);
+        cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+    }
+    if (!cartesian) return;
+
+    var carto = Cesium.Cartographic.fromCartesian(cartesian);
+    currentLat = Cesium.Math.toDegrees(carto.latitude);
+    currentLon = Cesium.Math.toDegrees(carto.longitude);
+
+    document.getElementById('dispLat').textContent = currentLat.toFixed(4) + '\u00B0';
+    document.getElementById('dispLon').textContent = currentLon.toFixed(4) + '\u00B0';
+    document.getElementById('presetSite').value = 'custom';
+
+    placeOrUpdateActiveRadar();
+}
+
+function placeOrUpdateActiveRadar() {
+    if (currentLat === null || currentLon === null) return;
+
+    var params = getInputParams();
+
+    if (radars.length === 0) {
+        // First radar
+        var r = createRadar(currentLat, currentLon, params);
+        displayResults(r.results);
+        updateRadarList();
+        updateCombinedCoverage();
+        updateStatusBar();
+        setStatus('Radar placed at ' + currentLat.toFixed(2) + ', ' + currentLon.toFixed(2), '#2ecc71');
+    } else if (activeRadarIndex >= 0 && activeRadarIndex < radars.length) {
+        // Update the active radar position and params
+        var radar = radars[activeRadarIndex];
+        // Remove old entities
+        Object.keys(radar.entities).forEach(function(key) {
+            if (radar.entities[key]) {
+                viewer.entities.remove(radar.entities[key]);
+                radar.entities[key] = null;
+            }
+        });
+        radar.lat = currentLat;
+        radar.lon = currentLon;
+        radar.params = Object.assign({}, params);
+        var h_total = params.antennaHeight + params.siteElevation;
+        radar.results = computeResults(
+            h_total, params.targetAlt, params.k,
+            params.maxRange, params.frequency, params.txPower,
+            params.antennaGain, params.minRCS
+        );
+        createRadarEntities(radar);
+        displayResults(radar.results);
+        updateRadarList();
+        updateCombinedCoverage();
+        setStatus('Radar updated at ' + currentLat.toFixed(2) + ', ' + currentLon.toFixed(2), '#2ecc71');
+    }
+}
+
+function onPresetSiteChange() {
+    var val = document.getElementById('presetSite').value;
+    if (val === 'custom') return;
+    var site = SITE_PRESETS[val];
+    if (!site) return;
+
+    currentLat = site.lat;
+    currentLon = site.lon;
+    document.getElementById('dispLat').textContent = currentLat.toFixed(4) + '\u00B0';
+    document.getElementById('dispLon').textContent = currentLon.toFixed(4) + '\u00B0';
+    document.getElementById('siteElevation').value = site.elev;
+    document.getElementById('siteElevationVal').textContent = site.elev.toLocaleString() + ' m';
+
+    placeOrUpdateActiveRadar();
+
+    // Fly to the site
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(site.lon, site.lat, 2000000),
+        orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-60),
+            roll: 0
+        },
+        duration: 2.0
+    });
+}
+
+function onRadarTypeChange() {
+    var val = document.getElementById('radarType').value;
+    var preset = RADAR_PRESETS[val];
+    if (!preset) return;
+
+    document.getElementById('maxRange').value = preset.range;
+    document.getElementById('frequency').value = preset.freq;
+    document.getElementById('txPower').value = preset.power;
+    document.getElementById('antennaGain').value = preset.gain;
+
+    onParamChange();
+}
+
+function onParamChange() {
+    // Update active radar if one exists
+    if (activeRadarIndex >= 0 && activeRadarIndex < radars.length) {
+        var radar = radars[activeRadarIndex];
+        var params = getInputParams();
+        radar.params = Object.assign({}, params);
+        // Remove old rings and rebuild
+        Object.keys(radar.entities).forEach(function(key) {
+            if (radar.entities[key]) {
+                viewer.entities.remove(radar.entities[key]);
+                radar.entities[key] = null;
+            }
+        });
+        var h_total = params.antennaHeight + params.siteElevation;
+        radar.results = computeResults(
+            h_total, params.targetAlt, params.k,
+            params.maxRange, params.frequency, params.txPower,
+            params.antennaGain, params.minRCS
+        );
+        createRadarEntities(radar);
+        displayResults(radar.results);
+        updateRadarList();
+        updateCombinedCoverage();
+    }
+}
+
+function onAddRadar() {
+    // Create a new radar at the current position (or prompt)
+    if (currentLat === null || currentLon === null) {
+        setStatus('Click the globe first to set a position', '#e74c3c');
+        return;
+    }
+    var params = getInputParams();
+    var r = createRadar(currentLat, currentLon, params);
+    displayResults(r.results);
+    updateRadarList();
+    updateCombinedCoverage();
+    updateStatusBar();
+    setStatus('Added ' + r.name, '#2ecc71');
+}
+
+function toggleRings() {
+    showRings = !showRings;
+    radars.forEach(function(radar) {
+        if (showRings) {
+            createRangeRings(radar);
+        } else {
+            removeRangeRings(radar);
+        }
+    });
+    updateStatusBar();
+    setStatus('Range rings ' + (showRings ? 'ON' : 'OFF'), showRings ? '#2ecc71' : '#e74c3c');
+}
+
+function toggleCombined() {
+    showCombined = document.getElementById('chkCombined').checked;
+    updateCombinedCoverage();
+}
+
+function toggleHelp() {
+    var el = document.getElementById('helpOverlay');
+    el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+}
+
+// ============================================================================
+// SLIDER UPDATES
+// ============================================================================
+
+function setupSliders() {
+    var antennaSlider = document.getElementById('antennaHeight');
+    var antennaVal = document.getElementById('antennaHeightVal');
+    antennaSlider.addEventListener('input', function() {
+        antennaVal.textContent = this.value + ' m';
+        onParamChange();
+    });
+
+    var elevSlider = document.getElementById('siteElevation');
+    var elevVal = document.getElementById('siteElevationVal');
+    elevSlider.addEventListener('input', function() {
+        elevVal.textContent = parseInt(this.value).toLocaleString() + ' m';
+        onParamChange();
+    });
+
+    var targetSlider = document.getElementById('targetAlt');
+    var targetVal = document.getElementById('targetAltVal');
+    targetSlider.addEventListener('input', function() {
+        targetVal.textContent = parseInt(this.value).toLocaleString() + ' m';
+        onParamChange();
+    });
+}
+
+// ============================================================================
+// KEYBOARD SHORTCUTS
+// ============================================================================
+
+function onKeyDown(e) {
+    // Don't handle if typing in an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch (e.key.toLowerCase()) {
+        case 'c':
+            clearAllRadars();
+            break;
+        case 'r':
+            toggleRings();
+            break;
+        case 'm':
+            var chk = document.getElementById('chkCombined');
+            chk.checked = !chk.checked;
+            toggleCombined();
+            break;
+        case 'h':
+            toggleHelp();
+            break;
+        case '1':
+            document.getElementById('radarType').value = 'pavepaws';
+            onRadarTypeChange();
+            break;
+        case '2':
+            document.getElementById('radarType').value = 'thaad';
+            onRadarTypeChange();
+            break;
+        case '3':
+            document.getElementById('radarType').value = 'aegis';
+            onRadarTypeChange();
+            break;
+        case '4':
+            document.getElementById('radarType').value = 'gator';
+            onRadarTypeChange();
+            break;
+        case '5':
+            document.getElementById('radarType').value = 'custom_radar';
+            onRadarTypeChange();
+            break;
+        case '+':
+        case '=':
+            adjustAntennaHeight(10);
+            break;
+        case '-':
+        case '_':
+            adjustAntennaHeight(-10);
+            break;
+    }
+}
+
+function adjustAntennaHeight(delta) {
+    var slider = document.getElementById('antennaHeight');
+    var newVal = Math.max(0, Math.min(500, parseInt(slider.value) + delta));
+    slider.value = newVal;
+    document.getElementById('antennaHeightVal').textContent = newVal + ' m';
+    onParamChange();
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+function init() {
+    // Create Cesium viewer
+    viewer = createConfiguredViewer('cesiumContainer');
+
+    // Dark globe atmosphere
+    viewer.scene.globe.enableLighting = true;
+    viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#0a0e17');
+
+    // Set initial camera to show the globe
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(-98, 38, 12000000),
+        orientation: {
+            heading: 0,
+            pitch: Cesium.Math.toRadians(-80),
+            roll: 0
+        }
+    });
+
+    // Globe click handler
+    var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction(onGlobeClick, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    // UI event bindings
+    document.getElementById('presetSite').addEventListener('change', onPresetSiteChange);
+    document.getElementById('radarType').addEventListener('change', onRadarTypeChange);
+    document.getElementById('btnAddRadar').addEventListener('click', onAddRadar);
+    document.getElementById('btnClearAll').addEventListener('click', clearAllRadars);
+    document.getElementById('chkCombined').addEventListener('change', toggleCombined);
+
+    // Numeric input change handlers
+    var numericInputs = ['maxRange', 'frequency', 'txPower', 'antennaGain', 'minRCS'];
+    numericInputs.forEach(function(id) {
+        document.getElementById(id).addEventListener('change', function() {
+            // Check if we should switch to custom radar type
+            document.getElementById('radarType').value = 'custom_radar';
+            onParamChange();
+        });
+    });
+
+    // Refraction model change
+    document.getElementById('refractionModel').addEventListener('change', onParamChange);
+
+    // Sliders
+    setupSliders();
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', onKeyDown);
+
+    // Status
+    setStatus('Ready - click globe to place radar', '#2ecc71');
+    updateStatusBar();
+
+    console.log('[RadarHorizon] Initialized');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>

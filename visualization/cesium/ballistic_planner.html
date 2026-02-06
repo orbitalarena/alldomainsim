@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ballistic Trajectory Planner - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            font-family: 'Consolas', 'Courier New', monospace;
+            color: #c8cdd5;
+        }
+
+        #cesiumContainer {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        /* ================================================================
+           LEFT PANEL
+           ================================================================ */
+        #controlPanel {
+            position: absolute; top: 0; left: 0;
+            width: 320px; height: 100%;
+            background: rgba(13, 19, 32, 0.93);
+            border-right: 1px solid #1e2a42;
+            z-index: 20;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+            scrollbar-width: thin;
+            scrollbar-color: #1e2a42 #0d1320;
+        }
+        #controlPanel::-webkit-scrollbar { width: 6px; }
+        #controlPanel::-webkit-scrollbar-track { background: #0d1320; }
+        #controlPanel::-webkit-scrollbar-thumb { background: #1e2a42; border-radius: 3px; }
+
+        #controlPanel h1 {
+            font-size: 16px; font-weight: 600;
+            color: #e8ecf2; letter-spacing: -0.3px;
+            margin-bottom: 2px;
+        }
+        #controlPanel h1 span { color: #4a9eff; }
+
+        .panel-subtitle {
+            font-size: 11px; color: #6b7a90;
+            margin-bottom: 14px;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #1e2a42;
+        }
+        .section:last-child { border-bottom: none; }
+
+        .section-title {
+            font-size: 11px; font-weight: 600;
+            color: #4a9eff; text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 8px;
+        }
+
+        .instructions {
+            font-size: 11px; color: #6b7a90;
+            line-height: 1.55;
+        }
+
+        /* Form controls */
+        .field-row {
+            display: flex; align-items: center;
+            margin-bottom: 5px; gap: 6px;
+        }
+        .field-label {
+            font-size: 11px; color: #6b7a90;
+            width: 42px; flex-shrink: 0;
+        }
+        .field-label-wide {
+            font-size: 11px; color: #6b7a90;
+            width: 88px; flex-shrink: 0;
+        }
+        .field-input {
+            flex: 1;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 5px 8px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            color: #c8cdd5;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .field-input:focus { border-color: #4a9eff; }
+
+        .field-select {
+            flex: 1;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 5px 8px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            color: #c8cdd5;
+            outline: none;
+            cursor: pointer;
+        }
+        .field-select:focus { border-color: #4a9eff; }
+        .field-select option { background: #0d1320; color: #c8cdd5; }
+
+        .field-unit {
+            font-size: 10px; color: #6b7a90;
+            flex-shrink: 0;
+        }
+
+        .point-label {
+            font-size: 11px; color: #c8cdd5;
+            margin-top: 2px; margin-bottom: 4px;
+        }
+        .coord-display { color: #4a9eff; font-weight: 600; }
+
+        /* Checkboxes */
+        .checkbox-row {
+            display: flex; align-items: center;
+            margin-bottom: 5px; gap: 8px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        .checkbox-row input[type="checkbox"] {
+            accent-color: #4a9eff;
+            cursor: pointer;
+        }
+        .cb-color {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 7px 14px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-primary {
+            background: rgba(74, 158, 255, 0.15);
+            color: #4a9eff;
+            border-color: #4a9eff;
+        }
+        .btn-primary:hover { background: rgba(74, 158, 255, 0.3); }
+        .btn-secondary {
+            background: rgba(108, 122, 144, 0.1);
+            color: #6b7a90;
+            border-color: #2a3550;
+        }
+        .btn-secondary:hover {
+            background: rgba(108, 122, 144, 0.2);
+            color: #c8cdd5;
+        }
+        .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+
+        /* Range summary */
+        .range-summary {
+            font-size: 12px; color: #c8cdd5;
+            text-align: center; padding: 6px 0;
+        }
+        .range-summary .big-number {
+            font-size: 22px; font-weight: 700;
+            color: #4a9eff;
+        }
+        .range-summary .unit {
+            font-size: 11px; color: #6b7a90;
+        }
+
+        /* Result blocks */
+        .result-block {
+            background: rgba(10, 14, 23, 0.6);
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .result-header {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 6px;
+        }
+        .result-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .result-title {
+            font-size: 12px; font-weight: 600;
+            color: #e8ecf2;
+        }
+        .result-row {
+            display: flex; justify-content: space-between;
+            margin: 2px 0; font-size: 11px;
+        }
+        .result-label { color: #6b7a90; }
+        .result-value { color: #c8cdd5; font-weight: 600; text-align: right; }
+        .result-value.green { color: #2ecc71; }
+        .result-value.cyan { color: #00e5ff; }
+        .result-value.orange { color: #ff9800; }
+
+        .no-results {
+            font-size: 11px; color: #3a4560;
+            text-align: center; padding: 20px 0;
+            font-style: italic;
+        }
+        .result-error {
+            font-size: 11px; color: #e74c3c;
+            padding: 4px 0;
+        }
+
+        /* Help overlay */
+        #helpOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        #helpOverlay.visible { display: flex; }
+
+        .help-box {
+            background: rgba(13, 19, 32, 0.97);
+            border: 1px solid #1e2a42;
+            border-radius: 10px;
+            padding: 24px 32px;
+            max-width: 380px; width: 90%;
+        }
+        .help-box h2 {
+            font-size: 14px; color: #4a9eff;
+            margin-bottom: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .help-row {
+            display: flex; gap: 16px;
+            margin: 4px 0; font-size: 12px;
+        }
+        .help-key {
+            color: #FFD700; font-weight: 600;
+            width: 50px; flex-shrink: 0;
+        }
+        .help-desc { color: #6b7a90; }
+        .help-close {
+            text-align: center;
+            margin-top: 14px;
+            font-size: 11px; color: #3a4560;
+        }
+
+        /* Toast */
+        #statusToast {
+            position: absolute;
+            bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 19, 32, 0.94);
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            padding: 8px 22px;
+            color: #4a9eff;
+            font-size: 12px;
+            z-index: 200;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.35s;
+        }
+        #statusToast.visible { opacity: 1; }
+
+        /* Cesium overrides */
+        .cesium-viewer-bottom { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="cesiumContainer"></div>
+
+<!-- Left Control Panel -->
+<div id="controlPanel">
+    <h1><span>BALLISTIC</span> TRAJECTORY PLANNER</h1>
+    <div class="panel-subtitle">All-Domain Simulation Environment</div>
+
+    <!-- Instructions -->
+    <div class="section">
+        <div class="section-title">Instructions</div>
+        <div class="instructions">
+            Click globe to set launch point, click again to set target.
+            Or enter coordinates manually and press Compute.
+        </div>
+    </div>
+
+    <!-- Launch Point -->
+    <div class="section">
+        <div class="section-title">Launch Point</div>
+        <div class="field-row">
+            <span class="field-label">Preset</span>
+            <select id="launchPreset" class="field-select">
+                <option value="custom">Custom</option>
+                <option value="cape">Cape Canaveral</option>
+                <option value="pyongyang">Pyongyang</option>
+                <option value="tehran">Tehran</option>
+                <option value="moscow">Moscow</option>
+                <option value="beijing">Beijing</option>
+            </select>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Lat</span>
+            <input id="launchLat" type="number" class="field-input" step="0.01" placeholder="28.4722">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Lon</span>
+            <input id="launchLon" type="number" class="field-input" step="0.01" placeholder="-80.5410">
+        </div>
+        <div class="point-label" id="launchLabel">--</div>
+    </div>
+
+    <!-- Target Point -->
+    <div class="section">
+        <div class="section-title">Target Point</div>
+        <div class="field-row">
+            <span class="field-label">Preset</span>
+            <select id="targetPreset" class="field-select">
+                <option value="custom">Custom</option>
+                <option value="washington">Washington DC</option>
+                <option value="london">London</option>
+                <option value="tokyo">Tokyo</option>
+                <option value="sydney">Sydney</option>
+            </select>
+        </div>
+        <div class="field-row">
+            <span class="field-label">Lat</span>
+            <input id="targetLat" type="number" class="field-input" step="0.01" placeholder="38.8977">
+        </div>
+        <div class="field-row">
+            <span class="field-label">Lon</span>
+            <input id="targetLon" type="number" class="field-input" step="0.01" placeholder="-77.0365">
+        </div>
+        <div class="point-label" id="targetLabel">--</div>
+    </div>
+
+    <!-- Parameters -->
+    <div class="section">
+        <div class="section-title">Parameters</div>
+        <div class="field-row">
+            <span class="field-label-wide">Burnout Alt</span>
+            <input id="burnoutAlt" type="number" class="field-input" value="0" min="0" max="200" step="1">
+            <span class="field-unit">km</span>
+        </div>
+        <div style="margin-top:10px; margin-bottom:5px;">
+            <span style="font-size:11px; color:#6b7a90;">Trajectory types:</span>
+        </div>
+        <label class="checkbox-row">
+            <input type="checkbox" id="cbMinEnergy" checked>
+            <span class="cb-color" style="background:#2ecc71;"></span>
+            Minimum Energy
+        </label>
+        <label class="checkbox-row">
+            <input type="checkbox" id="cbLofted" checked>
+            <span class="cb-color" style="background:#00e5ff;"></span>
+            Lofted (steeper)
+        </label>
+        <label class="checkbox-row">
+            <input type="checkbox" id="cbDepressed" checked>
+            <span class="cb-color" style="background:#ff9800;"></span>
+            Depressed (flatter)
+        </label>
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btnCompute">Compute</button>
+            <button class="btn btn-secondary" id="btnClear">Clear</button>
+        </div>
+    </div>
+
+    <!-- Range Summary -->
+    <div class="section" id="rangeSummarySection" style="display:none;">
+        <div class="range-summary">
+            Great Circle Range<br>
+            <span class="big-number" id="rangeValue">--</span>
+            <span class="unit">km</span>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="section" id="resultsSection">
+        <div class="section-title">Results</div>
+        <div id="resultsContainer">
+            <div class="no-results">Set launch and target points to compute trajectories</div>
+        </div>
+    </div>
+
+    <!-- Range Rings -->
+    <div class="section">
+        <div class="section-title">Range Rings</div>
+        <label class="checkbox-row">
+            <input type="checkbox" id="cbRangeRings">
+            Show range rings (1k, 3k, 5k, 10k, 15k km)
+        </label>
+    </div>
+
+    <!-- Keyboard -->
+    <div class="section">
+        <div class="section-title">Keyboard</div>
+        <div style="font-size:10px; color:#6b7a90; line-height:1.6;">
+            <span style="color:#FFD700;">C</span> Clear &nbsp;
+            <span style="color:#FFD700;">R</span> Range rings &nbsp;
+            <span style="color:#FFD700;">1</span> Min-energy &nbsp;
+            <span style="color:#FFD700;">2</span> Lofted &nbsp;
+            <span style="color:#FFD700;">3</span> Depressed &nbsp;
+            <span style="color:#FFD700;">H</span> Help &nbsp;
+            <span style="color:#FFD700;">F</span> Fly to view
+        </div>
+    </div>
+</div>
+
+<!-- Help Overlay -->
+<div id="helpOverlay">
+    <div class="help-box">
+        <h2>Keyboard Shortcuts</h2>
+        <div class="help-row"><span class="help-key">C</span><span class="help-desc">Clear all / reset</span></div>
+        <div class="help-row"><span class="help-key">R</span><span class="help-desc">Toggle range rings</span></div>
+        <div class="help-row"><span class="help-key">1</span><span class="help-desc">Toggle min-energy trajectory</span></div>
+        <div class="help-row"><span class="help-key">2</span><span class="help-desc">Toggle lofted trajectory</span></div>
+        <div class="help-row"><span class="help-key">3</span><span class="help-desc">Toggle depressed trajectory</span></div>
+        <div class="help-row"><span class="help-key">H</span><span class="help-desc">Toggle this help</span></div>
+        <div class="help-row"><span class="help-key">F</span><span class="help-desc">Fly camera to view both points</span></div>
+        <div class="help-close">Press H or click outside to close</div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="statusToast"></div>
+
+<script src="cesium_config.js"></script>
+<script>
+'use strict';
+
+// =========================================================================
+// CONSTANTS
+// =========================================================================
+var MU = 3.986004418e14;    // m^3/s^2  Earth gravitational parameter
+var R_EARTH = 6371000;      // m        mean Earth radius
+var g0 = 9.80665;           // m/s^2
+var DEG2RAD = Math.PI / 180;
+var RAD2DEG = 180 / Math.PI;
+var TWO_PI = 2 * Math.PI;
+
+// =========================================================================
+// PRESET LOCATIONS
+// =========================================================================
+var LAUNCH_PRESETS = {
+    cape:      { lat: 28.4722,  lon: -80.5410, name: 'Cape Canaveral' },
+    pyongyang: { lat: 39.0392,  lon: 125.7625, name: 'Pyongyang' },
+    tehran:    { lat: 35.6892,  lon: 51.3890,  name: 'Tehran' },
+    moscow:    { lat: 55.7558,  lon: 37.6173,  name: 'Moscow' },
+    beijing:   { lat: 39.9042,  lon: 116.4074, name: 'Beijing' }
+};
+
+var TARGET_PRESETS = {
+    washington: { lat: 38.8977,  lon: -77.0365, name: 'Washington DC' },
+    london:     { lat: 51.5074,  lon: -0.1278,  name: 'London' },
+    tokyo:      { lat: 35.6762,  lon: 139.6503, name: 'Tokyo' },
+    sydney:     { lat: -33.8688, lon: 151.2093, name: 'Sydney' }
+};
+
+// =========================================================================
+// STATE
+// =========================================================================
+var launchPoint = null;   // { lat, lon } in degrees
+var targetPoint = null;
+var clickState = 0;       // 0=waiting launch, 1=waiting target, 2=both set
+
+// Cesium entities managed by the planner
+var launchEntity = null;
+var launchRingEntity = null;
+var targetEntity = null;
+var targetRingEntity = null;
+var groundTrackEntity = null;
+var trajectoryEntities = [];
+var apogeeEntities = [];
+var rangeRingEntities = [];
+var trajectoryResults = [];
+var trajectoryValidRange = null;
+
+var viewer;
+
+// =========================================================================
+// CESIUM VIEWER SETUP
+// =========================================================================
+try {
+    viewer = createConfiguredViewer('cesiumContainer');
+    viewer.scene.globe.enableLighting = false;
+    viewer.scene.skyAtmosphere.show = true;
+
+    // Initial camera - wide view
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(20, 20, 22000000),
+        orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 }
+    });
+} catch (e) {
+    console.error('Cesium init error:', e);
+}
+
+// =========================================================================
+// GEODESIC UTILITIES
+// =========================================================================
+
+/** Haversine central angle (radians) between two points in degrees. */
+function centralAngle(lat1d, lon1d, lat2d, lon2d) {
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = lat2d * DEG2RAD, lon2 = lon2d * DEG2RAD;
+    var dlat = lat2 - lat1, dlon = lon2 - lon1;
+    var a = Math.sin(dlat / 2) * Math.sin(dlat / 2) +
+            Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+    return 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Initial bearing (radians) from point 1 to point 2, both in degrees. */
+function initialBearing(lat1d, lon1d, lat2d, lon2d) {
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = lat2d * DEG2RAD, lon2 = lon2d * DEG2RAD;
+    var dlon = lon2 - lon1;
+    return Math.atan2(
+        Math.sin(dlon) * Math.cos(lat2),
+        Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dlon)
+    );
+}
+
+/** Destination point given start (degrees), bearing (radians), angular dist (radians). */
+function destinationPoint(lat1d, lon1d, bearing, angDist) {
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(angDist) +
+        Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing)
+    );
+    var lon2 = lon1 + Math.atan2(
+        Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1),
+        Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return { lat: lat2 * RAD2DEG, lon: lon2 * RAD2DEG };
+}
+
+/** Spherical interpolation along the great circle at fraction f (0..1). */
+function interpGreatCircle(lat1d, lon1d, lat2d, lon2d, f) {
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = lat2d * DEG2RAD, lon2 = lon2d * DEG2RAD;
+    var d = centralAngle(lat1d, lon1d, lat2d, lon2d);
+    if (d < 1e-10) return { lat: lat1d, lon: lon1d };
+    var sinD = Math.sin(d);
+    var a = Math.sin((1 - f) * d) / sinD;
+    var b = Math.sin(f * d) / sinD;
+    var x = a * Math.cos(lat1) * Math.cos(lon1) + b * Math.cos(lat2) * Math.cos(lon2);
+    var y = a * Math.cos(lat1) * Math.sin(lon1) + b * Math.cos(lat2) * Math.sin(lon2);
+    var z = a * Math.sin(lat1) + b * Math.sin(lat2);
+    return {
+        lat: Math.atan2(z, Math.sqrt(x * x + y * y)) * RAD2DEG,
+        lon: Math.atan2(y, x) * RAD2DEG
+    };
+}
+
+// =========================================================================
+// BALLISTIC TRAJECTORY PHYSICS
+// =========================================================================
+
+/**
+ * Solve for nondimensional speed parameter Qv = v^2 * R / MU
+ * given range angle theta and launch angle psi, using the free-flight
+ * range equation (Bate, Mueller, White):
+ *
+ *   tan(theta/2) = Qv * sin(psi)*cos(psi) / (1 - Qv * cos^2(psi))
+ *
+ * Rearranging:
+ *   Qv = tan(theta/2) / [ sin(psi)*cos(psi) - tan(theta/2)*cos^2(psi) ]
+ *
+ * Returns null if the trajectory is impossible at this angle.
+ */
+function solveQv(theta, psi) {
+    var h = Math.tan(theta / 2);
+    var sp = Math.sin(psi), cp = Math.cos(psi);
+    var denom = sp * cp - h * cp * cp;
+    if (denom <= 1e-12) return null;
+    var Qv = h / denom;
+    if (Qv <= 0 || Qv >= 2) return null; // Qv >= 2 is escape
+    return Qv;
+}
+
+/**
+ * Compute full ballistic trajectory parameters for a given launch angle psi
+ * and range angle theta, at launch/impact radius R.
+ *
+ * Uses the conic orbit relationship to derive semi-major axis, eccentricity,
+ * true anomalies, apogee, time of flight, and impact conditions.
+ *
+ * Returns null if the trajectory is physically impossible.
+ */
+function computeBallisticParams(theta, psi, R) {
+    var Qv = solveQv(theta, psi);
+    if (Qv === null) return null;
+
+    var v = Math.sqrt(Qv * MU / R);
+
+    // Semi-major axis via vis-viva: 1/a = 2/R - v^2/MU
+    var oneOverA = 2 / R - v * v / MU;
+    if (oneOverA <= 0) return null; // hyperbolic or parabolic
+    var a = 1 / oneOverA;
+
+    // Semi-latus rectum: p = R^2 * v^2 * cos^2(psi) / MU
+    var cp = Math.cos(psi);
+    var p = R * R * v * v * cp * cp / MU;
+
+    // Eccentricity from p = a(1-e^2)
+    var e2 = 1 - p / a;
+    if (e2 < 0) e2 = 0;
+    var e = Math.sqrt(e2);
+
+    // True anomaly at launch from orbit equation: R = p / (1 + e*cos(nu))
+    var cosNu1 = (e < 1e-10) ? 1 : Math.max(-1, Math.min(1, (p / R - 1) / e));
+
+    // Sign of nu1: radial velocity vr = v*sin(psi) > 0 => ascending, so sin(nu1) > 0
+    var sinNu1 = (e < 1e-10) ? 0 :
+        Math.max(-1, Math.min(1, Qv * Math.sin(psi) * cp / e));
+    var nu1 = Math.atan2(sinNu1, cosNu1);
+
+    // Impact: descending branch, same radius => cos(nu2) = cosNu1, sin(nu2) < 0
+    var nu2 = TWO_PI - nu1;
+
+    // True anomaly sweep
+    var deltaNu = nu2 - nu1;
+    if (deltaNu < 0) deltaNu += TWO_PI;
+    if (deltaNu > TWO_PI) deltaNu -= TWO_PI;
+
+    // Apogee
+    var rApogee = a * (1 + e);
+    var apogeeAlt = rApogee - R_EARTH;
+    if (apogeeAlt < 0) return null;
+
+    // Time of flight via eccentric anomaly & Kepler's equation
+    var n = Math.sqrt(MU / (a * a * a)); // mean motion
+    var sqrtFactor = Math.sqrt((1 - e) / (1 + e));
+
+    var E1 = 2 * Math.atan2(sqrtFactor * Math.sin(nu1 / 2), Math.cos(nu1 / 2));
+    var E2 = 2 * Math.atan2(sqrtFactor * Math.sin(nu2 / 2), Math.cos(nu2 / 2));
+    var M1 = E1 - e * Math.sin(E1);
+    var M2 = E2 - e * Math.sin(E2);
+    var tof = (M2 - M1) / n;
+    if (tof < 0) tof += TWO_PI / n;
+
+    // Impact angle: |flight path angle| at nu2
+    var tanGamma2 = e * Math.sin(nu2) / (1 + e * Math.cos(nu2));
+    var impactAngle = Math.abs(Math.atan(tanGamma2));
+
+    // Max velocity: at periapsis (or at launch/impact if periapsis is underground)
+    var rPeri = a * (1 - e);
+    var vMax;
+    if (rPeri >= R_EARTH * 0.99) {
+        vMax = Math.sqrt(MU * (2 / rPeri - 1 / a));
+    } else {
+        vMax = v; // periapsis unreachable, max is at surface
+    }
+
+    return {
+        launchAngle: psi * RAD2DEG,
+        launchSpeed: v,
+        sma: a,
+        ecc: e,
+        p: p,
+        nu1: nu1,
+        nu2: nu2,
+        deltaNu: deltaNu,
+        apogeeAlt: apogeeAlt,
+        tof: tof,
+        impactAngle: impactAngle * RAD2DEG,
+        impactVelocity: v,  // symmetric on spherical Earth
+        maxVelocity: vMax
+    };
+}
+
+/**
+ * Minimum-energy launch angle for a given range angle theta.
+ * Analytical result from Bate, Mueller & White: psi_min = (pi + theta) / 4
+ */
+function minimumEnergyAngle(theta) {
+    return (Math.PI + theta) / 4;
+}
+
+/**
+ * Find the valid range of launch angles for a given range angle theta and
+ * launch radius R. Uses bisection search to find exact boundaries where
+ * solveQv transitions from null to valid.
+ *
+ * Returns { lower, upper, minEnergy } — all in radians.
+ */
+function findValidAngleRange(theta, R) {
+    var psiMin = minimumEnergyAngle(theta);
+
+    // Binary search downward from psiMin to find the lower boundary
+    var lo = 1 * DEG2RAD, hi = psiMin;
+    for (var i = 0; i < 40; i++) {
+        var mid = (lo + hi) / 2;
+        if (solveQv(theta, mid) !== null) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    var lowerBound = hi;
+
+    // Binary search upward from psiMin to find the upper boundary
+    lo = psiMin;
+    hi = 89.5 * DEG2RAD;
+    for (var i = 0; i < 40; i++) {
+        var mid = (lo + hi) / 2;
+        if (solveQv(theta, mid) !== null) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    var upperBound = lo;
+
+    return { lower: lowerBound, upper: upperBound, minEnergy: psiMin };
+}
+
+/**
+ * Newton-Raphson solver: given a target apogee altitude, find the launch angle
+ * that achieves it. Uses the relationship between launch angle and resulting
+ * apogee from computeBallisticParams.
+ *
+ * Returns the launch angle in radians, or null if convergence fails.
+ */
+function findAngleForApogee(theta, R, targetApogeeAlt, initialGuess) {
+    var psi = initialGuess;
+    for (var iter = 0; iter < 30; iter++) {
+        var params = computeBallisticParams(theta, psi, R);
+        if (!params) {
+            // Nudge toward min-energy if we went out of bounds
+            psi = (psi + minimumEnergyAngle(theta)) / 2;
+            continue;
+        }
+        var error = params.apogeeAlt - targetApogeeAlt;
+        if (Math.abs(error) < 100) return psi; // converged within 100m
+
+        // Numerical derivative: d(apogee)/d(psi)
+        var dpsi = 0.001;
+        var p2 = computeBallisticParams(theta, psi + dpsi, R);
+        if (!p2) {
+            p2 = computeBallisticParams(theta, psi - dpsi, R);
+            if (!p2) return psi; // can't compute derivative, return best guess
+            dpsi = -dpsi;
+        }
+        var dApogee = (p2.apogeeAlt - params.apogeeAlt) / dpsi;
+        if (Math.abs(dApogee) < 1e-6) return psi; // flat, can't improve
+
+        var step = -error / dApogee;
+        // Clamp step to avoid overshooting
+        step = Math.max(-10 * DEG2RAD, Math.min(10 * DEG2RAD, step));
+        psi += step;
+        // Keep within physical bounds
+        psi = Math.max(3 * DEG2RAD, Math.min(89 * DEG2RAD, psi));
+    }
+    return psi;
+}
+
+/**
+ * Auto-select lofted and depressed launch angles for a given range.
+ * Uses adaptive positioning within the valid angle range, with N-R
+ * refinement targeting specific apogee multiples.
+ */
+function autoSelectAngles(theta, R) {
+    var range = findValidAngleRange(theta, R);
+    var psiMin = range.minEnergy;
+
+    // Compute min-energy baseline
+    var baseParams = computeBallisticParams(theta, psiMin, R);
+    var baseApogee = baseParams ? baseParams.apogeeAlt : 200000;
+
+    // Lofted: target 3× the min-energy apogee altitude
+    var loftedGuess = psiMin + 0.6 * (range.upper - psiMin);
+    var loftedPsi = findAngleForApogee(theta, R, baseApogee * 3, loftedGuess);
+    if (loftedPsi === null || !computeBallisticParams(theta, loftedPsi, R)) {
+        // Fallback: 2/3 of the way from min-energy to upper boundary
+        loftedPsi = psiMin + 0.67 * (range.upper - psiMin);
+    }
+
+    // Depressed: target 0.5× the min-energy apogee altitude
+    var depressedGuess = psiMin - 0.6 * (psiMin - range.lower);
+    var depressedPsi = findAngleForApogee(theta, R, baseApogee * 0.5, depressedGuess);
+    if (depressedPsi === null || !computeBallisticParams(theta, depressedPsi, R)) {
+        // Fallback: 2/3 of the way from min-energy to lower boundary
+        depressedPsi = psiMin - 0.67 * (psiMin - range.lower);
+    }
+
+    return {
+        minEnergy: psiMin,
+        lofted: loftedPsi,
+        depressed: depressedPsi,
+        validRange: range
+    };
+}
+
+// =========================================================================
+// 3D TRAJECTORY PATH GENERATION
+// =========================================================================
+
+/**
+ * Generate 3D Cesium Cartesian3 positions for a trajectory arc.
+ *
+ * The trajectory orbit lies in the plane defined by Earth's center,
+ * the launch point, and the target point. We set up perifocal frame
+ * vectors (P, Q) aligned so that at nu = nu1, the position is toward
+ * the launch point on the unit sphere.
+ */
+function generateTrajectoryPath(params, lat1d, lon1d, lat2d, lon2d) {
+    var NUM_POINTS = 150;
+    var positions = [];
+
+    // Surface unit vectors in ECEF
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = lat2d * DEG2RAD, lon2 = lon2d * DEG2RAD;
+
+    var p1x = Math.cos(lat1) * Math.cos(lon1);
+    var p1y = Math.cos(lat1) * Math.sin(lon1);
+    var p1z = Math.sin(lat1);
+
+    var p2x = Math.cos(lat2) * Math.cos(lon2);
+    var p2y = Math.cos(lat2) * Math.sin(lon2);
+    var p2z = Math.sin(lat2);
+
+    // Orbital plane normal: n = p1 x p2
+    var nx = p1y * p2z - p1z * p2y;
+    var ny = p1z * p2x - p1x * p2z;
+    var nz = p1x * p2y - p1y * p2x;
+    var nMag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (nMag < 1e-12) return positions; // degenerate
+    nx /= nMag; ny /= nMag; nz /= nMag;
+
+    // In-plane perpendicular to p1: q = n x p1
+    var qx = ny * p1z - nz * p1y;
+    var qy = nz * p1x - nx * p1z;
+    var qz = nx * p1y - ny * p1x;
+    var qMag = Math.sqrt(qx * qx + qy * qy + qz * qz);
+    if (qMag < 1e-12) return positions;
+    qx /= qMag; qy /= qMag; qz /= qMag;
+
+    // Perifocal frame: at nu1, position direction = p1_hat
+    // P_hat = cos(nu1)*p1 - sin(nu1)*q
+    // Q_hat = sin(nu1)*p1 + cos(nu1)*q
+    var cN1 = Math.cos(params.nu1), sN1 = Math.sin(params.nu1);
+    var Px = cN1 * p1x - sN1 * qx;
+    var Py = cN1 * p1y - sN1 * qy;
+    var Pz = cN1 * p1z - sN1 * qz;
+    var Qx = sN1 * p1x + cN1 * qx;
+    var Qy = sN1 * p1y + cN1 * qy;
+    var Qz = sN1 * p1z + cN1 * qz;
+
+    for (var i = 0; i <= NUM_POINTS; i++) {
+        var frac = i / NUM_POINTS;
+        var nu = params.nu1 + frac * params.deltaNu;
+        var r = params.p / (1 + params.ecc * Math.cos(nu));
+        var cNu = Math.cos(nu), sNu = Math.sin(nu);
+        var x = r * (cNu * Px + sNu * Qx);
+        var y = r * (cNu * Py + sNu * Qy);
+        var z = r * (cNu * Pz + sNu * Qz);
+        positions.push(new Cesium.Cartesian3(x, y, z));
+    }
+
+    return positions;
+}
+
+/**
+ * Compute the 3D position of the apogee (or highest point in the arc).
+ * Returns { position: Cartesian3, altKm: number } or null.
+ */
+function computeApogeePosition(params, lat1d, lon1d, lat2d, lon2d) {
+    var lat1 = lat1d * DEG2RAD, lon1 = lon1d * DEG2RAD;
+    var lat2 = lat2d * DEG2RAD, lon2 = lon2d * DEG2RAD;
+
+    var p1x = Math.cos(lat1) * Math.cos(lon1);
+    var p1y = Math.cos(lat1) * Math.sin(lon1);
+    var p1z = Math.sin(lat1);
+    var p2x = Math.cos(lat2) * Math.cos(lon2);
+    var p2y = Math.cos(lat2) * Math.sin(lon2);
+    var p2z = Math.sin(lat2);
+
+    var nx = p1y * p2z - p1z * p2y;
+    var ny = p1z * p2x - p1x * p2z;
+    var nz = p1x * p2y - p1y * p2x;
+    var nMag = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (nMag < 1e-12) return null;
+    nx /= nMag; ny /= nMag; nz /= nMag;
+
+    var qx = ny * p1z - nz * p1y;
+    var qy = nz * p1x - nx * p1z;
+    var qz = nx * p1y - ny * p1x;
+    var qMag = Math.sqrt(qx * qx + qy * qy + qz * qz);
+    if (qMag < 1e-12) return null;
+    qx /= qMag; qy /= qMag; qz /= qMag;
+
+    var cN1 = Math.cos(params.nu1), sN1 = Math.sin(params.nu1);
+    var Px = cN1 * p1x - sN1 * qx;
+    var Py = cN1 * p1y - sN1 * qy;
+    var Pz = cN1 * p1z - sN1 * qz;
+    var Qx = sN1 * p1x + cN1 * qx;
+    var Qy = sN1 * p1y + cN1 * qy;
+    var Qz = sN1 * p1z + cN1 * qz;
+
+    // Apoapsis is at nu = pi. Check if it's within the arc.
+    var nuApo = Math.PI;
+    var nuRel = nuApo - params.nu1;
+    while (nuRel < 0) nuRel += TWO_PI;
+    while (nuRel > TWO_PI) nuRel -= TWO_PI;
+    var inArc = (nuRel <= params.deltaNu + 0.01);
+
+    // If apoapsis not in arc, use the midpoint of the arc as highest
+    if (!inArc) {
+        nuApo = params.nu1 + params.deltaNu / 2;
+    }
+
+    var r = params.p / (1 + params.ecc * Math.cos(nuApo));
+    var cNu = Math.cos(nuApo), sNu = Math.sin(nuApo);
+    var x = r * (cNu * Px + sNu * Qx);
+    var y = r * (cNu * Py + sNu * Qy);
+    var z = r * (cNu * Pz + sNu * Qz);
+
+    return {
+        position: new Cesium.Cartesian3(x, y, z),
+        altKm: (r - R_EARTH) / 1000
+    };
+}
+
+// =========================================================================
+// GLOBE CLICK HANDLER
+// =========================================================================
+var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+handler.setInputAction(function(event) {
+    var ray = viewer.camera.getPickRay(event.position);
+    if (!ray) return;
+    var cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+    if (!cartesian) return;
+
+    var carto = Cesium.Cartographic.fromCartesian(cartesian);
+    var lat = Cesium.Math.toDegrees(carto.latitude);
+    var lon = Cesium.Math.toDegrees(carto.longitude);
+
+    if (clickState === 0 || clickState === 2) {
+        if (clickState === 2) clearAll();
+        setLaunchPoint(lat, lon);
+        clickState = 1;
+        showToast('Launch point set. Click again to set target.');
+    } else if (clickState === 1) {
+        setTargetPoint(lat, lon);
+        clickState = 2;
+        showToast('Target set. Computing trajectories...');
+        computeTrajectories();
+    }
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// =========================================================================
+// KEYBOARD HANDLER
+// =========================================================================
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+
+    switch (e.code) {
+        case 'KeyC':
+            clearAll();
+            showToast('Cleared');
+            break;
+        case 'KeyR':
+            var cb = document.getElementById('cbRangeRings');
+            cb.checked = !cb.checked;
+            toggleRangeRings();
+            break;
+        case 'Digit1': case 'Numpad1':
+            toggleCheckbox('cbMinEnergy');
+            break;
+        case 'Digit2': case 'Numpad2':
+            toggleCheckbox('cbLofted');
+            break;
+        case 'Digit3': case 'Numpad3':
+            toggleCheckbox('cbDepressed');
+            break;
+        case 'KeyH':
+            toggleHelp();
+            break;
+        case 'KeyF':
+            flyToView();
+            break;
+    }
+});
+
+function toggleCheckbox(id) {
+    var cb = document.getElementById(id);
+    cb.checked = !cb.checked;
+    if (launchPoint && targetPoint) {
+        computeTrajectories();
+    }
+}
+
+function toggleHelp() {
+    var overlay = document.getElementById('helpOverlay');
+    overlay.classList.toggle('visible');
+}
+
+// Close help on click outside the box
+document.getElementById('helpOverlay').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('visible');
+});
+
+// =========================================================================
+// PRESET HANDLERS
+// =========================================================================
+document.getElementById('launchPreset').addEventListener('change', function() {
+    var val = this.value;
+    if (val === 'custom') return;
+    var p = LAUNCH_PRESETS[val];
+    if (!p) return;
+    setLaunchPoint(p.lat, p.lon);
+    if (clickState === 0) clickState = 1;
+    if (clickState === 2 && targetPoint) computeTrajectories();
+});
+
+document.getElementById('targetPreset').addEventListener('change', function() {
+    var val = this.value;
+    if (val === 'custom') return;
+    var p = TARGET_PRESETS[val];
+    if (!p) return;
+    setTargetPoint(p.lat, p.lon);
+    if (clickState <= 1) clickState = 2;
+    if (launchPoint) computeTrajectories();
+});
+
+// Compute button
+document.getElementById('btnCompute').addEventListener('click', function() {
+    readManualCoords();
+    computeTrajectories();
+});
+
+// Clear button
+document.getElementById('btnClear').addEventListener('click', function() {
+    clearAll();
+    showToast('Cleared');
+});
+
+// Range rings checkbox
+document.getElementById('cbRangeRings').addEventListener('change', function() {
+    toggleRangeRings();
+});
+
+// Trajectory type checkboxes: recompute when toggled
+['cbMinEnergy', 'cbLofted', 'cbDepressed'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', function() {
+        if (launchPoint && targetPoint) computeTrajectories();
+    });
+});
+
+// =========================================================================
+// SET POINTS
+// =========================================================================
+function setLaunchPoint(lat, lon) {
+    launchPoint = { lat: lat, lon: lon };
+    document.getElementById('launchLat').value = lat.toFixed(4);
+    document.getElementById('launchLon').value = lon.toFixed(4);
+    document.getElementById('launchPreset').value = 'custom';
+    document.getElementById('launchLabel').innerHTML =
+        '<span class="coord-display">' + formatCoord(lat, lon) + '</span>';
+    drawLaunchMarker(lat, lon);
+}
+
+function setTargetPoint(lat, lon) {
+    targetPoint = { lat: lat, lon: lon };
+    document.getElementById('targetLat').value = lat.toFixed(4);
+    document.getElementById('targetLon').value = lon.toFixed(4);
+    document.getElementById('targetPreset').value = 'custom';
+    document.getElementById('targetLabel').innerHTML =
+        '<span class="coord-display">' + formatCoord(lat, lon) + '</span>';
+    drawTargetMarker(lat, lon);
+}
+
+/** Read lat/lon from manual inputs, creating/updating points if valid. */
+function readManualCoords() {
+    var lLat = parseFloat(document.getElementById('launchLat').value);
+    var lLon = parseFloat(document.getElementById('launchLon').value);
+    if (!isNaN(lLat) && !isNaN(lLon)) {
+        if (!launchPoint || launchPoint.lat !== lLat || launchPoint.lon !== lLon) {
+            setLaunchPoint(lLat, lLon);
+            if (clickState === 0) clickState = 1;
+        }
+    }
+    var tLat = parseFloat(document.getElementById('targetLat').value);
+    var tLon = parseFloat(document.getElementById('targetLon').value);
+    if (!isNaN(tLat) && !isNaN(tLon)) {
+        if (!targetPoint || targetPoint.lat !== tLat || targetPoint.lon !== tLon) {
+            setTargetPoint(tLat, tLon);
+            if (clickState <= 1) clickState = 2;
+        }
+    }
+}
+
+// =========================================================================
+// MARKERS
+// =========================================================================
+function drawLaunchMarker(lat, lon) {
+    if (launchEntity) viewer.entities.remove(launchEntity);
+    if (launchRingEntity) viewer.entities.remove(launchRingEntity);
+
+    launchEntity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        point: {
+            pixelSize: 14,
+            color: Cesium.Color.fromCssColorString('#FFD700'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+            text: 'LAUNCH',
+            font: '11px Consolas, monospace',
+            fillColor: Cesium.Color.fromCssColorString('#FFD700'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -14),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+    });
+
+    launchRingEntity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        ellipse: {
+            semiMajorAxis: 50000,
+            semiMinorAxis: 50000,
+            material: Cesium.Color.fromCssColorString('#FFD700').withAlpha(0.12),
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString('#FFD700').withAlpha(0.5),
+            outlineWidth: 2,
+            height: 0
+        }
+    });
+}
+
+function drawTargetMarker(lat, lon) {
+    if (targetEntity) viewer.entities.remove(targetEntity);
+    if (targetRingEntity) viewer.entities.remove(targetRingEntity);
+
+    targetEntity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        point: {
+            pixelSize: 14,
+            color: Cesium.Color.fromCssColorString('#e74c3c'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+            text: 'TARGET',
+            font: '11px Consolas, monospace',
+            fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            pixelOffset: new Cesium.Cartesian2(0, -14),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+    });
+
+    targetRingEntity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        ellipse: {
+            semiMajorAxis: 50000,
+            semiMinorAxis: 50000,
+            material: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.12),
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString('#e74c3c').withAlpha(0.5),
+            outlineWidth: 2,
+            height: 0
+        }
+    });
+}
+
+// =========================================================================
+// GROUND TRACK
+// =========================================================================
+function drawGroundTrack() {
+    if (groundTrackEntity) viewer.entities.remove(groundTrackEntity);
+    groundTrackEntity = null;
+    if (!launchPoint || !targetPoint) return;
+
+    var positions = [];
+    var n = 100;
+    for (var i = 0; i <= n; i++) {
+        var pt = interpGreatCircle(launchPoint.lat, launchPoint.lon,
+                                   targetPoint.lat, targetPoint.lon, i / n);
+        positions.push(Cesium.Cartesian3.fromDegrees(pt.lon, pt.lat, 500));
+    }
+
+    groundTrackEntity = viewer.entities.add({
+        polyline: {
+            positions: positions,
+            width: 1.5,
+            material: new Cesium.PolylineDashMaterialProperty({
+                color: Cesium.Color.WHITE.withAlpha(0.4),
+                dashLength: 12
+            }),
+            clampToGround: false
+        }
+    });
+}
+
+// =========================================================================
+// RANGE RINGS
+// =========================================================================
+function toggleRangeRings() {
+    if (document.getElementById('cbRangeRings').checked) {
+        drawRangeRings();
+    } else {
+        clearRangeRings();
+    }
+}
+
+function drawRangeRings() {
+    clearRangeRings();
+    if (!launchPoint) return;
+
+    var dists = [1000, 3000, 5000, 10000, 15000]; // km
+    var labels = ['1,000', '3,000', '5,000', '10,000', '15,000'];
+
+    for (var d = 0; d < dists.length; d++) {
+        var radiusM = dists[d] * 1000;
+        var angDist = radiusM / R_EARTH;
+        var pts = [];
+        var numPts = 120;
+        for (var j = 0; j <= numPts; j++) {
+            var brg = (j / numPts) * TWO_PI;
+            var p = destinationPoint(launchPoint.lat, launchPoint.lon, brg, angDist);
+            pts.push(Cesium.Cartesian3.fromDegrees(p.lon, p.lat, 200));
+        }
+
+        rangeRingEntities.push(viewer.entities.add({
+            polyline: {
+                positions: pts,
+                width: 1,
+                material: Cesium.Color.WHITE.withAlpha(0.15),
+                clampToGround: false
+            }
+        }));
+
+        // Label at the top of the ring
+        var labelPt = destinationPoint(launchPoint.lat, launchPoint.lon, 0, angDist);
+        rangeRingEntities.push(viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(labelPt.lon, labelPt.lat, 1000),
+            label: {
+                text: labels[d] + ' km',
+                font: '10px Consolas, monospace',
+                fillColor: Cesium.Color.WHITE.withAlpha(0.35),
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 1,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                pixelOffset: new Cesium.Cartesian2(0, -4)
+            }
+        }));
+    }
+}
+
+function clearRangeRings() {
+    for (var i = 0; i < rangeRingEntities.length; i++) {
+        viewer.entities.remove(rangeRingEntities[i]);
+    }
+    rangeRingEntities = [];
+}
+
+// =========================================================================
+// COMPUTE AND RENDER TRAJECTORIES
+// =========================================================================
+function computeTrajectories() {
+    // Attempt to read manual coords if points missing
+    readManualCoords();
+
+    if (!launchPoint || !targetPoint) {
+        showToast('Set both launch and target points first');
+        return;
+    }
+
+    // Clear old trajectory visualization
+    clearTrajectoryViz();
+
+    // Range angle
+    var theta = centralAngle(launchPoint.lat, launchPoint.lon,
+                             targetPoint.lat, targetPoint.lon);
+    var rangeKm = theta * R_EARTH / 1000;
+
+    // Edge cases
+    if (rangeKm < 50) {
+        showToast('Points too close (< 50 km). Increase separation.');
+        return;
+    }
+    if (theta > Math.PI * 0.98) {
+        showToast('Near-antipodal points. Trajectory ambiguous.');
+        return;
+    }
+
+    // Burnout altitude
+    var burnoutAltKm = parseFloat(document.getElementById('burnoutAlt').value) || 0;
+    var R = R_EARTH + burnoutAltKm * 1000;
+
+    // Show range
+    document.getElementById('rangeSummarySection').style.display = '';
+    document.getElementById('rangeValue').textContent = rangeKm.toFixed(0);
+
+    // Draw ground track
+    drawGroundTrack();
+
+    // Auto-select launch angles using adaptive bisection + Newton-Raphson
+    var angles = autoSelectAngles(theta, R);
+
+    // Trajectory type definitions
+    var TYPES = [];
+    if (document.getElementById('cbMinEnergy').checked) {
+        TYPES.push({
+            name: 'Minimum Energy',
+            color: '#2ecc71',
+            cesiumColor: Cesium.Color.fromCssColorString('#2ecc71'),
+            cssClass: 'green',
+            psi: angles.minEnergy
+        });
+    }
+    if (document.getElementById('cbLofted').checked) {
+        TYPES.push({
+            name: 'Lofted',
+            color: '#00e5ff',
+            cesiumColor: Cesium.Color.fromCssColorString('#00e5ff'),
+            cssClass: 'cyan',
+            psi: angles.lofted
+        });
+    }
+    if (document.getElementById('cbDepressed').checked) {
+        TYPES.push({
+            name: 'Depressed',
+            color: '#ff9800',
+            cesiumColor: Cesium.Color.fromCssColorString('#ff9800'),
+            cssClass: 'orange',
+            psi: angles.depressed
+        });
+    }
+
+    trajectoryResults = [];
+
+    for (var t = 0; t < TYPES.length; t++) {
+        var type = TYPES[t];
+        var params = computeBallisticParams(theta, type.psi, R);
+
+        if (!params) {
+            trajectoryResults.push({ type: type, params: null, error: 'No solution at this angle' });
+            continue;
+        }
+
+        trajectoryResults.push({ type: type, params: params });
+
+        // Generate 3D path
+        var path = generateTrajectoryPath(
+            params, launchPoint.lat, launchPoint.lon,
+            targetPoint.lat, targetPoint.lon
+        );
+
+        if (path.length > 2) {
+            // Trajectory polyline with glow
+            trajectoryEntities.push(viewer.entities.add({
+                polyline: {
+                    positions: path,
+                    width: 3,
+                    material: new Cesium.PolylineGlowMaterialProperty({
+                        glowPower: 0.2,
+                        color: type.cesiumColor
+                    }),
+                    clampToGround: false
+                }
+            }));
+
+            // Apogee marker
+            var apo = computeApogeePosition(
+                params, launchPoint.lat, launchPoint.lon,
+                targetPoint.lat, targetPoint.lon
+            );
+            if (apo && apo.altKm > 1) {
+                apogeeEntities.push(viewer.entities.add({
+                    position: apo.position,
+                    point: {
+                        pixelSize: 8,
+                        color: type.cesiumColor,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 1,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: {
+                        text: apo.altKm.toFixed(0) + ' km',
+                        font: '11px Consolas, monospace',
+                        fillColor: type.cesiumColor,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                        pixelOffset: new Cesium.Cartesian2(0, -12),
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    }
+                }));
+            }
+        }
+    }
+
+    // Store valid range for display
+    trajectoryValidRange = angles.validRange;
+
+    // Render results panel
+    renderResults();
+
+    // Update range rings if active
+    if (document.getElementById('cbRangeRings').checked) {
+        drawRangeRings();
+    }
+}
+
+function clearTrajectoryViz() {
+    for (var i = 0; i < trajectoryEntities.length; i++) {
+        viewer.entities.remove(trajectoryEntities[i]);
+    }
+    trajectoryEntities = [];
+    for (var i = 0; i < apogeeEntities.length; i++) {
+        viewer.entities.remove(apogeeEntities[i]);
+    }
+    apogeeEntities = [];
+    if (groundTrackEntity) {
+        viewer.entities.remove(groundTrackEntity);
+        groundTrackEntity = null;
+    }
+}
+
+// =========================================================================
+// RENDER RESULTS PANEL
+// =========================================================================
+function renderResults() {
+    var container = document.getElementById('resultsContainer');
+    if (trajectoryResults.length === 0) {
+        container.innerHTML = '<div class="no-results">No trajectory types selected</div>';
+        return;
+    }
+
+    var html = '';
+
+    // Show valid angle range info
+    if (trajectoryValidRange) {
+        html += '<div style="font-size:10px; color:#5a6a80; margin-bottom:8px; padding:6px 8px; border:1px solid #1e2a42; border-radius:3px;">';
+        html += '<span style="color:#6b7a90;">Valid launch angles:</span> ';
+        html += '<span style="color:#ff9800;">' + (trajectoryValidRange.lower * RAD2DEG).toFixed(1) + '\u00B0</span>';
+        html += ' \u2014 ';
+        html += '<span style="color:#2ecc71;">' + (trajectoryValidRange.minEnergy * RAD2DEG).toFixed(1) + '\u00B0</span>';
+        html += ' <span style="color:#5a6a80;">(min-E)</span> \u2014 ';
+        html += '<span style="color:#00e5ff;">' + (trajectoryValidRange.upper * RAD2DEG).toFixed(1) + '\u00B0</span>';
+        html += '</div>';
+    }
+
+    for (var i = 0; i < trajectoryResults.length; i++) {
+        var tr = trajectoryResults[i];
+        var type = tr.type;
+
+        html += '<div class="result-block">';
+        html += '<div class="result-header">';
+        html += '<span class="result-dot" style="background:' + type.color + ';"></span>';
+        html += '<span class="result-title">' + type.name + '</span>';
+        html += '</div>';
+
+        if (tr.error || !tr.params) {
+            html += '<div class="result-error">' + (tr.error || 'Computation failed') + '</div>';
+        } else {
+            var p = tr.params;
+            var cls = type.cssClass;
+            var rangeKm = centralAngle(launchPoint.lat, launchPoint.lon,
+                                       targetPoint.lat, targetPoint.lon) * R_EARTH / 1000;
+            html += rr('Range', rangeKm.toFixed(0) + ' km', cls);
+            html += rr('Apogee Alt', fmtAlt(p.apogeeAlt), cls);
+            html += rr('Time of Flight', fmtTOF(p.tof), cls);
+            html += rr('Launch Angle', p.launchAngle.toFixed(1) + '\u00B0', cls);
+            html += rr('Impact Angle', p.impactAngle.toFixed(1) + '\u00B0', cls);
+            html += rr('Impact Velocity', fmtVel(p.impactVelocity), cls);
+            html += rr('Max Velocity', fmtVel(p.maxVelocity), cls);
+            html += rr('Launch Speed', fmtVel(p.launchSpeed), cls);
+        }
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
+function rr(label, value, cls) {
+    return '<div class="result-row"><span class="result-label">' + label +
+        '</span><span class="result-value ' + cls + '">' + value + '</span></div>';
+}
+
+// =========================================================================
+// FLY TO VIEW
+// =========================================================================
+function flyToView() {
+    if (!launchPoint && !targetPoint) return;
+
+    if (launchPoint && !targetPoint) {
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(launchPoint.lon, launchPoint.lat, 5000000),
+            duration: 1.5
+        });
+        return;
+    }
+
+    if (!launchPoint && targetPoint) {
+        viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(targetPoint.lon, targetPoint.lat, 5000000),
+            duration: 1.5
+        });
+        return;
+    }
+
+    // Both points set: fly to midpoint at appropriate altitude
+    var mid = interpGreatCircle(launchPoint.lat, launchPoint.lon,
+                                targetPoint.lat, targetPoint.lon, 0.5);
+    var theta = centralAngle(launchPoint.lat, launchPoint.lon,
+                             targetPoint.lat, targetPoint.lon);
+    var rangeKm = theta * R_EARTH / 1000;
+    var camAlt = Math.max(rangeKm * 1200, 2000000);
+    camAlt = Math.min(camAlt, 30000000);
+
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(mid.lon, mid.lat, camAlt),
+        orientation: {
+            heading: 0,
+            pitch: -Math.PI / 2,
+            roll: 0
+        },
+        duration: 1.5
+    });
+}
+
+// =========================================================================
+// CLEAR ALL
+// =========================================================================
+function clearAll() {
+    clearTrajectoryViz();
+    clearRangeRings();
+
+    if (launchEntity) { viewer.entities.remove(launchEntity); launchEntity = null; }
+    if (launchRingEntity) { viewer.entities.remove(launchRingEntity); launchRingEntity = null; }
+    if (targetEntity) { viewer.entities.remove(targetEntity); targetEntity = null; }
+    if (targetRingEntity) { viewer.entities.remove(targetRingEntity); targetRingEntity = null; }
+
+    launchPoint = null;
+    targetPoint = null;
+    clickState = 0;
+    trajectoryResults = [];
+
+    document.getElementById('launchLat').value = '';
+    document.getElementById('launchLon').value = '';
+    document.getElementById('targetLat').value = '';
+    document.getElementById('targetLon').value = '';
+    document.getElementById('launchLabel').textContent = '--';
+    document.getElementById('targetLabel').textContent = '--';
+    document.getElementById('launchPreset').value = 'custom';
+    document.getElementById('targetPreset').value = 'custom';
+    document.getElementById('rangeSummarySection').style.display = 'none';
+    document.getElementById('resultsContainer').innerHTML =
+        '<div class="no-results">Set launch and target points to compute trajectories</div>';
+}
+
+// =========================================================================
+// FORMAT HELPERS
+// =========================================================================
+function formatCoord(lat, lon) {
+    var latDir = lat >= 0 ? 'N' : 'S';
+    var lonDir = lon >= 0 ? 'E' : 'W';
+    return Math.abs(lat).toFixed(2) + '\u00B0' + latDir + '  ' +
+           Math.abs(lon).toFixed(2) + '\u00B0' + lonDir;
+}
+
+function fmtAlt(altM) {
+    var km = altM / 1000;
+    if (km >= 10000) return (km / 1000).toFixed(1) + ' Mm';
+    return km.toFixed(0) + ' km';
+}
+
+function fmtTOF(seconds) {
+    if (!isFinite(seconds) || seconds <= 0) return '--';
+    var mins = seconds / 60;
+    if (mins >= 60) {
+        var hrs = Math.floor(mins / 60);
+        var m = Math.round(mins % 60);
+        return hrs + 'h ' + m + 'm';
+    }
+    return mins.toFixed(1) + ' min';
+}
+
+function fmtVel(v) {
+    if (v >= 1000) return (v / 1000).toFixed(2) + ' km/s';
+    return Math.round(v) + ' m/s';
+}
+
+// =========================================================================
+// TOAST
+// =========================================================================
+var toastTimer = null;
+function showToast(msg) {
+    var el = document.getElementById('statusToast');
+    el.textContent = msg;
+    el.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() {
+        el.classList.remove('visible');
+    }, 2500);
+}
+
+// =========================================================================
+// INITIAL STATE
+// =========================================================================
+showToast('Click on the globe to set a launch site');
+
+</script>
+</body>
+</html>

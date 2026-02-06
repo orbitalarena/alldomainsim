@@ -4,7 +4,27 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Live Sim Cockpit + Combat Systems + Orbital Mechanics Fix + MC Engine
+## Current Status: DOE Analysis + Analytic Tools + Live Sim Cockpit + MC Engine
+
+### Recent Session (2026-02-06): DOE System + Analytic Tools + Solar System Fix
+Major features: DOE parameter sweep system for Orbital Arena, 6 standalone analytic tools, solar system viewer fix.
+
+- **DOE System** (`doe_panel.js` + `doe_results.js` + `mc_server.js`): Design of Experiments for Orbital Arena
+  - Configuration dialog: min/max/step ranges for 5 roles (HVA, Defender, Attacker, Escort, Sweep)
+  - Generates Cartesian product of role compositions, runs each through C++ mc_engine
+  - Server-side `POST /api/mc/doe` endpoint with inline arena scenario generator
+  - Results panel with 4 tabs: sortable data table, canvas heat map, Pearson correlation sensitivity chart, CSV/JSON export
+  - Progress polling per permutation
+- **Analytic Tools** (6 standalone HTML pages):
+  - `ballistic_planner.html`: Ballistic trajectory with adaptive angle selection + Newton-Raphson optimization
+  - `intercept_planner.html`: TLE-based satellite intercept planning with Lambert solver
+  - `maneuver_planner.html`: Hohmann/bi-elliptic/plane change transfers with delta-V charts
+  - `visibility_planner.html`: Ground station pass prediction, access windows, coverage gap analysis
+  - `radar_horizon.html`: Radar line-of-sight with terrain masking and atmospheric refraction
+  - `link_budget.html`: RF link budget analyzer (Tx → path loss → atmosphere → Rx → link margin)
+- **Solar System Fix**: Added SCALE=1e6 factor to all Cesium coordinates in solar_system_viewer.html to prevent WebGL float32 overflow beyond Jupiter
+- **Ballistic Planner Improvement**: Replaced hardcoded ±15° angle offsets with bisection boundary search + Newton-Raphson solver targeting specific apogee altitudes
+- **Index Page**: Updated with cards for all new tools and solar system viewer
 
 ### C++ Backend (Milestones 0-4 + Phases 2-3 + MC Engine):
 - **M0**: Project skeleton, CMake build system, Git setup
@@ -452,6 +472,10 @@ builder/
   platform_builder.js    - Modular platform composer (5-tab dialog: Physics,
                            Propulsion, Sensors, Payload, Environment)
   sensor_view_mode.js    - Camera switching + post-processing for optical sensor view
+  doe_panel.js           - DOE configuration dialog (role ranges, permutation
+                           preview, server polling, arena config)
+  doe_results.js         - DOE results panel (4 tabs: data table, canvas heat map,
+                           Pearson correlation sensitivity, CSV/JSON export)
 ```
 
 ### Executables:
@@ -468,11 +492,17 @@ All served from `visualization/cesium/` via `python3 serve.py 8000`
 - `scenario_viewer.html` — Lightweight scenario runner (live ECS physics)
 - `replay_viewer.html` — **C++ replay playback** (load ?replay=replay_iads.json)
 - `model_viewer.html` — CZML rapid-playback viewer (native Cesium, no JS physics)
-- `index.html` — Hub page linking all sims + builder
+- `index.html` — Hub page linking all sims + builder + analytic tools
+- `ballistic_planner.html` — Ballistic trajectory planner (adaptive angle + Newton-Raphson)
+- `intercept_planner.html` — TLE satellite intercept planner (Lambert solver)
+- `maneuver_planner.html` — Orbital maneuver planner (Hohmann/bi-elliptic/plane change)
+- `visibility_planner.html` — Satellite visibility & pass prediction
+- `radar_horizon.html` — Radar horizon & detection calculator
+- `link_budget.html` — RF link budget analyzer
 
 ### Server
 - `serve.py` — Python HTTP server with `POST /api/export` for writing scenario JSON/CZML to `scenarios/`. Also proxies `/api/mc/*` requests to the Node.js MC bridge on port 8001.
-- `mc_server.js` — Node.js MC bridge server (port 8001). Job queue for async C++ engine execution. Endpoints: `POST /api/mc/batch`, `POST /api/mc/replay`, `GET /api/mc/jobs/:jobId`.
+- `mc_server.js` — Node.js MC bridge server (port 8001). Job queue for async C++ engine execution. Endpoints: `POST /api/mc/batch`, `POST /api/mc/replay`, `POST /api/mc/doe`, `GET /api/mc/jobs/:jobId`. DOE endpoint includes inline OrbitalArena scenario generator.
 
 ```bash
 # Start both servers:

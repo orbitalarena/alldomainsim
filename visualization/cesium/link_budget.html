@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RF Link Budget Analyzer — All-Domain Sim</title>
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           RESET & BASE
+           ═══════════════════════════════════════════════════════════════ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: #0a0e17;
+            color: #c8cdd5;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0e17; }
+        ::-webkit-scrollbar-thumb { background: #1e2a42; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2a3a58; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           HEADER
+           ═══════════════════════════════════════════════════════════════ */
+        header {
+            background: linear-gradient(135deg, #0d1320 0%, #141c2e 100%);
+            border-bottom: 1px solid #1e2a42;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e8ecf2;
+            letter-spacing: -0.3px;
+        }
+        header h1 span { color: #4a9eff; }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-right .kbd {
+            font-size: 10px;
+            color: #6b7a90;
+            background: #141c2e;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 2px 5px;
+        }
+        .btn-copy {
+            font-family: inherit;
+            font-size: 11px;
+            color: #4a9eff;
+            background: transparent;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 5px 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-copy:hover { background: #1e2a42; color: #7bb8ff; }
+        .btn-back {
+            font-family: inherit;
+            font-size: 11px;
+            color: #6b7a90;
+            background: transparent;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 5px 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+        .btn-back:hover { background: #1e2a42; color: #c8cdd5; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           LAYOUT — TWO COLUMNS
+           ═══════════════════════════════════════════════════════════════ */
+        .main {
+            display: flex;
+            height: calc(100vh - 56px);
+        }
+        .col-left, .col-right {
+            width: 50%;
+            overflow-y: auto;
+            padding: 16px;
+        }
+        .col-left { border-right: 1px solid #1e2a42; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           COLLAPSIBLE SECTIONS
+           ═══════════════════════════════════════════════════════════════ */
+        .section {
+            background: #0d1320;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            margin-bottom: 12px;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s;
+        }
+        .section-header:hover { background: #111828; }
+        .section-header h2 {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+        .section-header .arrow {
+            font-size: 10px;
+            color: #6b7a90;
+            transition: transform 0.2s;
+        }
+        .section.collapsed .section-body { display: none; }
+        .section.collapsed .arrow { transform: rotate(-90deg); }
+        .section-body { padding: 4px 14px 14px; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           FORM CONTROLS
+           ═══════════════════════════════════════════════════════════════ */
+        .row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .row label {
+            flex: 0 0 170px;
+            font-size: 11px;
+            color: #6b7a90;
+            text-align: right;
+            padding-right: 8px;
+        }
+        .row input[type="number"],
+        .row select {
+            flex: 1;
+            min-width: 0;
+            font-family: inherit;
+            font-size: 12px;
+            color: #c8cdd5;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 5px 8px;
+            outline: none;
+            transition: border 0.15s;
+        }
+        .row input[type="number"]:focus,
+        .row select:focus { border-color: #4a9eff; }
+        .row select { cursor: pointer; }
+        .row select option { background: #0d1320; }
+        .row .unit {
+            flex: 0 0 auto;
+            font-size: 10px;
+            color: #6b7a90;
+            min-width: 55px;
+        }
+        .row .computed {
+            flex: 0 0 auto;
+            font-size: 11px;
+            color: #4a9eff;
+            min-width: 100px;
+            text-align: right;
+        }
+        .row .preset-btns {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            font-family: inherit;
+            font-size: 9px;
+            color: #6b7a90;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 2px 6px;
+            cursor: pointer;
+            transition: all 0.12s;
+            white-space: nowrap;
+        }
+        .preset-btn:hover { color: #c8cdd5; border-color: #4a9eff; }
+        .preset-btn.active { color: #4a9eff; border-color: #4a9eff; background: #111828; }
+        .divider {
+            border: none;
+            border-top: 1px solid #1e2a42;
+            margin: 10px 0;
+        }
+        .auto-field {
+            font-size: 11px;
+            color: #2ecc71;
+            padding: 4px 8px;
+            background: rgba(46,204,113,0.06);
+            border-radius: 3px;
+            margin-bottom: 6px;
+        }
+        .tooltip-icon {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            line-height: 14px;
+            text-align: center;
+            font-size: 9px;
+            color: #6b7a90;
+            border: 1px solid #1e2a42;
+            border-radius: 50%;
+            cursor: help;
+            margin-left: 4px;
+            position: relative;
+        }
+        .tooltip-icon:hover { color: #4a9eff; border-color: #4a9eff; }
+        .tooltip-icon .tip {
+            display: none;
+            position: absolute;
+            left: 20px;
+            top: -4px;
+            background: #141c2e;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-size: 10px;
+            color: #c8cdd5;
+            width: 220px;
+            z-index: 100;
+            white-space: normal;
+            line-height: 1.4;
+            pointer-events: none;
+        }
+        .tooltip-icon:hover .tip { display: block; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           RESULTS
+           ═══════════════════════════════════════════════════════════════ */
+        .result-panel {
+            background: #0d1320;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            padding: 14px;
+        }
+        .result-panel h3 {
+            font-size: 11px;
+            font-weight: 600;
+            color: #4a9eff;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 11px;
+        }
+        .result-row .lbl { color: #6b7a90; }
+        .result-row .val { color: #c8cdd5; font-weight: 600; }
+        .result-row.highlight .val { font-size: 14px; }
+        .margin-positive { color: #2ecc71 !important; }
+        .margin-warning { color: #FFD700 !important; }
+        .margin-negative { color: #e74c3c !important; }
+        .link-status {
+            text-align: center;
+            padding: 8px;
+            margin-top: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .link-closed {
+            background: rgba(46,204,113,0.1);
+            border: 1px solid rgba(46,204,113,0.3);
+            color: #2ecc71;
+        }
+        .link-open {
+            background: rgba(231,76,60,0.1);
+            border: 1px solid rgba(231,76,60,0.3);
+            color: #e74c3c;
+        }
+        .max-rate-box {
+            background: rgba(74,158,255,0.06);
+            border: 1px solid rgba(74,158,255,0.2);
+            border-radius: 4px;
+            padding: 10px 12px;
+            margin-top: 10px;
+            font-size: 11px;
+            color: #c8cdd5;
+        }
+        .max-rate-box .rate-val {
+            font-size: 16px;
+            font-weight: 700;
+            color: #4a9eff;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           HELP OVERLAY
+           ═══════════════════════════════════════════════════════════════ */
+        .help-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,14,23,0.92);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .help-overlay.visible { display: flex; }
+        .help-box {
+            background: #0d1320;
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 28px 32px;
+            max-width: 480px;
+            width: 90%;
+        }
+        .help-box h2 {
+            font-size: 14px;
+            color: #4a9eff;
+            margin-bottom: 14px;
+        }
+        .help-box p {
+            font-size: 11px;
+            color: #6b7a90;
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+        .help-box .hk {
+            display: inline-block;
+            min-width: 24px;
+            text-align: center;
+            background: #141c2e;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 1px 5px;
+            color: #c8cdd5;
+            font-size: 10px;
+            margin-right: 6px;
+        }
+        .help-close {
+            margin-top: 16px;
+            font-family: inherit;
+            font-size: 11px;
+            color: #6b7a90;
+            background: transparent;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 6px 16px;
+            cursor: pointer;
+        }
+        .help-close:hover { color: #c8cdd5; background: #1e2a42; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           RESPONSIVE
+           ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 1100px) {
+            .main { flex-direction: column; height: auto; }
+            .col-left, .col-right { width: 100%; border: none; }
+            .col-left { border-bottom: 1px solid #1e2a42; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════════════════ -->
+<header>
+    <h1><span>RF</span> Link Budget Analyzer</h1>
+    <div class="header-right">
+        <span class="kbd">H = Help</span>
+        <span class="kbd">1-7 = Presets</span>
+        <button class="btn-copy" id="btnCopy" title="Copy results to clipboard">Copy Results</button>
+        <a class="btn-back" href="index.html">Hub</a>
+    </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     MAIN TWO-COLUMN LAYOUT
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="main">
+
+<!-- ═══════════════════ LEFT COLUMN — INPUTS ═══════════════════════ -->
+<div class="col-left">
+
+    <!-- SCENARIO PRESETS -->
+    <div class="section" id="secPreset">
+        <div class="section-header" onclick="toggleSection('secPreset')">
+            <h2>1. Scenario Preset</h2>
+            <span class="arrow">&#9660;</span>
+        </div>
+        <div class="section-body">
+            <div class="row">
+                <label>Preset</label>
+                <select id="presetSelect" onchange="applyPreset()">
+                    <option value="leo_telemetry">LEO Telemetry</option>
+                    <option value="gps_signal">GPS Signal</option>
+                    <option value="geo_satcom" selected>GEO SATCOM</option>
+                    <option value="deep_space">Deep Space (Mars)</option>
+                    <option value="tactical_uhf">Tactical UHF</option>
+                    <option value="tdrss_relay">TDRSS Relay</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- TRANSMITTER -->
+    <div class="section" id="secTx">
+        <div class="section-header" onclick="toggleSection('secTx')">
+            <h2>2. Transmitter</h2>
+            <span class="arrow">&#9660;</span>
+        </div>
+        <div class="section-body">
+            <div class="row">
+                <label>Transmit Power
+                    <span class="tooltip-icon">?<span class="tip">RF power at the transmitter output. Typical: 1-20 W for small sats, 100-250 W for GEO SATCOM.</span></span>
+                </label>
+                <input type="number" id="txPower_W" value="20" min="0.001" step="any" oninput="recalc()">
+                <span class="unit">W</span>
+                <span class="computed" id="txPower_dBW"></span>
+            </div>
+            <div class="row">
+                <label>Antenna Type</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setTxAntenna('omni')">Omni (0)</button>
+                    <button class="preset-btn" onclick="setTxAntenna('patch')">Patch (6)</button>
+                    <button class="preset-btn" onclick="setTxAntenna('horn')">Horn (15)</button>
+                    <button class="preset-btn" onclick="setTxAntenna('dish_sm')">Dish 0.5m</button>
+                    <button class="preset-btn" onclick="setTxAntenna('dish_md')">Dish 1m</button>
+                    <button class="preset-btn active" onclick="setTxAntenna('dish_lg')">Dish 2m</button>
+                    <button class="preset-btn" onclick="setTxAntenna('dish_xl')">Dish 5m</button>
+                </div>
+            </div>
+            <div class="row">
+                <label>Antenna Gain</label>
+                <input type="number" id="txGain_dBi" value="36.6" step="0.1" oninput="recalc()">
+                <span class="unit">dBi</span>
+            </div>
+            <div class="row">
+                <label>Antenna Diameter</label>
+                <input type="number" id="txDiameter_m" value="2" min="0" step="0.1" oninput="onTxDiameterChange()">
+                <span class="unit">m</span>
+                <span class="computed" id="txDishGainCalc"></span>
+            </div>
+            <hr class="divider">
+            <div class="row">
+                <label>Line Losses
+                    <span class="tooltip-icon">?<span class="tip">Loss in cables, connectors, waveguide between transmitter and antenna. Typically 0.5-3 dB.</span></span>
+                </label>
+                <input type="number" id="txLineLoss_dB" value="1.0" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="row">
+                <label>Pointing Loss
+                    <span class="tooltip-icon">?<span class="tip">Loss due to antenna misalignment. 0.1-1 dB for tracking antennas, 0-3 dB for fixed.</span></span>
+                </label>
+                <input type="number" id="txPointingLoss_dB" value="0.5" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="auto-field" id="eirpDisplay">EIRP: -- dBW</div>
+        </div>
+    </div>
+
+    <!-- PATH / CHANNEL -->
+    <div class="section" id="secPath">
+        <div class="section-header" onclick="toggleSection('secPath')">
+            <h2>3. Path / Channel</h2>
+            <span class="arrow">&#9660;</span>
+        </div>
+        <div class="section-body">
+            <div class="row">
+                <label>Slant Range</label>
+                <input type="number" id="range_km" value="36000" min="0.001" step="any" oninput="recalc()">
+                <span class="unit">km</span>
+            </div>
+            <div class="row">
+                <label>Range Presets</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setRange(500)">LEO-low</button>
+                    <button class="preset-btn" onclick="setRange(2000)">LEO</button>
+                    <button class="preset-btn" onclick="setRange(20200)">MEO</button>
+                    <button class="preset-btn active" onclick="setRange(36000)">GEO</button>
+                    <button class="preset-btn" onclick="setRange(384400)">Lunar</button>
+                    <button class="preset-btn" onclick="setRange(55700000)">Mars</button>
+                </div>
+            </div>
+            <hr class="divider">
+            <div class="row">
+                <label>Frequency</label>
+                <input type="number" id="freq_GHz" value="14.0" min="0.01" step="any" oninput="recalc()">
+                <span class="unit">GHz</span>
+                <span class="computed" id="wavelengthDisplay"></span>
+            </div>
+            <div class="row">
+                <label>Band Presets</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setFreq(0.3)">UHF</button>
+                    <button class="preset-btn" onclick="setFreq(1.575)">L</button>
+                    <button class="preset-btn" onclick="setFreq(2.2)">S</button>
+                    <button class="preset-btn" onclick="setFreq(4.0)">C</button>
+                    <button class="preset-btn" onclick="setFreq(8.4)">X</button>
+                    <button class="preset-btn active" onclick="setFreq(14.0)">Ku</button>
+                    <button class="preset-btn" onclick="setFreq(26.5)">Ka</button>
+                    <button class="preset-btn" onclick="setFreq(60.0)">V</button>
+                </div>
+            </div>
+            <div class="auto-field" id="fsplDisplay">FSPL: -- dB</div>
+            <hr class="divider">
+            <div class="row">
+                <label>Elevation Angle
+                    <span class="tooltip-icon">?<span class="tip">Angle above the horizon to the satellite. Lower angles = longer atmospheric path = more attenuation. Minimum practical: 5 degrees.</span></span>
+                </label>
+                <input type="number" id="elevation_deg" value="10" min="1" max="90" step="1" oninput="recalc()">
+                <span class="unit">deg</span>
+            </div>
+            <div class="row">
+                <label>Rain Rate</label>
+                <select id="rainRate" onchange="recalc()">
+                    <option value="0" selected>Clear sky (0 mm/hr)</option>
+                    <option value="5">Light rain (5 mm/hr)</option>
+                    <option value="25">Moderate rain (25 mm/hr)</option>
+                    <option value="50">Heavy rain (50 mm/hr)</option>
+                </select>
+            </div>
+            <div class="auto-field" id="atmoDisplay">Atmospheric loss: -- dB</div>
+            <div class="row">
+                <label>Ionospheric Scintillation
+                    <span class="tooltip-icon">?<span class="tip">Signal fading from ionospheric irregularities. Mainly affects L-band and S-band at low elevation angles. Typically 0.5-3 dB.</span></span>
+                </label>
+                <input type="number" id="scintillation_dB" value="0" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="row">
+                <label>Polarization Loss</label>
+                <input type="number" id="polLoss_dB" value="0.3" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- RECEIVER -->
+    <div class="section" id="secRx">
+        <div class="section-header" onclick="toggleSection('secRx')">
+            <h2>4. Receiver</h2>
+            <span class="arrow">&#9660;</span>
+        </div>
+        <div class="section-body">
+            <div class="row">
+                <label>Antenna Gain</label>
+                <input type="number" id="rxGain_dBi" value="45.0" step="0.1" oninput="recalc()">
+                <span class="unit">dBi</span>
+            </div>
+            <div class="row">
+                <label>Antenna Type</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setRxAntenna('omni')">Omni (0)</button>
+                    <button class="preset-btn" onclick="setRxAntenna('patch')">Patch (6)</button>
+                    <button class="preset-btn" onclick="setRxAntenna('dish3')">Dish 3m</button>
+                    <button class="preset-btn" onclick="setRxAntenna('dish7')">Dish 7m</button>
+                    <button class="preset-btn active" onclick="setRxAntenna('dish12')">Dish 12m</button>
+                    <button class="preset-btn" onclick="setRxAntenna('dish34')">DSN 34m</button>
+                    <button class="preset-btn" onclick="setRxAntenna('dish70')">DSN 70m</button>
+                </div>
+            </div>
+            <hr class="divider">
+            <div class="row">
+                <label>System Noise Temp
+                    <span class="tooltip-icon">?<span class="tip">Total system noise temperature = T_antenna + T_receiver. Lower = more sensitive. Cooled LNA ~50K, standard ~290K.</span></span>
+                </label>
+                <input type="number" id="noiseTemp_K" value="150" min="1" step="any" oninput="recalc()">
+                <span class="unit">K</span>
+            </div>
+            <div class="row">
+                <label>Temp Presets</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setNoiseTemp(35)">Cryo (35K)</button>
+                    <button class="preset-btn" onclick="setNoiseTemp(50)">Cooled (50K)</button>
+                    <button class="preset-btn active" onclick="setNoiseTemp(150)">Good (150K)</button>
+                    <button class="preset-btn" onclick="setNoiseTemp(290)">Room (290K)</button>
+                    <button class="preset-btn" onclick="setNoiseTemp(500)">Warm (500K)</button>
+                </div>
+            </div>
+            <div class="row">
+                <label>Noise Figure (alt.)
+                    <span class="tooltip-icon">?<span class="tip">Alternative to noise temp. NF = 10*log10(1 + T_rx/290). Changing NF will update noise temperature.</span></span>
+                </label>
+                <input type="number" id="noiseFigure_dB" value="1.8" min="0" step="0.1" oninput="onNoiseFigureChange()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="row">
+                <label>Implementation Loss
+                    <span class="tooltip-icon">?<span class="tip">Losses in the receiver chain: filters, A/D conversion, demodulator imperfections. Typically 1-3 dB.</span></span>
+                </label>
+                <input type="number" id="implLoss_dB" value="2.0" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="auto-field" id="gtDisplay">G/T: -- dB/K</div>
+        </div>
+    </div>
+
+    <!-- SIGNAL / DATA -->
+    <div class="section" id="secSignal">
+        <div class="section-header" onclick="toggleSection('secSignal')">
+            <h2>5. Signal / Data</h2>
+            <span class="arrow">&#9660;</span>
+        </div>
+        <div class="section-body">
+            <div class="row">
+                <label>Data Rate</label>
+                <input type="number" id="dataRate_bps" value="10000000" min="1" step="any" oninput="recalc()">
+                <span class="unit">bps</span>
+                <span class="computed" id="dataRateHuman"></span>
+            </div>
+            <div class="row">
+                <label>Rate Presets</label>
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setDataRate(1000)">1 kbps</button>
+                    <button class="preset-btn" onclick="setDataRate(100000)">100 kbps</button>
+                    <button class="preset-btn" onclick="setDataRate(1000000)">1 Mbps</button>
+                    <button class="preset-btn active" onclick="setDataRate(10000000)">10 Mbps</button>
+                    <button class="preset-btn" onclick="setDataRate(100000000)">100 Mbps</button>
+                    <button class="preset-btn" onclick="setDataRate(1000000000)">1 Gbps</button>
+                </div>
+            </div>
+            <hr class="divider">
+            <div class="row">
+                <label>Modulation</label>
+                <select id="modulation" onchange="onModulationChange()">
+                    <option value="bpsk" selected>BPSK</option>
+                    <option value="qpsk">QPSK</option>
+                    <option value="8psk">8PSK</option>
+                    <option value="16qam">16-QAM</option>
+                    <option value="64qam">64-QAM</option>
+                    <option value="turbo">Turbo/LDPC coded</option>
+                </select>
+            </div>
+            <div class="row">
+                <label>Required Eb/N0
+                    <span class="tooltip-icon">?<span class="tip">Energy per bit to noise density ratio required to achieve the target BER. Set automatically from modulation and BER, or override manually.</span></span>
+                </label>
+                <input type="number" id="ebno_required_dB" value="9.6" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="row">
+                <label>Coding Gain</label>
+                <input type="number" id="codingGain_dB" value="0" min="0" step="0.1" oninput="recalc()">
+                <span class="unit">dB</span>
+            </div>
+            <div class="row">
+                <label>Required BER</label>
+                <select id="requiredBER" onchange="onModulationChange()">
+                    <option value="1e-3">10^-3</option>
+                    <option value="1e-5" selected>10^-5</option>
+                    <option value="1e-6">10^-6</option>
+                    <option value="1e-9">10^-9</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /col-left -->
+
+<!-- ═══════════════════ RIGHT COLUMN — RESULTS ════════════════════ -->
+<div class="col-right">
+
+    <!-- WATERFALL CHART -->
+    <div class="result-panel">
+        <h3>Link Budget Waterfall</h3>
+        <canvas id="waterfallCanvas" height="370"></canvas>
+    </div>
+
+    <!-- SUMMARY RESULTS -->
+    <div class="result-panel" id="summaryPanel">
+        <h3>Summary</h3>
+        <div id="summaryRows"></div>
+        <div id="linkStatusBox" class="link-status link-closed">LINK CLOSED</div>
+        <div class="max-rate-box">
+            Max sustainable data rate at 3 dB margin:
+            <span class="rate-val" id="maxDataRate">--</span>
+        </div>
+    </div>
+
+    <!-- RANGE vs MARGIN CHART -->
+    <div class="result-panel">
+        <h3>Range vs Link Margin</h3>
+        <canvas id="rangeCanvas" height="260"></canvas>
+    </div>
+
+    <!-- FREQUENCY vs ATTENUATION CHART -->
+    <div class="result-panel">
+        <h3>Frequency vs Atmospheric Attenuation</h3>
+        <canvas id="freqCanvas" height="220"></canvas>
+    </div>
+
+</div><!-- /col-right -->
+
+</div><!-- /main -->
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     HELP OVERLAY
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="help-overlay" id="helpOverlay">
+    <div class="help-box">
+        <h2>Keyboard Shortcuts</h2>
+        <p><span class="hk">1</span> LEO Telemetry preset</p>
+        <p><span class="hk">2</span> GPS Signal preset</p>
+        <p><span class="hk">3</span> GEO SATCOM preset</p>
+        <p><span class="hk">4</span> Deep Space (Mars) preset</p>
+        <p><span class="hk">5</span> Tactical UHF preset</p>
+        <p><span class="hk">6</span> TDRSS Relay preset</p>
+        <p><span class="hk">7</span> Custom (clear preset)</p>
+        <p><span class="hk">Enter</span> Recalculate</p>
+        <p><span class="hk">H</span> Toggle this help</p>
+        <hr class="divider" style="margin:12px 0">
+        <p style="color:#6b7a90">All parameters update results in real-time. The waterfall diagram, range plot, and frequency plot refresh on every change.</p>
+        <button class="help-close" onclick="toggleHelp()">Close (H)</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════════════════ */
+var C_LIGHT = 299792458;         // m/s
+var K_BOLTZMANN_DBW = -228.6;    // dBW/K/Hz
+var PI = Math.PI;
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCENARIO PRESETS
+   ═══════════════════════════════════════════════════════════════════ */
+var PRESETS = {
+    leo_telemetry: {
+        txPower_W: 5, txGain_dBi: 6, txDiameter_m: 0, txLineLoss_dB: 0.5,
+        txPointingLoss_dB: 1.0, range_km: 2000, freq_GHz: 2.2,
+        elevation_deg: 20, rainRate: 0, scintillation_dB: 0.5, polLoss_dB: 0.3,
+        rxGain_dBi: 30, noiseTemp_K: 150, implLoss_dB: 1.5,
+        dataRate_bps: 1000000, modulation: 'qpsk', ebno_required_dB: 9.6,
+        codingGain_dB: 0, requiredBER: '1e-5'
+    },
+    gps_signal: {
+        txPower_W: 50, txGain_dBi: 13, txDiameter_m: 0, txLineLoss_dB: 0.5,
+        txPointingLoss_dB: 0.5, range_km: 20200, freq_GHz: 1.575,
+        elevation_deg: 15, rainRate: 0, scintillation_dB: 1.0, polLoss_dB: 0.5,
+        rxGain_dBi: 3, noiseTemp_K: 290, implLoss_dB: 2.0,
+        dataRate_bps: 50000, modulation: 'bpsk', ebno_required_dB: 9.6,
+        codingGain_dB: 0, requiredBER: '1e-5'
+    },
+    geo_satcom: {
+        txPower_W: 20, txGain_dBi: 36.6, txDiameter_m: 2, txLineLoss_dB: 1.0,
+        txPointingLoss_dB: 0.5, range_km: 36000, freq_GHz: 14.0,
+        elevation_deg: 10, rainRate: 0, scintillation_dB: 0, polLoss_dB: 0.3,
+        rxGain_dBi: 45, noiseTemp_K: 150, implLoss_dB: 2.0,
+        dataRate_bps: 10000000, modulation: 'bpsk', ebno_required_dB: 9.6,
+        codingGain_dB: 0, requiredBER: '1e-5'
+    },
+    deep_space: {
+        txPower_W: 20, txGain_dBi: 36.0, txDiameter_m: 3, txLineLoss_dB: 0.5,
+        txPointingLoss_dB: 0.1, range_km: 55700000, freq_GHz: 8.4,
+        elevation_deg: 20, rainRate: 0, scintillation_dB: 0, polLoss_dB: 0.1,
+        rxGain_dBi: 74, noiseTemp_K: 35, implLoss_dB: 1.0,
+        dataRate_bps: 100000, modulation: 'turbo', ebno_required_dB: 2.0,
+        codingGain_dB: 0, requiredBER: '1e-5'
+    },
+    tactical_uhf: {
+        txPower_W: 10, txGain_dBi: 0, txDiameter_m: 0, txLineLoss_dB: 1.5,
+        txPointingLoss_dB: 0, range_km: 300, freq_GHz: 0.3,
+        elevation_deg: 30, rainRate: 0, scintillation_dB: 0, polLoss_dB: 0.5,
+        rxGain_dBi: 0, noiseTemp_K: 500, implLoss_dB: 3.0,
+        dataRate_bps: 16000, modulation: 'bpsk', ebno_required_dB: 9.6,
+        codingGain_dB: 0, requiredBER: '1e-3'
+    },
+    tdrss_relay: {
+        txPower_W: 10, txGain_dBi: 12, txDiameter_m: 0, txLineLoss_dB: 0.5,
+        txPointingLoss_dB: 0.5, range_km: 45000, freq_GHz: 2.2,
+        elevation_deg: 45, rainRate: 0, scintillation_dB: 0, polLoss_dB: 0.3,
+        rxGain_dBi: 46, noiseTemp_K: 150, implLoss_dB: 1.5,
+        dataRate_bps: 6000000, modulation: 'qpsk', ebno_required_dB: 9.6,
+        codingGain_dB: 0, requiredBER: '1e-5'
+    }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODULATION TABLE
+   ═══════════════════════════════════════════════════════════════════ */
+var MOD_TABLE = {
+    //           BER 1e-3   1e-5    1e-6    1e-9
+    bpsk:   { '1e-3': 6.8,  '1e-5': 9.6,  '1e-6': 10.5, '1e-9': 12.6 },
+    qpsk:   { '1e-3': 6.8,  '1e-5': 9.6,  '1e-6': 10.5, '1e-9': 12.6 },
+    '8psk': { '1e-3': 10.0, '1e-5': 13.0, '1e-6': 14.0, '1e-9': 16.2 },
+    '16qam':{ '1e-3': 10.5, '1e-5': 13.4, '1e-6': 14.5, '1e-9': 16.5 },
+    '64qam':{ '1e-3': 14.8, '1e-5': 17.8, '1e-6': 19.0, '1e-9': 21.5 },
+    turbo:  { '1e-3': 0.7,  '1e-5': 2.0,  '1e-6': 2.5,  '1e-9': 4.2  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOM HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+function $(id) { return document.getElementById(id); }
+function val(id) { return parseFloat($(id).value) || 0; }
+function setVal(id, v) { $(id).value = v; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SECTION COLLAPSE TOGGLE
+   ═══════════════════════════════════════════════════════════════════ */
+function toggleSection(id) {
+    $(id).classList.toggle('collapsed');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HELP
+   ═══════════════════════════════════════════════════════════════════ */
+function toggleHelp() {
+    $('helpOverlay').classList.toggle('visible');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHYSICS: ATMOSPHERIC ATTENUATION (simplified ITU-R)
+   ═══════════════════════════════════════════════════════════════════ */
+function atmosphericLoss(freq_GHz, elevation_deg, rain_rate) {
+    var el = Math.max(elevation_deg, 5);
+    var sinEl = Math.sin(el * PI / 180);
+
+    // Zenith attenuation (dB)
+    var A_zenith;
+    if (freq_GHz < 1) {
+        A_zenith = 0.01;
+    } else if (freq_GHz < 10) {
+        A_zenith = 0.01 * freq_GHz;
+    } else if (freq_GHz < 20) {
+        A_zenith = 0.05 + 0.015 * (freq_GHz - 10);
+    } else if (freq_GHz < 25) {
+        A_zenith = 0.2 + 0.1 * Math.exp(-Math.pow((freq_GHz - 22.2) / 1.5, 2));
+    } else if (freq_GHz < 55) {
+        A_zenith = 0.1 + 0.01 * (freq_GHz - 25);
+    } else if (freq_GHz < 65) {
+        A_zenith = 0.4 + 14 * Math.exp(-Math.pow((freq_GHz - 60) / 3, 2));
+    } else {
+        A_zenith = 0.5;
+    }
+
+    var A_atmo = A_zenith / sinEl;
+
+    // Rain attenuation (ITU-R P.838 simplified)
+    if (rain_rate > 0 && freq_GHz > 1) {
+        var k = 0.01 * Math.pow(freq_GHz, 1.2);
+        var alpha = 1.0 + 0.1 * Math.log10(freq_GHz);
+        var gamma_R = k * Math.pow(rain_rate, alpha);
+        var L_eff = 5; // effective rain path (km)
+        var A_rain = gamma_R * L_eff / sinEl;
+        A_atmo += Math.min(A_rain, 30);
+    }
+
+    return A_atmo;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHYSICS: FREE-SPACE PATH LOSS
+   ═══════════════════════════════════════════════════════════════════ */
+function fspl(range_km, freq_GHz) {
+    if (range_km <= 0 || freq_GHz <= 0) return 0;
+    var d_m = range_km * 1e3;
+    var f_Hz = freq_GHz * 1e9;
+    return 20 * Math.log10(d_m) + 20 * Math.log10(f_Hz) - 147.55;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHYSICS: DISH GAIN FROM DIAMETER AND FREQUENCY
+   ═══════════════════════════════════════════════════════════════════ */
+function dishGain(diameter_m, freq_GHz, efficiency) {
+    if (diameter_m <= 0 || freq_GHz <= 0) return 0;
+    var eff = efficiency || 0.55;
+    var wavelength = C_LIGHT / (freq_GHz * 1e9);
+    var Ae = eff * PI * Math.pow(diameter_m / 2, 2);
+    var gain = 4 * PI * Ae / (wavelength * wavelength);
+    return 10 * Math.log10(gain);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITY: dB CONVERSIONS
+   ═══════════════════════════════════════════════════════════════════ */
+function wToDBW(w) { return w > 0 ? 10 * Math.log10(w) : -Infinity; }
+function dbwToW(dbw) { return Math.pow(10, dbw / 10); }
+function dbwToDBm(dbw) { return dbw + 30; }
+function formatRate(bps) {
+    if (bps >= 1e9) return (bps / 1e9).toFixed(2) + ' Gbps';
+    if (bps >= 1e6) return (bps / 1e6).toFixed(2) + ' Mbps';
+    if (bps >= 1e3) return (bps / 1e3).toFixed(2) + ' kbps';
+    return bps.toFixed(0) + ' bps';
+}
+function formatNum(v, decimals) {
+    if (!isFinite(v)) return '--';
+    return v.toFixed(decimals !== undefined ? decimals : 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LINK BUDGET COMPUTATION
+   ═══════════════════════════════════════════════════════════════════ */
+function computeLinkBudget(params) {
+    var p = params || {};
+    var txPower_W     = p.txPower_W     !== undefined ? p.txPower_W     : val('txPower_W');
+    var txGain_dBi    = p.txGain_dBi    !== undefined ? p.txGain_dBi    : val('txGain_dBi');
+    var txLineLoss    = p.txLineLoss_dB  !== undefined ? p.txLineLoss_dB : val('txLineLoss_dB');
+    var txPointLoss   = p.txPointingLoss_dB !== undefined ? p.txPointingLoss_dB : val('txPointingLoss_dB');
+    var range_km      = p.range_km      !== undefined ? p.range_km      : val('range_km');
+    var freq_GHz      = p.freq_GHz      !== undefined ? p.freq_GHz      : val('freq_GHz');
+    var elevation_deg = p.elevation_deg  !== undefined ? p.elevation_deg : val('elevation_deg');
+    var rainRate      = p.rainRate       !== undefined ? p.rainRate      : parseFloat($('rainRate').value);
+    var scint_dB      = p.scintillation_dB !== undefined ? p.scintillation_dB : val('scintillation_dB');
+    var polLoss_dB    = p.polLoss_dB    !== undefined ? p.polLoss_dB    : val('polLoss_dB');
+    var rxGain_dBi    = p.rxGain_dBi    !== undefined ? p.rxGain_dBi    : val('rxGain_dBi');
+    var noiseTemp_K   = p.noiseTemp_K   !== undefined ? p.noiseTemp_K   : val('noiseTemp_K');
+    var implLoss_dB   = p.implLoss_dB   !== undefined ? p.implLoss_dB   : val('implLoss_dB');
+    var dataRate_bps  = p.dataRate_bps  !== undefined ? p.dataRate_bps  : val('dataRate_bps');
+    var ebnoReq       = p.ebno_required_dB !== undefined ? p.ebno_required_dB : val('ebno_required_dB');
+    var codingGain    = p.codingGain_dB !== undefined ? p.codingGain_dB : val('codingGain_dB');
+
+    // Guard
+    if (txPower_W <= 0) txPower_W = 0.001;
+    if (range_km <= 0) range_km = 0.001;
+    if (freq_GHz <= 0) freq_GHz = 0.01;
+    if (noiseTemp_K <= 0) noiseTemp_K = 1;
+    if (dataRate_bps <= 0) dataRate_bps = 1;
+
+    var txPower_dBW = wToDBW(txPower_W);
+    var EIRP = txPower_dBW + txGain_dBi - txLineLoss - txPointLoss;
+
+    var FSPL = fspl(range_km, freq_GHz);
+    var A_atmo = atmosphericLoss(freq_GHz, elevation_deg, rainRate);
+    var totalPathLoss = FSPL + A_atmo + polLoss_dB + scint_dB;
+
+    // Received signal power
+    var C_dBW = EIRP - FSPL - A_atmo - polLoss_dB - scint_dB + rxGain_dBi - implLoss_dB;
+
+    // Noise
+    var N0_dBW_Hz = K_BOLTZMANN_DBW + 10 * Math.log10(noiseTemp_K);
+
+    // C/N0
+    var C_N0 = C_dBW - N0_dBW_Hz;
+
+    // Eb/N0
+    var Eb_N0 = C_N0 - 10 * Math.log10(dataRate_bps);
+
+    // Effective required Eb/N0 after coding gain
+    var effRequired = ebnoReq - codingGain;
+
+    // Margin
+    var margin = Eb_N0 - effRequired;
+
+    // G/T
+    var G_T = rxGain_dBi - 10 * Math.log10(noiseTemp_K);
+
+    // Max data rate at 3 dB margin
+    var maxRate = Math.pow(10, (C_N0 - effRequired - 3) / 10);
+
+    return {
+        txPower_dBW: txPower_dBW,
+        EIRP: EIRP,
+        FSPL: FSPL,
+        A_atmo: A_atmo,
+        scint_dB: scint_dB,
+        polLoss_dB: polLoss_dB,
+        totalPathLoss: totalPathLoss,
+        rxGain_dBi: rxGain_dBi,
+        implLoss_dB: implLoss_dB,
+        C_dBW: C_dBW,
+        N0_dBW_Hz: N0_dBW_Hz,
+        C_N0: C_N0,
+        Eb_N0: Eb_N0,
+        ebnoRequired: effRequired,
+        margin: margin,
+        G_T: G_T,
+        maxRate: maxRate,
+        range_km: range_km,
+        freq_GHz: freq_GHz,
+        dataRate_bps: dataRate_bps,
+        noiseTemp_K: noiseTemp_K,
+        txGain_dBi: txGain_dBi,
+        txLineLoss: txLineLoss,
+        txPointLoss: txPointLoss
+    };
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RECALCULATE ALL
+   ═══════════════════════════════════════════════════════════════════ */
+function recalc() {
+    var r = computeLinkBudget();
+
+    // Update auto-computed displays in left column
+    $('txPower_dBW').textContent = formatNum(r.txPower_dBW, 1) + ' dBW / ' + formatNum(dbwToDBm(r.txPower_dBW), 1) + ' dBm';
+    $('eirpDisplay').textContent = 'EIRP: ' + formatNum(r.EIRP, 1) + ' dBW';
+    $('fsplDisplay').textContent = 'FSPL: ' + formatNum(r.FSPL, 1) + ' dB';
+
+    var wl = C_LIGHT / (val('freq_GHz') * 1e9);
+    if (wl >= 1) {
+        $('wavelengthDisplay').textContent = '\u03bb = ' + formatNum(wl, 2) + ' m';
+    } else if (wl >= 0.001) {
+        $('wavelengthDisplay').textContent = '\u03bb = ' + formatNum(wl * 100, 2) + ' cm';
+    } else {
+        $('wavelengthDisplay').textContent = '\u03bb = ' + formatNum(wl * 1000, 3) + ' mm';
+    }
+
+    $('atmoDisplay').textContent = 'Atmospheric loss: ' + formatNum(r.A_atmo, 2) + ' dB (clear) + rain';
+    $('gtDisplay').textContent = 'G/T: ' + formatNum(r.G_T, 1) + ' dB/K';
+    $('dataRateHuman').textContent = formatRate(val('dataRate_bps'));
+
+    // Dish gain helper
+    var diam = val('txDiameter_m');
+    if (diam > 0 && val('freq_GHz') > 0) {
+        var dg = dishGain(diam, val('freq_GHz'));
+        $('txDishGainCalc').textContent = 'calc: ' + formatNum(dg, 1) + ' dBi';
+    } else {
+        $('txDishGainCalc').textContent = '';
+    }
+
+    // Update summary results
+    updateSummary(r);
+
+    // Draw charts
+    drawWaterfall(r);
+    drawRangeChart(r);
+    drawFreqChart(r);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SUMMARY RESULTS
+   ═══════════════════════════════════════════════════════════════════ */
+function updateSummary(r) {
+    var marginClass = r.margin >= 6 ? 'margin-positive' :
+                      r.margin >= 3 ? 'margin-warning' : 'margin-negative';
+    var closed = r.margin >= 0;
+
+    var rows = [
+        { lbl: 'EIRP',                       val: formatNum(r.EIRP, 1) + ' dBW' },
+        { lbl: 'Free-Space Path Loss',       val: formatNum(r.FSPL, 1) + ' dB' },
+        { lbl: 'Atmospheric Attenuation',     val: formatNum(r.A_atmo, 2) + ' dB' },
+        { lbl: 'Total Path Loss',             val: formatNum(r.totalPathLoss, 1) + ' dB' },
+        { lbl: 'Received Power (C)',          val: formatNum(r.C_dBW, 1) + ' dBW (' + formatNum(dbwToDBm(r.C_dBW), 1) + ' dBm)' },
+        { lbl: 'Noise Power Density (N0)',    val: formatNum(r.N0_dBW_Hz, 1) + ' dBW/Hz' },
+        { lbl: 'C/N0',                       val: formatNum(r.C_N0, 1) + ' dB-Hz' },
+        { lbl: 'Eb/N0 (received)',            val: formatNum(r.Eb_N0, 1) + ' dB' },
+        { lbl: 'Eb/N0 (required)',            val: formatNum(r.ebnoRequired, 1) + ' dB' },
+        { lbl: 'Link Margin', val: formatNum(r.margin, 1) + ' dB', cls: marginClass, highlight: true }
+    ];
+
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+        var rc = rows[i];
+        var cls = 'result-row' + (rc.highlight ? ' highlight' : '');
+        var vcls = rc.cls || '';
+        html += '<div class="' + cls + '"><span class="lbl">' + rc.lbl + '</span><span class="val ' + vcls + '">' + rc.val + '</span></div>';
+    }
+    $('summaryRows').innerHTML = html;
+
+    var box = $('linkStatusBox');
+    if (closed) {
+        box.textContent = 'LINK CLOSED';
+        box.className = 'link-status link-closed';
+    } else {
+        box.textContent = 'LINK OPEN (FAILED)';
+        box.className = 'link-status link-open';
+    }
+
+    // Max data rate
+    if (isFinite(r.maxRate) && r.maxRate > 0) {
+        $('maxDataRate').textContent = formatRate(r.maxRate);
+    } else {
+        $('maxDataRate').textContent = '-- (link does not close)';
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   WATERFALL CHART (Canvas)
+   ═══════════════════════════════════════════════════════════════════ */
+function drawWaterfall(r) {
+    var canvas = $('waterfallCanvas');
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.clientWidth;
+    var H = 370;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // Background
+    ctx.fillStyle = '#080c14';
+    ctx.fillRect(0, 0, W, H);
+
+    // Waterfall steps: name, dB value, type (gain/loss)
+    var steps = [
+        { name: 'Tx Power',      dB: r.txPower_dBW,    type: 'gain' },
+        { name: 'Tx Gain',       dB: r.txGain_dBi,     type: 'gain' },
+        { name: 'Tx Losses',     dB: -(r.txLineLoss + r.txPointLoss), type: 'loss' },
+        { name: 'FSPL',          dB: -r.FSPL,           type: 'loss' },
+        { name: 'Atmo Loss',     dB: -r.A_atmo,         type: 'loss' },
+        { name: 'Pol+Scint',     dB: -(r.polLoss_dB + r.scint_dB), type: 'loss' },
+        { name: 'Rx Gain',       dB: r.rxGain_dBi,      type: 'gain' },
+        { name: 'Impl Loss',     dB: -r.implLoss_dB,    type: 'loss' },
+        { name: 'C (dBW)',       dB: 0,                  type: 'result' }
+    ];
+
+    // Compute running totals
+    var running = 0;
+    var runningVals = [];
+    for (var i = 0; i < steps.length; i++) {
+        if (steps[i].type === 'result') {
+            // result bar shows the current running value
+            steps[i].runFrom = running;
+            steps[i].runTo = running;
+        } else {
+            steps[i].runFrom = running;
+            running += steps[i].dB;
+            steps[i].runTo = running;
+        }
+        runningVals.push(running);
+    }
+
+    // Find range for scaling
+    var allVals = [0];
+    for (var i = 0; i < steps.length; i++) {
+        allVals.push(steps[i].runFrom);
+        allVals.push(steps[i].runTo);
+    }
+    var minVal = Math.min.apply(null, allVals);
+    var maxVal = Math.max.apply(null, allVals);
+
+    // Also include required line
+    var requiredC = r.C_dBW - r.margin; // i.e., C_required = C_received - margin
+    allVals.push(requiredC);
+    minVal = Math.min.apply(null, allVals);
+    maxVal = Math.max.apply(null, allVals);
+
+    var range = maxVal - minVal;
+    if (range < 10) range = 10;
+    var pad = range * 0.12;
+    minVal -= pad;
+    maxVal += pad;
+    range = maxVal - minVal;
+
+    // Layout
+    var marginLeft = 52;
+    var marginRight = 16;
+    var marginTop = 24;
+    var marginBottom = 60;
+    var chartW = W - marginLeft - marginRight;
+    var chartH = H - marginTop - marginBottom;
+    var n = steps.length;
+    var barW = Math.min(chartW / n * 0.65, 50);
+    var gap = (chartW - barW * n) / (n + 1);
+
+    function yPos(val) {
+        return marginTop + chartH * (1 - (val - minVal) / range);
+    }
+
+    // Grid lines
+    ctx.strokeStyle = '#1e2a42';
+    ctx.lineWidth = 0.5;
+    ctx.font = '9px Consolas, monospace';
+    ctx.fillStyle = '#6b7a90';
+    ctx.textAlign = 'right';
+    var gridStep = range > 200 ? 50 : range > 100 ? 20 : range > 50 ? 10 : 5;
+    var gridStart = Math.ceil(minVal / gridStep) * gridStep;
+    for (var g = gridStart; g <= maxVal; g += gridStep) {
+        var gy = yPos(g);
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, gy);
+        ctx.lineTo(W - marginRight, gy);
+        ctx.stroke();
+        ctx.fillText(g.toFixed(0), marginLeft - 6, gy + 3);
+    }
+
+    // Y axis label
+    ctx.save();
+    ctx.translate(12, marginTop + chartH / 2);
+    ctx.rotate(-PI / 2);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#6b7a90';
+    ctx.font = '10px Consolas, monospace';
+    ctx.fillText('dB', 0, 0);
+    ctx.restore();
+
+    // Draw running total line
+    ctx.strokeStyle = 'rgba(74,158,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    var runVal = 0;
+    for (var i = 0; i < steps.length; i++) {
+        var x = marginLeft + gap + i * (barW + gap) + barW / 2;
+        var y = yPos(steps[i].runTo);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw bars
+    for (var i = 0; i < steps.length; i++) {
+        var s = steps[i];
+        var x = marginLeft + gap + i * (barW + gap);
+        var y1 = yPos(s.runFrom);
+        var y2 = yPos(s.runTo);
+
+        if (s.type === 'result') {
+            // Show the final received power as a gold bar from 0 to running value
+            var yZero = yPos(0);
+            var yC = yPos(r.C_dBW);
+            var grad = ctx.createLinearGradient(x, Math.min(yZero, yC), x, Math.max(yZero, yC));
+            grad.addColorStop(0, 'rgba(255,215,0,0.8)');
+            grad.addColorStop(1, 'rgba(255,215,0,0.3)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, Math.min(yZero, yC), barW, Math.abs(yC - yZero));
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, Math.min(yZero, yC), barW, Math.abs(yC - yZero));
+        } else {
+            var barTop = Math.min(y1, y2);
+            var barH = Math.abs(y2 - y1);
+            if (barH < 1) barH = 1;
+
+            if (s.type === 'gain') {
+                var grad = ctx.createLinearGradient(x, barTop, x, barTop + barH);
+                grad.addColorStop(0, 'rgba(46,204,113,0.85)');
+                grad.addColorStop(1, 'rgba(46,204,113,0.35)');
+                ctx.fillStyle = grad;
+                ctx.strokeStyle = '#2ecc71';
+            } else {
+                var grad = ctx.createLinearGradient(x, barTop, x, barTop + barH);
+                grad.addColorStop(0, 'rgba(231,76,60,0.85)');
+                grad.addColorStop(1, 'rgba(231,76,60,0.35)');
+                ctx.fillStyle = grad;
+                ctx.strokeStyle = '#e74c3c';
+            }
+            ctx.fillRect(x, barTop, barW, barH);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, barTop, barW, barH);
+
+            // Connector from previous bar
+            if (i > 0) {
+                ctx.strokeStyle = 'rgba(200,205,213,0.2)';
+                ctx.lineWidth = 0.5;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(x - gap + barW, y1);
+                ctx.lineTo(x, y1);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        // Value label
+        var labelVal;
+        if (s.type === 'result') {
+            labelVal = formatNum(r.C_dBW, 1);
+        } else {
+            labelVal = (s.dB >= 0 ? '+' : '') + formatNum(s.dB, 1);
+        }
+        ctx.fillStyle = '#c8cdd5';
+        ctx.font = '9px Consolas, monospace';
+        ctx.textAlign = 'center';
+        var labelY = (s.type === 'result') ? yPos(r.C_dBW) - 6 :
+                     (s.dB >= 0 ? Math.min(y1, y2) - 6 : Math.max(y1, y2) + 12);
+        ctx.fillText(labelVal, x + barW / 2, labelY);
+
+        // Bar name
+        ctx.save();
+        ctx.translate(x + barW / 2, H - marginBottom + 10);
+        ctx.rotate(-PI / 4);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#6b7a90';
+        ctx.font = '9px Consolas, monospace';
+        ctx.fillText(s.name, 0, 0);
+        ctx.restore();
+    }
+
+    // Required Eb/N0 equivalent line (where C would need to be)
+    // Show "Required C" line: C_required = C_received - margin
+    var reqCY = yPos(requiredC);
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, reqCY);
+    ctx.lineTo(W - marginRight, reqCY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Label for required line
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Required C: ' + formatNum(requiredC, 1) + ' dBW', marginLeft + 4, reqCY - 5);
+
+    // Margin shading between received and required
+    var cY = yPos(r.C_dBW);
+    if (r.margin >= 0) {
+        ctx.fillStyle = 'rgba(46,204,113,0.08)';
+    } else {
+        ctx.fillStyle = 'rgba(231,76,60,0.08)';
+    }
+    var shadingLeft = marginLeft + gap + (n - 1) * (barW + gap);
+    ctx.fillRect(shadingLeft, Math.min(cY, reqCY), barW, Math.abs(cY - reqCY));
+
+    // Margin annotation
+    var midY = (cY + reqCY) / 2;
+    ctx.fillStyle = r.margin >= 6 ? '#2ecc71' : r.margin >= 3 ? '#FFD700' : '#e74c3c';
+    ctx.font = 'bold 10px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Margin: ' + formatNum(r.margin, 1) + ' dB', shadingLeft + barW + 6, midY + 3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RANGE vs MARGIN CHART (Canvas)
+   ═══════════════════════════════════════════════════════════════════ */
+function drawRangeChart(r) {
+    var canvas = $('rangeCanvas');
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.clientWidth;
+    var H = 260;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle = '#080c14';
+    ctx.fillRect(0, 0, W, H);
+
+    var marginLeft = 56;
+    var marginRight = 20;
+    var marginTop = 16;
+    var marginBottom = 40;
+    var chartW = W - marginLeft - marginRight;
+    var chartH = H - marginTop - marginBottom;
+
+    // Range axis: log scale from 100 km to some max
+    var currentRange = r.range_km;
+    var rangeMin = 100;
+    // Find max range where margin = 0 (binary search)
+    var rangeMax = currentRange * 10;
+    // Ensure we go far enough
+    var testR = computeLinkBudget({ range_km: rangeMax });
+    while (testR.margin > -20 && rangeMax < 1e12) {
+        rangeMax *= 10;
+        testR = computeLinkBudget({ range_km: rangeMax });
+    }
+
+    var logMin = Math.log10(rangeMin);
+    var logMax = Math.log10(rangeMax);
+
+    function xPos(range) {
+        var lr = Math.log10(Math.max(range, 1));
+        return marginLeft + chartW * (lr - logMin) / (logMax - logMin);
+    }
+
+    // Sample the curve
+    var nSamples = 200;
+    var points = [];
+    var minMargin = Infinity, maxMargin = -Infinity;
+    for (var i = 0; i <= nSamples; i++) {
+        var lr = logMin + (logMax - logMin) * i / nSamples;
+        var rng = Math.pow(10, lr);
+        var lb = computeLinkBudget({ range_km: rng });
+        points.push({ range: rng, margin: lb.margin });
+        if (lb.margin < minMargin) minMargin = lb.margin;
+        if (lb.margin > maxMargin) maxMargin = lb.margin;
+    }
+
+    // Y axis: margin range
+    var yMin = Math.min(minMargin, -10);
+    var yMax = Math.max(maxMargin, 20);
+    var yPad = (yMax - yMin) * 0.08;
+    yMin -= yPad;
+    yMax += yPad;
+
+    function yPos(margin) {
+        return marginTop + chartH * (1 - (margin - yMin) / (yMax - yMin));
+    }
+
+    // Zone fills
+    // Green zone (>6 dB)
+    if (yMax > 6) {
+        var yt = yPos(Math.min(yMax, 100));
+        var yb = yPos(6);
+        ctx.fillStyle = 'rgba(46,204,113,0.06)';
+        ctx.fillRect(marginLeft, yt, chartW, yb - yt);
+    }
+    // Yellow zone (3-6 dB)
+    if (yMax > 3) {
+        var yt = yPos(Math.min(6, yMax));
+        var yb = yPos(3);
+        ctx.fillStyle = 'rgba(255,215,0,0.06)';
+        ctx.fillRect(marginLeft, yt, chartW, yb - yt);
+    }
+    // Red zone (<3 dB)
+    {
+        var yt = yPos(Math.min(3, yMax));
+        var yb = yPos(yMin);
+        ctx.fillStyle = 'rgba(231,76,60,0.06)';
+        ctx.fillRect(marginLeft, yt, chartW, yb - yt);
+    }
+
+    // Grid
+    ctx.strokeStyle = '#1e2a42';
+    ctx.lineWidth = 0.5;
+    ctx.font = '9px Consolas, monospace';
+    ctx.fillStyle = '#6b7a90';
+
+    // Y grid
+    ctx.textAlign = 'right';
+    var yStep = (yMax - yMin) > 60 ? 10 : 5;
+    for (var g = Math.ceil(yMin / yStep) * yStep; g <= yMax; g += yStep) {
+        var gy = yPos(g);
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, gy);
+        ctx.lineTo(W - marginRight, gy);
+        ctx.stroke();
+        ctx.fillText(g.toFixed(0), marginLeft - 6, gy + 3);
+    }
+
+    // X grid (log)
+    ctx.textAlign = 'center';
+    var decades = [];
+    for (var d = Math.floor(logMin); d <= Math.ceil(logMax); d++) {
+        decades.push(Math.pow(10, d));
+    }
+    for (var di = 0; di < decades.length; di++) {
+        var d = decades[di];
+        var gx = xPos(d);
+        if (gx >= marginLeft && gx <= marginLeft + chartW) {
+            ctx.beginPath();
+            ctx.moveTo(gx, marginTop);
+            ctx.lineTo(gx, marginTop + chartH);
+            ctx.stroke();
+            var label;
+            if (d >= 1e6) label = (d / 1e6).toFixed(0) + 'M';
+            else if (d >= 1e3) label = (d / 1e3).toFixed(0) + 'k';
+            else label = d.toFixed(0);
+            ctx.fillText(label + ' km', gx, H - marginBottom + 16);
+        }
+    }
+
+    // 0 dB reference line
+    ctx.strokeStyle = 'rgba(231,76,60,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    var y0 = yPos(0);
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, y0);
+    ctx.lineTo(W - marginRight, y0);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 3 dB reference line
+    ctx.strokeStyle = 'rgba(255,215,0,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    var y3 = yPos(3);
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, y3);
+    ctx.lineTo(W - marginRight, y3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 6 dB reference line
+    ctx.strokeStyle = 'rgba(46,204,113,0.4)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 3]);
+    var y6 = yPos(6);
+    ctx.beginPath();
+    ctx.moveTo(marginLeft, y6);
+    ctx.lineTo(W - marginRight, y6);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Curve
+    ctx.strokeStyle = '#4a9eff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (var i = 0; i < points.length; i++) {
+        var px = xPos(points[i].range);
+        var py = yPos(points[i].margin);
+        // Clamp to chart area
+        py = Math.max(marginTop, Math.min(marginTop + chartH, py));
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Current range vertical line
+    var cx = xPos(currentRange);
+    ctx.strokeStyle = 'rgba(255,215,0,0.8)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(cx, marginTop);
+    ctx.lineTo(cx, marginTop + chartH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Current range label
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'center';
+    var rangeLabel = currentRange >= 1e6 ? formatNum(currentRange / 1e6, 1) + 'M km' :
+                     currentRange >= 1e3 ? formatNum(currentRange / 1e3, 0) + 'k km' :
+                     formatNum(currentRange, 0) + ' km';
+    ctx.fillText(rangeLabel, cx, marginTop - 4);
+
+    // Current margin dot
+    var cy = yPos(r.margin);
+    cy = Math.max(marginTop, Math.min(marginTop + chartH, cy));
+    ctx.beginPath();
+    ctx.arc(cx, cy, 4, 0, 2 * PI);
+    ctx.fillStyle = r.margin >= 6 ? '#2ecc71' : r.margin >= 3 ? '#FFD700' : '#e74c3c';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Find max range for link closure (margin = 0)
+    var maxClosureRange = 0;
+    for (var i = 0; i < points.length - 1; i++) {
+        if (points[i].margin >= 0 && points[i + 1].margin < 0) {
+            // Linear interpolation
+            var frac = points[i].margin / (points[i].margin - points[i + 1].margin);
+            var lr1 = Math.log10(points[i].range);
+            var lr2 = Math.log10(points[i + 1].range);
+            maxClosureRange = Math.pow(10, lr1 + frac * (lr2 - lr1));
+            break;
+        }
+    }
+    if (points[points.length - 1].margin >= 0) maxClosureRange = rangeMax;
+
+    // Max range annotation
+    if (maxClosureRange > 0) {
+        var mrLabel;
+        if (maxClosureRange >= 1e9) mrLabel = formatNum(maxClosureRange / 1e9, 1) + 'B km';
+        else if (maxClosureRange >= 1e6) mrLabel = formatNum(maxClosureRange / 1e6, 1) + 'M km';
+        else if (maxClosureRange >= 1e3) mrLabel = formatNum(maxClosureRange / 1e3, 0) + 'k km';
+        else mrLabel = formatNum(maxClosureRange, 0) + ' km';
+        ctx.fillStyle = '#e74c3c';
+        ctx.font = '9px Consolas, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText('Max range: ' + mrLabel, W - marginRight, marginTop + 12);
+    }
+
+    // Axis labels
+    ctx.fillStyle = '#6b7a90';
+    ctx.font = '10px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Slant Range (km, log scale)', marginLeft + chartW / 2, H - 4);
+
+    ctx.save();
+    ctx.translate(12, marginTop + chartH / 2);
+    ctx.rotate(-PI / 2);
+    ctx.fillText('Margin (dB)', 0, 0);
+    ctx.restore();
+
+    // Zone labels
+    ctx.font = '8px Consolas, monospace';
+    ctx.textAlign = 'right';
+    if (yMax > 8) { ctx.fillStyle = 'rgba(46,204,113,0.5)'; ctx.fillText('>6 dB', W - marginRight - 2, yPos(Math.min(yMax - 2, (yMax + 6) / 2))); }
+    if (yMax > 4 && yMin < 6) { ctx.fillStyle = 'rgba(255,215,0,0.5)'; ctx.fillText('3-6 dB', W - marginRight - 2, yPos(4.5)); }
+    if (yMax > 0 && yMin < 3) { ctx.fillStyle = 'rgba(231,76,60,0.5)'; ctx.fillText('<3 dB', W - marginRight - 2, yPos(Math.max(yMin + 2, 1.5))); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FREQUENCY vs ATTENUATION CHART (Canvas)
+   ═══════════════════════════════════════════════════════════════════ */
+function drawFreqChart(r) {
+    var canvas = $('freqCanvas');
+    var dpr = window.devicePixelRatio || 1;
+    var W = canvas.clientWidth;
+    var H = 220;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    ctx.fillStyle = '#080c14';
+    ctx.fillRect(0, 0, W, H);
+
+    var marginLeft = 56;
+    var marginRight = 20;
+    var marginTop = 16;
+    var marginBottom = 36;
+    var chartW = W - marginLeft - marginRight;
+    var chartH = H - marginTop - marginBottom;
+
+    // Freq axis: 0.1 to 100 GHz log
+    var fMin = 0.1, fMax = 100;
+    var logFMin = Math.log10(fMin);
+    var logFMax = Math.log10(fMax);
+
+    function xPos(f) {
+        return marginLeft + chartW * (Math.log10(f) - logFMin) / (logFMax - logFMin);
+    }
+
+    // Elevation angles to plot
+    var elevations = [90, 30, 10, 5];
+    var elevColors = ['rgba(46,204,113,0.8)', 'rgba(74,158,255,0.8)', 'rgba(255,215,0,0.8)', 'rgba(231,76,60,0.8)'];
+
+    // Sample curves to find y range
+    var nSamples = 300;
+    var curves = [];
+    var globalMax = 0;
+    for (var ei = 0; ei < elevations.length; ei++) {
+        var pts = [];
+        for (var i = 0; i <= nSamples; i++) {
+            var lf = logFMin + (logFMax - logFMin) * i / nSamples;
+            var f = Math.pow(10, lf);
+            var att = atmosphericLoss(f, elevations[ei], 0);
+            if (att > 50) att = 50; // cap for display
+            pts.push({ freq: f, atten: att });
+            if (att > globalMax) globalMax = att;
+        }
+        curves.push(pts);
+    }
+
+    var yMaxVal = Math.min(Math.max(globalMax * 1.15, 1), 50);
+
+    function yPos(att) {
+        return marginTop + chartH * (1 - att / yMaxVal);
+    }
+
+    // Grid
+    ctx.strokeStyle = '#1e2a42';
+    ctx.lineWidth = 0.5;
+    ctx.font = '9px Consolas, monospace';
+    ctx.fillStyle = '#6b7a90';
+
+    // Y grid
+    ctx.textAlign = 'right';
+    var yStep = yMaxVal > 20 ? 5 : yMaxVal > 5 ? 1 : 0.2;
+    for (var g = 0; g <= yMaxVal; g += yStep) {
+        var gy = yPos(g);
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, gy);
+        ctx.lineTo(W - marginRight, gy);
+        ctx.stroke();
+        ctx.fillText(g.toFixed(yStep < 1 ? 1 : 0), marginLeft - 6, gy + 3);
+    }
+
+    // X grid
+    ctx.textAlign = 'center';
+    var freqTicks = [0.1, 0.3, 1, 2, 5, 10, 20, 50, 100];
+    for (var fi = 0; fi < freqTicks.length; fi++) {
+        var f = freqTicks[fi];
+        var gx = xPos(f);
+        ctx.beginPath();
+        ctx.moveTo(gx, marginTop);
+        ctx.lineTo(gx, marginTop + chartH);
+        ctx.stroke();
+        ctx.fillText(f >= 1 ? f.toFixed(0) : f.toFixed(1), gx, H - marginBottom + 14);
+    }
+
+    // Absorption peak annotations
+    // O2 at 60 GHz
+    var o2x = xPos(60);
+    ctx.fillStyle = 'rgba(231,76,60,0.3)';
+    ctx.fillRect(o2x - 8, marginTop, 16, chartH);
+    ctx.fillStyle = 'rgba(231,76,60,0.7)';
+    ctx.font = '8px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('O\u2082', o2x, marginTop + 10);
+
+    // H2O at 22 GHz
+    var h2ox = xPos(22.2);
+    ctx.fillStyle = 'rgba(74,158,255,0.15)';
+    ctx.fillRect(h2ox - 6, marginTop, 12, chartH);
+    ctx.fillStyle = 'rgba(74,158,255,0.7)';
+    ctx.fillText('H\u2082O', h2ox, marginTop + 10);
+
+    // Draw curves
+    for (var ei = 0; ei < curves.length; ei++) {
+        var pts = curves[ei];
+        ctx.strokeStyle = elevColors[ei];
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        for (var i = 0; i < pts.length; i++) {
+            var px = xPos(pts[i].freq);
+            var py = yPos(pts[i].atten);
+            py = Math.max(marginTop, Math.min(marginTop + chartH, py));
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+    }
+
+    // Current frequency vertical line
+    var cfx = xPos(r.freq_GHz);
+    ctx.strokeStyle = 'rgba(255,215,0,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(cfx, marginTop);
+    ctx.lineTo(cfx, marginTop + chartH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(r.freq_GHz.toFixed(1) + ' GHz', cfx, marginTop - 4);
+
+    // Legend
+    ctx.font = '8px Consolas, monospace';
+    var legX = W - marginRight - 80;
+    var legY = marginTop + 8;
+    for (var ei = 0; ei < elevations.length; ei++) {
+        ctx.fillStyle = elevColors[ei];
+        ctx.fillRect(legX, legY + ei * 13, 12, 2);
+        ctx.fillText(elevations[ei] + '\u00b0', legX + 16, legY + ei * 13 + 3);
+    }
+
+    // Axis labels
+    ctx.fillStyle = '#6b7a90';
+    ctx.font = '10px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Frequency (GHz, log scale)', marginLeft + chartW / 2, H - 4);
+
+    ctx.save();
+    ctx.translate(12, marginTop + chartH / 2);
+    ctx.rotate(-PI / 2);
+    ctx.fillText('Attenuation (dB)', 0, 0);
+    ctx.restore();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRESET APPLICATION
+   ═══════════════════════════════════════════════════════════════════ */
+function applyPreset() {
+    var name = $('presetSelect').value;
+    if (name === 'custom') { recalc(); return; }
+    var p = PRESETS[name];
+    if (!p) return;
+
+    setVal('txPower_W', p.txPower_W);
+    setVal('txGain_dBi', p.txGain_dBi);
+    setVal('txDiameter_m', p.txDiameter_m);
+    setVal('txLineLoss_dB', p.txLineLoss_dB);
+    setVal('txPointingLoss_dB', p.txPointingLoss_dB);
+    setVal('range_km', p.range_km);
+    setVal('freq_GHz', p.freq_GHz);
+    setVal('elevation_deg', p.elevation_deg);
+    $('rainRate').value = p.rainRate;
+    setVal('scintillation_dB', p.scintillation_dB);
+    setVal('polLoss_dB', p.polLoss_dB);
+    setVal('rxGain_dBi', p.rxGain_dBi);
+    setVal('noiseTemp_K', p.noiseTemp_K);
+    setVal('implLoss_dB', p.implLoss_dB);
+    setVal('dataRate_bps', p.dataRate_bps);
+    $('modulation').value = p.modulation;
+    setVal('ebno_required_dB', p.ebno_required_dB);
+    setVal('codingGain_dB', p.codingGain_dB);
+    $('requiredBER').value = p.requiredBER;
+
+    // Update noise figure from noise temp
+    var nf = 10 * Math.log10(1 + p.noiseTemp_K / 290);
+    setVal('noiseFigure_dB', nf.toFixed(1));
+
+    highlightActivePresetBtns();
+    recalc();
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   INPUT HELPERS
+   ═══════════════════════════════════════════════════════════════════ */
+function setTxAntenna(type) {
+    var freq = val('freq_GHz');
+    switch (type) {
+        case 'omni':    setVal('txGain_dBi', 0); setVal('txDiameter_m', 0); break;
+        case 'patch':   setVal('txGain_dBi', 6); setVal('txDiameter_m', 0); break;
+        case 'horn':    setVal('txGain_dBi', 15); setVal('txDiameter_m', 0); break;
+        case 'dish_sm': setVal('txDiameter_m', 0.5); setVal('txGain_dBi', dishGain(0.5, freq).toFixed(1)); break;
+        case 'dish_md': setVal('txDiameter_m', 1); setVal('txGain_dBi', dishGain(1, freq).toFixed(1)); break;
+        case 'dish_lg': setVal('txDiameter_m', 2); setVal('txGain_dBi', dishGain(2, freq).toFixed(1)); break;
+        case 'dish_xl': setVal('txDiameter_m', 5); setVal('txGain_dBi', dishGain(5, freq).toFixed(1)); break;
+    }
+    markPreset('secTx');
+    recalc();
+}
+
+function setRxAntenna(type) {
+    var freq = val('freq_GHz');
+    switch (type) {
+        case 'omni':    setVal('rxGain_dBi', 0); break;
+        case 'patch':   setVal('rxGain_dBi', 6); break;
+        case 'dish3':   setVal('rxGain_dBi', dishGain(3, freq).toFixed(1)); break;
+        case 'dish7':   setVal('rxGain_dBi', dishGain(7, freq).toFixed(1)); break;
+        case 'dish12':  setVal('rxGain_dBi', dishGain(12, freq).toFixed(1)); break;
+        case 'dish34':  setVal('rxGain_dBi', dishGain(34, freq).toFixed(1)); break;
+        case 'dish70':  setVal('rxGain_dBi', dishGain(70, freq).toFixed(1)); break;
+    }
+    recalc();
+}
+
+function setRange(km) { setVal('range_km', km); recalc(); }
+function setFreq(ghz) {
+    setVal('freq_GHz', ghz);
+    // Auto-update ionospheric scintillation
+    if (ghz <= 2.5 && val('elevation_deg') <= 20) {
+        setVal('scintillation_dB', 1.0);
+    } else {
+        setVal('scintillation_dB', 0);
+    }
+    recalc();
+}
+function setNoiseTemp(k) {
+    setVal('noiseTemp_K', k);
+    var nf = 10 * Math.log10(1 + k / 290);
+    setVal('noiseFigure_dB', nf.toFixed(1));
+    recalc();
+}
+function setDataRate(bps) { setVal('dataRate_bps', bps); recalc(); }
+
+function onTxDiameterChange() {
+    var d = val('txDiameter_m');
+    var f = val('freq_GHz');
+    if (d > 0 && f > 0) {
+        setVal('txGain_dBi', dishGain(d, f).toFixed(1));
+    }
+    recalc();
+}
+
+function onNoiseFigureChange() {
+    var nf = val('noiseFigure_dB');
+    var Trx = 290 * (Math.pow(10, nf / 10) - 1);
+    setVal('noiseTemp_K', Trx.toFixed(0));
+    recalc();
+}
+
+function onModulationChange() {
+    var mod = $('modulation').value;
+    var ber = $('requiredBER').value;
+    var table = MOD_TABLE[mod];
+    if (table && table[ber] !== undefined) {
+        setVal('ebno_required_dB', table[ber]);
+    }
+    // Auto coding gain for turbo/LDPC
+    if (mod === 'turbo') {
+        setVal('codingGain_dB', 0); // already baked into the low required Eb/N0
+    }
+    recalc();
+}
+
+function markPreset() {
+    $('presetSelect').value = 'custom';
+}
+
+function highlightActivePresetBtns() {
+    // This is cosmetic — clear all active states, they re-highlight on click
+    var btns = document.querySelectorAll('.preset-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.remove('active');
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COPY RESULTS TO CLIPBOARD
+   ═══════════════════════════════════════════════════════════════════ */
+function copyResults() {
+    var r = computeLinkBudget();
+    var lines = [
+        '=== RF Link Budget Analysis ===',
+        '',
+        'TRANSMITTER',
+        '  Tx Power:        ' + formatNum(val('txPower_W'), 1) + ' W (' + formatNum(r.txPower_dBW, 1) + ' dBW)',
+        '  Tx Antenna Gain: ' + formatNum(r.txGain_dBi, 1) + ' dBi',
+        '  Line Losses:     ' + formatNum(r.txLineLoss, 1) + ' dB',
+        '  Pointing Loss:   ' + formatNum(r.txPointLoss, 1) + ' dB',
+        '  EIRP:            ' + formatNum(r.EIRP, 1) + ' dBW',
+        '',
+        'PATH',
+        '  Slant Range:     ' + formatNum(r.range_km, 1) + ' km',
+        '  Frequency:       ' + formatNum(r.freq_GHz, 3) + ' GHz',
+        '  FSPL:            ' + formatNum(r.FSPL, 1) + ' dB',
+        '  Atmo Atten:      ' + formatNum(r.A_atmo, 2) + ' dB',
+        '  Pol Loss:        ' + formatNum(r.polLoss_dB, 1) + ' dB',
+        '  Scintillation:   ' + formatNum(r.scint_dB, 1) + ' dB',
+        '  Total Path Loss: ' + formatNum(r.totalPathLoss, 1) + ' dB',
+        '',
+        'RECEIVER',
+        '  Rx Antenna Gain: ' + formatNum(r.rxGain_dBi, 1) + ' dBi',
+        '  Noise Temp:      ' + formatNum(r.noiseTemp_K, 0) + ' K',
+        '  Impl Loss:       ' + formatNum(r.implLoss_dB, 1) + ' dB',
+        '  G/T:             ' + formatNum(r.G_T, 1) + ' dB/K',
+        '',
+        'RESULTS',
+        '  Received C:      ' + formatNum(r.C_dBW, 1) + ' dBW (' + formatNum(dbwToDBm(r.C_dBW), 1) + ' dBm)',
+        '  N0:              ' + formatNum(r.N0_dBW_Hz, 1) + ' dBW/Hz',
+        '  C/N0:            ' + formatNum(r.C_N0, 1) + ' dB-Hz',
+        '  Eb/N0 received:  ' + formatNum(r.Eb_N0, 1) + ' dB',
+        '  Eb/N0 required:  ' + formatNum(r.ebnoRequired, 1) + ' dB',
+        '  Data Rate:       ' + formatRate(r.dataRate_bps),
+        '',
+        '  LINK MARGIN:     ' + formatNum(r.margin, 1) + ' dB',
+        '  STATUS:          ' + (r.margin >= 0 ? 'CLOSED' : 'OPEN (FAILED)'),
+        '  Max Data Rate:   ' + formatRate(r.maxRate) + ' (at 3 dB margin)',
+        '',
+        'Generated by All-Domain Sim RF Link Budget Analyzer'
+    ];
+
+    var text = lines.join('\n');
+    navigator.clipboard.writeText(text).then(function() {
+        var btn = $('btnCopy');
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.style.color = '#2ecc71';
+        setTimeout(function() {
+            btn.textContent = orig;
+            btn.style.color = '';
+        }, 1500);
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', function(e) {
+    // Don't capture when focused on an input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+        if (e.key === 'Enter') {
+            e.target.blur();
+            recalc();
+            return;
+        }
+        return;
+    }
+
+    switch (e.key) {
+        case '1': $('presetSelect').value = 'leo_telemetry'; applyPreset(); break;
+        case '2': $('presetSelect').value = 'gps_signal'; applyPreset(); break;
+        case '3': $('presetSelect').value = 'geo_satcom'; applyPreset(); break;
+        case '4': $('presetSelect').value = 'deep_space'; applyPreset(); break;
+        case '5': $('presetSelect').value = 'tactical_uhf'; applyPreset(); break;
+        case '6': $('presetSelect').value = 'tdrss_relay'; applyPreset(); break;
+        case '7': $('presetSelect').value = 'custom'; applyPreset(); break;
+        case 'Enter': recalc(); break;
+        case 'h': case 'H': toggleHelp(); break;
+    }
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESIZE HANDLER
+   ═══════════════════════════════════════════════════════════════════ */
+var _resizeTimer;
+window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(function() { recalc(); }, 100);
+});
+
+/* ═══════════════════════════════════════════════════════════════════
+   CLICK HANDLERS
+   ═══════════════════════════════════════════════════════════════════ */
+$('btnCopy').addEventListener('click', copyResults);
+
+/* ═══════════════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════════════ */
+(function init() {
+    onModulationChange();
+    applyPreset();
+})();
+</script>
+</body>
+</html>

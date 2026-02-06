@@ -257,7 +257,7 @@
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot"></div>
-                Scenario Builder + 9 Replays
+                Scenario Builder + 11 Replays
             </div>
             <div class="status-item">
                 <div class="status-dot"></div>
@@ -639,6 +639,40 @@
                         <div class="launch-arrow">&#8594;</div>
                     </div>
                 </a>
+
+                <a class="card" href="maneuver_planner.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#916;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Orbital Maneuver Planner</h3>
+                    <p>Compute Hohmann, bielliptic, plane change, and combined transfers between any two orbits. Delta-V budget chart, fuel mass via Tsiolkovsky, 3D transfer arc on globe.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">Hohmann</span>
+                            <span class="tag">Delta-V</span>
+                            <span class="tag">Transfers</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="visibility_planner.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#128301;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Satellite Visibility Planner</h3>
+                    <p>STK-style pass prediction from a ground site. Paste TLE, get AOS/LOS/TCA times with AZ/EL polar plot, max elevation, sunlit status, and 3D orbit visualization.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">TLE</span>
+                            <span class="tag">AZ/EL</span>
+                            <span class="tag">Passes</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
             </div>
         </div>
 
@@ -649,6 +683,40 @@
                 <div class="category-line"></div>
             </div>
             <div class="grid">
+                <a class="card" href="intercept_planner.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#127919;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>TLE Intercept Planner</h3>
+                    <p>Paste a TLE, pick a launch site, compute optimal launch windows. Porkchop-style delta-V heat map with Lambert solver and 3D transfer arc visualization.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">TLE</span>
+                            <span class="tag">Lambert</span>
+                            <span class="tag">Porkchop</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="ballistic_planner.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#9757;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Ballistic Trajectory Planner</h3>
+                    <p>Click two points on the globe to compute ballistic arcs. Min-energy, lofted, and depressed trajectories with apogee, TOF, impact parameters, and range rings.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">Ballistic</span>
+                            <span class="tag">3 Trajectories</span>
+                            <span class="tag">Globe</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
                 <a class="card" href="launch_viewer.html">
                     <div class="card-top">
                         <div class="card-icon">&#128640;</div>
@@ -813,6 +881,40 @@
                         <div class="launch-arrow">&#8594;</div>
                     </div>
                 </a>
+
+                <a class="card" href="radar_horizon.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#128225;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>Radar Horizon Calculator</h3>
+                    <p>Line-of-sight analysis with Earth curvature and atmospheric refraction (k=4/3). Multi-radar coverage visualization, AN/FPS-132, AN/TPY-2, SPY-1 presets.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">LOS</span>
+                            <span class="tag">Refraction</span>
+                            <span class="tag">Coverage</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
+
+                <a class="card" href="link_budget.html">
+                    <div class="card-top">
+                        <div class="card-icon">&#128246;</div>
+                        <div class="card-badge interactive">Interactive</div>
+                    </div>
+                    <h3>RF Link Budget Analyzer</h3>
+                    <p>Compute FSPL, atmospheric attenuation, Eb/N0, and link margin for satellite comms. LEO, GPS, GEO, deep space presets with waterfall and range charts.</p>
+                    <div class="card-footer">
+                        <div class="card-tags">
+                            <span class="tag">RF</span>
+                            <span class="tag">FSPL</span>
+                            <span class="tag">Link Margin</span>
+                        </div>
+                        <div class="launch-arrow">&#8594;</div>
+                    </div>
+                </a>
             </div>
         </div>
 
@@ -894,6 +996,9 @@
             '4': 'geo_sim_viewer.html',
             '5': 'solar_system_viewer.html',
             '6': 'porkchop_viewer.html',
+            '7': 'intercept_planner.html',
+            '8': 'ballistic_planner.html',
+            '9': 'maneuver_planner.html',
         };
 
         document.addEventListener('keydown', (e) => {

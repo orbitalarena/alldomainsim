@@ -1,0 +1,1987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Satellite Visibility Planner - Pass Prediction</title>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.122/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="cesium_config.js"></script>
+    <script src="js/framework/tle_parser.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%; height: 100%; overflow: hidden;
+            background: #0a0e17;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        /* ======== Main Layout ======== */
+        #app {
+            display: flex;
+            width: 100%; height: 100%;
+        }
+
+        #leftPanel {
+            width: 300px; min-width: 300px;
+            background: #0d1320;
+            border-right: 1px solid #1e2a42;
+            display: flex; flex-direction: column;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        #centerPanel {
+            flex: 1;
+            position: relative;
+        }
+
+        #cesiumContainer {
+            width: 100%; height: 100%;
+        }
+
+        #rightPanel {
+            width: 300px; min-width: 300px;
+            background: #0d1320;
+            border-left: 1px solid #1e2a42;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        /* ======== Panel Sections ======== */
+        .panel-section {
+            padding: 12px;
+            border-bottom: 1px solid #1e2a42;
+        }
+
+        .panel-section h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #4a9eff;
+            margin-bottom: 10px;
+        }
+
+        .panel-section h4 {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6b7a90;
+            margin-bottom: 6px;
+            margin-top: 10px;
+        }
+
+        /* ======== Form Controls ======== */
+        label {
+            display: block;
+            font-size: 11px;
+            color: #6b7a90;
+            margin-bottom: 3px;
+            margin-top: 8px;
+        }
+
+        label:first-child {
+            margin-top: 0;
+        }
+
+        textarea {
+            width: 100%;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            padding: 6px 8px;
+            border-radius: 3px;
+            resize: vertical;
+            line-height: 1.4;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        select, input[type="number"], input[type="text"] {
+            width: 100%;
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 5px 8px;
+            border-radius: 3px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        select option {
+            background: #0d1320;
+            color: #c8cdd5;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .input-row > div {
+            flex: 1;
+        }
+
+        /* ======== Buttons ======== */
+        .btn {
+            display: inline-block;
+            padding: 6px 14px;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            background: #141c2e;
+            color: #c8cdd5;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn:hover {
+            background: #1e2a42;
+            border-color: #4a9eff;
+            color: #fff;
+        }
+
+        .btn-primary {
+            background: #1a3a6e;
+            border-color: #4a9eff;
+            color: #4a9eff;
+        }
+
+        .btn-primary:hover {
+            background: #4a9eff;
+            color: #0a0e17;
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-primary:disabled:hover {
+            background: #1a3a6e;
+            color: #4a9eff;
+        }
+
+        .btn-full {
+            width: 100%;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        /* ======== Status Messages ======== */
+        .status-msg {
+            font-size: 11px;
+            margin-top: 6px;
+            min-height: 16px;
+        }
+
+        .status-ok { color: #2ecc71; }
+        .status-err { color: #e74c3c; }
+        .status-info { color: #6b7a90; }
+        .status-warn { color: #FFD700; }
+
+        /* ======== Satellite Info Strip ======== */
+        .sat-info {
+            background: #0a0e17;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            padding: 6px 8px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .sat-info.visible { display: block; }
+
+        .sat-info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .sat-info-label { color: #6b7a90; }
+        .sat-info-value { color: #4a9eff; }
+
+        /* ======== Duration Buttons ======== */
+        .duration-group {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .duration-btn {
+            flex: 1;
+            padding: 5px 4px;
+            border: 1px solid #1e2a42;
+            border-radius: 3px;
+            background: #0a0e17;
+            color: #6b7a90;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+        }
+
+        .duration-btn:hover {
+            border-color: #4a9eff;
+            color: #c8cdd5;
+        }
+
+        .duration-btn.active {
+            border-color: #4a9eff;
+            background: #1a3a6e;
+            color: #4a9eff;
+        }
+
+        /* ======== Progress Bar ======== */
+        .progress-bar-wrap {
+            width: 100%;
+            height: 4px;
+            background: #1e2a42;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar-wrap.active { display: block; }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #4a9eff;
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.1s;
+        }
+
+        /* ======== Pass List ======== */
+        #passListContainer {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .pass-list-header {
+            padding: 10px 12px 6px 12px;
+            border-bottom: 1px solid #1e2a42;
+        }
+
+        .pass-list-header h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #4a9eff;
+            margin: 0;
+        }
+
+        .pass-list-summary {
+            font-size: 11px;
+            color: #6b7a90;
+            margin-top: 4px;
+        }
+
+        .pass-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid #141c2e;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .pass-item:hover {
+            background: #141c2e;
+        }
+
+        .pass-item.selected {
+            background: #1a3a6e;
+            border-left: 3px solid #4a9eff;
+            padding-left: 9px;
+        }
+
+        .pass-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+
+        .pass-number {
+            font-size: 10px;
+            color: #6b7a90;
+            font-weight: 600;
+        }
+
+        .pass-date {
+            font-size: 10px;
+            color: #6b7a90;
+        }
+
+        .pass-max-el {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pass-max-el.high { color: #2ecc71; }
+        .pass-max-el.medium { color: #FFD700; }
+        .pass-max-el.low { color: #c8cdd5; }
+
+        .pass-times {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #8899aa;
+        }
+
+        .pass-duration {
+            font-size: 11px;
+            color: #4a9eff;
+        }
+
+        .no-passes {
+            padding: 20px 12px;
+            text-align: center;
+            color: #6b7a90;
+            font-size: 12px;
+        }
+
+        /* ======== Polar Plot Section ======== */
+        #polarPlotSection {
+            padding: 10px;
+            border-bottom: 1px solid #1e2a42;
+            text-align: center;
+        }
+
+        #polarPlotSection h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #4a9eff;
+            margin-bottom: 8px;
+            text-align: left;
+        }
+
+        #polarCanvas {
+            background: #111318;
+            border-radius: 4px;
+            border: 1px solid #1e2a42;
+        }
+
+        /* ======== Pass Details ======== */
+        #passDetails {
+            padding: 10px 12px;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+
+        #passDetails h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #4a9eff;
+            margin-bottom: 8px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+
+        .detail-label { color: #6b7a90; }
+        .detail-value { color: #c8cdd5; }
+        .detail-value.accent { color: #4a9eff; }
+        .detail-value.green { color: #2ecc71; }
+        .detail-value.gold { color: #FFD700; }
+        .detail-value.red { color: #e74c3c; }
+
+        .detail-separator {
+            height: 1px;
+            background: #1e2a42;
+            margin: 6px 0;
+        }
+
+        .detail-empty {
+            color: #6b7a90;
+            font-size: 11px;
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        /* ======== Help Overlay ======== */
+        #helpOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 14, 23, 0.92);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #helpOverlay.visible {
+            display: flex;
+        }
+
+        .help-content {
+            background: #0d1320;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            padding: 24px 32px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .help-content h2 {
+            color: #4a9eff;
+            font-size: 16px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        .help-row {
+            display: flex;
+            justify-content: space-between;
+            line-height: 2;
+            font-size: 12px;
+        }
+
+        .help-key {
+            color: #FFD700;
+            font-weight: 600;
+            min-width: 80px;
+        }
+
+        .help-desc { color: #c8cdd5; }
+
+        .help-close {
+            margin-top: 16px;
+            text-align: center;
+            font-size: 11px;
+            color: #6b7a90;
+        }
+
+        /* ======== Scrollbar ======== */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0e17; }
+        ::-webkit-scrollbar-thumb { background: #1e2a42; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4a9eff; }
+
+        /* ======== Center Overlay Info ======== */
+        #centerOverlay {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 19, 32, 0.85);
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
+            padding: 6px 14px;
+            color: #6b7a90;
+            font-size: 11px;
+            z-index: 5;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        #centerOverlay span { color: #4a9eff; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- ============================================================ -->
+    <!-- LEFT PANEL -->
+    <!-- ============================================================ -->
+    <div id="leftPanel">
+        <!-- TLE Input -->
+        <div class="panel-section">
+            <h3>TLE Input</h3>
+            <label>Two-Line Element Set</label>
+            <textarea id="tleInput" rows="5" spellcheck="false">ISS (ZARYA)
+1 25544U 98067A   24045.51736111  .00020000  00000+0  35000-3 0  9997
+2 25544  51.6420 247.3662 0006760  33.5510  326.5990 15.49997500484742</textarea>
+            <button class="btn btn-primary btn-full" id="btnParse">Parse TLE</button>
+            <div class="status-msg" id="parseStatus"></div>
+            <div class="sat-info" id="satInfo">
+                <div class="sat-info-row">
+                    <span class="sat-info-label">Name</span>
+                    <span class="sat-info-value" id="infoName">--</span>
+                </div>
+                <div class="sat-info-row">
+                    <span class="sat-info-label">Altitude</span>
+                    <span class="sat-info-value" id="infoAlt">--</span>
+                </div>
+                <div class="sat-info-row">
+                    <span class="sat-info-label">Inclination</span>
+                    <span class="sat-info-value" id="infoInc">--</span>
+                </div>
+                <div class="sat-info-row">
+                    <span class="sat-info-label">Period</span>
+                    <span class="sat-info-value" id="infoPeriod">--</span>
+                </div>
+                <div class="sat-info-row">
+                    <span class="sat-info-label">Eccentricity</span>
+                    <span class="sat-info-value" id="infoEcc">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ground Station -->
+        <div class="panel-section">
+            <h3>Ground Station</h3>
+            <label>Station Preset</label>
+            <select id="stationPreset">
+                <option value="cape">Cape Canaveral (28.4N, 80.6W)</option>
+                <option value="goldstone">Goldstone (35.4N, 116.9W)</option>
+                <option value="canberra">Canberra (35.4S, 149.0E)</option>
+                <option value="madrid">Madrid (40.4N, 3.7W)</option>
+                <option value="svalbard">Svalbard (78.2N, 15.4E)</option>
+                <option value="custom">Custom...</option>
+            </select>
+            <div class="input-row" id="customStationRow" style="display:none; margin-top:8px;">
+                <div>
+                    <label>Lat (deg)</label>
+                    <input type="number" id="stnLat" value="28.396" step="0.01">
+                </div>
+                <div>
+                    <label>Lon (deg)</label>
+                    <input type="number" id="stnLon" value="-80.605" step="0.01">
+                </div>
+                <div>
+                    <label>Alt (m)</label>
+                    <input type="number" id="stnAlt" value="0" step="1">
+                </div>
+            </div>
+            <label>Minimum Elevation</label>
+            <div class="input-row">
+                <div>
+                    <input type="number" id="minElevation" value="5" min="0" max="90" step="1">
+                </div>
+                <div style="display:flex;align-items:flex-end;">
+                    <span style="color:#6b7a90; font-size:12px; padding-bottom:6px;">degrees</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prediction Window -->
+        <div class="panel-section">
+            <h3>Prediction Window</h3>
+            <label>Duration</label>
+            <div class="duration-group">
+                <button class="duration-btn" data-hours="12">12h</button>
+                <button class="duration-btn active" data-hours="24">24h</button>
+                <button class="duration-btn" data-hours="48">48h</button>
+                <button class="duration-btn" data-hours="72">72h</button>
+            </div>
+            <button class="btn btn-primary btn-full" id="btnPredict" disabled>Predict Passes</button>
+            <div class="progress-bar-wrap" id="progressWrap">
+                <div class="progress-bar-fill" id="progressFill"></div>
+            </div>
+            <div class="status-msg" id="predictStatus"></div>
+        </div>
+
+        <!-- Keyboard Shortcuts -->
+        <div class="panel-section" style="border-bottom: none;">
+            <h3>Shortcuts</h3>
+            <div style="font-size:11px; line-height:1.8; color:#6b7a90;">
+                <span style="color:#FFD700;">Enter</span> Predict passes<br>
+                <span style="color:#FFD700;">Esc</span> Deselect pass<br>
+                <span style="color:#FFD700;">N / P</span> Next / Prev pass<br>
+                <span style="color:#FFD700;">H</span> Help overlay
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CENTER: CESIUM GLOBE -->
+    <!-- ============================================================ -->
+    <div id="centerPanel">
+        <div id="cesiumContainer"></div>
+        <div id="centerOverlay">
+            Satellite Visibility Planner &mdash; Parse a TLE and click <span>Predict Passes</span>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- RIGHT PANEL -->
+    <!-- ============================================================ -->
+    <div id="rightPanel">
+        <!-- Pass List -->
+        <div class="pass-list-header">
+            <h3>Predicted Passes</h3>
+            <div class="pass-list-summary" id="passListSummary">No passes computed</div>
+        </div>
+        <div id="passListContainer">
+            <div class="no-passes" id="noPassesMsg">Parse a TLE and predict passes to see results here.</div>
+        </div>
+
+        <!-- Polar Plot -->
+        <div id="polarPlotSection">
+            <h3>AZ / EL Polar Plot</h3>
+            <canvas id="polarCanvas" width="260" height="260"></canvas>
+        </div>
+
+        <!-- Pass Details -->
+        <div id="passDetails">
+            <h3>Pass Details</h3>
+            <div class="detail-empty" id="detailEmpty">Select a pass to view details</div>
+            <div id="detailContent" style="display:none;">
+                <div class="detail-row">
+                    <span class="detail-label">AOS Time</span>
+                    <span class="detail-value green" id="detAosTime">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">AOS Azimuth</span>
+                    <span class="detail-value" id="detAosAz">--</span>
+                </div>
+                <div class="detail-separator"></div>
+                <div class="detail-row">
+                    <span class="detail-label">TCA Time</span>
+                    <span class="detail-value accent" id="detTcaTime">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">TCA Azimuth</span>
+                    <span class="detail-value" id="detTcaAz">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">TCA Elevation</span>
+                    <span class="detail-value accent" id="detTcaEl">--</span>
+                </div>
+                <div class="detail-separator"></div>
+                <div class="detail-row">
+                    <span class="detail-label">LOS Time</span>
+                    <span class="detail-value red" id="detLosTime">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">LOS Azimuth</span>
+                    <span class="detail-value" id="detLosAz">--</span>
+                </div>
+                <div class="detail-separator"></div>
+                <div class="detail-row">
+                    <span class="detail-label">Duration</span>
+                    <span class="detail-value accent" id="detDuration">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Range at TCA</span>
+                    <span class="detail-value" id="detRange">--</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Sun</span>
+                    <span class="detail-value" id="detSun">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Help Overlay -->
+<div id="helpOverlay">
+    <div class="help-content">
+        <h2>Keyboard Shortcuts</h2>
+        <div class="help-row"><span class="help-key">Enter</span><span class="help-desc">Predict passes</span></div>
+        <div class="help-row"><span class="help-key">Escape</span><span class="help-desc">Deselect current pass</span></div>
+        <div class="help-row"><span class="help-key">N</span><span class="help-desc">Select next pass</span></div>
+        <div class="help-row"><span class="help-key">P</span><span class="help-desc">Select previous pass</span></div>
+        <div class="help-row"><span class="help-key">H</span><span class="help-desc">Toggle this help overlay</span></div>
+        <div class="help-close">Press H or Escape to close</div>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+var MU = 3.986004418e14;
+var R_EARTH = 6371000;
+var OMEGA_EARTH = 7.2921159e-5;
+var DEG = Math.PI / 180;
+var RAD = 180 / Math.PI;
+var TWO_PI = 2 * Math.PI;
+var J2000_EPOCH_JD = 2451545.0;
+
+// ============================================================================
+// GROUND STATION PRESETS
+// ============================================================================
+var STATIONS = {
+    cape:      { name: 'Cape Canaveral', lat: 28.396,  lon: -80.605,  alt: 3 },
+    goldstone: { name: 'Goldstone',      lat: 35.427,  lon: -116.890, alt: 900 },
+    canberra:  { name: 'Canberra',       lat: -35.402, lon: 149.009,  alt: 550 },
+    madrid:    { name: 'Madrid',         lat: 40.432,  lon: -3.745,   alt: 830 },
+    svalbard:  { name: 'Svalbard',       lat: 78.230,  lon: 15.395,   alt: 450 }
+};
+
+// ============================================================================
+// STATE
+// ============================================================================
+var state = {
+    sat: null,          // parsed TLE object
+    eciEpoch: null,     // { pos, vel } at TLE epoch
+    epochJD: 0,         // Julian Date of TLE epoch
+    station: { lat: 28.396, lon: -80.605, alt: 3 },
+    minEl: 5,           // degrees
+    durationHours: 24,
+    passes: [],
+    selectedPassIdx: -1,
+    viewer: null,
+    // Cesium entities
+    cesiumEntities: {
+        stationPin: null,
+        stationCircle: null,
+        orbitPath: null,
+        groundTrack: null,
+        satPoint: null,
+        passArc: null,
+        aosMarker: null,
+        losMarker: null,
+        visibilityCone: null
+    }
+};
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+(function init() {
+    // Create Cesium viewer
+    state.viewer = createConfiguredViewer('cesiumContainer', {
+        animation: false,
+        timeline: false,
+        shouldAnimate: false
+    });
+
+    state.viewer.scene.globe.enableLighting = false;
+    state.viewer.scene.screenSpaceCameraController.enableTilt = true;
+
+    // Set initial camera
+    state.viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(-80.605, 28.396, 20000000)
+    });
+
+    // Bind UI
+    bindUI();
+
+    // Draw initial station
+    updateStationOnGlobe();
+
+    // Draw empty polar plot
+    drawPolarPlot(null);
+})();
+
+// ============================================================================
+// UI BINDINGS
+// ============================================================================
+function bindUI() {
+    document.getElementById('btnParse').addEventListener('click', parseTLE);
+    document.getElementById('btnPredict').addEventListener('click', predictPasses);
+
+    // Station preset
+    document.getElementById('stationPreset').addEventListener('change', function() {
+        var key = this.value;
+        var customRow = document.getElementById('customStationRow');
+        if (key === 'custom') {
+            customRow.style.display = 'flex';
+        } else {
+            customRow.style.display = 'none';
+            var s = STATIONS[key];
+            document.getElementById('stnLat').value = s.lat;
+            document.getElementById('stnLon').value = s.lon;
+            document.getElementById('stnAlt').value = s.alt;
+            state.station = { lat: s.lat, lon: s.lon, alt: s.alt };
+            updateStationOnGlobe();
+        }
+    });
+
+    // Custom station inputs
+    ['stnLat', 'stnLon', 'stnAlt'].forEach(function(id) {
+        document.getElementById(id).addEventListener('change', function() {
+            state.station.lat = parseFloat(document.getElementById('stnLat').value) || 0;
+            state.station.lon = parseFloat(document.getElementById('stnLon').value) || 0;
+            state.station.alt = parseFloat(document.getElementById('stnAlt').value) || 0;
+            updateStationOnGlobe();
+        });
+    });
+
+    // Min elevation
+    document.getElementById('minElevation').addEventListener('change', function() {
+        state.minEl = parseFloat(this.value) || 5;
+    });
+
+    // Duration buttons
+    var durationBtns = document.querySelectorAll('.duration-btn');
+    durationBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            durationBtns.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            state.durationHours = parseInt(btn.dataset.hours, 10);
+        });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Don't capture when typing in inputs
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+            return;
+        }
+
+        switch (e.key) {
+            case 'Enter':
+                e.preventDefault();
+                if (state.sat) predictPasses();
+                break;
+            case 'Escape':
+                e.preventDefault();
+                if (document.getElementById('helpOverlay').classList.contains('visible')) {
+                    document.getElementById('helpOverlay').classList.remove('visible');
+                } else {
+                    deselectPass();
+                }
+                break;
+            case 'n':
+            case 'N':
+                e.preventDefault();
+                selectNextPass(1);
+                break;
+            case 'p':
+            case 'P':
+                e.preventDefault();
+                selectNextPass(-1);
+                break;
+            case 'h':
+            case 'H':
+                e.preventDefault();
+                document.getElementById('helpOverlay').classList.toggle('visible');
+                break;
+        }
+    });
+}
+
+// ============================================================================
+// TLE PARSING
+// ============================================================================
+function parseTLE() {
+    var text = document.getElementById('tleInput').value.trim();
+    var statusEl = document.getElementById('parseStatus');
+    var infoEl = document.getElementById('satInfo');
+
+    if (!text) {
+        statusEl.className = 'status-msg status-err';
+        statusEl.textContent = 'No TLE text provided';
+        return;
+    }
+
+    var sats = TLEParser.parse(text);
+    if (!sats || sats.length === 0) {
+        statusEl.className = 'status-msg status-err';
+        statusEl.textContent = 'Failed to parse TLE. Check format.';
+        infoEl.classList.remove('visible');
+        state.sat = null;
+        document.getElementById('btnPredict').disabled = true;
+        return;
+    }
+
+    state.sat = sats[0];
+    state.eciEpoch = TLEParser.tleToECI(state.sat);
+    state.epochJD = tleEpochToJD(state.sat.epochYear, state.sat.epochDay);
+
+    statusEl.className = 'status-msg status-ok';
+    statusEl.textContent = 'TLE parsed successfully';
+
+    // Populate info strip
+    document.getElementById('infoName').textContent = state.sat.name;
+    document.getElementById('infoAlt').textContent = state.sat.altitudeKm.toFixed(1) + ' km';
+    document.getElementById('infoInc').textContent = state.sat.inclination.toFixed(2) + '\u00B0';
+    var periodMin = state.sat.period / 60;
+    document.getElementById('infoPeriod').textContent = periodMin.toFixed(1) + ' min';
+    document.getElementById('infoEcc').textContent = state.sat.eccentricity.toFixed(6);
+    infoEl.classList.add('visible');
+
+    document.getElementById('btnPredict').disabled = false;
+
+    // Clear old passes
+    state.passes = [];
+    state.selectedPassIdx = -1;
+    renderPassList();
+    clearPassVisualization();
+    drawPolarPlot(null);
+    showDetailEmpty();
+
+    // Show satellite on globe
+    updateSatOnGlobe();
+}
+
+// ============================================================================
+// TLE EPOCH -> JULIAN DATE
+// ============================================================================
+function tleEpochToJD(epochYear, epochDay) {
+    // Jan 1.0 of the year as JD
+    var y = epochYear;
+    var jan1Ms = Date.UTC(y, 0, 1, 0, 0, 0);
+    var jan1JD = jan1Ms / 86400000 + 2440587.5;
+    return jan1JD + epochDay - 1; // epochDay is 1-based
+}
+
+// ============================================================================
+// JULIAN DATE <-> JS DATE
+// ============================================================================
+function jdToDate(jd) {
+    return new Date((jd - 2440587.5) * 86400000);
+}
+
+function dateToJD(d) {
+    return d.getTime() / 86400000 + 2440587.5;
+}
+
+function nowJD() {
+    return dateToJD(new Date());
+}
+
+// ============================================================================
+// GMST COMPUTATION
+// ============================================================================
+function getGMST(jd) {
+    var T = (jd - J2000_EPOCH_JD) / 36525.0;
+    var gmstDeg = 280.46061837 + 360.98564736629 * (jd - J2000_EPOCH_JD)
+                  + 0.000387933 * T * T - T * T * T / 38710000.0;
+    gmstDeg = ((gmstDeg % 360) + 360) % 360;
+    return gmstDeg * DEG; // radians
+}
+
+// ============================================================================
+// PROPAGATION AT ABSOLUTE JD
+// ============================================================================
+function propagateAtJD(jd) {
+    var dtSec = (jd - state.epochJD) * 86400;
+    return TLEParser.propagateKepler(state.eciEpoch.pos, state.eciEpoch.vel, dtSec);
+}
+
+// ============================================================================
+// TOPOCENTRIC AZ/EL COMPUTATION
+// ============================================================================
+function computeAzEl(stationLatRad, stationLonRad, stationAltM, satECI, gmst) {
+    // WGS84 simplified (spherical)
+    var R = R_EARTH + stationAltM;
+    var cosLat = Math.cos(stationLatRad);
+    var sinLat = Math.sin(stationLatRad);
+
+    // Station ECEF (fixed on Earth surface — uses geographic lon directly)
+    var stnX = R * cosLat * Math.cos(stationLonRad);
+    var stnY = R * cosLat * Math.sin(stationLonRad);
+    var stnZ = R * sinLat;
+
+    // Satellite ECI -> ECEF (rotate by -GMST around Z)
+    var cosG = Math.cos(gmst);
+    var sinG = Math.sin(gmst);
+    var satX =  cosG * satECI[0] + sinG * satECI[1];
+    var satY = -sinG * satECI[0] + cosG * satECI[1];
+    var satZ =  satECI[2];
+
+    // Delta in ECEF
+    var dx = satX - stnX;
+    var dy = satY - stnY;
+    var dz = satZ - stnZ;
+
+    // ECEF -> ENU rotation at station geographic lat/lon
+    var sinLon = Math.sin(stationLonRad);
+    var cosLon = Math.cos(stationLonRad);
+
+    var east  = -sinLon * dx + cosLon * dy;
+    var north = -sinLat * cosLon * dx - sinLat * sinLon * dy + cosLat * dz;
+    var up    =  cosLat * cosLon * dx + cosLat * sinLon * dy + sinLat * dz;
+
+    var range = Math.sqrt(east * east + north * north + up * up);
+    var az = Math.atan2(east, north);
+    if (az < 0) az += TWO_PI;
+    var el = Math.atan2(up, Math.sqrt(east * east + north * north));
+
+    return { az: az, el: el, range: range };
+}
+
+// ============================================================================
+// SUN POSITION (LOW PRECISION)
+// ============================================================================
+function sunECI(jd) {
+    var T = (jd - J2000_EPOCH_JD) / 36525.0;
+    var M = (357.5291092 + 35999.0502909 * T) * DEG;
+    var L0 = (280.46646 + 36000.76983 * T) * DEG;
+    var C = (1.9146 * Math.sin(M) + 0.0200 * Math.sin(2 * M)) * DEG;
+    var sunLon = L0 + C;
+    var eps = (23.439291 - 0.013004 * T) * DEG;
+    var r = 1.496e11 * (1.00014 - 0.01671 * Math.cos(M) - 0.00014 * Math.cos(2 * M));
+    return [
+        r * Math.cos(sunLon),
+        r * Math.sin(sunLon) * Math.cos(eps),
+        r * Math.sin(sunLon) * Math.sin(eps)
+    ];
+}
+
+function isSatIlluminated(satECI, jd) {
+    var sun = sunECI(jd);
+    // Vector from satellite to Sun
+    var toSunX = sun[0] - satECI[0];
+    var toSunY = sun[1] - satECI[1];
+    var toSunZ = sun[2] - satECI[2];
+
+    // Check if Earth shadow blocks sunlight to satellite
+    // Simplified cylindrical shadow model
+    var rSat = Math.sqrt(satECI[0] * satECI[0] + satECI[1] * satECI[1] + satECI[2] * satECI[2]);
+
+    // Angle between satellite position and sun direction from Earth center
+    var sunDist = Math.sqrt(sun[0] * sun[0] + sun[1] * sun[1] + sun[2] * sun[2]);
+    var dot = (satECI[0] * sun[0] + satECI[1] * sun[1] + satECI[2] * sun[2]) / (rSat * sunDist);
+
+    // If satellite is on the sun-side of Earth, it's illuminated
+    if (dot > 0) return true;
+
+    // Satellite is on the dark side — check if it's within Earth's shadow cone
+    var perpDist = rSat * Math.sqrt(1 - dot * dot);
+    return perpDist > R_EARTH;
+}
+
+function isStationDaylight(stationLatRad, stationLonRad, jd) {
+    var sun = sunECI(jd);
+    var gmst = getGMST(jd);
+
+    // Station ECEF
+    var R = R_EARTH;
+    var cosLat = Math.cos(stationLatRad);
+    var sinLat = Math.sin(stationLatRad);
+    var stnX = R * cosLat * Math.cos(stationLonRad);
+    var stnY = R * cosLat * Math.sin(stationLonRad);
+    var stnZ = R * sinLat;
+
+    // Sun ECEF
+    var cosG = Math.cos(gmst);
+    var sinG = Math.sin(gmst);
+    var sunECEF_X =  cosG * sun[0] + sinG * sun[1];
+    var sunECEF_Y = -sinG * sun[0] + cosG * sun[1];
+    var sunECEF_Z =  sun[2];
+
+    var dot = stnX * sunECEF_X + stnY * sunECEF_Y + stnZ * sunECEF_Z;
+    return dot > 0;
+}
+
+// ============================================================================
+// PASS PREDICTION ENGINE
+// ============================================================================
+function predictPasses() {
+    if (!state.sat || !state.eciEpoch) return;
+
+    var btnPredict = document.getElementById('btnPredict');
+    var statusEl = document.getElementById('predictStatus');
+    var progressWrap = document.getElementById('progressWrap');
+    var progressFill = document.getElementById('progressFill');
+
+    btnPredict.disabled = true;
+    statusEl.className = 'status-msg status-info';
+    statusEl.textContent = 'Computing passes...';
+    progressWrap.classList.add('active');
+    progressFill.style.width = '0%';
+
+    // Clear previous
+    state.passes = [];
+    state.selectedPassIdx = -1;
+    clearPassVisualization();
+    showDetailEmpty();
+
+    var stLatRad = state.station.lat * DEG;
+    var stLonRad = state.station.lon * DEG;
+    var stAlt = state.station.alt;
+    var minElRad = state.minEl * DEG;
+
+    var startJD = nowJD();
+    var endJD = startJD + state.durationHours / 24.0;
+    var stepSec = 30;       // coarse step: 30 seconds
+    var totalSteps = Math.ceil((endJD - startJD) * 86400 / stepSec);
+
+    // Async chunked computation to keep UI responsive
+    var stepIdx = 0;
+    var rawSamples = []; // { jd, az, el, range, eci }
+    var CHUNK_SIZE = 500;
+
+    function processChunk() {
+        var end = Math.min(stepIdx + CHUNK_SIZE, totalSteps);
+        for (var i = stepIdx; i < end; i++) {
+            var tSec = i * stepSec;
+            var jd = startJD + tSec / 86400.0;
+            var eci = propagateAtJD(jd);
+            var gmst = getGMST(jd);
+            var topo = computeAzEl(stLatRad, stLonRad, stAlt, eci.pos, gmst);
+
+            if (topo.el > minElRad) {
+                rawSamples.push({
+                    jd: jd,
+                    az: topo.az,
+                    el: topo.el,
+                    range: topo.range,
+                    eci: eci.pos
+                });
+            } else {
+                // If we have accumulated samples, close the pass
+                if (rawSamples.length > 0) {
+                    finalizePass(rawSamples, startJD, stLatRad, stLonRad, stAlt, minElRad);
+                    rawSamples = [];
+                    if (state.passes.length >= 200) {
+                        stepIdx = totalSteps; // cap
+                        break;
+                    }
+                }
+            }
+        }
+
+        stepIdx = end;
+        progressFill.style.width = Math.min(100, (stepIdx / totalSteps * 100)).toFixed(1) + '%';
+
+        if (stepIdx < totalSteps && state.passes.length < 200) {
+            requestAnimationFrame(processChunk);
+        } else {
+            // Finalize any trailing pass
+            if (rawSamples.length > 0) {
+                finalizePass(rawSamples, startJD, stLatRad, stLonRad, stAlt, minElRad);
+            }
+            onPredictionComplete();
+        }
+    }
+
+    requestAnimationFrame(processChunk);
+}
+
+function finalizePass(samples, startJD, stLatRad, stLonRad, stAlt, minElRad) {
+    if (samples.length === 0) return;
+
+    // Find max elevation sample
+    var maxElIdx = 0;
+    for (var i = 1; i < samples.length; i++) {
+        if (samples[i].el > samples[maxElIdx].el) maxElIdx = i;
+    }
+
+    // Refine AOS with bisection
+    var aosJD = samples[0].jd;
+    var preAosJD = aosJD - 30 / 86400.0; // one step before
+    aosJD = bisectElevation(preAosJD, aosJD, stLatRad, stLonRad, stAlt, minElRad, true);
+
+    // Refine LOS with bisection
+    var losJD = samples[samples.length - 1].jd;
+    var postLosJD = losJD + 30 / 86400.0;
+    losJD = bisectElevation(losJD, postLosJD, stLatRad, stLonRad, stAlt, minElRad, false);
+
+    // Compute AOS topo
+    var aosEci = propagateAtJD(aosJD);
+    var aosGmst = getGMST(aosJD);
+    var aosTopo = computeAzEl(stLatRad, stLonRad, stAlt, aosEci.pos, aosGmst);
+
+    // Compute LOS topo
+    var losEci = propagateAtJD(losJD);
+    var losGmst = getGMST(losJD);
+    var losTopo = computeAzEl(stLatRad, stLonRad, stAlt, losEci.pos, losGmst);
+
+    // TCA (max el) — refine around the max el sample
+    var tcaJD = samples[maxElIdx].jd;
+    if (maxElIdx > 0 && maxElIdx < samples.length - 1) {
+        tcaJD = refineTCA(samples[maxElIdx - 1].jd, samples[maxElIdx + 1].jd,
+                          stLatRad, stLonRad, stAlt);
+    }
+    var tcaEci = propagateAtJD(tcaJD);
+    var tcaGmst = getGMST(tcaJD);
+    var tcaTopo = computeAzEl(stLatRad, stLonRad, stAlt, tcaEci.pos, tcaGmst);
+
+    // Sun illumination at TCA
+    var satIlluminated = isSatIlluminated(tcaEci.pos, tcaJD);
+    var staDaylight = isStationDaylight(stLatRad, stLonRad, tcaJD);
+
+    var sunStatus;
+    if (staDaylight) {
+        sunStatus = 'Daylight';
+    } else if (satIlluminated) {
+        sunStatus = 'Visible (sat illuminated)';
+    } else {
+        sunStatus = 'Eclipse (sat in shadow)';
+    }
+
+    // Build detailed pass track (every 10 seconds for polar plot)
+    var track = [];
+    var trackStep = 10 / 86400.0; // 10 seconds in days
+    for (var jd = aosJD; jd <= losJD + trackStep * 0.5; jd += trackStep) {
+        var e2 = propagateAtJD(jd);
+        var g2 = getGMST(jd);
+        var t2 = computeAzEl(stLatRad, stLonRad, stAlt, e2.pos, g2);
+        track.push({ jd: jd, az: t2.az, el: t2.el, range: t2.range, eci: e2.pos });
+    }
+
+    state.passes.push({
+        index: state.passes.length,
+        aosJD: aosJD,
+        losJD: losJD,
+        tcaJD: tcaJD,
+        durationSec: (losJD - aosJD) * 86400,
+        aos: { az: aosTopo.az, el: aosTopo.el, range: aosTopo.range },
+        los: { az: losTopo.az, el: losTopo.el, range: losTopo.range },
+        tca: { az: tcaTopo.az, el: tcaTopo.el, range: tcaTopo.range },
+        maxEl: tcaTopo.el * RAD,
+        sunStatus: sunStatus,
+        track: track
+    });
+}
+
+function bisectElevation(jdLow, jdHigh, stLatRad, stLonRad, stAlt, minElRad, findRise) {
+    // findRise=true: find where el crosses minEl going up (jdLow below, jdHigh above)
+    // findRise=false: find where el crosses minEl going down (jdLow above, jdHigh below)
+    for (var iter = 0; iter < 20; iter++) {
+        var jdMid = (jdLow + jdHigh) / 2;
+        var eci = propagateAtJD(jdMid);
+        var gmst = getGMST(jdMid);
+        var topo = computeAzEl(stLatRad, stLonRad, stAlt, eci.pos, gmst);
+
+        if (findRise) {
+            if (topo.el > minElRad) {
+                jdHigh = jdMid;
+            } else {
+                jdLow = jdMid;
+            }
+        } else {
+            if (topo.el > minElRad) {
+                jdLow = jdMid;
+            } else {
+                jdHigh = jdMid;
+            }
+        }
+    }
+    return (jdLow + jdHigh) / 2;
+}
+
+function refineTCA(jdLow, jdHigh, stLatRad, stLonRad, stAlt) {
+    // Golden section search for maximum elevation
+    var gr = (Math.sqrt(5) + 1) / 2;
+    for (var iter = 0; iter < 20; iter++) {
+        var d = (jdHigh - jdLow) / gr;
+        var jd1 = jdHigh - d;
+        var jd2 = jdLow + d;
+
+        var eci1 = propagateAtJD(jd1);
+        var g1 = getGMST(jd1);
+        var el1 = computeAzEl(stLatRad, stLonRad, stAlt, eci1.pos, g1).el;
+
+        var eci2 = propagateAtJD(jd2);
+        var g2 = getGMST(jd2);
+        var el2 = computeAzEl(stLatRad, stLonRad, stAlt, eci2.pos, g2).el;
+
+        if (el1 > el2) {
+            jdHigh = jd2;
+        } else {
+            jdLow = jd1;
+        }
+    }
+    return (jdLow + jdHigh) / 2;
+}
+
+function onPredictionComplete() {
+    var btnPredict = document.getElementById('btnPredict');
+    var statusEl = document.getElementById('predictStatus');
+    var progressWrap = document.getElementById('progressWrap');
+    var progressFill = document.getElementById('progressFill');
+
+    progressFill.style.width = '100%';
+    setTimeout(function() { progressWrap.classList.remove('active'); }, 600);
+    btnPredict.disabled = false;
+
+    if (state.passes.length === 0) {
+        statusEl.className = 'status-msg status-warn';
+        statusEl.textContent = 'No passes found in ' + state.durationHours + 'h window';
+    } else {
+        statusEl.className = 'status-msg status-ok';
+        statusEl.textContent = state.passes.length + ' pass' + (state.passes.length !== 1 ? 'es' : '') +
+                               ' found in ' + state.durationHours + 'h window';
+    }
+
+    renderPassList();
+    drawPolarPlot(null);
+
+    // Update center overlay
+    document.getElementById('centerOverlay').innerHTML =
+        '<span>' + (state.sat ? state.sat.name : 'Satellite') + '</span> &mdash; ' +
+        state.passes.length + ' passes over <span>' +
+        (STATIONS[document.getElementById('stationPreset').value] || { name: 'Custom' }).name +
+        '</span>';
+}
+
+// ============================================================================
+// PASS LIST RENDERING
+// ============================================================================
+function renderPassList() {
+    var container = document.getElementById('passListContainer');
+    var summary = document.getElementById('passListSummary');
+    var noMsg = document.getElementById('noPassesMsg');
+
+    container.innerHTML = '';
+
+    if (state.passes.length === 0) {
+        container.innerHTML = '<div class="no-passes">' +
+            (state.sat ? 'No passes found. Try a longer window or lower min elevation.' :
+             'Parse a TLE and predict passes to see results here.') + '</div>';
+        summary.textContent = 'No passes computed';
+        return;
+    }
+
+    // Categorize
+    var highPasses = state.passes.filter(function(p) { return p.maxEl >= 45; }).length;
+    var medPasses = state.passes.filter(function(p) { return p.maxEl >= 20 && p.maxEl < 45; }).length;
+    summary.textContent = state.passes.length + ' passes (' + highPasses + ' high, ' + medPasses + ' medium)';
+
+    state.passes.forEach(function(pass, idx) {
+        var aosDate = jdToDate(pass.aosJD);
+        var losDate = jdToDate(pass.losJD);
+        var durMin = Math.floor(pass.durationSec / 60);
+        var durSec = Math.floor(pass.durationSec % 60);
+
+        var elClass = pass.maxEl >= 45 ? 'high' : (pass.maxEl >= 20 ? 'medium' : 'low');
+
+        var div = document.createElement('div');
+        div.className = 'pass-item' + (idx === state.selectedPassIdx ? ' selected' : '');
+        div.dataset.idx = idx;
+        div.innerHTML =
+            '<div class="pass-item-header">' +
+                '<span class="pass-number">PASS #' + (idx + 1) + '</span>' +
+                '<span class="pass-date">' + formatDateShort(aosDate) + '</span>' +
+                '<span class="pass-max-el ' + elClass + '">' + pass.maxEl.toFixed(1) + '\u00B0</span>' +
+            '</div>' +
+            '<div class="pass-times">' +
+                '<span>AOS ' + formatTimeUTC(aosDate) + '</span>' +
+                '<span>LOS ' + formatTimeUTC(losDate) + '</span>' +
+                '<span class="pass-duration">' + padZero(durMin) + ':' + padZero(durSec) + '</span>' +
+            '</div>';
+
+        div.addEventListener('click', function() {
+            selectPass(idx);
+        });
+
+        container.appendChild(div);
+    });
+}
+
+function selectPass(idx) {
+    if (idx < 0 || idx >= state.passes.length) return;
+    state.selectedPassIdx = idx;
+
+    // Highlight in list
+    var items = document.querySelectorAll('.pass-item');
+    items.forEach(function(item) {
+        item.classList.toggle('selected', parseInt(item.dataset.idx, 10) === idx);
+    });
+
+    // Scroll into view
+    var selectedItem = document.querySelector('.pass-item.selected');
+    if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    var pass = state.passes[idx];
+
+    // Update polar plot
+    drawPolarPlot(pass);
+
+    // Update details
+    showPassDetails(pass);
+
+    // Update globe visualization
+    showPassOnGlobe(pass);
+}
+
+function deselectPass() {
+    state.selectedPassIdx = -1;
+    var items = document.querySelectorAll('.pass-item');
+    items.forEach(function(item) { item.classList.remove('selected'); });
+    drawPolarPlot(null);
+    showDetailEmpty();
+    clearPassVisualization();
+}
+
+function selectNextPass(dir) {
+    if (state.passes.length === 0) return;
+    var newIdx;
+    if (state.selectedPassIdx < 0) {
+        newIdx = dir > 0 ? 0 : state.passes.length - 1;
+    } else {
+        newIdx = state.selectedPassIdx + dir;
+        if (newIdx < 0) newIdx = state.passes.length - 1;
+        if (newIdx >= state.passes.length) newIdx = 0;
+    }
+    selectPass(newIdx);
+}
+
+// ============================================================================
+// PASS DETAILS
+// ============================================================================
+function showDetailEmpty() {
+    document.getElementById('detailEmpty').style.display = 'block';
+    document.getElementById('detailContent').style.display = 'none';
+}
+
+function showPassDetails(pass) {
+    document.getElementById('detailEmpty').style.display = 'none';
+    document.getElementById('detailContent').style.display = 'block';
+
+    var aosDate = jdToDate(pass.aosJD);
+    var tcaDate = jdToDate(pass.tcaJD);
+    var losDate = jdToDate(pass.losJD);
+
+    document.getElementById('detAosTime').textContent = formatTimeUTC(aosDate);
+    document.getElementById('detAosAz').textContent = (pass.aos.az * RAD).toFixed(1) + '\u00B0 (' + azToCompass(pass.aos.az * RAD) + ')';
+
+    document.getElementById('detTcaTime').textContent = formatTimeUTC(tcaDate);
+    document.getElementById('detTcaAz').textContent = (pass.tca.az * RAD).toFixed(1) + '\u00B0 (' + azToCompass(pass.tca.az * RAD) + ')';
+    document.getElementById('detTcaEl').textContent = pass.maxEl.toFixed(1) + '\u00B0';
+
+    document.getElementById('detLosTime').textContent = formatTimeUTC(losDate);
+    document.getElementById('detLosAz').textContent = (pass.los.az * RAD).toFixed(1) + '\u00B0 (' + azToCompass(pass.los.az * RAD) + ')';
+
+    var durMin = Math.floor(pass.durationSec / 60);
+    var durSec = Math.floor(pass.durationSec % 60);
+    document.getElementById('detDuration').textContent = padZero(durMin) + ':' + padZero(durSec);
+
+    document.getElementById('detRange').textContent = (pass.tca.range / 1000).toFixed(1) + ' km';
+
+    var sunEl = document.getElementById('detSun');
+    sunEl.textContent = pass.sunStatus;
+    if (pass.sunStatus.indexOf('Daylight') >= 0) {
+        sunEl.className = 'detail-value gold';
+    } else if (pass.sunStatus.indexOf('Visible') >= 0) {
+        sunEl.className = 'detail-value green';
+    } else {
+        sunEl.className = 'detail-value red';
+    }
+}
+
+// ============================================================================
+// POLAR PLOT
+// ============================================================================
+function drawPolarPlot(pass) {
+    var canvas = document.getElementById('polarCanvas');
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width;
+    var H = canvas.height;
+    var cx = W / 2;
+    var cy = H / 2;
+    var maxR = Math.min(cx, cy) - 20;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = '#111318';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid circles (elevation: 0 at rim, 90 at center)
+    var elevations = [0, 30, 60, 90];
+    ctx.strokeStyle = '#1e2a42';
+    ctx.lineWidth = 1;
+    ctx.font = '9px Consolas, monospace';
+    ctx.fillStyle = '#6b7a90';
+
+    for (var i = 0; i < elevations.length; i++) {
+        var el = elevations[i];
+        var r = maxR * (1 - el / 90);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, TWO_PI);
+        ctx.stroke();
+        if (el > 0 && el < 90) {
+            ctx.fillText(el + '\u00B0', cx + 3, cy - r + 11);
+        }
+    }
+
+    // Cross lines
+    ctx.beginPath();
+    ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy);
+    ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR);
+    ctx.stroke();
+
+    // Diagonal lines
+    ctx.strokeStyle = '#141c2e';
+    for (var a = 45; a < 360; a += 90) {
+        var ar = a * DEG;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + maxR * Math.sin(ar), cy - maxR * Math.cos(ar));
+        ctx.stroke();
+    }
+
+    // Cardinal labels
+    ctx.fillStyle = '#6b7a90';
+    ctx.font = '11px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('N', cx, cy - maxR - 10);
+    ctx.fillText('S', cx, cy + maxR + 10);
+    ctx.fillText('E', cx + maxR + 10, cy);
+    ctx.fillText('W', cx - maxR - 10, cy);
+
+    // Center dot (zenith)
+    ctx.fillStyle = '#1e2a42';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, TWO_PI);
+    ctx.fill();
+
+    if (!pass || !pass.track || pass.track.length === 0) {
+        // No pass selected — draw placeholder text
+        ctx.fillStyle = '#6b7a90';
+        ctx.font = '10px Consolas, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Select a pass', cx, cy + maxR + 24);
+        return;
+    }
+
+    // Convert az/el to polar plot x/y
+    function toPlotXY(azRad, elRad) {
+        var r = maxR * (1 - elRad / (Math.PI / 2));
+        return {
+            x: cx + r * Math.sin(azRad),
+            y: cy - r * Math.cos(azRad)
+        };
+    }
+
+    // Draw pass arc
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    var first = true;
+    for (var i = 0; i < pass.track.length; i++) {
+        var pt = toPlotXY(pass.track[i].az, pass.track[i].el);
+        if (first) {
+            ctx.moveTo(pt.x, pt.y);
+            first = false;
+        } else {
+            ctx.lineTo(pt.x, pt.y);
+        }
+    }
+    ctx.stroke();
+
+    // Dots every ~30 seconds (every 3rd point since track step is 10s)
+    ctx.fillStyle = '#FFD700';
+    for (var i = 0; i < pass.track.length; i += 3) {
+        var pt = toPlotXY(pass.track[i].az, pass.track[i].el);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 2, 0, TWO_PI);
+        ctx.fill();
+    }
+
+    // AOS marker (green)
+    var aosP = toPlotXY(pass.track[0].az, pass.track[0].el);
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(aosP.x, aosP.y, 5, 0, TWO_PI);
+    ctx.fill();
+    ctx.fillStyle = '#2ecc71';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('AOS', aosP.x + 7, aosP.y + 3);
+
+    // LOS marker (red)
+    var losP = toPlotXY(pass.track[pass.track.length - 1].az, pass.track[pass.track.length - 1].el);
+    ctx.fillStyle = '#e74c3c';
+    ctx.beginPath();
+    ctx.arc(losP.x, losP.y, 5, 0, TWO_PI);
+    ctx.fill();
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('LOS', losP.x + 7, losP.y + 3);
+
+    // Max elevation marker (larger, white)
+    var maxElTrackIdx = 0;
+    for (var i = 1; i < pass.track.length; i++) {
+        if (pass.track[i].el > pass.track[maxElTrackIdx].el) maxElTrackIdx = i;
+    }
+    var maxP = toPlotXY(pass.track[maxElTrackIdx].az, pass.track[maxElTrackIdx].el);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(maxP.x, maxP.y, 5, 0, TWO_PI);
+    ctx.fill();
+    ctx.strokeStyle = '#4a9eff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(maxP.x, maxP.y, 7, 0, TWO_PI);
+    ctx.stroke();
+    ctx.fillStyle = '#4a9eff';
+    ctx.font = '9px Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(pass.maxEl.toFixed(1) + '\u00B0', maxP.x, maxP.y - 11);
+}
+
+// ============================================================================
+// CESIUM GLOBE VISUALIZATION
+// ============================================================================
+function updateStationOnGlobe() {
+    var viewer = state.viewer;
+    var ce = state.cesiumEntities;
+
+    // Remove old station entities
+    if (ce.stationPin) viewer.entities.remove(ce.stationPin);
+    if (ce.stationCircle) viewer.entities.remove(ce.stationCircle);
+
+    var lat = state.station.lat;
+    var lon = state.station.lon;
+    var alt = state.station.alt;
+
+    // Station pin
+    ce.stationPin = viewer.entities.add({
+        name: 'Ground Station',
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
+        billboard: {
+            image: createStationIcon(),
+            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+            scale: 1.0,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+            text: getStationName(),
+            font: '12px Consolas',
+            fillColor: Cesium.Color.fromCssColorString('#FFD700'),
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            pixelOffset: new Cesium.Cartesian2(0, -40),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+    });
+
+    // Horizon circle (at min elevation)
+    // Approximate radius of min-el visibility circle on ground
+    // For LEO sat at ~400km, horizon at el=5deg is about 2000km range
+    // Just draw a decorative circle at ~20 degree ground arc radius
+    var horizonRadiusM = estimateHorizonRadius(state.minEl, 400000);
+    ce.stationCircle = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        ellipse: {
+            semiMajorAxis: horizonRadiusM,
+            semiMinorAxis: horizonRadiusM,
+            material: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.08),
+            outline: true,
+            outlineColor: Cesium.Color.fromCssColorString('#2ecc71').withAlpha(0.3),
+            outlineWidth: 1,
+            height: 0
+        }
+    });
+}
+
+function estimateHorizonRadius(minElDeg, satAltM) {
+    // Approximate ground distance to satellite at minimum elevation
+    // Using Earth central angle subtended
+    var elRad = minElDeg * DEG;
+    var rE = R_EARTH;
+    var rS = rE + satAltM;
+    // Slant range at elevation angle
+    var sinEl = Math.sin(elRad);
+    var cosEl = Math.cos(elRad);
+    var slant = -rE * sinEl + Math.sqrt(rE * rE * sinEl * sinEl + rS * rS - rE * rE);
+    // Ground distance via law of cosines
+    var centralAngle = Math.acos((rE * rE + rE * rE - slant * slant * cosEl * cosEl) / (2 * rE * rE));
+    // Fallback: simple geometric estimate
+    if (!isFinite(centralAngle)) centralAngle = Math.acos(rE / rS);
+    return rE * centralAngle;
+}
+
+function createStationIcon() {
+    var c = document.createElement('canvas');
+    c.width = 24; c.height = 32;
+    var ctx = c.getContext('2d');
+    // Pin shape
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(12, 10, 8, 0, TWO_PI);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6, 14);
+    ctx.lineTo(12, 30);
+    ctx.lineTo(18, 14);
+    ctx.fill();
+    // Inner circle
+    ctx.fillStyle = '#0a0e17';
+    ctx.beginPath();
+    ctx.arc(12, 10, 4, 0, TWO_PI);
+    ctx.fill();
+    return c.toDataURL();
+}
+
+function getStationName() {
+    var key = document.getElementById('stationPreset').value;
+    if (key === 'custom') return 'Custom Station';
+    return STATIONS[key] ? STATIONS[key].name : 'Station';
+}
+
+function updateSatOnGlobe() {
+    var viewer = state.viewer;
+    var ce = state.cesiumEntities;
+
+    // Remove old
+    if (ce.orbitPath) viewer.entities.remove(ce.orbitPath);
+    if (ce.groundTrack) viewer.entities.remove(ce.groundTrack);
+    if (ce.satPoint) viewer.entities.remove(ce.satPoint);
+    ce.orbitPath = null;
+    ce.groundTrack = null;
+    ce.satPoint = null;
+
+    if (!state.sat || !state.eciEpoch) return;
+
+    var currentJD = nowJD();
+    var eci = propagateAtJD(currentJD);
+    var gmst = getGMST(currentJD);
+
+    // Current satellite position
+    var satCart = eciToCartesian3(eci.pos, gmst);
+    if (satCart) {
+        ce.satPoint = viewer.entities.add({
+            name: state.sat.name,
+            position: satCart,
+            point: {
+                pixelSize: 10,
+                color: Cesium.Color.fromCssColorString('#4a9eff'),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: state.sat.name,
+                font: '12px Consolas',
+                fillColor: Cesium.Color.fromCssColorString('#4a9eff'),
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -16),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+    }
+
+    // Orbit path — propagate one full orbit
+    var orbitPositions = [];
+    var groundTrackPositions = [];
+    var nPts = 360;
+    var period = state.sat.period;
+
+    for (var i = 0; i <= nPts; i++) {
+        var frac = i / nPts;
+        var dt = frac * period;
+        var jd = currentJD + dt / 86400.0;
+        var e = propagateAtJD(jd);
+        var g = getGMST(jd);
+        var c3 = eciToCartesian3(e.pos, g);
+        if (c3) {
+            orbitPositions.push(c3);
+            // Ground track
+            var geo = TLEParser.eciToGeodetic(e.pos, g);
+            var gt = Cesium.Cartesian3.fromRadians(geo.lon, geo.lat, 0);
+            groundTrackPositions.push(gt);
+        }
+    }
+
+    if (orbitPositions.length > 2) {
+        ce.orbitPath = viewer.entities.add({
+            polyline: {
+                positions: orbitPositions,
+                width: 1.5,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.WHITE.withAlpha(0.6),
+                    dashLength: 12
+                }),
+                clampToGround: false
+            }
+        });
+
+        ce.groundTrack = viewer.entities.add({
+            polyline: {
+                positions: groundTrackPositions,
+                width: 1,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.fromCssColorString('#4a9eff').withAlpha(0.3),
+                    dashLength: 8
+                }),
+                clampToGround: true
+            }
+        });
+    }
+}
+
+function clearPassVisualization() {
+    var viewer = state.viewer;
+    var ce = state.cesiumEntities;
+
+    if (ce.passArc) { viewer.entities.remove(ce.passArc); ce.passArc = null; }
+    if (ce.aosMarker) { viewer.entities.remove(ce.aosMarker); ce.aosMarker = null; }
+    if (ce.losMarker) { viewer.entities.remove(ce.losMarker); ce.losMarker = null; }
+    if (ce.visibilityCone) { viewer.entities.remove(ce.visibilityCone); ce.visibilityCone = null; }
+}
+
+function showPassOnGlobe(pass) {
+    clearPassVisualization();
+
+    var viewer = state.viewer;
+    var ce = state.cesiumEntities;
+
+    if (!pass || !pass.track || pass.track.length === 0) return;
+
+    // Pass arc in gold
+    var arcPositions = [];
+    for (var i = 0; i < pass.track.length; i++) {
+        var t = pass.track[i];
+        var gmst = getGMST(t.jd);
+        var c3 = eciToCartesian3(t.eci, gmst);
+        if (c3) arcPositions.push(c3);
+    }
+
+    if (arcPositions.length > 1) {
+        ce.passArc = viewer.entities.add({
+            polyline: {
+                positions: arcPositions,
+                width: 3,
+                material: Cesium.Color.fromCssColorString('#FFD700'),
+                clampToGround: false
+            }
+        });
+    }
+
+    // AOS marker
+    var aosGmst = getGMST(pass.aosJD);
+    var aosEci = propagateAtJD(pass.aosJD);
+    var aosCart = eciToCartesian3(aosEci.pos, aosGmst);
+    if (aosCart) {
+        ce.aosMarker = viewer.entities.add({
+            position: aosCart,
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.fromCssColorString('#2ecc71'),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: 'AOS',
+                font: '10px Consolas',
+                fillColor: Cesium.Color.fromCssColorString('#2ecc71'),
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(10, -5),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+    }
+
+    // LOS marker
+    var losGmst = getGMST(pass.losJD);
+    var losEci = propagateAtJD(pass.losJD);
+    var losCart = eciToCartesian3(losEci.pos, losGmst);
+    if (losCart) {
+        ce.losMarker = viewer.entities.add({
+            position: losCart,
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.fromCssColorString('#e74c3c'),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            },
+            label: {
+                text: 'LOS',
+                font: '10px Consolas',
+                fillColor: Cesium.Color.fromCssColorString('#e74c3c'),
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(10, -5),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
+    }
+
+    // Visibility cone — a polyline from station to TCA satellite position
+    var tcaGmst = getGMST(pass.tcaJD);
+    var tcaEci = propagateAtJD(pass.tcaJD);
+    var tcaCart = eciToCartesian3(tcaEci.pos, tcaGmst);
+    var stationCart = Cesium.Cartesian3.fromDegrees(state.station.lon, state.station.lat, state.station.alt);
+    if (tcaCart && stationCart) {
+        ce.visibilityCone = viewer.entities.add({
+            polyline: {
+                positions: [stationCart, tcaCart],
+                width: 1.5,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.fromCssColorString('#4a9eff').withAlpha(0.5),
+                    dashLength: 10
+                }),
+                clampToGround: false
+            }
+        });
+    }
+
+    // Fly camera to see the pass
+    var midJD = (pass.aosJD + pass.losJD) / 2;
+    var midEci = propagateAtJD(midJD);
+    var midGmst = getGMST(midJD);
+    var midGeo = TLEParser.eciToGeodetic(midEci.pos, midGmst);
+
+    // Camera at midpoint between station and satellite sub-point
+    var camLat = (state.station.lat * DEG + midGeo.lat) / 2 * RAD;
+    var camLon = (state.station.lon * DEG + midGeo.lon) / 2 * RAD;
+    var satAltKm = midGeo.alt / 1000;
+    var camAlt = Math.max(2000000, satAltKm * 1000 * 4);
+
+    viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(camLon, camLat, camAlt),
+        duration: 1.0
+    });
+}
+
+function eciToCartesian3(posECI, gmst) {
+    if (!isFinite(posECI[0]) || !isFinite(posECI[1]) || !isFinite(posECI[2])) return null;
+    var cosG = Math.cos(gmst);
+    var sinG = Math.sin(gmst);
+    var x =  cosG * posECI[0] + sinG * posECI[1];
+    var y = -sinG * posECI[0] + cosG * posECI[1];
+    var z =  posECI[2];
+    return new Cesium.Cartesian3(x, y, z);
+}
+
+// ============================================================================
+// FORMATTING UTILITIES
+// ============================================================================
+function formatTimeUTC(d) {
+    return padZero(d.getUTCHours()) + ':' +
+           padZero(d.getUTCMinutes()) + ':' +
+           padZero(d.getUTCSeconds()) + ' UTC';
+}
+
+function formatDateShort(d) {
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return d.getUTCDate() + ' ' + months[d.getUTCMonth()];
+}
+
+function padZero(n) {
+    return n < 10 ? '0' + n : '' + n;
+}
+
+function azToCompass(azDeg) {
+    var dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    var idx = Math.round(((azDeg % 360) + 360) % 360 / 22.5) % 16;
+    return dirs[idx];
+}
+
+</script>
+</body>
+</html>
