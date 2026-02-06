@@ -4,7 +4,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: Platform Builder + Nuclear/Environment Systems + MC Engine
+## Current Status: Live Sim Cockpit + Combat Systems + Orbital Mechanics Fix + MC Engine
 
 ### C++ Backend (Milestones 0-4 + Phases 2-3 + MC Engine):
 - **M0**: Project skeleton, CMake build system, Git setup
@@ -16,7 +16,24 @@ An integrated Earth-Air-Space simulation for multi-domain scenarios from ground 
 - **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
 - **MC Engine**: Headless Monte Carlo simulation engine — see detailed section below
 
-### Recent Session (2026-02-05): Platform Builder + Nuclear + Environment Systems
+### Recent Session (2026-02-06): Cockpit Combat + Orbital Fix + Escape Recovery
+Major features: Live sim cockpit with weapons/sensor HUD, orbital mechanics frame fix, escape trajectory recovery.
+
+- **Live Sim Viewer** (`live_sim_viewer.html` + `live_sim_engine.js`): Full cockpit sim launched from Scenario Builder
+  - Chase camera reflects aircraft bank/roll angle (manual ENU positioning, not lookAt)
+  - Cockpit camera with full attitude (heading + pitch + roll)
+  - Pitch trim control: T/Shift+T, ±0.5° per press, -5° to +10° range
+  - Weapons HUD rollup: W cycles weapons, Space fires/activates, inventory tracking
+  - Sensor cycling: V key cycles through available sensors
+  - Pause moved from Space to Escape (cockpit + planner modes)
+  - Per-element HUD toggles (11 items) in settings gear with localStorage persistence
+  - Weapon/sensor lists auto-populated from entity `_custom` payloads/sensors or default loadout
+- **Thrust boost**: Rocket 2MN→5MN, Hypersonic 400kN→800kN in SPACEPLANE_CONFIG
+- **Orbital mechanics fix** (`spaceplane_orbital.js`): Removed erroneous ω×r Earth rotation velocity from geodeticToECI — the 3-DOF physics engine models non-rotating Earth where state.speed is already inertial. Adding ω×r double-counted ~494 m/s at equator, causing SMA to oscillate ±1000km as latitude changed during orbit.
+- **Escape trajectory recovery**: Eccentricity guard tightened to 0.99, period capped at 30 days, ESCAPE regime clears orbit display immediately, renderError handler recovers from buffer overflows
+- **Platform Builder CRUD**: Edit/delete buttons on custom palette items, placement mode dropdown (Spacecraft/Aircraft/Ground), fixed double-handler bug in builder_app.js
+
+### Previous Session (2026-02-05): Platform Builder + Nuclear + Environment Systems
 Major feature: Modular platform composer for creating custom entities with any combination of physics, propulsion, sensors, payloads, and environment settings.
 
 - **Platform Builder** (`platform_builder.js`): 5-tab modal dialog (Physics/Propulsion/Sensors/Payload/Environment)
@@ -57,6 +74,7 @@ Interactive drag-and-drop editor with ECS simulation engine. No C++ needed.
 ### JavaScript Interactive Sims (visualization/cesium/):
 Standalone browser-based simulations — no C++ backend needed.
 
+- **Live Sim Viewer** (`live_sim_viewer.html`) — **Cockpit sim launched from Scenario Builder** with weapons, sensors, trim, HUD toggles
 - **Satellite Tour** (`sat_tour_viewer.html`) — Animated tour of satellite constellations
 - **GEO Sim** (`geo_sim_viewer.html`) — GEO rendezvous with Newton-Raphson intercept
 - **LEO Sensor** — LEO imaging constellation revisit visualization
@@ -249,8 +267,8 @@ Created a comprehensive 5-tab dialog for building custom entities with any combi
 
 ### Propulsion Tab (P key cycles at runtime)
 - Air-Breathing (turbofan, 90-160 kN with density lapse)
-- Hypersonic (scramjet, 400 kN constant, Mach 2-10)
-- Rocket (2 MN, works in vacuum)
+- Hypersonic (scramjet, 800 kN constant, Mach 2-10)
+- Rocket (5 MN, works in vacuum)
 - Ion/Electric (0.5 N, high Isp, station-keeping)
 - RCS Thrusters (attitude control, proximity ops)
 - Available for ALL physics types (satellites can have thrusters, spaceplanes can re-enter)
@@ -363,11 +381,14 @@ montecarlo/     - MC engine: MCEntity, MCWorld, ScenarioParser, MCRunner,
 
 ### JavaScript Sim Modules (visualization/cesium/js/):
 ```
+live_sim_engine.js      - Hybrid cockpit+ECS engine: player hijack, weapons,
+                          sensors, trim, chase camera with bank, HUD toggles
 fighter_sim_engine.js   - 3-DOF flight physics (F-16 + spaceplane configs)
                           Gravity, aero, thrust, control, ground handling
 fighter_atmosphere.js   - US Standard Atmosphere + thermosphere extension above 84km
 fighter_hud.js          - Canvas HUD: pitch ladder, speed/alt tapes, heading,
-                          G meter, weapons, target reticle, orbital markers
+                          G meter, weapons/sensors rollup, trim indicator,
+                          orbital markers, per-element toggles (11 items)
 fighter_autopilot.js    - Altitude/heading/speed hold, waypoint nav
 fighter_weapons.js      - AIM-9/AIM-120/bombs/gun with ballistics
 fighter_ai.js           - AI wingmen and adversary tactics
@@ -443,6 +464,7 @@ builder/
 All served from `visualization/cesium/` via `python3 serve.py 8000`
 
 - `scenario_builder.html` — Interactive scenario editor (BUILD/RUN/ANALYZE)
+- `live_sim_viewer.html` — **Cockpit sim** (weapons, sensors, trim, HUD toggles, chase/cockpit/free camera)
 - `scenario_viewer.html` — Lightweight scenario runner (live ECS physics)
 - `replay_viewer.html` — **C++ replay playback** (load ?replay=replay_iads.json)
 - `model_viewer.html` — CZML rapid-playback viewer (native Cesium, no JS physics)
@@ -567,8 +589,8 @@ PerturbationBreakdown bd = OrbitalPerturbations::compute_breakdown(pos, vel, con
 - **Aero blend**: Log-linear on dynamic pressure (q>100Pa → full aero, q<1Pa → vacuum)
 - **Propulsion modes** (P key toggle):
   - AIR: 160kN with density lapse (atmosphere only)
-  - HYPERSONIC: 400kN flat (anywhere)
-  - ROCKET: 2 MN flat (anywhere)
+  - HYPERSONIC: 800kN flat (anywhere)
+  - ROCKET: 5 MN flat (anywhere)
 - **Thrust decomposition by nose direction**:
   - Prograde component: `T·cos(α)·cos(yawOffset)` → changes speed
   - Normal component: `T·sin(α)` → changes flight path angle (orbit raise/lower)
@@ -594,7 +616,7 @@ SPACEPLANE mass = 15,000 kg, fuel = Infinity
 ```
 
 ### Orbital Mechanics (spaceplane_orbital.js)
-- **geodeticToECI()**: lat/lon/alt + speed/heading/gamma → ECI state (includes Earth rotation)
+- **geodeticToECI()**: lat/lon/alt + speed/heading/gamma → ECI state (non-rotating frame — speed is already inertial)
 - **computeOrbitalElements()**: Classical elements from r,v vectors
   - Guards against NaN (degenerate inputs, near-zero angular momentum)
 - **predictOrbitPath()**: 360-point Kepler propagation
@@ -622,19 +644,23 @@ Above 30km, KSP-style orbital markers appear on the pitch ladder:
 - Color-coded: green=ATMOSPHERIC, yellow=SUBORBITAL, cyan=ORBIT, red=ESCAPE
 - Always visible in cockpit mode
 
-### Keyboard Controls (spaceplane_viewer.html)
+### Keyboard Controls (spaceplane_viewer.html / live_sim_viewer.html)
 ```
 WASD / Arrows  — Throttle, pitch, roll
 Q/E            — Yaw (nose rotation in vacuum — does NOT change velocity)
-Space          — Pause
-E              — Engine on/off
+Escape         — Pause (cockpit + planner modes)
 P              — Cycle propulsion: AIR → HYPERSONIC → ROCKET
+E              — Engine on/off
+Space          — Fire weapon
+W              — Cycle weapon
+V              — Cycle sensor
+T / Shift+T    — Adjust pitch trim (+0.5° / -0.5°, range -5° to +10°)
 M              — Toggle planner mode
 N              — Create maneuver node
 Enter          — Execute maneuver node
 Delete         — Delete maneuver node
 +/-            — Time warp (up to 1024x)
-C              — Cycle camera
+C              — Cycle camera (chase with bank / cockpit / free)
 H              — Controls help
 1 / 2 / 3     — Toggle flight data / systems / orbital panels
 O              — Toggle orbital elements panel (auto / on / off)
@@ -717,6 +743,8 @@ When placing a satellite on the globe, a modal dialog appears with 6 Classical O
 3. **Model**: Removed (using point marker) — can be re-added with any .glb
 4. ~~**SAM targets ground bases**~~: FIXED — SAM now filters targets by `physics_type != STATIC` and `geo_alt > 100m`
 5. **Short-lived replays**: fighter_patrol, two_aircraft, multi_domain scenarios resolve at t=0.1s because one side has no combatants
+6. ~~**SMA oscillation ±1000km**~~: FIXED — geodeticToECI was adding Earth rotation ω×r to velocity that was already inertial in the non-rotating physics model
+7. ~~**Escape trajectory crash**~~: FIXED — Near-parabolic orbits (ecc≈1.0) overflowed orbit path arrays. Tightened ecc guard to 0.99, capped period at 30 days, ESCAPE clears display
 
 ## Bugs Fixed (2026-01-30 session)
 - **SpaceplaneOrbital SyntaxError**: Duplicate `const rPe` in `computeApPePositions`

@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: Platform Builder + Nuclear/Environment Systems + MC Engine
+**Team**: Human + Claude | **Status**: Live Cockpit Combat + Orbital Fix + Platform Builder + MC Engine
 
 ## Quick Start
 
@@ -22,6 +22,7 @@ Then open: **http://localhost:8000/**
 | App | URL | Description |
 |-----|-----|-------------|
 | **Scenario Builder** | `/scenario_builder.html` | Interactive drag-and-drop scenario editor. Place aircraft, satellites, SAM batteries, ground stations. Run simulation, analyze with Chart.js dashboard, export to C++ engine. |
+| **Live Sim** | `/live_sim_viewer.html` | Cockpit sim launched from Scenario Builder. Weapons HUD, sensor cycling, pitch trim, chase camera with bank, per-element HUD toggles. |
 | **Replay Viewer** | `/replay_viewer.html?replay=replay_iads.json` | C++ replay playback with range rings, animated missile trails, engagement timeline. 11 pre-generated replays. |
 | **Spaceplane** | `/spaceplane_viewer.html` | Atmosphere-to-orbit flight. KSP-style orbital mechanics, maneuver nodes, 3 propulsion modes. Start on the runway or in orbit. |
 | **Fighter** | `/fighter_sim_viewer.html` | F-16 flight sim with full HUD, weapons (AIM-9/AIM-120/bombs/gun), AI adversaries. |
@@ -106,18 +107,21 @@ Fly from the runway to orbit and back. Full 3-DOF flight physics with smooth atm
 
 ### Controls
 ```
-W/S or Up/Down    Throttle
+W/S or Up/Down    Throttle, pitch
 A/D or Left/Right Roll (bank)
-Pitch             Up/Down arrows
 Q/E               Yaw (repoints nose in vacuum, does not change orbit)
 P                 Cycle propulsion: AIR → HYPERSONIC → ROCKET
-Space             Pause
+Escape            Pause (cockpit + planner modes)
 E                 Engine on/off
+Space             Fire weapon
+W                 Cycle weapon
+V                 Cycle sensor
+T / Shift+T       Adjust pitch trim (+0.5° / -0.5°)
 M                 Toggle orbital planner mode
 N                 Create maneuver node
 Enter             Execute maneuver node
 +/-               Time warp (up to 1024x)
-C                 Cycle camera
+C                 Cycle camera (chase with bank / cockpit / free)
 H                 Show all controls
 1/2/3             Toggle flight data / systems / orbital panels
 O                 Toggle orbital elements panel
@@ -134,7 +138,7 @@ Tab               Hide/show all panels
 - Inverse-square gravity with centrifugal V²/R term (real orbits)
 - US Standard Atmosphere extended to thermosphere (exponential decay above 84km)
 - Smooth aero-to-vacuum blend based on dynamic pressure
-- Three propulsion modes: AIR (160kN turbofan), HYPERSONIC (400kN), ROCKET (2 MN)
+- Three propulsion modes: AIR (160kN turbofan), HYPERSONIC (800kN), ROCKET (5 MN)
 - **Thrust vectoring**: Point nose at prograde/normal/radial and throttle to apply delta-V in that direction. Thrust decomposes into prograde, normal, and lateral components.
 - Free rotation in vacuum (pitch, roll, yaw unclamped). Roll is 360° in atmosphere for spaceplane.
 - Yaw in vacuum repoints the nose without changing the velocity vector (realistic RCS behavior)
@@ -200,6 +204,7 @@ src/
 ### JavaScript Sim Modules
 ```
 visualization/cesium/js/
+├── live_sim_engine.js       Hybrid cockpit+ECS engine (weapons, sensors, trim, camera)
 ├── fighter_sim_engine.js    3-DOF flight physics engine
 ├── fighter_atmosphere.js    US Standard Atmosphere + thermosphere
 ├── fighter_hud.js           Canvas HUD with pitch ladder & orbital markers
@@ -284,6 +289,7 @@ The end goal — all in one continuous simulation:
 - [x] **Platform Builder**: Modular entity composer with 5 tabs (Physics/Propulsion/Sensors/Payload/Environment)
 - [x] **Nuclear Systems**: Warhead (Starfish Prime EMP), cruise missile, ionosphere/magnetic field interaction
 - [x] **Environment Config**: Multi-body gravity (Jupiter), atmospheres, radiation belts
+- [x] **Live Sim Cockpit**: Weapons HUD, sensor cycling, pitch trim, chase camera with bank, orbital mechanics fix
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -303,6 +309,6 @@ The end goal — all in one continuous simulation:
 - [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-02-05
+*Last Updated*: 2026-02-06
 *Team*: Human + Claude
-*Status*: Platform Builder with modular entity composition, nuclear/EMP systems, multi-body environments, C++ MC engine, Chart.js dashboard
+*Status*: Live cockpit combat, orbital mechanics fix, platform builder, C++ MC engine, Chart.js dashboard
