@@ -1268,6 +1268,17 @@ const BuilderApp = (function() {
             }
         });
 
+        // Environment settings
+        _bindButton('btnEnvironment', function() {
+            if (typeof EnvironmentDialog !== 'undefined') {
+                var env = _scenarioData ? _scenarioData.environment : {};
+                EnvironmentDialog.show(env || {}).then(function(updatedEnv) {
+                    if (_scenarioData) _scenarioData.environment = updatedEnv;
+                    showMessage('Environment updated', 2000);
+                }).catch(function() { /* cancelled */ });
+            }
+        });
+
         // Export dropdown toggle
         _bindButton('btnExport', function() {
             var menu = document.getElementById('exportDropdownMenu');

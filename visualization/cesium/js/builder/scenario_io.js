@@ -25,8 +25,12 @@ const ScenarioIO = (function() {
             },
             environment: {
                 atmosphere: 'us_standard_1976',
-                gravity: 'constant',
-                maxTimeWarp: 64
+                gravity: 'earth',
+                gravityMu: 3.986004418e14,
+                maxTimeWarp: 64,
+                magneticField: null,
+                ionosphere: null,
+                radiationBelt: null
             },
             entities: [],
             events: [],

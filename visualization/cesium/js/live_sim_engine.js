@@ -47,6 +47,16 @@ const LiveSimEngine = (function() {
     let _sensorList = [];       // [{name, type}]
     let _sensorIndex = -1;      // -1 = no sensor active
 
+    // Sensor view effects
+    let _sensorNoiseCanvas = null;
+    let _sensorNoiseCtx = null;
+    let _sensorNoiseAnimFrame = null;
+    let _activeSensorFilter = null;
+    var SENSOR_FILTERS = {
+        optical: { css: 'grayscale(1) contrast(1.2)', noise: 0.12, label: 'EO | B&W' },
+        ir:      { css: 'grayscale(1) invert(0.85) contrast(1.8) brightness(1.1)', noise: 0.08, label: 'FLIR | WHT-HOT' }
+    };
+
     // Camera
     let _camHeadingOffset = 0;
     let _camPitch = -0.3;
@@ -54,6 +64,7 @@ const LiveSimEngine = (function() {
     let _camDragging = false;
     let _camDragStart = { x: 0, y: 0 };
     let _plannerCamRange = 5e7;
+    let _globeControlsEnabled = true; // arrow keys active in earth/moon modes
 
     // Trail
     let _playerTrail = [];
@@ -254,18 +265,51 @@ const LiveSimEngine = (function() {
                 FighterSimEngine.SPACEPLANE_CONFIG : FighterSimEngine.F16_CONFIG;
         }
 
+        // Check if entity has space-capable propulsion (rocket, hypersonic, ion)
+        var hasSpacePropulsion = false;
+        var def = entity.def || {};
+        if (def._custom && def._custom.propulsion) {
+            var p = def._custom.propulsion;
+            hasSpacePropulsion = !!(p.rocket || p.hypersonic || p.ion);
+        }
+        if (!hasSpacePropulsion && def.components && def.components.propulsion) {
+            var modes = def.components.propulsion.modes || [];
+            hasSpacePropulsion = modes.some(function(m) {
+                var u = m.toUpperCase();
+                return u === 'ROCKET' || u === 'HYPERSONIC' || u === 'ION';
+            });
+        }
+
+        // If entity has space propulsion but a non-spaceplane config, upgrade it.
+        // Without isSpaceplane, the physics engine uses constant gravity (9.8 m/s²)
+        // and no centrifugal term — orbital flight is impossible.
+        if (hasSpacePropulsion && !_playerConfig.isSpaceplane) {
+            _playerConfig = Object.assign({}, _playerConfig, {
+                isSpaceplane: true,
+                thrust_hypersonic: _playerConfig.thrust_hypersonic || 800000,
+                thrust_rocket: _playerConfig.thrust_rocket || 5000000,
+                service_ceiling: Infinity,
+            });
+        }
+
         // Determine if spaceplane-capable (orbital entities are always spaceplane-capable)
         _isSpaceplane = physType === 'orbital_2body' ||
                         (_playerConfig === FighterSimEngine.SPACEPLANE_CONFIG) ||
-                        (_playerConfig.spaceplane === true);
+                        (_playerConfig.isSpaceplane === true) ||
+                        hasSpacePropulsion;
 
         // Determine available propulsion modes
         _propModes = _resolvePropModes(entity);
 
-        // Set initial propulsion mode
+        // Set initial propulsion mode — orbital entities default to ROCKET
+        // (AIR mode has zero thrust at orbital altitude due to density lapse)
         if (!_playerState.forcedPropMode) {
-            _playerState.forcedPropMode = _propModes[0] || 'AIR';
-            _playerState.propulsionMode = _playerState.forcedPropMode;
+            var defaultMode = _propModes[0] || 'AIR';
+            if (physType === 'orbital_2body' && _propModes.indexOf('ROCKET') >= 0) {
+                defaultMode = 'ROCKET';
+            }
+            _playerState.forcedPropMode = defaultMode;
+            _playerState.propulsionMode = defaultMode;
         }
 
         // For orbital entities, derive heading/gamma from ECI velocity
@@ -274,8 +318,11 @@ const LiveSimEngine = (function() {
         }
 
         // Ensure critical state fields exist
-        if (_playerState.throttle === undefined) _playerState.throttle = 0.6;
-        if (_playerState.engineOn === undefined) _playerState.engineOn = true;
+        // Orbital entities default to engine off and zero throttle — they coast.
+        // Atmospheric entities default to engine on with 60% throttle — they fly.
+        var isOrbitalEntity = (physType === 'orbital_2body');
+        if (_playerState.throttle === undefined) _playerState.throttle = isOrbitalEntity ? 0 : 0.6;
+        if (_playerState.engineOn === undefined) _playerState.engineOn = !isOrbitalEntity;
         if (_playerState.gearDown === undefined) _playerState.gearDown = false;
         if (_playerState.flapsDown === undefined) _playerState.flapsDown = false;
         if (_playerState.brakesOn === undefined) _playerState.brakesOn = false;
@@ -397,9 +444,14 @@ const LiveSimEngine = (function() {
             }
         }
 
-        // Default: aircraft always have radar
+        // Default sensor loadout by entity type
         if (!_sensorList.length && (def.type === 'aircraft' || def.type === 'fighter')) {
             _sensorList.push({ name: 'RADAR', type: 'radar' });
+        }
+        if (!_sensorList.length && (def.type === 'satellite' || def.type === 'spacecraft' || _isSpaceplane)) {
+            _sensorList.push({ name: 'RADAR', type: 'radar' });
+            _sensorList.push({ name: 'EO/IR', type: 'optical' });
+            _sensorList.push({ name: 'IR',    type: 'ir' });
         }
     }
 
@@ -446,9 +498,86 @@ const LiveSimEngine = (function() {
             _showMessage('NO SENSORS');
             return;
         }
-        _sensorIndex = (_sensorIndex + 1) % _sensorList.length;
-        var s = _sensorList[_sensorIndex];
-        _showMessage('SENSOR: ' + s.name);
+        // Cycle: -1 (OFF) → 0 → 1 → ... → N-1 → -1 (OFF)
+        _sensorIndex++;
+        if (_sensorIndex >= _sensorList.length) _sensorIndex = -1;
+
+        if (_sensorIndex < 0) {
+            _showMessage('SENSOR OFF');
+            _removeSensorViewEffects();
+        } else {
+            var s = _sensorList[_sensorIndex];
+            var filter = SENSOR_FILTERS[s.type];
+            if (filter) {
+                _applySensorViewEffects(s.type);
+                _showMessage('SENSOR: ' + s.name + ' — ' + filter.label);
+            } else {
+                // Non-visual sensor (radar, sar, sigint, lidar) — HUD info only
+                _removeSensorViewEffects();
+                _showMessage('SENSOR: ' + s.name);
+            }
+        }
+    }
+
+    function _applySensorViewEffects(sensorType) {
+        var filter = SENSOR_FILTERS[sensorType];
+        if (!filter) { _removeSensorViewEffects(); return; }
+
+        // Apply CSS filter to cesium container (not HUD)
+        var container = document.getElementById('cesiumContainer');
+        if (container) container.style.filter = filter.css;
+        _activeSensorFilter = sensorType;
+
+        // Create or update noise overlay
+        _startSensorNoise(filter.noise);
+    }
+
+    function _removeSensorViewEffects() {
+        var container = document.getElementById('cesiumContainer');
+        if (container) container.style.filter = '';
+        _activeSensorFilter = null;
+        _stopSensorNoise();
+    }
+
+    function _startSensorNoise(opacity) {
+        if (!_sensorNoiseCanvas) {
+            _sensorNoiseCanvas = document.createElement('canvas');
+            _sensorNoiseCanvas.width = 256;
+            _sensorNoiseCanvas.height = 256;
+            _sensorNoiseCanvas.style.cssText =
+                'position:absolute;top:0;left:0;width:100%;height:100%;' +
+                'pointer-events:none;z-index:5;mix-blend-mode:overlay;';
+            var container = document.getElementById('cesiumContainer');
+            if (container) container.appendChild(_sensorNoiseCanvas);
+            _sensorNoiseCtx = _sensorNoiseCanvas.getContext('2d');
+        }
+        _sensorNoiseCanvas.style.display = 'block';
+        _sensorNoiseCanvas.style.opacity = opacity;
+
+        // Animate noise at 60fps
+        function drawNoise() {
+            var w = 256, h = 256;
+            var imgData = _sensorNoiseCtx.createImageData(w, h);
+            var d = imgData.data;
+            for (var i = 0; i < d.length; i += 4) {
+                var v = (Math.random() * 255) | 0;
+                d[i] = v; d[i+1] = v; d[i+2] = v; d[i+3] = 255;
+            }
+            _sensorNoiseCtx.putImageData(imgData, 0, 0);
+            _sensorNoiseAnimFrame = requestAnimationFrame(drawNoise);
+        }
+        if (_sensorNoiseAnimFrame) cancelAnimationFrame(_sensorNoiseAnimFrame);
+        drawNoise();
+    }
+
+    function _stopSensorNoise() {
+        if (_sensorNoiseAnimFrame) {
+            cancelAnimationFrame(_sensorNoiseAnimFrame);
+            _sensorNoiseAnimFrame = null;
+        }
+        if (_sensorNoiseCanvas) {
+            _sensorNoiseCanvas.style.display = 'none';
+        }
     }
 
     /**
@@ -500,11 +629,9 @@ const LiveSimEngine = (function() {
 
         // The 3-DOF physics engine models a non-rotating Earth where state.speed is
         // inertial speed and centrifugal = V²/R sustains orbit at V = sqrt(μ/R).
-        // ECI velocity from the Kepler propagator INCLUDES Earth rotation, so we must
-        // subtract ω×r to get the non-rotating-frame speed the physics engine expects.
-        // Otherwise, the initial speed is ~494 m/s too high at the equator.
-        vE_comp -= OMEGA * R * cosLat;
-
+        // ECI velocity is already inertial (non-rotating frame) — do NOT subtract ω×r.
+        // Subtracting Earth rotation would make initial speed ~494 m/s too low, creating
+        // a decaying orbit whose perigee dips into atmosphere.
         var vHoriz = Math.sqrt(vE_comp * vE_comp + vN_comp * vN_comp);
 
         // Heading (azimuth from North, clockwise)
@@ -513,10 +640,10 @@ const LiveSimEngine = (function() {
         // Flight path angle (positive = climbing)
         state.gamma = Math.atan2(vU_comp, vHoriz);
 
-        // Speed: use magnitude after removing Earth rotation (non-rotating frame speed)
-        var vNonRot = Math.sqrt(vE_comp * vE_comp + vN_comp * vN_comp + vU_comp * vU_comp);
+        // Speed: ECI magnitude is already the inertial speed the physics engine expects
+        var vInertial = Math.sqrt(vE_comp * vE_comp + vN_comp * vN_comp + vU_comp * vU_comp);
         if (!state.speed || state.speed < 100) {
-            state.speed = vNonRot;
+            state.speed = vInertial;
         }
     }
 
@@ -646,11 +773,15 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     // Camera setup
     // -----------------------------------------------------------------------
+    function _isGlobeMode() {
+        return _cameraMode === 'earth' || _cameraMode === 'moon';
+    }
+
     function _setupCameraHandlers() {
         var container = document.getElementById('cesiumContainer');
 
         container.addEventListener('mousedown', function(e) {
-            if (_cameraMode === 'free') return;
+            if (_cameraMode === 'free' || _isGlobeMode()) return;
             if (e.shiftKey || e.button === 2) {
                 _camDragging = true;
                 _camDragStart = { x: e.clientX, y: e.clientY };
@@ -670,7 +801,7 @@ const LiveSimEngine = (function() {
         window.addEventListener('mouseup', function() { _camDragging = false; });
 
         container.addEventListener('wheel', function(e) {
-            if (_cameraMode === 'free') return;
+            if (_cameraMode === 'free' || _isGlobeMode()) return;
             if (_plannerMode) {
                 _plannerCamRange *= (1 + e.deltaY * 0.001);
                 _plannerCamRange = Math.max(1e5, Math.min(1e8, _plannerCamRange));
@@ -682,7 +813,7 @@ const LiveSimEngine = (function() {
         }, { passive: false });
 
         container.addEventListener('contextmenu', function(e) {
-            if (_cameraMode !== 'free') e.preventDefault();
+            if (_cameraMode !== 'free' && !_isGlobeMode()) e.preventDefault();
         });
     }
 
@@ -696,7 +827,7 @@ const LiveSimEngine = (function() {
     }
 
     function _updateCamera() {
-        if (!_playerState || _cameraMode === 'free') return;
+        if (!_playerState || _cameraMode === 'free' || _isGlobeMode()) return;
 
         var pos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, _playerState.alt);
 
@@ -730,8 +861,8 @@ const LiveSimEngine = (function() {
             var adaptiveRange = _playerState.alt > 100000 ?
                 Math.max(_camRange, _playerState.alt * 0.01) : _camRange;
 
-            // Aircraft body frame: heading + pitch + roll
-            var h = _playerState.heading + _camHeadingOffset;
+            // Aircraft body frame: heading + yawOffset + camera drag offset + roll
+            var h = _playerState.heading + (_playerState.yawOffset || 0) + _camHeadingOffset;
             var p = _camPitch;
             var rollAngle = -(_playerState.roll || 0);
 
@@ -797,10 +928,16 @@ const LiveSimEngine = (function() {
 
     function _cycleCamera() {
         if (_plannerMode) return;
-        var modes = ['chase', 'cockpit', 'free'];
+        var modes = ['chase', 'cockpit', 'free', 'earth', 'moon'];
         var idx = modes.indexOf(_cameraMode);
+
+        // Fully release camera from any lookAt / trackedEntity binding
         _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        if (_viewer.trackedEntity) _viewer.trackedEntity = undefined;
+
         _cameraMode = modes[(idx + 1) % modes.length];
+
+        var isGlobe = _isGlobeMode();
         _viewer.scene.screenSpaceCameraController.enableInputs = (_cameraMode !== 'cockpit');
 
         // Hide player point in cockpit mode
@@ -809,13 +946,60 @@ const LiveSimEngine = (function() {
             vis._cesiumEntity.show = (_cameraMode !== 'cockpit');
         }
 
+        // HUD visibility — hide in globe modes
+        var hudCanvas = document.getElementById('hudCanvas');
+        if (hudCanvas) hudCanvas.style.display = isGlobe ? 'none' : 'block';
+
+        // Remove sensor view effects in globe/free modes (restore on chase/cockpit)
+        if (isGlobe || _cameraMode === 'free') {
+            _removeSensorViewEffects();
+        } else if (_sensorIndex >= 0 && SENSOR_FILTERS[_sensorList[_sensorIndex].type]) {
+            // Restore sensor view effects when returning to chase/cockpit
+            _applySensorViewEffects(_sensorList[_sensorIndex].type);
+        }
+
         if (_cameraMode === 'chase') {
             _camHeadingOffset = 0;
             _camPitch = -0.3;
             _camRange = 150;
+        } else if (_cameraMode === 'earth') {
+            // Standard Cesium globe view — zoom out to see the whole Earth
+            // Use setView for reliable instant positioning (flyHome can be unreliable)
+            _viewer.scene.screenSpaceCameraController.enableInputs = true;
+            _viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0, 20, 25000000),
+                orientation: {
+                    heading: 0,
+                    pitch: Cesium.Math.toRadians(-90),
+                    roll: 0
+                }
+            });
+        } else if (_cameraMode === 'moon') {
+            // Fly out to lunar distance — view the Earth-Moon system
+            _viewer.scene.screenSpaceCameraController.enableInputs = true;
+            var moonDist = 384400000; // 384,400 km in meters
+            // Approximate lunar position using sim elapsed time
+            var moonAngle = (_simElapsed / 2360591.5) * 2 * Math.PI; // ~27.3 day period
+            var moonX = moonDist * Math.cos(moonAngle);
+            var moonY = moonDist * Math.sin(moonAngle);
+            var moonZ = moonDist * Math.sin(5.14 * DEG) * Math.sin(moonAngle);
+            // Position camera near the Moon, looking back toward Earth
+            var earthDir = Cesium.Cartesian3.normalize(
+                new Cesium.Cartesian3(-moonX, -moonY, -moonZ), new Cesium.Cartesian3());
+            _viewer.camera.setView({
+                destination: new Cesium.Cartesian3(moonX, moonY, moonZ),
+                orientation: {
+                    direction: earthDir,
+                    up: new Cesium.Cartesian3(0, 0, 1)
+                }
+            });
         }
-        _setText('camMode', _cameraMode.toUpperCase());
-        _showMessage('Camera: ' + _cameraMode.toUpperCase());
+
+        var label = _cameraMode === 'earth' ? 'EARTH' :
+                    _cameraMode === 'moon' ? 'MOON' :
+                    _cameraMode.toUpperCase();
+        _setText('camMode', label);
+        _showMessage('Camera: ' + label);
     }
 
     function _togglePlannerMode() {
@@ -838,6 +1022,8 @@ const LiveSimEngine = (function() {
             _camPitch = -0.3;
             _camRange = _playerState.alt > 100000 ? 5000 : 150;
             _setText('camMode', 'CHASE');
+            var hudCanvas = document.getElementById('hudCanvas');
+            if (hudCanvas) hudCanvas.style.display = 'block';
             _showMessage('COCKPIT MODE');
         }
     }
@@ -896,6 +1082,37 @@ const LiveSimEngine = (function() {
                         _showMessage('TIME WARP: ' + _timeWarp + 'x');
                         break;
                     case 'KeyH': _togglePanel('help'); break;
+                    default: handled = false; break;
+                }
+                if (handled) { e.preventDefault(); e.stopPropagation(); }
+                return;
+            }
+
+            // In globe modes, only handle camera/meta keys — pass rest to Cesium
+            if (_cameraMode === 'earth' || _cameraMode === 'moon') {
+                switch (e.code) {
+                    case 'Escape':
+                        _isPaused = !_isPaused;
+                        _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
+                        _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
+                        if (!_isPaused) _lastTickTime = null;
+                        break;
+                    case 'KeyC': _cycleCamera(); break;
+                    case 'KeyG':
+                        _globeControlsEnabled = !_globeControlsEnabled;
+                        _showMessage('Flight controls: ' + (_globeControlsEnabled ? 'ON' : 'OFF'));
+                        break;
+                    case 'KeyH': _togglePanel('help'); break;
+                    case 'Equal': case 'NumpadAdd':
+                        _timeWarp = Math.min(_timeWarp * 2, 1024);
+                        _setText('timeWarpDisplay', _timeWarp + 'x');
+                        _showMessage('TIME WARP: ' + _timeWarp + 'x');
+                        break;
+                    case 'Minus': case 'NumpadSubtract':
+                        _timeWarp = Math.max(_timeWarp / 2, 0.25);
+                        _setText('timeWarpDisplay', _timeWarp + 'x');
+                        _showMessage('TIME WARP: ' + _timeWarp + 'x');
+                        break;
                     default: handled = false; break;
                 }
                 if (handled) { e.preventDefault(); e.stopPropagation(); }
@@ -984,7 +1201,8 @@ const LiveSimEngine = (function() {
 
         window.addEventListener('keyup', function(e) {
             _keys[e.code] = false;
-            if (_started) {
+            // In globe modes, let Cesium handle keyboard events
+            if (_started && !_isGlobeMode()) {
                 e.preventDefault();
                 e.stopPropagation();
             }
@@ -1008,6 +1226,12 @@ const LiveSimEngine = (function() {
             return controls;
         }
 
+        // In globe camera modes, suppress flight controls
+        // (arrow keys optionally still work via _globeControlsEnabled toggle)
+        if (_cameraMode === 'earth' || _cameraMode === 'moon') {
+            if (!_globeControlsEnabled) return controls;
+        }
+
         controls.throttleUp = _keys['KeyW'];
         controls.throttleDown = _keys['KeyS'];
 
@@ -1019,9 +1243,10 @@ const LiveSimEngine = (function() {
         else if (_keys['ArrowRight'] && !_keys['ControlLeft'] && !_keys['ControlRight']) controls.roll = 1;
         else controls.roll = 0;
 
-        // Yaw: Ctrl+Arrow OR Q/D keys (Q=left, D=right — natural for orbital rotation)
-        if ((_keys['ControlLeft'] || _keys['ControlRight']) && _keys['ArrowLeft'] || _keys['KeyQ']) controls.yaw = -1;
-        else if ((_keys['ControlLeft'] || _keys['ControlRight']) && _keys['ArrowRight'] || _keys['KeyD']) controls.yaw = 1;
+        // Yaw: Ctrl+Arrow OR Q/D keys (Q=left, D=right)
+        var hasCtrl = _keys['ControlLeft'] || _keys['ControlRight'];
+        if ((hasCtrl && _keys['ArrowLeft']) || _keys['KeyQ']) controls.yaw = -1;
+        else if ((hasCtrl && _keys['ArrowRight']) || _keys['KeyD']) controls.yaw = 1;
         else controls.yaw = 0;
 
         return controls;
@@ -1183,6 +1408,7 @@ const LiveSimEngine = (function() {
                 var sensorHud = _sensorIndex >= 0 ? {
                     name: _sensorList[_sensorIndex].name,
                     type: _sensorList[_sensorIndex].type,
+                    filterInfo: SENSOR_FILTERS[_sensorList[_sensorIndex].type] || null,
                     allSensors: _sensorList,
                     sensorIndex: _sensorIndex
                 } : null;

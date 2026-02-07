@@ -643,14 +643,28 @@ const FighterHUD = (function() {
         var sensor = state._sensor;
         if (sensor) {
             ctx.textAlign = 'right';
-            ctx.font = `${11 * scale}px 'Courier New', monospace`;
             var sx = width - 20 * scale;
             var sy = baseY;
-            ctx.fillStyle = HUD_CYAN;
+            var isVisual = sensor.type === 'optical' || sensor.type === 'ir';
+
+            // Sensor name — yellow for visual sensors (active view), cyan for others
+            ctx.font = `${11 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = isVisual ? HUD_WARN : HUD_CYAN;
             ctx.fillText('SNR: ' + sensor.name, sx, sy);
+
+            // Mode line — show sensor-specific info
             ctx.font = `${9 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = isVisual ? '#cccc00' : '#008888';
+            var modeText = sensor.filterInfo ? sensor.filterInfo.label :
+                           sensor.type === 'radar' ? 'SEARCH | ACTIVE' :
+                           sensor.type === 'sar' ? 'SAR | MAPPING' :
+                           sensor.type === 'sigint' ? 'ESM | PASSIVE' :
+                           sensor.type === 'lidar' ? 'LIDAR | SCAN' : '';
+            if (modeText) ctx.fillText(modeText, sx, sy + lineH * 0.8);
+
+            // Cycle hint
             ctx.fillStyle = HUD_DIM;
-            ctx.fillText('[V] CYCLE', sx, sy + lineH * 0.9);
+            ctx.fillText('[V] CYCLE', sx, sy + lineH * 1.6);
         }
 
         // --- Trim indicator (bottom-left) ---

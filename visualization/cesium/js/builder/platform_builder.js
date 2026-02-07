@@ -67,13 +67,7 @@ const PlatformBuilder = (function() {
             nuclearWarhead: { enabled: false, yield_kt: 1400, burstType: 'exoatmospheric', trigger: 'command' },
             nuclearCruiseMissile: { enabled: false, yield_kt: 150, burstType: 'airburst', range_km: 2500 }
         },
-        environment: {
-            gravity: { model: 'earth', customMu: 3.986e14 },
-            atmosphere: { model: 'earth_standard', scaleHeight: 8500 },
-            magneticField: { enabled: false, model: 'earth_dipole', intensity: 1.0 },
-            ionosphere: { enabled: false, model: 'standard', disturbance: 'none' },
-            radiationBelt: { enabled: false, model: 'van_allen', intensity: 1.0 }
-        },
+        // Environment settings moved to global scenario level (EnvironmentDialog)
         model: {
             file: '',
             scale: 1.0,
@@ -181,8 +175,7 @@ const PlatformBuilder = (function() {
             { id: 'model', label: 'MODEL' },
             { id: 'propulsion', label: 'PROPULSION' },
             { id: 'sensors', label: 'SENSORS' },
-            { id: 'payload', label: 'PAYLOAD' },
-            { id: 'environment', label: 'ENVIRON' }
+            { id: 'payload', label: 'PAYLOAD' }
         ];
 
         tabDefs.forEach(def => {
@@ -207,8 +200,6 @@ const PlatformBuilder = (function() {
         _tabContents.propulsion = _createPropulsionTab();
         _tabContents.sensors = _createSensorsTab();
         _tabContents.payload = _createPayloadTab();
-        _tabContents.environment = _createEnvironmentTab();
-
         Object.keys(_tabContents).forEach(id => {
             _tabContents[id].style.display = id === _activeTab ? 'block' : 'none';
             container.appendChild(_tabContents[id]);
@@ -1036,146 +1027,7 @@ const PlatformBuilder = (function() {
     }
 
     // -------------------------------------------------------------------------
-    // Environment Tab
-    // -------------------------------------------------------------------------
-    function _createEnvironmentTab() {
-        const tab = document.createElement('div');
-        tab.className = 'pb-tab-content';
-
-        tab.innerHTML = `
-            <div class="pb-section-title">ENVIRONMENT CONFIGURATION <span class="pb-hint">(affects scenario physics)</span></div>
-            <div class="pb-env-note">Configure environmental factors for the scenario. These settings apply globally.</div>
-
-            <div class="pb-env-section">
-                <div class="pb-payload-category">Gravity & Atmosphere</div>
-
-                <div class="pb-sensor-group">
-                    <div class="pb-coe-row">
-                        <div class="pb-coe-field">
-                            <label>Gravity Model</label>
-                            <select id="pb-env-gravity">
-                                <option value="earth" selected>Earth (μ = 3.986e14)</option>
-                                <option value="moon">Moon (μ = 4.905e12)</option>
-                                <option value="mars">Mars (μ = 4.283e13)</option>
-                                <option value="jupiter">Jupiter (μ = 1.267e17)</option>
-                                <option value="venus">Venus (μ = 3.249e14)</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </div>
-                        <div class="pb-coe-field" id="pb-env-custom-mu-field" style="display: none;">
-                            <label>Custom μ (m³/s²)</label>
-                            <input type="number" id="pb-env-custom-mu" value="3.986e14" step="1e12" />
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pb-sensor-group">
-                    <div class="pb-coe-row">
-                        <div class="pb-coe-field">
-                            <label>Atmosphere Model</label>
-                            <select id="pb-env-atmosphere">
-                                <option value="earth_standard" selected>Earth (US Standard 1976)</option>
-                                <option value="earth_thermosphere">Earth + Thermosphere</option>
-                                <option value="mars">Mars (CO₂, 0.6% Earth)</option>
-                                <option value="venus">Venus (dense CO₂)</option>
-                                <option value="titan">Titan (N₂, 1.5x Earth)</option>
-                                <option value="none">None (vacuum)</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pb-env-section">
-                <div class="pb-payload-category">Magnetic Field & Ionosphere</div>
-
-                <div class="pb-sensor-group">
-                    <label class="pb-checkbox-item">
-                        <input type="checkbox" id="pb-env-magnetic" ${_formState.environment.magneticField.enabled ? 'checked' : ''} />
-                        <span class="pb-check-label">Magnetic Field</span>
-                        <span class="pb-check-desc">Required for EMP propagation & charged particle effects</span>
-                    </label>
-                    <div class="pb-sub-fields pb-env-config" data-env="magnetic" style="display: ${_formState.environment.magneticField.enabled ? 'block' : 'none'}">
-                        <div class="pb-coe-row">
-                            <div class="pb-coe-field">
-                                <label>Model</label>
-                                <select id="pb-env-magnetic-model">
-                                    <option value="earth_dipole" selected>Earth Dipole (IGRF)</option>
-                                    <option value="jupiter">Jupiter (14x Earth)</option>
-                                    <option value="custom">Custom Intensity</option>
-                                </select>
-                            </div>
-                            <div class="pb-coe-field">
-                                <label>Intensity Multiplier</label>
-                                <input type="number" id="pb-env-magnetic-intensity" value="${_formState.environment.magneticField.intensity}" min="0.1" max="100" step="0.1" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="pb-sensor-group">
-                    <label class="pb-checkbox-item">
-                        <input type="checkbox" id="pb-env-ionosphere" ${_formState.environment.ionosphere.enabled ? 'checked' : ''} />
-                        <span class="pb-check-label">Ionosphere</span>
-                        <span class="pb-check-desc">Affects RF propagation, EMP coupling, aurora</span>
-                    </label>
-                    <div class="pb-sub-fields pb-env-config" data-env="ionosphere" style="display: ${_formState.environment.ionosphere.enabled ? 'block' : 'none'}">
-                        <div class="pb-coe-row">
-                            <div class="pb-coe-field">
-                                <label>Model</label>
-                                <select id="pb-env-ionosphere-model">
-                                    <option value="standard" selected>Standard (IRI)</option>
-                                    <option value="solar_max">Solar Maximum</option>
-                                    <option value="solar_min">Solar Minimum</option>
-                                </select>
-                            </div>
-                            <div class="pb-coe-field">
-                                <label>Disturbance</label>
-                                <select id="pb-env-ionosphere-disturbance">
-                                    <option value="none" selected>None</option>
-                                    <option value="minor_storm">Minor Storm (Kp=5)</option>
-                                    <option value="major_storm">Major Storm (Kp=7)</option>
-                                    <option value="extreme">Extreme (Kp=9)</option>
-                                    <option value="nuclear_emp">Nuclear EMP Event</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="pb-env-section">
-                <div class="pb-payload-category">Radiation Environment</div>
-
-                <div class="pb-sensor-group">
-                    <label class="pb-checkbox-item">
-                        <input type="checkbox" id="pb-env-radiation" ${_formState.environment.radiationBelt.enabled ? 'checked' : ''} />
-                        <span class="pb-check-label">Radiation Belts</span>
-                        <span class="pb-check-desc">Van Allen belts, affects satellite survivability</span>
-                    </label>
-                    <div class="pb-sub-fields pb-env-config" data-env="radiation" style="display: ${_formState.environment.radiationBelt.enabled ? 'block' : 'none'}">
-                        <div class="pb-coe-row">
-                            <div class="pb-coe-field">
-                                <label>Model</label>
-                                <select id="pb-env-radiation-model">
-                                    <option value="van_allen" selected>Van Allen (AP-8/AE-8)</option>
-                                    <option value="starfish_enhanced">Starfish-Enhanced</option>
-                                    <option value="jupiter">Jupiter (extreme)</option>
-                                </select>
-                            </div>
-                            <div class="pb-coe-field">
-                                <label>Intensity</label>
-                                <input type="number" id="pb-env-radiation-intensity" value="${_formState.environment.radiationBelt.intensity}" min="0.1" max="10" step="0.1" />
-                            </div>
-                        </div>
-                        <div class="pb-env-hint">Starfish Prime created artificial radiation belts that persisted for years</div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        return tab;
-    }
+    // Environment tab removed — settings moved to global EnvironmentDialog
 
     function _createButtons() {
         const btns = document.createElement('div');
@@ -1438,55 +1290,7 @@ const PlatformBuilder = (function() {
             _formState.payload.nuclearCruiseMissile.burstType = e.target.value;
         });
 
-        // Environment inputs
-        document.getElementById('pb-env-gravity')?.addEventListener('change', e => {
-            _formState.environment.gravity.model = e.target.value;
-            const customField = document.getElementById('pb-env-custom-mu-field');
-            if (customField) customField.style.display = e.target.value === 'custom' ? 'block' : 'none';
-        });
-        document.getElementById('pb-env-custom-mu')?.addEventListener('input', e => {
-            _formState.environment.gravity.customMu = parseFloat(e.target.value) || 3.986e14;
-        });
-        document.getElementById('pb-env-atmosphere')?.addEventListener('change', e => {
-            _formState.environment.atmosphere.model = e.target.value;
-        });
-
-        // Environment toggles
-        document.getElementById('pb-env-magnetic')?.addEventListener('change', e => {
-            _formState.environment.magneticField.enabled = e.target.checked;
-            const config = document.querySelector('.pb-env-config[data-env="magnetic"]');
-            if (config) config.style.display = e.target.checked ? 'block' : 'none';
-        });
-        document.getElementById('pb-env-magnetic-model')?.addEventListener('change', e => {
-            _formState.environment.magneticField.model = e.target.value;
-        });
-        document.getElementById('pb-env-magnetic-intensity')?.addEventListener('input', e => {
-            _formState.environment.magneticField.intensity = parseFloat(e.target.value) || 1.0;
-        });
-
-        document.getElementById('pb-env-ionosphere')?.addEventListener('change', e => {
-            _formState.environment.ionosphere.enabled = e.target.checked;
-            const config = document.querySelector('.pb-env-config[data-env="ionosphere"]');
-            if (config) config.style.display = e.target.checked ? 'block' : 'none';
-        });
-        document.getElementById('pb-env-ionosphere-model')?.addEventListener('change', e => {
-            _formState.environment.ionosphere.model = e.target.value;
-        });
-        document.getElementById('pb-env-ionosphere-disturbance')?.addEventListener('change', e => {
-            _formState.environment.ionosphere.disturbance = e.target.value;
-        });
-
-        document.getElementById('pb-env-radiation')?.addEventListener('change', e => {
-            _formState.environment.radiationBelt.enabled = e.target.checked;
-            const config = document.querySelector('.pb-env-config[data-env="radiation"]');
-            if (config) config.style.display = e.target.checked ? 'block' : 'none';
-        });
-        document.getElementById('pb-env-radiation-model')?.addEventListener('change', e => {
-            _formState.environment.radiationBelt.model = e.target.value;
-        });
-        document.getElementById('pb-env-radiation-intensity')?.addEventListener('input', e => {
-            _formState.environment.radiationBelt.intensity = parseFloat(e.target.value) || 1.0;
-        });
+        // Environment settings moved to global EnvironmentDialog
     }
 
     function _updatePhysicsVisibility() {
@@ -1836,54 +1640,7 @@ const PlatformBuilder = (function() {
             platform._custom.activePayloads = payloads;
         }
 
-        // Environment configuration (stored in platform for scenario-level settings)
-        const env = _formState.environment;
-        const hasEnvConfig = env.magneticField.enabled || env.ionosphere.enabled ||
-                            env.radiationBelt.enabled || env.gravity.model !== 'earth' ||
-                            env.atmosphere.model !== 'earth_standard';
-        if (hasEnvConfig) {
-            platform._custom.environment = {
-                gravity: {
-                    model: env.gravity.model,
-                    mu: _getGravityMu(env.gravity.model, env.gravity.customMu)
-                },
-                atmosphere: {
-                    model: env.atmosphere.model
-                }
-            };
-            if (env.magneticField.enabled) {
-                platform._custom.environment.magneticField = {
-                    model: env.magneticField.model,
-                    intensity: env.magneticField.intensity
-                };
-            }
-            if (env.ionosphere.enabled) {
-                platform._custom.environment.ionosphere = {
-                    model: env.ionosphere.model,
-                    disturbance: env.ionosphere.disturbance
-                };
-            }
-            if (env.radiationBelt.enabled) {
-                platform._custom.environment.radiationBelt = {
-                    model: env.radiationBelt.model,
-                    intensity: env.radiationBelt.intensity
-                };
-            }
-        }
-
         return platform;
-    }
-
-    function _getGravityMu(model, customMu) {
-        switch (model) {
-            case 'earth': return 3.986004418e14;
-            case 'moon': return 4.9048695e12;
-            case 'mars': return 4.282837e13;
-            case 'jupiter': return 1.26686534e17;
-            case 'venus': return 3.24859e14;
-            case 'custom': return customMu;
-            default: return 3.986004418e14;
-        }
     }
 
     function _getA2ALoadout(loadoutType) {
@@ -1956,15 +1713,6 @@ const PlatformBuilder = (function() {
         if (_formState.payload.nuclearWarhead.enabled) payloads.push('☢NUKE');
         if (_formState.payload.nuclearCruiseMissile.enabled) payloads.push('☢ALCM');
         if (payloads.length > 0) parts.push(payloads.join('/'));
-
-        // Environment
-        const env = _formState.environment;
-        const envParts = [];
-        if (env.gravity.model !== 'earth') envParts.push(env.gravity.model);
-        if (env.magneticField.enabled) envParts.push('B-field');
-        if (env.ionosphere.enabled) envParts.push('iono');
-        if (env.radiationBelt.enabled) envParts.push('rad');
-        if (envParts.length > 0) parts.push('env:' + envParts.join('/'));
 
         return 'Custom: ' + parts.join(', ');
     }
@@ -2110,15 +1858,6 @@ const PlatformBuilder = (function() {
                 });
             }
 
-            // Environment
-            if (c.environment) {
-                Object.keys(c.environment).forEach(function(key) {
-                    if (_formState.environment[key]) {
-                        Object.assign(_formState.environment[key], c.environment[key]);
-                    }
-                });
-            }
-
             // Model
             if (c.model) {
                 _formState.model = Object.assign({ file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 }, c.model);
@@ -2138,7 +1877,7 @@ const PlatformBuilder = (function() {
             if (teamEl) teamEl.value = _formState.team;
 
             // Physics radio
-            var physRadio = document.querySelector('input[name="pb-physics"][value="' + _formState.physics.mode + '"]');
+            var physRadio = document.querySelector('input[name="physics-mode"][value="' + _formState.physics.mode + '"]');
             if (physRadio) { physRadio.checked = true; physRadio.dispatchEvent(new Event('change')); }
 
             // Propulsion checkboxes
@@ -2270,7 +2009,10 @@ const PlatformBuilder = (function() {
         modeSelect.className = 'custom-placement-mode';
         var isAtmospheric = platform.components && platform.components.physics &&
             platform.components.physics.type === 'flight3dof';
-        var defaultMode = isAtmospheric ? 'aircraft' : 'spacecraft';
+        // Default to 'spacecraft' if orbital physics OR space-capable propulsion
+        var hasSpaceProp = platform._custom && platform._custom.propulsion &&
+            (platform._custom.propulsion.rocket || platform._custom.propulsion.hypersonic || platform._custom.propulsion.ion);
+        var defaultMode = (isAtmospheric && !hasSpaceProp) ? 'aircraft' : 'spacecraft';
         [{ v: 'spacecraft', l: 'Space' }, { v: 'aircraft', l: 'Air' }, { v: 'ground', l: 'Ground' }].forEach(function(m) {
             var opt = document.createElement('option');
             opt.value = m.v;
@@ -2659,28 +2401,6 @@ const PlatformBuilder = (function() {
                 padding: 6px;
                 background: rgba(255, 120, 0, 0.1);
                 border-radius: 3px;
-            }
-            .pb-env-section {
-                margin-bottom: 16px;
-            }
-            .pb-env-note {
-                color: #666;
-                font-size: 11px;
-                margin-bottom: 16px;
-                font-style: italic;
-            }
-            .pb-env-hint {
-                font-size: 10px;
-                color: #888;
-                margin-top: 6px;
-                font-style: italic;
-            }
-            .pb-env-config {
-                margin-left: 24px;
-                padding: 10px;
-                background: #0f0f1a;
-                border-radius: 4px;
-                margin-top: 6px;
             }
             .pb-model-select {
                 width: 100%;

@@ -595,6 +595,19 @@ const FighterSimEngine = (function() {
             thrust = getThrust(state, config, atm).thrust;
         }
 
+        // Force-free vacuum: use analytic Kepler propagation instead of Euler.
+        // This eliminates secular drift in orbital elements from integration error.
+        // Check both computed thrust AND throttle/engine state — idle thrust at
+        // orbital altitude should be negligible, but ROCKET/HYPERSONIC modes with
+        // any throttle produce significant thrust even in vacuum.
+        var effectivelyNoThrust = thrust < 1 || !state.engineOn || state.throttle <= 0.001;
+        if (isSpaceplane && aeroBlend < 0.01 && effectivelyNoThrust) {
+            if (stepKeplerVacuum(state, controls, dt, config)) {
+                return; // Kepler step succeeded — skip Euler integration
+            }
+            // Fall through to Euler if Kepler failed (degenerate orbit, escape, etc.)
+        }
+
         // Equations of motion
         const V = Math.max(state.speed, isSpaceplane ? 1 : 10);
 
@@ -626,10 +639,15 @@ const FighterSimEngine = (function() {
             dGamma = (lift * Math.cos(state.roll) + thrust * sinAlpha - W * Math.cos(state.gamma)) / (mass * V);
         }
 
-        // dψ/dt = (L·sin(φ) + T_lateral) / (m·V·cos(γ))
+        // dψ/dt = (L·sin(φ) + T_lateral) / (m·V·cos(γ)) + V·cos(γ)·sin(ψ)·tan(φ)/R
+        // The second term is the spherical transport rate — meridian convergence on a sphere.
+        // Without it, heading drifts with latitude, causing inclination/eccentricity oscillation.
         const cosGamma = Math.cos(state.gamma);
-        const dHeading = (Math.abs(cosGamma) > 0.01) ?
+        const dHeading_aero = (Math.abs(cosGamma) > 0.01) ?
             (lift * Math.sin(state.roll) + thrustLateral) / (mass * V * cosGamma) : 0;
+        const dHeading_transport = (isSpaceplane && Math.abs(Math.cos(state.lat)) > 0.001) ?
+            V * cosGamma * Math.sin(state.heading) * Math.tan(state.lat) / (R_EARTH + state.alt) : 0;
+        const dHeading = dHeading_aero + dHeading_transport;
 
         // G-load calculation
         state.g_load = W > 0 ? lift / W : 0;
@@ -783,6 +801,200 @@ const FighterSimEngine = (function() {
                 state.yaw *= (1 - 3.0 * dt);
             }
         }
+    }
+
+    /**
+     * Analytic Kepler propagation for force-free vacuum flight.
+     * Replaces Euler integration when aeroBlend ≈ 0 and thrust ≈ 0,
+     * eliminating secular drift in orbital elements (inc, ecc, sma).
+     *
+     * Flow: geodetic → Cartesian → orbital elements → advance mean anomaly
+     *       → new Cartesian → geodetic
+     *
+     * The physics engine uses a non-rotating frame, so geodetic↔Cartesian
+     * conversion is direct (no GMST rotation needed).
+     */
+    function stepKeplerVacuum(state, controls, dt, config) {
+        const V = state.speed;
+        if (V < 100) return false; // too slow for meaningful orbit
+
+        // --- Geodetic → Cartesian position ---
+        const R = R_EARTH + state.alt;
+        const cosLat = Math.cos(state.lat);
+        const sinLat = Math.sin(state.lat);
+        const cosLon = Math.cos(state.lon);
+        const sinLon = Math.sin(state.lon);
+
+        const px = R * cosLat * cosLon;
+        const py = R * cosLat * sinLon;
+        const pz = R * sinLat;
+
+        // --- Velocity: (speed, heading, gamma) → Cartesian via ENU ---
+        const cosGamma = Math.cos(state.gamma);
+        const sinGamma = Math.sin(state.gamma);
+        const cosHdg = Math.cos(state.heading);
+        const sinHdg = Math.sin(state.heading);
+
+        const vE = V * cosGamma * sinHdg;
+        const vN = V * cosGamma * cosHdg;
+        const vU = V * sinGamma;
+
+        // ENU → Cartesian (non-rotating frame)
+        const vx = -sinLon * vE + (-sinLat * cosLon) * vN + cosLat * cosLon * vU;
+        const vy =  cosLon * vE + (-sinLat * sinLon) * vN + cosLat * sinLon * vU;
+        const vz =                  cosLat * vN            + sinLat * vU;
+
+        // --- Compute orbital elements ---
+        const rMag = Math.sqrt(px*px + py*py + pz*pz);
+        const vMag = Math.sqrt(vx*vx + vy*vy + vz*vz);
+        if (rMag < 1000 || vMag < 10) return false;
+
+        // Angular momentum h = r × v
+        const hx = py*vz - pz*vy;
+        const hy = pz*vx - px*vz;
+        const hz = px*vy - py*vx;
+        const hMag = Math.sqrt(hx*hx + hy*hy + hz*hz);
+        if (hMag < 1e3) return false;
+
+        // Energy → SMA
+        const energy = 0.5 * vMag * vMag - MU_EARTH / rMag;
+        if (energy >= 0) return false; // escape/parabolic — fall back to Euler
+
+        const sma = -MU_EARTH / (2 * energy);
+        if (sma <= 0 || !isFinite(sma)) return false;
+
+        // Eccentricity vector
+        const rdotv = px*vx + py*vy + pz*vz;
+        const c1 = vMag*vMag - MU_EARTH / rMag;
+        const ex = (c1*px - rdotv*vx) / MU_EARTH;
+        const ey = (c1*py - rdotv*vy) / MU_EARTH;
+        const ez = (c1*pz - rdotv*vz) / MU_EARTH;
+        const ecc = Math.sqrt(ex*ex + ey*ey + ez*ez);
+        if (ecc >= 0.99) return false; // near-parabolic
+
+        // Inclination
+        const inc = Math.acos(clamp(hz / hMag, -1, 1));
+
+        // Node vector n = K × h = (-hy, hx, 0)
+        const nx = -hy, ny = hx;
+        const nMag = Math.sqrt(nx*nx + ny*ny);
+
+        // RAAN
+        let raan = 0;
+        if (nMag > 1e-6) {
+            raan = Math.acos(clamp(nx / nMag, -1, 1));
+            if (ny < 0) raan = 2 * Math.PI - raan;
+        }
+
+        // Argument of periapsis
+        let argPeri = 0;
+        if (nMag > 1e-6 && ecc > 1e-6) {
+            argPeri = Math.acos(clamp((nx*ex + ny*ey) / (nMag * ecc), -1, 1));
+            if (ez < 0) argPeri = 2 * Math.PI - argPeri;
+        }
+
+        // True anomaly
+        let trueAnomaly = 0;
+        if (ecc > 1e-6) {
+            trueAnomaly = Math.acos(clamp((ex*px + ey*py + ez*pz) / (ecc * rMag), -1, 1));
+            if (rdotv < 0) trueAnomaly = 2 * Math.PI - trueAnomaly;
+        } else {
+            // Circular orbit: use argument of latitude
+            if (nMag > 1e-6) {
+                trueAnomaly = Math.acos(clamp((nx*px + ny*py) / (nMag * rMag), -1, 1));
+                if (pz < 0) trueAnomaly = 2 * Math.PI - trueAnomaly;
+            }
+        }
+
+        // --- Advance mean anomaly by dt ---
+        const sinTA = Math.sin(trueAnomaly);
+        const cosTA = Math.cos(trueAnomaly);
+        const E0 = Math.atan2(Math.sqrt(1 - ecc*ecc) * sinTA, ecc + cosTA);
+        let M0 = E0 - ecc * Math.sin(E0);
+        if (M0 < 0) M0 += 2 * Math.PI;
+
+        const n_mean = Math.sqrt(MU_EARTH / (sma * sma * sma));
+        let M = (M0 + n_mean * dt) % (2 * Math.PI);
+        if (M < 0) M += 2 * Math.PI;
+
+        // Solve Kepler's equation (Newton-Raphson)
+        let E = M;
+        for (let iter = 0; iter < 20; iter++) {
+            const dE = (E - ecc * Math.sin(E) - M) / (1 - ecc * Math.cos(E));
+            E -= dE;
+            if (Math.abs(dE) < 1e-12) break;
+        }
+
+        const cosE = Math.cos(E);
+        const sinE = Math.sin(E);
+        const nu = Math.atan2(Math.sqrt(1 - ecc*ecc) * sinE, cosE - ecc);
+        const r_new = sma * (1 - ecc * cosE);
+
+        // --- Perifocal → Cartesian ---
+        const xP = r_new * Math.cos(nu);
+        const yP = r_new * Math.sin(nu);
+        const vCoeff = Math.sqrt(MU_EARTH / (sma * (1 - ecc*ecc)));
+        const vxP = -vCoeff * Math.sin(nu);
+        const vyP = vCoeff * (ecc + Math.cos(nu));
+
+        const cosW = Math.cos(argPeri), sinW = Math.sin(argPeri);
+        const cosI = Math.cos(inc), sinI = Math.sin(inc);
+        const cosO = Math.cos(raan), sinO = Math.sin(raan);
+
+        const Px = cosO*cosW - sinO*sinW*cosI;
+        const Py = sinO*cosW + cosO*sinW*cosI;
+        const Pz = sinW*sinI;
+        const Qx = -cosO*sinW - sinO*cosW*cosI;
+        const Qy = -sinO*sinW + cosO*cosW*cosI;
+        const Qz = cosW*sinI;
+
+        const nx2 = Px*xP + Qx*yP;
+        const ny2 = Py*xP + Qy*yP;
+        const nz2 = Pz*xP + Qz*yP;
+
+        const nvx2 = Px*vxP + Qx*vyP;
+        const nvy2 = Py*vxP + Qy*vyP;
+        const nvz2 = Pz*vxP + Qz*vyP;
+
+        // --- Cartesian → geodetic ---
+        const R2 = Math.sqrt(nx2*nx2 + ny2*ny2 + nz2*nz2);
+        const V2 = Math.sqrt(nvx2*nvx2 + nvy2*nvy2 + nvz2*nvz2);
+        if (!isFinite(R2) || !isFinite(V2) || R2 < R_EARTH * 0.5) return false;
+
+        const newLat = Math.asin(clamp(nz2 / R2, -1, 1));
+        const newLon = Math.atan2(ny2, nx2);
+        const newAlt = R2 - R_EARTH;
+
+        // Velocity → ENU at new position
+        const cosLat2 = Math.cos(newLat);
+        const sinLat2 = Math.sin(newLat);
+        const cosLon2 = Math.cos(newLon);
+        const sinLon2 = Math.sin(newLon);
+
+        const vE2 = -sinLon2*nvx2 + cosLon2*nvy2;
+        const vN2 = -sinLat2*cosLon2*nvx2 - sinLat2*sinLon2*nvy2 + cosLat2*nvz2;
+        const vU2 = cosLat2*cosLon2*nvx2 + cosLat2*sinLon2*nvy2 + sinLat2*nvz2;
+
+        const newGamma = Math.asin(clamp(vU2 / V2, -1, 1));
+        let newHeading = Math.atan2(vE2, vN2);
+        if (newHeading < 0) newHeading += 2 * Math.PI;
+
+        // --- Write back to state ---
+        state.lat = newLat;
+        state.lon = newLon;
+        state.alt = newAlt;
+        state.speed = V2;
+        state.gamma = newGamma;
+        state.heading = newHeading;
+        state.pitch = state.gamma + state.alpha;
+
+        // Vacuum yaw (cosmetic nose direction — preserved across Kepler step)
+        if (controls.yaw) {
+            state.yawOffset = (state.yawOffset || 0) + controls.yaw * config.max_pitch_rate * dt;
+            state.yawOffset = wrapAngle(state.yawOffset);
+        }
+
+        return true; // success
     }
 
     /**

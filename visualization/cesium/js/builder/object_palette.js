@@ -915,8 +915,11 @@ var ObjectPalette = (function() {
             // Placement mode dropdown
             var modeSelect = document.createElement('select');
             modeSelect.className = 'palette-placement-mode';
-            var defaultMode = (tpl.components && tpl.components.physics &&
-                tpl.components.physics.type === 'flight3dof') ? 'aircraft' : 'spacecraft';
+            var isAtmo = tpl.components && tpl.components.physics &&
+                tpl.components.physics.type === 'flight3dof';
+            var hasSpaceProp = tpl._custom && tpl._custom.propulsion &&
+                (tpl._custom.propulsion.rocket || tpl._custom.propulsion.hypersonic || tpl._custom.propulsion.ion);
+            var defaultMode = (isAtmo && !hasSpaceProp) ? 'aircraft' : 'spacecraft';
             var modes = [
                 { value: 'spacecraft', label: 'Space' },
                 { value: 'aircraft', label: 'Air' },
