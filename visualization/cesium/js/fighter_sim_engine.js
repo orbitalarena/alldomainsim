@@ -57,6 +57,7 @@ const FighterSimEngine = (function() {
         brake_decel: 4.0,         // m/s² ground braking
         ground_friction: 0.03,    // rolling friction coefficient
         idle_thrust_frac: 0.05,   // fraction of mil thrust at idle
+        max_mach: 2.05,           // structural Mach limit (overspeed warning)
     };
 
     // X-37S Spaceplane configuration
@@ -138,59 +139,11 @@ const FighterSimEngine = (function() {
     const PROP_MODES = ['AIR', 'HYPERSONIC', 'ROCKET'];
 
     /**
-     * Determine propulsion mode for spaceplane
-     * Uses manual toggle (state.forcedPropMode) — no auto-selection
+     * Determine propulsion mode from player selection.
      * @returns {string} 'AIR', 'HYPERSONIC', or 'ROCKET'
      */
-    function getPropulsionMode(state, config, atm) {
-        if (!config.isSpaceplane) return 'AIR';
-
-        // Manual mode selection
-        if (state.forcedPropMode) return state.forcedPropMode;
-
-        return 'AIR'; // default
-    }
-
-    /**
-     * Get thrust for spaceplane multi-mode propulsion
-     */
-    function getSpaceplaneThrust(state, config, atm) {
-        if (!state.engineOn) return { thrust: 0, sfc: 0, mode: 'OFF' };
-
-        const mode = getPropulsionMode(state, config, atm);
-        state.propulsionMode = mode;
-
-        let thrust;
-
-        if (mode === 'ROCKET') {
-            // Rocket: 2 MN constant, no atmospheric lapse. Dramatic kick.
-            thrust = state.throttle * config.thrust_rocket;
-            return { thrust, sfc: 0, mode };
-        }
-
-        if (mode === 'HYPERSONIC') {
-            // Hypersonic: 400 kN flat, no density lapse. Works everywhere.
-            thrust = state.throttle * config.thrust_hypersonic;
-            return { thrust, sfc: 0, mode };
-        }
-
-        // AIR mode: air-breathing with density lapse
-        const abThreshold = 0.85;
-        const thrustLapse = Math.pow(atm.density / Atmosphere.SEA_LEVEL_DENSITY, 0.7);
-
-        if (state.throttle > abThreshold) {
-            const abFrac = (state.throttle - abThreshold) / (1.0 - abThreshold);
-            thrust = config.thrust_mil + abFrac * (config.thrust_ab - config.thrust_mil);
-        } else if (state.throttle > 0.05) {
-            const milFrac = (state.throttle - 0.05) / (abThreshold - 0.05);
-            thrust = config.idle_thrust_frac * config.thrust_mil +
-                     milFrac * (1.0 - config.idle_thrust_frac) * config.thrust_mil;
-        } else {
-            thrust = config.idle_thrust_frac * config.thrust_mil;
-        }
-
-        thrust *= thrustLapse;
-        return { thrust, sfc: 0, mode };
+    function getPropulsionMode(state) {
+        return state.forcedPropMode || 'AIR';
     }
 
     /**
@@ -267,42 +220,56 @@ const FighterSimEngine = (function() {
     }
 
     /**
-     * Compute available thrust at altitude
-     * Thrust lapse: T = T_sl * (rho/rho_sl)^0.7
+     * Compute thrust for current propulsion mode.
+     * Handles AIR (density-lapsed), HYPERSONIC (flat), and ROCKET (flat) modes.
+     * Mode is driven by state.forcedPropMode (player P-key toggle).
+     * Default thrust values provided if config doesn't define them.
      */
     function getThrust(state, config, atm) {
-        if (!state.engineOn) return { thrust: 0, sfc: 0 };
+        if (!state.engineOn) return { thrust: 0, sfc: 0, mode: 'OFF' };
 
+        const mode = getPropulsionMode(state);
+        state.propulsionMode = mode;
+
+        if (mode === 'ROCKET') {
+            const rocketThrust = config.thrust_rocket || 5000000;  // 5 MN default
+            return { thrust: state.throttle * rocketThrust, sfc: 0, mode };
+        }
+
+        if (mode === 'HYPERSONIC') {
+            const hyperThrust = config.thrust_hypersonic || 800000;  // 800 kN default
+            return { thrust: state.throttle * hyperThrust, sfc: 0, mode };
+        }
+
+        // AIR mode: air-breathing with density lapse
         const thrustLapse = Math.pow(atm.density / Atmosphere.SEA_LEVEL_DENSITY, 0.7);
         const abThreshold = 0.85;
+        const idleFrac = config.idle_thrust_frac || 0.05;
 
         let thrust, sfc;
         if (state.throttle > abThreshold) {
-            // Afterburner region: interpolate from mil to full AB
             const abFrac = (state.throttle - abThreshold) / (1.0 - abThreshold);
-            thrust = config.thrust_mil + abFrac * (config.thrust_ab - config.thrust_mil);
-            sfc = config.tsfc_mil + abFrac * (config.tsfc_ab - config.tsfc_mil);
+            thrust = config.thrust_mil + abFrac * ((config.thrust_ab || config.thrust_mil) - config.thrust_mil);
+            sfc = (config.tsfc_mil || 0) + abFrac * ((config.tsfc_ab || config.tsfc_mil || 0) - (config.tsfc_mil || 0));
         } else if (state.throttle > 0.05) {
-            // Military power range
             const milFrac = (state.throttle - 0.05) / (abThreshold - 0.05);
-            thrust = config.idle_thrust_frac * config.thrust_mil +
-                     milFrac * (1.0 - config.idle_thrust_frac) * config.thrust_mil;
-            sfc = config.tsfc_mil;
+            thrust = idleFrac * config.thrust_mil +
+                     milFrac * (1.0 - idleFrac) * config.thrust_mil;
+            sfc = config.tsfc_mil || 0;
         } else {
-            // Idle
-            thrust = config.idle_thrust_frac * config.thrust_mil;
-            sfc = config.tsfc_mil;
+            thrust = idleFrac * config.thrust_mil;
+            sfc = config.tsfc_mil || 0;
         }
 
         thrust *= thrustLapse;
 
         // No fuel = no thrust
-        if (state.fuel <= 0) {
+        if (state.fuel !== undefined && isFinite(state.fuel) && state.fuel <= 0) {
             thrust = 0;
             sfc = 0;
         }
 
-        return { thrust, sfc };
+        return { thrust, sfc, mode };
     }
 
     /**
@@ -361,7 +328,7 @@ const FighterSimEngine = (function() {
         state.mach = state.speed / atm.speedOfSound;
 
         const mass = getMass(state, config);
-        const g = config.isSpaceplane ? getGravity(state.alt) : G;
+        const g = getGravity(state.alt);
         const weight = mass * g;
         const qS = atm.dynamicPressure(state.speed) * config.wing_area; // q * S
 
@@ -547,157 +514,119 @@ const FighterSimEngine = (function() {
 
     /**
      * Flight phase - full 3-DOF aerodynamics
-     * Supports both fighter (constant G, atmosphere-only) and spaceplane
-     * (inverse-square gravity, centrifugal term, aero blend, multi-mode thrust)
+     * Unified physics model: behavior driven by dynamic pressure and altitude,
+     * not vehicle type. All entities get inverse-square gravity, centrifugal
+     * term, aero blend, multi-mode thrust, and Kepler vacuum propagation.
      */
     function stepFlight(state, controls, dt, config, atm, mass, weight, qS) {
-        const isSpaceplane = config.isSpaceplane;
-
-        // Compute aero blend factor early — needed by applyFlightControls
+        // Aero blend from dynamic pressure — drives regime transitions
         const q = atm.dynamicPressure(state.speed);
-        const aeroBlend = isSpaceplane ? getAeroBlendFactor(q) : 1.0;
+        const aeroBlend = getAeroBlendFactor(q);
 
-        // Apply control inputs (pass aeroBlend for vacuum rotation freedom)
+        // Apply control inputs (aeroBlend determines vacuum vs atmospheric behavior)
         applyThrottleControl(state, controls, dt);
         applyFlightControls(state, controls, dt, config, atm, mass, weight, qS, aeroBlend);
 
-        // Gravity model
-        const g = isSpaceplane ? getGravity(state.alt) : G;
+        // Inverse-square gravity for all entities
+        const g = getGravity(state.alt);
         const W = mass * g;
 
-        // Aerodynamic forces with blend factor for spaceplane
+        // Aerodynamic forces with blend factor
         const aero = getAeroCoeffs(state, config);
 
-        // Hypersonic aero coefficient adjustments for spaceplane
+        // Hypersonic aero coefficient adjustments (if config defines them)
         let effectiveConfig = config;
-        if (isSpaceplane && state.mach > 5) {
-            // Blend to hypersonic coefficients above Mach 5
-            const hyperBlend = Math.min((state.mach - 5) / 3, 1.0); // fully hypersonic by Mach 8
+        if (config.cd0_hypersonic && state.mach > 5) {
+            const hyperBlend = Math.min((state.mach - 5) / 3, 1.0);
             effectiveConfig = Object.assign({}, config, {
-                cl_alpha: config.cl_alpha * (1 - hyperBlend) + config.cl_alpha_hypersonic * hyperBlend,
+                cl_alpha: config.cl_alpha * (1 - hyperBlend) +
+                    (config.cl_alpha_hypersonic || config.cl_alpha) * hyperBlend,
             });
             aero.cd0 = aero.cd0 * (1 - hyperBlend) + config.cd0_hypersonic * hyperBlend;
         }
 
-        // Compute lift coefficient from current alpha
         const cl = getCL(state.alpha, effectiveConfig, aero);
         const cd = getCD(cl, config, aero, state.mach);
 
         const lift = qS * cl * aeroBlend;
         const drag = qS * cd * aeroBlend;
 
-        // Thrust
-        let thrust;
-        if (isSpaceplane) {
-            const thrustResult = getSpaceplaneThrust(state, config, atm);
-            thrust = thrustResult.thrust;
-        } else {
-            thrust = getThrust(state, config, atm).thrust;
-        }
+        // Unified thrust (handles AIR/HYPERSONIC/ROCKET modes)
+        const thrust = getThrust(state, config, atm).thrust;
 
-        // Force-free vacuum: use analytic Kepler propagation instead of Euler.
-        // This eliminates secular drift in orbital elements from integration error.
-        // Check both computed thrust AND throttle/engine state — idle thrust at
-        // orbital altitude should be negligible, but ROCKET/HYPERSONIC modes with
-        // any throttle produce significant thrust even in vacuum.
+        // Force-free vacuum: analytic Kepler propagation eliminates Euler drift.
+        // Controls (roll/alpha/yaw) are already applied above via applyFlightControls.
+        // Kepler handles position/velocity propagation; controls update attitude for
+        // visual feedback and for when thrust resumes.
         var effectivelyNoThrust = thrust < 1 || !state.engineOn || state.throttle <= 0.001;
-        if (isSpaceplane && aeroBlend < 0.01 && effectivelyNoThrust) {
-            if (stepKeplerVacuum(state, controls, dt, config)) {
-                return; // Kepler step succeeded — skip Euler integration
-            }
-            // Fall through to Euler if Kepler failed (degenerate orbit, escape, etc.)
+        var usedKepler = false;
+        if (aeroBlend < 0.01 && effectivelyNoThrust) {
+            usedKepler = stepKeplerVacuum(state, controls, dt, config);
         }
 
-        // Equations of motion
-        const V = Math.max(state.speed, isSpaceplane ? 1 : 10);
+        if (!usedKepler) {
+            // Equations of motion (Euler integration — used when thrust active or in atmosphere)
+            const V = Math.max(state.speed, aeroBlend > 0.5 ? 10 : 1);
 
-        // Thrust decomposition: nose direction relative to velocity vector
-        // Prograde component: T·cos(α)·cos(yawOffset)
-        // Normal component:   T·sin(α)          — pitches the flight path
-        // Lateral component:  T·cos(α)·sin(yawOffset) — changes heading (orbit plane)
-        const cosAlpha = Math.cos(state.alpha);
-        const sinAlpha = Math.sin(state.alpha);
-        const yawOff = (isSpaceplane && state.yawOffset) ? state.yawOffset : 0;
-        const cosYaw = Math.cos(yawOff);
-        const sinYaw = Math.sin(yawOff);
+            // Thrust decomposition: nose direction relative to velocity vector
+            const cosAlpha = Math.cos(state.alpha);
+            const sinAlpha = Math.sin(state.alpha);
+            const yawOff = state.yawOffset || 0;
+            const cosYaw = Math.cos(yawOff);
+            const sinYaw = Math.sin(yawOff);
 
-        const thrustPrograde = thrust * cosAlpha * cosYaw;
-        const thrustNormal   = thrust * sinAlpha;
-        const thrustLateral  = thrust * cosAlpha * sinYaw;
+            const thrustPrograde = thrust * cosAlpha * cosYaw;
+            const thrustNormal   = thrust * sinAlpha;
+            const thrustLateral  = thrust * cosAlpha * sinYaw;
 
-        // dV/dt = (T_prograde - D)/m - g·sin(γ)
-        const dV = (thrustPrograde - drag) / mass - g * Math.sin(state.gamma);
+            // dV/dt = (T_prograde - D)/m - g·sin(γ)
+            const dV = (thrustPrograde - drag) / mass - g * Math.sin(state.gamma);
 
-        // dγ/dt with centrifugal acceleration for spaceplane
-        let dGamma;
-        if (isSpaceplane) {
-            // centrifugal = V²/(R_EARTH + alt) — supports orbit when V≈7800 m/s
+            // dγ/dt with centrifugal: V²/(R+alt) sustains orbit at ~7800 m/s,
+            // negligible at aircraft speeds (~0.006 m/s² at 200 m/s sea level)
             const centrifugal = V * V / (R_EARTH + state.alt);
-            dGamma = (lift * Math.cos(state.roll) + thrustNormal) / (mass * V)
-                   - (g - centrifugal) * Math.cos(state.gamma) / V;
-        } else {
-            dGamma = (lift * Math.cos(state.roll) + thrust * sinAlpha - W * Math.cos(state.gamma)) / (mass * V);
+            const dGamma = (lift * Math.cos(state.roll) + thrustNormal) / (mass * V)
+                         - (g - centrifugal) * Math.cos(state.gamma) / V;
+
+            // dψ/dt with spherical transport rate for correct great-circle tracking
+            const cosGamma = Math.cos(state.gamma);
+            const dHeading_aero = (Math.abs(cosGamma) > 0.01) ?
+                (lift * Math.sin(state.roll) + thrustLateral) / (mass * V * cosGamma) : 0;
+            const dHeading_transport = (Math.abs(Math.cos(state.lat)) > 0.001) ?
+                V * cosGamma * Math.sin(state.heading) * Math.tan(state.lat) / (R_EARTH + state.alt) : 0;
+            const dHeading = dHeading_aero + dHeading_transport;
+
+            // G-load
+            state.g_load = W > 0 ? lift / W : 0;
+
+            // Integrate
+            state.speed += dV * dt;
+            state.speed = aeroBlend > 0.5 ? Math.max(20, state.speed) : Math.max(0, state.speed);
+
+            state.gamma += dGamma * dt;
+            state.gamma = aeroBlend < 0.5 ? wrapAngle(state.gamma) : clamp(state.gamma, -80 * DEG, 80 * DEG);
+
+            state.heading += dHeading * dt;
+            state.heading = normalizeAngle(state.heading);
+
+            updatePosition(state, dt);
         }
-
-        // dψ/dt = (L·sin(φ) + T_lateral) / (m·V·cos(γ)) + V·cos(γ)·sin(ψ)·tan(φ)/R
-        // The second term is the spherical transport rate — meridian convergence on a sphere.
-        // Without it, heading drifts with latitude, causing inclination/eccentricity oscillation.
-        const cosGamma = Math.cos(state.gamma);
-        const dHeading_aero = (Math.abs(cosGamma) > 0.01) ?
-            (lift * Math.sin(state.roll) + thrustLateral) / (mass * V * cosGamma) : 0;
-        const dHeading_transport = (isSpaceplane && Math.abs(Math.cos(state.lat)) > 0.001) ?
-            V * cosGamma * Math.sin(state.heading) * Math.tan(state.lat) / (R_EARTH + state.alt) : 0;
-        const dHeading = dHeading_aero + dHeading_transport;
-
-        // G-load calculation
-        state.g_load = W > 0 ? lift / W : 0;
-
-        // Integrate
-        state.speed += dV * dt;
-
-        // Speed floor: no minimum for spaceplane in low-aero regime
-        if (isSpaceplane) {
-            if (aeroBlend > 0.5) {
-                state.speed = Math.max(20, state.speed);
-            } else {
-                state.speed = Math.max(0, state.speed);
-            }
-        } else {
-            state.speed = Math.max(20, state.speed);
-        }
-
-        state.gamma += dGamma * dt;
-        // Gamma clamp: spaceplane gets free looping everywhere; F-16 clamps in atmosphere
-        if (isSpaceplane) {
-            state.gamma = wrapAngle(state.gamma);
-        } else {
-            state.gamma = clamp(state.gamma, -80 * DEG, 80 * DEG);
-        }
-
-        state.heading += dHeading * dt;
-        state.heading = normalizeAngle(state.heading);
 
         // Vacuum yaw: RCS repoints the nose without changing velocity vector
-        // yawOffset is cosmetic only — it affects HUD/camera but not trajectory
-        if (isSpaceplane) {
-            if (aeroBlend < 0.5 && controls.yaw) {
-                state.yawOffset = (state.yawOffset || 0) + controls.yaw * config.max_pitch_rate * dt;
-                state.yawOffset = wrapAngle(state.yawOffset);
-            }
-            // Decay yaw offset in atmosphere (aero forces realign nose with velocity)
-            if (aeroBlend > 0.1 && state.yawOffset) {
-                state.yawOffset *= Math.max(0, 1 - aeroBlend * 5 * dt);
-                if (Math.abs(state.yawOffset) < 0.001) state.yawOffset = 0;
-            }
+        // Applied regardless of Kepler/Euler — always allow nose rotation in vacuum
+        if (aeroBlend < 0.5 && controls.yaw) {
+            state.yawOffset = (state.yawOffset || 0) + controls.yaw * config.max_pitch_rate * dt;
+            state.yawOffset = wrapAngle(state.yawOffset);
+        }
+        // Decay yaw offset in atmosphere (aero forces realign nose with velocity)
+        if (aeroBlend > 0.1 && state.yawOffset) {
+            state.yawOffset *= Math.max(0, 1 - aeroBlend * 5 * dt);
+            if (Math.abs(state.yawOffset) < 0.001) state.yawOffset = 0;
         }
 
-        // Update body pitch to approximately track gamma + alpha
         state.pitch = state.gamma + state.alpha;
 
-        // Update geodetic position
-        updatePosition(state, dt);
-
-        // Stall check (only meaningful with significant aero)
+        // Stall check (meaningful only with significant aero)
         if (aeroBlend > 0.3) {
             const stallSpeed = Math.sqrt(2 * W / (atm.density * config.wing_area * aero.cl_max));
             state.isStalling = state.speed < stallSpeed * 0.9;
@@ -705,15 +634,13 @@ const FighterSimEngine = (function() {
             state.isStalling = false;
         }
 
-        // Overspeed check: disabled for spaceplane
-        state.isOverspeed = isSpaceplane ? false : (state.mach > 2.05);
+        // Overspeed: config-driven (default off)
+        state.isOverspeed = config.max_mach ? (state.mach > config.max_mach) : false;
 
-        // Spaceplane: compute orbital velocity fraction for UI
-        if (isSpaceplane) {
-            const orbitalV = Math.sqrt(MU_EARTH / (R_EARTH + state.alt));
-            state.orbitalVfrac = state.speed / orbitalV;
-            state.dynamicPressure = q;
-        }
+        // Always compute orbital telemetry — useful at any altitude
+        const orbitalV = Math.sqrt(MU_EARTH / (R_EARTH + state.alt));
+        state.orbitalVfrac = state.speed / orbitalV;
+        state.dynamicPressure = q;
     }
 
     /**
@@ -747,8 +674,8 @@ const FighterSimEngine = (function() {
         if (!controls.roll && !inVacuum) {
             state.roll *= (1 - 2.0 * dt); // decay toward wings-level
         }
-        // Roll clamp: spaceplane gets free 360° everywhere; F-16 clamps in atmosphere
-        if (inVacuum || config.isSpaceplane) {
+        // Roll clamp: free 360° in vacuum, ±80° in atmosphere
+        if (inVacuum) {
             state.roll = wrapAngle(state.roll);
         } else {
             state.roll = clamp(state.roll, -80 * DEG, 80 * DEG);
@@ -988,11 +915,8 @@ const FighterSimEngine = (function() {
         state.heading = newHeading;
         state.pitch = state.gamma + state.alpha;
 
-        // Vacuum yaw (cosmetic nose direction — preserved across Kepler step)
-        if (controls.yaw) {
-            state.yawOffset = (state.yawOffset || 0) + controls.yaw * config.max_pitch_rate * dt;
-            state.yawOffset = wrapAngle(state.yawOffset);
-        }
+        // Note: yaw/roll/alpha controls are handled by applyFlightControls()
+        // before Kepler runs, and vacuum yaw is applied after in stepFlight().
 
         return true; // success
     }
@@ -1090,7 +1014,6 @@ const FighterSimEngine = (function() {
         getGravity,
         getAeroBlendFactor,
         getPropulsionMode,
-        getSpaceplaneThrust,
         bearing,
         distance,
         normalizeAngle,

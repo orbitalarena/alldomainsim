@@ -203,32 +203,12 @@
         }
 
         init(world) {
-            // Resolve engine config from preset name or config table
+            // Resolve engine config from preset name or config table.
+            // The unified physics engine handles all entities the same —
+            // no config upgrade needed. Thrust defaults (ROCKET/HYPERSONIC)
+            // are provided by getThrust() if the config doesn't define them.
             var presetName = this.config.config;
             this._engineConfig = CONFIGS[presetName] || CONFIGS.f16;
-
-            // If entity has space-capable propulsion (rocket, hypersonic, ion)
-            // but a non-spaceplane config, upgrade to spaceplane physics.
-            // Without isSpaceplane, gravity is constant 9.8 and there's no
-            // centrifugal term — orbital flight is impossible.
-            if (!this._engineConfig.isSpaceplane) {
-                var def = this.entity.def || {};
-                var custom = def._custom || {};
-                var prop = custom.propulsion || {};
-                var compProp = (def.components && def.components.propulsion) || {};
-                var modes = (compProp.modes || []).map(function(m) { return m.toUpperCase(); });
-                var hasSpaceProp = !!(prop.rocket || prop.hypersonic || prop.ion) ||
-                    modes.indexOf('ROCKET') >= 0 || modes.indexOf('HYPERSONIC') >= 0 || modes.indexOf('ION') >= 0;
-
-                if (hasSpaceProp) {
-                    this._engineConfig = Object.assign({}, this._engineConfig, {
-                        isSpaceplane: true,
-                        thrust_hypersonic: this._engineConfig.thrust_hypersonic || 800000,
-                        thrust_rocket: this._engineConfig.thrust_rocket || 5000000,
-                        service_ceiling: Infinity,
-                    });
-                }
-            }
 
             // Ensure weapon mass is set for getMass()
             if (this.entity.state.weaponMass === undefined) {

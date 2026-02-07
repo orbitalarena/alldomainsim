@@ -125,6 +125,85 @@ const GlobeInteraction = (function() {
         return false;
     }
 
+    /**
+     * Convert Classical Orbital Elements to geodetic flight state.
+     * Same math as stepKeplerVacuum: COE → perifocal → Cartesian → geodetic.
+     * Returns { lat (rad), lon (rad), alt (m), speed (m/s), heading (rad), gamma (rad) }
+     */
+    function _coeToFlightState(coe) {
+        var MU = 3.986004418e14;
+        var R_E = 6371000;
+
+        var sma = coe.sma;
+        var ecc = coe.ecc;
+        var inc = coe.inc;        // radians
+        var raan = coe.raan;      // radians
+        var argPeri = coe.argPerigee; // radians
+        var M = coe.meanAnomaly;  // radians
+
+        // Solve Kepler's equation M = E - e·sin(E)
+        var E = M;
+        for (var iter = 0; iter < 20; iter++) {
+            var dE = (E - ecc * Math.sin(E) - M) / (1 - ecc * Math.cos(E));
+            E -= dE;
+            if (Math.abs(dE) < 1e-12) break;
+        }
+
+        // True anomaly
+        var cosE = Math.cos(E), sinE = Math.sin(E);
+        var nu = Math.atan2(Math.sqrt(1 - ecc * ecc) * sinE, cosE - ecc);
+        var r = sma * (1 - ecc * cosE);
+
+        // Perifocal position and velocity
+        var xP = r * Math.cos(nu);
+        var yP = r * Math.sin(nu);
+        var vCoeff = Math.sqrt(MU / (sma * (1 - ecc * ecc)));
+        var vxP = -vCoeff * Math.sin(nu);
+        var vyP = vCoeff * (ecc + Math.cos(nu));
+
+        // Rotation matrix: perifocal → ECI
+        var cosW = Math.cos(argPeri), sinW = Math.sin(argPeri);
+        var cosI = Math.cos(inc), sinI = Math.sin(inc);
+        var cosO = Math.cos(raan), sinO = Math.sin(raan);
+
+        var Px = cosO * cosW - sinO * sinW * cosI;
+        var Py = sinO * cosW + cosO * sinW * cosI;
+        var Pz = sinW * sinI;
+        var Qx = -cosO * sinW - sinO * cosW * cosI;
+        var Qy = -sinO * sinW + cosO * cosW * cosI;
+        var Qz = cosW * sinI;
+
+        // ECI position & velocity
+        var px = Px * xP + Qx * yP;
+        var py = Py * xP + Qy * yP;
+        var pz = Pz * xP + Qz * yP;
+        var vx = Px * vxP + Qx * vyP;
+        var vy = Py * vxP + Qy * vyP;
+        var vz = Pz * vxP + Qz * vyP;
+
+        // ECI → geodetic position
+        var rMag = Math.sqrt(px * px + py * py + pz * pz);
+        var lat = Math.asin(Math.max(-1, Math.min(1, pz / rMag)));
+        var lon = Math.atan2(py, px);
+        var alt = rMag - R_E;
+
+        // ECI velocity → ENU at geodetic position
+        var cosLat = Math.cos(lat), sinLat = Math.sin(lat);
+        var cosLon = Math.cos(lon), sinLon = Math.sin(lon);
+
+        var vE = -sinLon * vx + cosLon * vy;
+        var vN = -sinLat * cosLon * vx - sinLat * sinLon * vy + cosLat * vz;
+        var vU = cosLat * cosLon * vx + cosLat * sinLon * vy + sinLat * vz;
+
+        var speed = Math.sqrt(vE * vE + vN * vN + vU * vU);
+        var vHoriz = Math.sqrt(vE * vE + vN * vN);
+        var heading = Math.atan2(vE, vN);
+        if (heading < 0) heading += 2 * Math.PI;
+        var gamma = Math.atan2(vU, vHoriz);
+
+        return { lat: lat, lon: lon, alt: alt, speed: speed, heading: heading, gamma: gamma };
+    }
+
     function _handlePlacement(screenPosition, template) {
         var cartesian = _pickGlobePosition(screenPosition);
         if (!cartesian) {
@@ -144,38 +223,43 @@ const GlobeInteraction = (function() {
         }
         // placementMode === 'spacecraft' falls through to satellite path
 
-        // Satellite placement: show COE dialog
+        // Satellite/spacecraft placement: show COE dialog, then place with flight3dof
+        // The dropdown controls WHERE the entity is placed (orbital position via COE),
+        // not which physics engine it uses. All entities use the same unified physics.
         if ((placementMode === 'spacecraft' || _isSatelliteTemplate(template)) && typeof SatelliteDialog !== 'undefined') {
             // Exit placement mode immediately so cursor resets
             BuilderApp.cancelPlacement();
 
             SatelliteDialog.show(template, latLon).then(function(coe) {
+                // Convert orbital elements → geodetic flight state
+                var fs = _coeToFlightState(coe);
+
+                // Determine flight3dof config — use spaceplane for orbital entities
+                var configName = 'spaceplane';
+                if (template._custom && template._custom.physics && template._custom.physics.atmospheric) {
+                    configName = template._custom.physics.atmospheric.config || 'spaceplane';
+                }
+
                 var entityDef = {
                     id: (template.type || 'satellite') + '_' + Date.now(),
                     name: template.name || template.type || 'Satellite',
                     type: template.type || 'satellite',
                     team: template.team || 'neutral',
                     initialState: {
-                        lat: latLon.lat,
-                        lon: latLon.lon,
-                        alt: (coe.sma * (1 - coe.ecc)) - 6371000, // periapsis altitude
-                        speed: 0,
-                        heading: 0,
-                        gamma: 0,
+                        lat: fs.lat,
+                        lon: fs.lon,
+                        alt: fs.alt,
+                        speed: fs.speed,
+                        heading: fs.heading,
+                        gamma: fs.gamma,
                         throttle: 0,
                         engineOn: false,
                         infiniteFuel: true
                     },
                     components: Object.assign({}, template.components || {}, {
                         physics: {
-                            type: 'orbital_2body',
-                            source: 'elements',
-                            sma: coe.sma,
-                            eccentricity: coe.ecc,
-                            inclination: coe.inc,
-                            raan: coe.raan,
-                            argPerigee: coe.argPerigee,
-                            meanAnomaly: coe.meanAnomaly
+                            type: 'flight3dof',
+                            config: configName
                         }
                     })
                 };

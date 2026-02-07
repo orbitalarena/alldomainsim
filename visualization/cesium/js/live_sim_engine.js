@@ -27,7 +27,6 @@ const LiveSimEngine = (function() {
     let _playerConfig = null;   // FighterSimEngine config
     let _playerDef = null;      // Original entity definition
     let _autopilotState = null;
-    let _isSpaceplane = false;
 
     let _isPaused = false;
     let _timeWarp = 1;
@@ -249,63 +248,31 @@ const LiveSimEngine = (function() {
         _playerState = entity.state;
         _playerDef = entity.def || {};
 
-        // Determine engine config from physics component
+        // Determine engine config from physics component.
+        // The unified physics model treats all entities the same — no type flags needed.
+        // Orbital entities use SPACEPLANE_CONFIG as a reasonable aero+thrust default.
         var phys = entity.getComponent('physics');
         var physType = phys && phys.config && phys.config.type;
 
         if (physType === 'orbital_2body') {
-            // Orbital entities use spaceplane config (handles vacuum, centrifugal, orbital mechanics)
             _playerConfig = FighterSimEngine.SPACEPLANE_CONFIG;
         } else if (phys && phys._engineConfig) {
             _playerConfig = phys._engineConfig;
         } else {
-            // Fallback: check config name
             var configName = (phys && phys.config && phys.config.config) || 'f16';
             _playerConfig = (configName === 'spaceplane') ?
                 FighterSimEngine.SPACEPLANE_CONFIG : FighterSimEngine.F16_CONFIG;
         }
 
-        // Check if entity has space-capable propulsion (rocket, hypersonic, ion)
-        var hasSpacePropulsion = false;
-        var def = entity.def || {};
-        if (def._custom && def._custom.propulsion) {
-            var p = def._custom.propulsion;
-            hasSpacePropulsion = !!(p.rocket || p.hypersonic || p.ion);
-        }
-        if (!hasSpacePropulsion && def.components && def.components.propulsion) {
-            var modes = def.components.propulsion.modes || [];
-            hasSpacePropulsion = modes.some(function(m) {
-                var u = m.toUpperCase();
-                return u === 'ROCKET' || u === 'HYPERSONIC' || u === 'ION';
-            });
-        }
-
-        // If entity has space propulsion but a non-spaceplane config, upgrade it.
-        // Without isSpaceplane, the physics engine uses constant gravity (9.8 m/s²)
-        // and no centrifugal term — orbital flight is impossible.
-        if (hasSpacePropulsion && !_playerConfig.isSpaceplane) {
-            _playerConfig = Object.assign({}, _playerConfig, {
-                isSpaceplane: true,
-                thrust_hypersonic: _playerConfig.thrust_hypersonic || 800000,
-                thrust_rocket: _playerConfig.thrust_rocket || 5000000,
-                service_ceiling: Infinity,
-            });
-        }
-
-        // Determine if spaceplane-capable (orbital entities are always spaceplane-capable)
-        _isSpaceplane = physType === 'orbital_2body' ||
-                        (_playerConfig === FighterSimEngine.SPACEPLANE_CONFIG) ||
-                        (_playerConfig.isSpaceplane === true) ||
-                        hasSpacePropulsion;
-
         // Determine available propulsion modes
         _propModes = _resolvePropModes(entity);
 
-        // Set initial propulsion mode — orbital entities default to ROCKET
+        // Set initial propulsion mode — high-altitude entities default to ROCKET
         // (AIR mode has zero thrust at orbital altitude due to density lapse)
         if (!_playerState.forcedPropMode) {
             var defaultMode = _propModes[0] || 'AIR';
-            if (physType === 'orbital_2body' && _propModes.indexOf('ROCKET') >= 0) {
+            var isHighAlt = (_playerState.alt || 0) > 100000;
+            if (isHighAlt && _propModes.indexOf('ROCKET') >= 0) {
                 defaultMode = 'ROCKET';
             }
             _playerState.forcedPropMode = defaultMode;
@@ -317,12 +284,12 @@ const LiveSimEngine = (function() {
             _deriveFlightStateFromECI(phys._eciPos, phys._eciVel, _playerState);
         }
 
-        // Ensure critical state fields exist
-        // Orbital entities default to engine off and zero throttle — they coast.
-        // Atmospheric entities default to engine on with 60% throttle — they fly.
-        var isOrbitalEntity = (physType === 'orbital_2body');
-        if (_playerState.throttle === undefined) _playerState.throttle = isOrbitalEntity ? 0 : 0.6;
-        if (_playerState.engineOn === undefined) _playerState.engineOn = !isOrbitalEntity;
+        // Ensure critical state fields exist.
+        // High-altitude entities default to coasting (engine off, zero throttle).
+        // Low-altitude entities default to flying (engine on, 60% throttle).
+        var isHighAlt = (_playerState.alt || 0) > 100000;
+        if (_playerState.throttle === undefined) _playerState.throttle = isHighAlt ? 0 : 0.6;
+        if (_playerState.engineOn === undefined) _playerState.engineOn = !isHighAlt;
         if (_playerState.gearDown === undefined) _playerState.gearDown = false;
         if (_playerState.flapsDown === undefined) _playerState.flapsDown = false;
         if (_playerState.brakesOn === undefined) _playerState.brakesOn = false;
@@ -347,7 +314,6 @@ const LiveSimEngine = (function() {
     }
 
     function _resolvePropModes(entity) {
-        // Check entity definition for propulsion config
         var def = entity.def || {};
 
         // From Platform Builder _custom metadata
@@ -366,13 +332,11 @@ const LiveSimEngine = (function() {
             return compDef.modes.map(function(m) { return m.toUpperCase(); });
         }
 
-        // Default based on config
-        if (_isSpaceplane) return ['AIR', 'HYPERSONIC', 'ROCKET'];
-
-        // Check physics type — orbital entities default to rocket
-        var phys = entity.getComponent('physics');
-        var physType = phys && phys.config && phys.config.type;
-        if (physType === 'orbital_2body') return ['ROCKET', 'ION'];
+        // Detect from config: if config defines rocket/hypersonic thrust, include those modes
+        var modes = ['AIR'];
+        if (_playerConfig && _playerConfig.thrust_hypersonic) modes.push('HYPERSONIC');
+        if (_playerConfig && _playerConfig.thrust_rocket) modes.push('ROCKET');
+        if (modes.length > 1) return modes;
 
         return ['AIR'];
     }
@@ -444,14 +408,9 @@ const LiveSimEngine = (function() {
             }
         }
 
-        // Default sensor loadout by entity type
-        if (!_sensorList.length && (def.type === 'aircraft' || def.type === 'fighter')) {
+        // Default sensor loadout — all platforms get at least RADAR
+        if (!_sensorList.length) {
             _sensorList.push({ name: 'RADAR', type: 'radar' });
-        }
-        if (!_sensorList.length && (def.type === 'satellite' || def.type === 'spacecraft' || _isSpaceplane)) {
-            _sensorList.push({ name: 'RADAR', type: 'radar' });
-            _sensorList.push({ name: 'EO/IR', type: 'optical' });
-            _sensorList.push({ name: 'IR',    type: 'ir' });
         }
     }
 
@@ -661,8 +620,7 @@ const LiveSimEngine = (function() {
             },
         });
 
-        if (!_isSpaceplane) return;
-
+        // Orbit visualization — always created, SpaceplaneOrbital provides data when applicable
         // Current orbit (green)
         _orbitPolyline = _viewer.entities.add({
             name: 'Current Orbit',
@@ -819,6 +777,8 @@ const LiveSimEngine = (function() {
 
     function _positionInitialCamera() {
         if (!_playerState) return;
+        // Start in chase mode — disable Cesium camera controls so arrow keys go to us
+        _viewer.scene.screenSpaceCameraController.enableInputs = false;
         var pos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, _playerState.alt);
         var range = _playerState.alt > 100000 ? 5000 : 200;
         _viewer.camera.lookAt(pos,
@@ -938,7 +898,10 @@ const LiveSimEngine = (function() {
         _cameraMode = modes[(idx + 1) % modes.length];
 
         var isGlobe = _isGlobeMode();
-        _viewer.scene.screenSpaceCameraController.enableInputs = (_cameraMode !== 'cockpit');
+        // Disable Cesium camera controls in chase/cockpit (we position camera manually)
+        // Only enable in free/earth/moon modes where Cesium handles the camera
+        _viewer.scene.screenSpaceCameraController.enableInputs =
+            (_cameraMode === 'free' || _cameraMode === 'earth' || _cameraMode === 'moon');
 
         // Hide player point in cockpit mode
         var vis = _playerEntity.getComponent('visual');
@@ -1003,7 +966,6 @@ const LiveSimEngine = (function() {
     }
 
     function _togglePlannerMode() {
-        if (!_isSpaceplane) return;
         _plannerMode = !_plannerMode;
 
         var modeEl = document.getElementById('modeIndicator');
@@ -1017,7 +979,7 @@ const LiveSimEngine = (function() {
         } else {
             _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
             _cameraMode = 'chase';
-            _viewer.scene.screenSpaceCameraController.enableInputs = true;
+            _viewer.scene.screenSpaceCameraController.enableInputs = false; // chase = we control camera
             _camHeadingOffset = 0;
             _camPitch = -0.3;
             _camRange = _playerState.alt > 100000 ? 5000 : 150;
@@ -1119,7 +1081,8 @@ const LiveSimEngine = (function() {
                 return;
             }
 
-            // Normal cockpit mode
+            // Chase/cockpit/free mode — we handle ALL keys here and always
+            // preventDefault to stop Cesium from consuming arrow keys etc.
             switch (e.code) {
                 case 'Escape':
                     _isPaused = !_isPaused;
@@ -1177,7 +1140,7 @@ const LiveSimEngine = (function() {
                     _showMessage('TIME WARP: ' + _timeWarp + 'x');
                     break;
                 case 'KeyN':
-                    if (_isSpaceplane && typeof SpaceplanePlanner !== 'undefined') {
+                    if (typeof SpaceplanePlanner !== 'undefined') {
                         SpaceplanePlanner.createNode(_playerState, _simElapsed);
                         _showMessage('MANEUVER NODE CREATED');
                     }
@@ -1196,13 +1159,17 @@ const LiveSimEngine = (function() {
                     break;
                 default: handled = false; break;
             }
-            if (handled) { e.preventDefault(); e.stopPropagation(); }
+            // Always prevent default for arrow keys in chase/cockpit/free modes
+            // to stop Cesium from stealing them for camera control
+            var isArrowKey = (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+                              e.code === 'ArrowLeft' || e.code === 'ArrowRight');
+            if (handled || isArrowKey) { e.preventDefault(); e.stopPropagation(); }
         }, true);
 
         window.addEventListener('keyup', function(e) {
             _keys[e.code] = false;
-            // In globe modes, let Cesium handle keyboard events
-            if (_started && !_isGlobeMode()) {
+            // Only capture keyup in chase/cockpit — let free/globe pass to Cesium
+            if (_started && (_cameraMode === 'chase' || _cameraMode === 'cockpit')) {
                 e.preventDefault();
                 e.stopPropagation();
             }
@@ -1351,8 +1318,8 @@ const LiveSimEngine = (function() {
             if (_playerTrail.length > 1000) _playerTrail.shift();
         }
 
-        // 5. Update orbital state
-        if (_isSpaceplane && typeof SpaceplaneOrbital !== 'undefined') {
+        // 5. Update orbital state (always — SpaceplaneOrbital handles regime detection)
+        if (typeof SpaceplaneOrbital !== 'undefined') {
             try {
                 SpaceplaneOrbital.update(_playerState, _simElapsed);
             } catch (orbErr) {
@@ -1365,7 +1332,7 @@ const LiveSimEngine = (function() {
         }
 
         // 6. Update planner
-        if (_isSpaceplane && typeof SpaceplanePlanner !== 'undefined') {
+        if (typeof SpaceplanePlanner !== 'undefined') {
             SpaceplanePlanner.update(_playerState, _simElapsed);
         }
 
@@ -1417,7 +1384,7 @@ const LiveSimEngine = (function() {
                 _playerState._trim = _playerState.trimAlpha;
                 FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
 
-                if (_isSpaceplane && typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {
+                if (typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {
                     SpaceplaneHUD.renderOverlay(hudCanvas, _playerState, _simElapsed);
                 }
             }
@@ -1508,8 +1475,8 @@ const LiveSimEngine = (function() {
         _setText('sysFlaps', _playerState.flapsDown ? 'DOWN' : 'UP');
         _setText('sysBrakes', _playerState.brakesOn ? 'ON' : 'OFF');
 
-        // Flight regime
-        if (_isSpaceplane && typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.flightRegime) {
+        // Flight regime (shown whenever orbital module is loaded)
+        if (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.flightRegime) {
             var regime = SpaceplaneOrbital.flightRegime;
             var regimeColor = regime === 'ORBIT' ? 'blue' :
                 regime === 'ESCAPE' ? 'alert' :
@@ -1553,7 +1520,7 @@ const LiveSimEngine = (function() {
     }
 
     function _updateOrbitalPanel() {
-        if (typeof SpaceplaneOrbital === 'undefined' || !_isSpaceplane) return;
+        if (typeof SpaceplaneOrbital === 'undefined') return;
 
         var elems = SpaceplaneOrbital.orbitalElements;
         var hasValidOrbit = elems && elems.apoapsisAlt != null && elems.apoapsisAlt > 0;
