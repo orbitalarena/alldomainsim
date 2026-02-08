@@ -136,10 +136,11 @@ const GlobeInteraction = (function() {
 
         var sma = coe.sma;
         var ecc = coe.ecc;
-        var inc = coe.inc;        // radians
-        var raan = coe.raan;      // radians
-        var argPeri = coe.argPerigee; // radians
-        var M = coe.meanAnomaly;  // radians
+        var DEG2RAD = Math.PI / 180;
+        var inc = coe.inc * DEG2RAD;             // SatelliteDialog returns degrees
+        var raan = coe.raan * DEG2RAD;
+        var argPeri = coe.argPerigee * DEG2RAD;
+        var M = coe.meanAnomaly * DEG2RAD;
 
         // Solve Kepler's equation M = E - e·sin(E)
         var E = M;
@@ -246,12 +247,12 @@ const GlobeInteraction = (function() {
                     type: template.type || 'satellite',
                     team: template.team || 'neutral',
                     initialState: {
-                        lat: fs.lat,
-                        lon: fs.lon,
+                        lat: fs.lat * 180 / Math.PI,       // rad → deg (loader converts back)
+                        lon: fs.lon * 180 / Math.PI,
                         alt: fs.alt,
                         speed: fs.speed,
-                        heading: fs.heading,
-                        gamma: fs.gamma,
+                        heading: fs.heading * 180 / Math.PI,
+                        gamma: fs.gamma * 180 / Math.PI,
                         throttle: 0,
                         engineOn: false,
                         infiniteFuel: true
@@ -263,6 +264,11 @@ const GlobeInteraction = (function() {
                         }
                     })
                 };
+
+                // Preserve _custom metadata (propulsion modes, sensors, payloads from Platform Builder)
+                if (template._custom) {
+                    entityDef._custom = template._custom;
+                }
 
                 var newId = BuilderApp.addEntity(entityDef);
                 BuilderApp.selectEntity(newId);

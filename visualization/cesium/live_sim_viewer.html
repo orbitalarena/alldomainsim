@@ -340,7 +340,7 @@
         /* ===================== SETTINGS GEAR ===================== */
         #settingsBtn {
             position: absolute;
-            top: 8px; right: 10px;
+            top: 8px; left: 10px;
             width: 32px; height: 32px;
             background: rgba(10, 15, 10, 0.7);
             border: 1px solid #005500;
@@ -360,7 +360,7 @@
 
         #settingsDropdown {
             position: absolute;
-            top: 44px; right: 10px;
+            top: 44px; left: 10px;
             background: rgba(10, 15, 10, 0.92);
             border: 1px solid #00aa00;
             border-radius: 4px;
@@ -408,6 +408,216 @@
             background: #003300;
             margin: 4px 10px;
         }
+        .settings-section-title {
+            padding: 3px 14px;
+            color: #006600;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .settings-row {
+            display: flex;
+            align-items: center;
+            padding: 4px 14px;
+            color: #00aa00;
+            gap: 8px;
+            font-size: 12px;
+        }
+        .settings-row .settings-label { flex: 1; }
+        .settings-row select,
+        .settings-row input[type="number"] {
+            background: rgba(0, 30, 0, 0.8);
+            border: 1px solid #005500;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 2px 4px;
+            width: 60px;
+            border-radius: 2px;
+        }
+        .settings-row select:focus,
+        .settings-row input[type="number"]:focus {
+            border-color: #00ff00;
+            outline: none;
+        }
+
+        /* Maneuver Dialog */
+        #maneuverDialog {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            background: rgba(10, 15, 10, 0.95);
+            border: 1px solid #00aa00;
+            border-radius: 6px;
+            padding: 0;
+            min-width: 320px;
+            font-family: 'Courier New', monospace;
+            color: #00ff00;
+        }
+        #maneuverDialog.open { display: block; }
+        .mnv-header {
+            padding: 10px 16px 6px;
+            border-bottom: 1px solid #005500;
+            text-align: center;
+        }
+        .mnv-header h3 { margin: 0 0 4px; font-size: 14px; letter-spacing: 2px; }
+        .mnv-header .mnv-time { font-size: 11px; color: #00aa00; }
+        .mnv-body { padding: 12px 16px; }
+        .mnv-input-row {
+            display: flex; align-items: center;
+            margin-bottom: 8px; gap: 8px;
+        }
+        .mnv-input-row label {
+            width: 80px; font-size: 12px; color: #00cc00;
+            text-align: right;
+        }
+        .mnv-input-row input[type="number"] {
+            flex: 1;
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #005500;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            padding: 4px 6px;
+            border-radius: 3px;
+            width: 100px;
+        }
+        .mnv-input-row input[type="number"]:focus {
+            border-color: #00ff00; outline: none;
+        }
+        .mnv-input-row .mnv-unit { font-size: 10px; color: #006600; width: 80px; }
+        .mnv-input-row select {
+            flex: 1;
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #005500;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 4px 6px;
+            border-radius: 3px;
+        }
+        .mnv-input-row select:focus {
+            border-color: #00ff00; outline: none;
+        }
+        .mnv-input-row select option {
+            background: #0a0f0a; color: #00ff00;
+        }
+        .mnv-sep { border-top: 1px solid #003300; margin: 8px 0; }
+        .mnv-info-row {
+            display: flex; justify-content: space-between;
+            font-size: 12px; margin-bottom: 4px;
+        }
+        .mnv-info-row .mnv-label { color: #00aa00; }
+        .mnv-info-row .mnv-value { color: #00ff00; font-weight: bold; }
+        .mnv-footer {
+            padding: 10px 16px;
+            border-top: 1px solid #005500;
+            display: flex; gap: 6px; justify-content: center;
+            flex-wrap: wrap;
+        }
+        .mnv-btn {
+            background: rgba(0, 40, 0, 0.8);
+            border: 1px solid #005500;
+            color: #00cc00;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .mnv-btn:hover { border-color: #00ff00; color: #00ff00; background: rgba(0, 60, 0, 0.8); }
+        .mnv-btn.mnv-cancel { border-color: #550000; color: #aa0000; }
+        .mnv-btn.mnv-cancel:hover { border-color: #ff0000; color: #ff0000; }
+        .mnv-btn.mnv-execute { border-color: #555500; color: #aaaa00; }
+        .mnv-btn.mnv-execute:hover { border-color: #ffff00; color: #ffff00; }
+        .mnv-helpers {
+            display: flex; gap: 4px; margin: 6px 0;
+        }
+        .mnv-helper-btn {
+            flex: 1;
+            background: rgba(0, 30, 40, 0.8);
+            border: 1px solid #004455;
+            color: #00aacc;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            padding: 4px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .mnv-helper-btn:hover { border-color: #00ccff; color: #00ccff; }
+        .mnv-solvers {
+            display: flex; gap: 4px; margin: 4px 0 6px;
+        }
+        .mnv-solver-btn {
+            flex: 1;
+            background: rgba(40, 25, 0, 0.8);
+            border: 1px solid #664400;
+            color: #cc8800;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            padding: 4px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .mnv-solver-btn:hover { border-color: #ffaa00; color: #ffaa00; }
+        .mnv-solver-btn.active { border-color: #ffaa00; color: #ffaa00; background: rgba(60, 40, 0, 0.9); }
+        #mnvSolverPanel {
+            background: rgba(20, 15, 0, 0.8);
+            border: 1px solid #443300;
+            border-radius: 3px;
+            padding: 8px 10px;
+            margin: 6px 0;
+        }
+        #mnvSolverPanel .slv-row {
+            display: flex; align-items: center;
+            margin-bottom: 6px; gap: 6px;
+        }
+        #mnvSolverPanel .slv-row label {
+            width: 70px; font-size: 11px; color: #cc8800;
+            text-align: right; flex-shrink: 0;
+        }
+        #mnvSolverPanel .slv-row input,
+        #mnvSolverPanel .slv-row select {
+            flex: 1;
+            background: rgba(20, 10, 0, 0.8);
+            border: 1px solid #443300;
+            color: #ffcc00;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 3px 5px;
+            border-radius: 3px;
+        }
+        #mnvSolverPanel .slv-row input:focus,
+        #mnvSolverPanel .slv-row select:focus {
+            border-color: #ffaa00; outline: none;
+        }
+        #mnvSolverPanel .slv-row select option {
+            background: #1a0f00; color: #ffcc00;
+        }
+        #mnvSolverPanel .slv-row .slv-unit {
+            font-size: 9px; color: #665500; width: 30px; flex-shrink: 0;
+        }
+        #mnvSolverPanel .slv-compute {
+            background: rgba(40, 25, 0, 0.8);
+            border: 1px solid #664400;
+            color: #ffaa00;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 4px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 4px;
+        }
+        #mnvSolverPanel .slv-compute:hover { border-color: #ffcc00; color: #ffcc00; }
+        #mnvSolverPanel .slv-result {
+            font-size: 11px; color: #cc8800; margin-top: 6px;
+            border-top: 1px solid #332200; padding-top: 4px;
+        }
+        #mnvSolverPanel .slv-result .slv-val { color: #ffcc00; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -477,8 +687,15 @@
         <div class="data-row"><span class="data-label">Ecc</span><span class="data-value" id="orbECC">---</span></div>
         <div class="data-row"><span class="data-label">SMA</span><span class="data-value" id="orbSMA">---</span></div>
         <div class="data-row"><span class="data-label">Period</span><span class="data-value" id="orbPeriod">---</span></div>
+        <div class="data-row"><span class="data-label">RAAN</span><span class="data-value" id="orbRAAN">---</span></div>
+        <div class="data-row"><span class="data-label">Arg PE</span><span class="data-value" id="orbArgPE">---</span></div>
+        <div class="data-row"><span class="data-label">True Anom</span><span class="data-value" id="orbTA">---</span></div>
         <div class="data-row"><span class="data-label">T to AP</span><span class="data-value" id="orbTAP">---</span></div>
         <div class="data-row"><span class="data-label">T to PE</span><span class="data-value" id="orbTPE">---</span></div>
+        <div class="data-row"><span class="data-label">T to AN</span><span class="data-value" id="orbTAN">---</span></div>
+        <div class="data-row"><span class="data-label">T to DN</span><span class="data-value" id="orbTDN">---</span></div>
+        <div class="data-row"><span class="data-label">T ν=90°</span><span class="data-value" id="orbTTA90">---</span></div>
+        <div class="data-row"><span class="data-label">T ν=270°</span><span class="data-value" id="orbTTA270">---</span></div>
         <h3 style="margin-top:10px">Maneuver Node</h3>
         <div class="data-row"><span class="data-label">dV</span><span class="data-value" id="nodeDV">---</span></div>
         <div class="data-row"><span class="data-label">Burn T</span><span class="data-value" id="nodeBurnT">---</span></div>
@@ -512,6 +729,7 @@
                 <span class="key">C</span><span class="key-desc">Cycle camera</span>
                 <span class="key">M</span><span class="key-desc">Toggle planner mode</span>
                 <span class="key">P</span><span class="key-desc">Cycle propulsion mode</span>
+                <span class="key">Shift+P</span><span class="key-desc">Cycle rocket engine size</span>
                 <span class="key">T / Shift+T</span><span class="key-desc">Trim nose up/down</span>
             </div>
             <div class="key-grid">
@@ -523,20 +741,20 @@
             <div class="key-grid">
                 <span class="key">+ / -</span><span class="key-desc">Time warp</span>
                 <span class="key">H</span><span class="key-desc">Toggle controls help</span>
-                <span class="key">N</span><span class="key-desc">Create maneuver node</span>
+                <span class="key">N</span><span class="key-desc">Create node (opens dialog)</span>
                 <span class="key">Del</span><span class="key-desc">Delete maneuver node</span>
-                <span class="key">Enter</span><span class="key-desc">Execute maneuver node</span>
+                <span class="key">Enter</span><span class="key-desc">Quick-execute node (impulse)</span>
                 <span class="key">1 / 2 / 3</span><span class="key-desc">Toggle panels</span>
                 <span class="key">O</span><span class="key-desc">Toggle orbital panel</span>
                 <span class="key">Tab</span><span class="key-desc">Hide/show all panels</span>
             </div>
             <div class="key-grid">
                 <span class="key" style="color:#ff8800">Planner:</span><span class="key-desc"></span>
-                <span class="key">W/S</span><span class="key-desc">Prograde/Retrograde</span>
-                <span class="key">A/D</span><span class="key-desc">Normal/Anti-normal</span>
-                <span class="key">Q/E</span><span class="key-desc">Radial in/out</span>
-                <span class="key">Up/Dn</span><span class="key-desc">Adjust node dV</span>
-                <span class="key">Lt/Rt</span><span class="key-desc">Move node time</span>
+                <span class="key">M</span><span class="key-desc">Enter/exit planner</span>
+                <span class="key">Click</span><span class="key-desc">Click orbit to add node</span>
+                <span class="key">N</span><span class="key-desc">Node at current pos</span>
+                <span class="key">P</span><span class="key-desc">Change engine (burn time)</span>
+                <span class="key">Esc</span><span class="key-desc">Cancel auto-execute</span>
             </div>
         </div>
     </div>
@@ -575,7 +793,37 @@
             <span class="settings-label">Status Bar</span>
         </div>
         <div class="settings-sep"></div>
-        <div style="padding:3px 14px;color:#006600;font-size:10px;text-transform:uppercase;letter-spacing:1px;">HUD Elements</div>
+        <div class="settings-section-title">Orbit Traces</div>
+        <div class="settings-item active" data-trace="ecef">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">ECEF Orbit (ground track)</span>
+        </div>
+        <div class="settings-item" data-trace="eci">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">ECI Orbit (inertial)</span>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">Revolutions</span>
+            <select id="orbitRevSelect">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+                <option value="5">5</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+            </select>
+        </div>
+        <div class="settings-sep"></div>
+        <div class="settings-section-title">History Trail</div>
+        <div class="settings-item active" data-trace="trail">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Trail</span>
+        </div>
+        <div class="settings-row">
+            <span class="settings-label">Duration (sec)</span>
+            <input type="number" id="trailDuration" value="0" min="0" step="30" title="0 = infinite">
+        </div>
+        <div class="settings-sep"></div>
+        <div class="settings-section-title">HUD Elements</div>
         <div class="settings-item active" data-hud="hud">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">HUD (master)</span>
@@ -622,6 +870,99 @@
         </div>
     </div>
 
+    <!-- ===================== MANEUVER DIALOG ===================== -->
+    <div id="maneuverDialog">
+        <div class="mnv-header">
+            <h3>MANEUVER NODE</h3>
+            <div class="mnv-time">
+                <span id="mnvTimeToNode">T- 00:00</span> &nbsp;|&nbsp;
+                <span id="mnvBurnAt">Burn @ 00:00:00</span>
+            </div>
+        </div>
+        <div class="mnv-body">
+            <div class="mnv-input-row">
+                <label>Prograde</label>
+                <input type="number" id="mnvPrograde" value="0" step="1">
+                <span class="mnv-unit">m/s (- retro)</span>
+            </div>
+            <div class="mnv-input-row">
+                <label>Normal</label>
+                <input type="number" id="mnvNormal" value="0" step="1">
+                <span class="mnv-unit">m/s (- anti)</span>
+            </div>
+            <div class="mnv-input-row">
+                <label>Radial</label>
+                <input type="number" id="mnvRadial" value="0" step="1">
+                <span class="mnv-unit">m/s (- = in)</span>
+            </div>
+            <div class="mnv-sep"></div>
+            <div class="mnv-input-row">
+                <label>Execute At</label>
+                <select id="mnvExecTime">
+                    <option value="current">Click Position</option>
+                    <option value="apogee">Apogee</option>
+                    <option value="perigee">Perigee</option>
+                    <option value="asc_node">Ascending Node</option>
+                    <option value="desc_node">Descending Node</option>
+                    <option value="ta90">ν=90° (PE→AP mid)</option>
+                    <option value="ta270">ν=270° (AP→PE mid)</option>
+                    <option value="custom">Custom Time (s)</option>
+                </select>
+            </div>
+            <div class="mnv-input-row" id="mnvCustomTimeRow" style="display:none">
+                <label>T from now</label>
+                <input type="number" id="mnvCustomTime" value="0" step="60">
+                <span class="mnv-unit">seconds</span>
+            </div>
+            <div class="mnv-helpers">
+                <button class="mnv-helper-btn" id="mnvCircAP">Circ @ AP</button>
+                <button class="mnv-helper-btn" id="mnvCircPE">Circ @ PE</button>
+            </div>
+            <div class="mnv-solvers">
+                <button class="mnv-solver-btn" id="mnvHohmann">Hohmann</button>
+                <button class="mnv-solver-btn" id="mnvIntercept">Intercept</button>
+                <button class="mnv-solver-btn" id="mnvNMC">NMC</button>
+            </div>
+            <div class="mnv-solvers">
+                <button class="mnv-solver-btn" id="mnvOrbit">Orbit</button>
+                <button class="mnv-solver-btn" id="mnvLagrange">Lagrange</button>
+                <button class="mnv-solver-btn" id="mnvInclChg">Incl Chg</button>
+            </div>
+            <div class="mnv-solvers">
+                <button class="mnv-solver-btn" id="mnvPlaneMatch">Plane Match</button>
+                <button class="mnv-solver-btn" id="mnvPlanet">Planet</button>
+            </div>
+            <div id="mnvSolverPanel" style="display:none"></div>
+            <div class="mnv-sep"></div>
+            <div class="mnv-info-row">
+                <span class="mnv-label">Total &Delta;V</span>
+                <span class="mnv-value" id="mnvTotalDV">0.0 m/s</span>
+            </div>
+            <div class="mnv-info-row">
+                <span class="mnv-label">Burn Time</span>
+                <span class="mnv-value" id="mnvBurnTime">0.0s</span>
+            </div>
+            <div class="mnv-info-row">
+                <span class="mnv-label">Engine</span>
+                <span class="mnv-value" id="mnvEngine">ROCKET 5000kN</span>
+            </div>
+            <div class="mnv-info-row">
+                <span class="mnv-label">Post-AP</span>
+                <span class="mnv-value" id="mnvPostAP">-- km</span>
+            </div>
+            <div class="mnv-info-row">
+                <span class="mnv-label">Post-PE</span>
+                <span class="mnv-value" id="mnvPostPE">-- km</span>
+            </div>
+        </div>
+        <div class="mnv-footer">
+            <button class="mnv-btn" id="mnvAccept">Accept</button>
+            <button class="mnv-btn" id="mnvWarpToT">Warp to T</button>
+            <button class="mnv-btn mnv-execute" id="mnvExecute">Execute</button>
+            <button class="mnv-btn mnv-cancel" id="mnvCancel">Cancel</button>
+        </div>
+    </div>
+
     <!-- ===================== SPLASH SCREEN ===================== -->
     <div id="splashOverlay">
         <h1>LIVE SIM</h1>
@@ -665,6 +1006,7 @@
     <script src="js/fighter_weapons.js"></script>
     <script src="js/spaceplane_orbital.js"></script>
     <script src="js/spaceplane_hud.js"></script>
+    <script src="js/framework/solar_system_engine.js"></script>
     <script src="js/spaceplane_planner.js"></script>
     <script src="js/gamepad_input.js"></script>
 

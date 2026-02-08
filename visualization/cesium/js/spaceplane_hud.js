@@ -115,6 +115,10 @@ const SpaceplaneHUD = (function() {
             ['ECC', elems.eccentricity != null ? elems.eccentricity.toFixed(4) : '---'],
             ['SMA', elems.sma != null ? (elems.sma / 1000).toFixed(0) + ' km' : '---'],
             ['PRD', elems.period != null && isFinite(elems.period) ? (elems.period / 60).toFixed(1) + ' min' : '---'],
+            ['T-AP', elems.timeToApoapsis != null ? fmtTime(elems.timeToApoapsis) : '---'],
+            ['T-PE', elems.timeToPeriapsis != null ? fmtTime(elems.timeToPeriapsis) : '---'],
+            ['T-AN', elems.timeToAscendingNode != null ? fmtTime(elems.timeToAscendingNode) : '---'],
+            ['T-DN', elems.timeToDescendingNode != null ? fmtTime(elems.timeToDescendingNode) : '---'],
         ];
 
         for (let i = 0; i < lines.length; i++) {
@@ -156,6 +160,8 @@ const SpaceplaneHUD = (function() {
             ['ORB V', (orbV * 100).toFixed(1) + '%'],
             ['T to AP', elems && elems.timeToApoapsis != null ? fmtTime(elems.timeToApoapsis) : '---'],
             ['T to PE', elems && elems.timeToPeriapsis != null ? fmtTime(elems.timeToPeriapsis) : '---'],
+            ['T to AN', elems && elems.timeToAscendingNode != null ? fmtTime(elems.timeToAscendingNode) : '---'],
+            ['T to DN', elems && elems.timeToDescendingNode != null ? fmtTime(elems.timeToDescendingNode) : '---'],
         ];
 
         for (let i = 0; i < lines.length; i++) {

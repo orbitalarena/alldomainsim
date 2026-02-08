@@ -133,17 +133,17 @@
         _initFromElements(state, cfg, simTime) {
             // Build a synthetic TLE-like object from classical elements
             var sma = cfg.sma || (R_EARTH + (state.alt || 400000));
-            var ecc = cfg.ecc || 0.001;
+            var ecc = cfg.eccentricity != null ? cfg.eccentricity : 0.001;
             var n_rad = Math.sqrt(MU / (sma * sma * sma));
             var meanMotion = n_rad * 86400 / TWO_PI;
 
             var synthSat = {
                 sma: sma,
                 eccentricity: ecc,
-                inclination: cfg.inc || 51.6,
-                raan: cfg.raan || 0,
-                argPerigee: cfg.argPerigee || 0,
-                meanAnomaly: cfg.meanAnomaly || 0,
+                inclination: cfg.inclination != null ? cfg.inclination : 51.6,
+                raan: cfg.raan != null ? cfg.raan : 0,
+                argPerigee: cfg.argPerigee != null ? cfg.argPerigee : 0,
+                meanAnomaly: cfg.meanAnomaly != null ? cfg.meanAnomaly : 0,
                 meanMotion: meanMotion
             };
 
@@ -161,12 +161,14 @@
 
         _initFromState(state, simTime) {
             // Convert geodetic state to ECI
-            var lat = state.lat || 0;
-            var lon = state.lon || 0;
-            var alt = state.alt || 400000;
-            var V = state.speed || 7670;
-            var hdg = state.heading || 0;
-            var gamma = state.gamma || 0;
+            // Note: state.speed is already inertial in the non-rotating Earth frame
+            // used by the 3-DOF physics engine. Do NOT add ω×r Earth rotation.
+            var lat = state.lat != null ? state.lat : 0;
+            var lon = state.lon != null ? state.lon : 0;
+            var alt = state.alt != null ? state.alt : 400000;
+            var V = state.speed != null ? state.speed : 7670;
+            var hdg = state.heading != null ? state.heading : 0;
+            var gamma = state.gamma != null ? state.gamma : 0;
             var gmst = OMEGA_EARTH * simTime;
 
             var R = R_EARTH + alt;
@@ -194,11 +196,7 @@
             var vy_ecef = cosLon * vE + (-sinLat * sinLon) * vN + cosLat * sinLon * vU;
             var vz_ecef = cosLat * vN + sinLat * vU;
 
-            // Add Earth rotation (omega x r)
-            vx_ecef -= OMEGA_EARTH * y_ecef;
-            vy_ecef += OMEGA_EARTH * x_ecef;
-
-            // ECEF → ECI
+            // ECEF → ECI (no ω×r — non-rotating frame, speed is already inertial)
             var cosG = Math.cos(gmst);
             var sinG = Math.sin(gmst);
 

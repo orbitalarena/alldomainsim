@@ -83,12 +83,12 @@ const ScenarioLoader = (function() {
         // Build initial state from JSON (lat/lon in degrees -> radians)
         const init = def.initialState || {};
         const state = {
-            lat: (init.lat || 0) * DEG,
-            lon: (init.lon || 0) * DEG,
-            alt: init.alt || 0,
-            speed: init.speed || 0,
-            heading: (init.heading || 0) * DEG,
-            gamma: (init.gamma || 0) * DEG,
+            lat: (init.lat != null ? init.lat : 0) * DEG,
+            lon: (init.lon != null ? init.lon : 0) * DEG,
+            alt: init.alt != null ? init.alt : 0,
+            speed: init.speed != null ? init.speed : 0,
+            heading: (init.heading != null ? init.heading : 0) * DEG,
+            gamma: (init.gamma != null ? init.gamma : 0) * DEG,
             pitch: 0,
             roll: 0,
             yaw: 0,

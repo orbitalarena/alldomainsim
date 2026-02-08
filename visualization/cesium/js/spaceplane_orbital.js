@@ -16,10 +16,14 @@ const SpaceplaneOrbital = (function() {
 
     // Shared state for Cesium visualization
     let currentOrbitPositions = [];
+    let eciOrbitPositions = [];
     let apoapsisPosition = null;
     let periapsisPosition = null;
+    let ascNodePosition = null;
+    let descNodePosition = null;
     let orbitalElements = null;
     let flightRegime = 'ATMOSPHERIC';
+    let _numRevs = 1;
 
     // Update throttle (avoid recomputing every frame)
     let updateCounter = 0;
@@ -151,6 +155,8 @@ const SpaceplaneOrbital = (function() {
                      argPeriapsis: 0, trueAnomaly: 0, energy: 0, angularMomentum: 0,
                      periapsisAlt: null, apoapsisAlt: null, period: null,
                      timeToApoapsis: null, timeToPeriapsis: null,
+                     timeToAscendingNode: null, timeToDescendingNode: null,
+                     timeToTA90: null, timeToTA270: null,
                      _r: r, _v: v, _e_vec: [0,0,0], _h: [0,0,1] };
         }
 
@@ -165,6 +171,8 @@ const SpaceplaneOrbital = (function() {
                      angularMomentum: hMag,
                      periapsisAlt: null, apoapsisAlt: null, period: null,
                      timeToApoapsis: null, timeToPeriapsis: null,
+                     timeToAscendingNode: null, timeToDescendingNode: null,
+                     timeToTA90: null, timeToTA270: null,
                      _r: r, _v: v, _e_vec: [0,0,0], _h: h };
         }
 
@@ -232,28 +240,63 @@ const SpaceplaneOrbital = (function() {
 
         // Time to apoapsis/periapsis
         let timeToApoapsis = null, timeToPeriapsis = null;
+        let timeToAscendingNode = null, timeToDescendingNode = null;
+        let timeToTA90 = null, timeToTA270 = null;
         if (ecc < 1.0 && sma > 0 && period > 0) {
             // Mean motion
             const n_mean = Math.sqrt(MU / (sma * sma * sma));
+            var TWO_PI = 2 * Math.PI;
+            var sqrt1me2 = Math.sqrt(1 - ecc * ecc);
 
             // Eccentric anomaly from true anomaly
             const cosTA = Math.cos(trueAnomaly);
             const E = Math.atan2(
-                Math.sqrt(1 - ecc * ecc) * Math.sin(trueAnomaly),
+                sqrt1me2 * Math.sin(trueAnomaly),
                 ecc + cosTA
             );
 
             // Mean anomaly
             let M = E - ecc * Math.sin(E);
-            if (M < 0) M += 2 * Math.PI;
+            if (M < 0) M += TWO_PI;
 
             // Time to periapsis (M = 0)
-            timeToPeriapsis = (2 * Math.PI - M) / n_mean;
+            timeToPeriapsis = (TWO_PI - M) / n_mean;
             if (timeToPeriapsis > period) timeToPeriapsis -= period;
 
             // Time to apoapsis (M = π)
             timeToApoapsis = (Math.PI - M) / n_mean;
             if (timeToApoapsis < 0) timeToApoapsis += period;
+
+            // Time to ν=90° and ν=270° (mid-orbit quadrature points)
+            // These work for any eccentricity < 1 including circular (e=0)
+            var nu90 = Math.PI / 2;
+            var e90 = Math.atan2(sqrt1me2 * Math.sin(nu90), ecc + Math.cos(nu90));
+            var m90 = e90 - ecc * Math.sin(e90);
+            if (m90 < 0) m90 += TWO_PI;
+            timeToTA90 = ((m90 - M) % TWO_PI + TWO_PI) % TWO_PI / n_mean;
+
+            var nu270 = 3 * Math.PI / 2;
+            var e270 = Math.atan2(sqrt1me2 * Math.sin(nu270), ecc + Math.cos(nu270));
+            var m270 = e270 - ecc * Math.sin(e270);
+            if (m270 < 0) m270 += TWO_PI;
+            timeToTA270 = ((m270 - M) % TWO_PI + TWO_PI) % TWO_PI / n_mean;
+
+            // Time to ascending/descending node (only for inclined orbits)
+            if (inc > 0.01) {
+                // Ascending node: argument of latitude = 0 → true anomaly = -argPeri
+                var nuAsc = (-argPeri % TWO_PI + TWO_PI) % TWO_PI;
+                var eAsc = Math.atan2(sqrt1me2 * Math.sin(nuAsc), ecc + Math.cos(nuAsc));
+                var mAsc = eAsc - ecc * Math.sin(eAsc);
+                if (mAsc < 0) mAsc += TWO_PI;
+                timeToAscendingNode = ((mAsc - M) % TWO_PI + TWO_PI) % TWO_PI / n_mean;
+
+                // Descending node: argument of latitude = π → true anomaly = π - argPeri
+                var nuDesc = ((Math.PI - argPeri) % TWO_PI + TWO_PI) % TWO_PI;
+                var eDesc = Math.atan2(sqrt1me2 * Math.sin(nuDesc), ecc + Math.cos(nuDesc));
+                var mDesc = eDesc - ecc * Math.sin(eDesc);
+                if (mDesc < 0) mDesc += TWO_PI;
+                timeToDescendingNode = ((mDesc - M) % TWO_PI + TWO_PI) % TWO_PI / n_mean;
+            }
         }
 
         return {
@@ -270,6 +313,10 @@ const SpaceplaneOrbital = (function() {
             period,
             timeToApoapsis,
             timeToPeriapsis,
+            timeToAscendingNode,
+            timeToDescendingNode,
+            timeToTA90,
+            timeToTA270,
             // Keep ECI state for propagation
             _r: r,
             _v: v,
@@ -302,7 +349,7 @@ const SpaceplaneOrbital = (function() {
      * @param {number} gmst - current GMST for ECI→ECEF conversion
      * @returns {Cesium.Cartesian3[]} positions in ECEF for Cesium
      */
-    function predictOrbitPath(elems, numPoints, gmst) {
+    function predictOrbitPath(elems, numPoints, gmst, numRevs) {
         if (!elems || !isOK(elems.eccentricity) || !isOK(elems.sma)) {
             return [];
         }
@@ -335,6 +382,10 @@ const SpaceplaneOrbital = (function() {
         if (!isFinite(period) || period > 2592000) return [];
         const positions = [];
 
+        numRevs = numRevs || 1;
+        const totalTime = period * numRevs;
+        const totalPoints = Math.min(numPoints * numRevs, 3600);
+
         // Perifocal → ECI rotation matrix components
         const cosW = Math.cos(w);
         const sinW = Math.sin(w);
@@ -351,9 +402,9 @@ const SpaceplaneOrbital = (function() {
         const Qy = -sinO * sinW + cosO * cosW * cosI;
         const Qz = cosW * sinI;
 
-        for (let i = 0; i <= numPoints; i++) {
-            const frac = i / numPoints;
-            const t = frac * period;
+        for (let i = 0; i <= totalPoints; i++) {
+            const frac = i / totalPoints;
+            const t = frac * totalTime;
 
             // Mean anomaly at this time
             let M = M0 + n_mean * t;
@@ -395,17 +446,93 @@ const SpaceplaneOrbital = (function() {
     }
 
     /**
+     * Predict orbit path in ECI frame (inertial, no Earth rotation).
+     * Uses fixed GMST for all points — shows true orbital ellipse shape.
+     * Multi-rev support: numRevs orbits worth of points.
+     */
+    function predictOrbitPathECI(elems, numPoints, gmst, numRevs) {
+        if (!elems || !isOK(elems.eccentricity) || !isOK(elems.sma)) return [];
+        if (elems.eccentricity >= 0.99 || elems.sma <= 0 || elems.energy >= 0) return [];
+        const rPeriapsis = elems.sma * (1 - elems.eccentricity);
+        if (rPeriapsis < R_EARTH * 0.05) return [];
+
+        const a = elems.sma;
+        const e = elems.eccentricity;
+        const inc = elems.inclination;
+        const raan = elems.raan;
+        const w = elems.argPeriapsis;
+        const n_mean = Math.sqrt(MU / (a * a * a));
+
+        const cosTA = Math.cos(elems.trueAnomaly);
+        const sinTA = Math.sin(elems.trueAnomaly);
+        const E0 = Math.atan2(Math.sqrt(1 - e * e) * sinTA, e + cosTA);
+        let M0 = E0 - e * Math.sin(E0);
+        if (M0 < 0) M0 += 2 * Math.PI;
+
+        const period = elems.period || 2 * Math.PI / n_mean;
+        if (!isFinite(period) || period > 2592000) return [];
+
+        numRevs = numRevs || 1;
+        // ECI only needs 1 rev of points (it's the same ellipse repeated)
+        // but we still generate the full set for consistency
+        const totalPoints = Math.min(numPoints, 360);
+        const positions = [];
+
+        const cosW = Math.cos(w), sinW = Math.sin(w);
+        const cosI = Math.cos(inc), sinI = Math.sin(inc);
+        const cosO = Math.cos(raan), sinO = Math.sin(raan);
+        const Px = cosO * cosW - sinO * sinW * cosI;
+        const Py = sinO * cosW + cosO * sinW * cosI;
+        const Pz = sinW * sinI;
+        const Qx = -cosO * sinW - sinO * cosW * cosI;
+        const Qy = -sinO * sinW + cosO * cosW * cosI;
+        const Qz = cosW * sinI;
+
+        for (let i = 0; i <= totalPoints; i++) {
+            const frac = i / totalPoints;
+            const t = frac * period; // just 1 rev — ECI ellipse repeats
+
+            let M = M0 + n_mean * t;
+            M = M % (2 * Math.PI);
+            if (M < 0) M += 2 * Math.PI;
+
+            let E = M;
+            for (let iter = 0; iter < 15; iter++) {
+                const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+                E -= dE;
+                if (Math.abs(dE) < 1e-10) break;
+            }
+
+            const cosE = Math.cos(E), sinE = Math.sin(E);
+            const nu = Math.atan2(Math.sqrt(1 - e * e) * sinE, cosE - e);
+            const r_mag = a * (1 - e * cosE);
+            const xP = r_mag * Math.cos(nu);
+            const yP = r_mag * Math.sin(nu);
+
+            const x_eci = Px * xP + Qx * yP;
+            const y_eci = Py * xP + Qy * yP;
+            const z_eci = Pz * xP + Qz * yP;
+
+            // Fixed GMST: ECI orbit shape displayed at current Earth orientation
+            const pt = eciToCesiumCartesian([x_eci, y_eci, z_eci], gmst);
+            if (pt) positions.push(pt);
+        }
+
+        return positions;
+    }
+
+    /**
      * Compute apoapsis and periapsis positions in ECEF for markers
      */
     function computeApPePositions(elems, gmst) {
         if (!elems || !isOK(elems.eccentricity) || !isOK(elems.sma) ||
             elems.eccentricity >= 1.0 || elems.sma <= 0) {
-            return { ap: null, pe: null };
+            return { ap: null, pe: null, an: null, dn: null };
         }
         // Skip only truly pathological orbits
         const rPeCheck = elems.sma * (1 - elems.eccentricity);
         if (rPeCheck < R_EARTH * 0.05) {
-            return { ap: null, pe: null };
+            return { ap: null, pe: null, an: null, dn: null };
         }
 
         const a = elems.sma;
@@ -450,9 +577,35 @@ const SpaceplaneOrbital = (function() {
         const gmstPe = gmst + OMEGA_EARTH * tPe;
         const gmstAp = gmst + OMEGA_EARTH * tAp;
 
+        // Ascending/descending node positions (only for inclined orbits)
+        var anPos = null, dnPos = null;
+        if (inc > 0.01) {
+            var TWO_PI = 2 * Math.PI;
+
+            // Ascending node: argument of latitude = 0 → true anomaly = -argPeri
+            var nuAsc = ((-w) % TWO_PI + TWO_PI) % TWO_PI;
+            var rAsc = a * (1 - e * e) / (1 + e * Math.cos(nuAsc));
+            var xPasc = rAsc * Math.cos(nuAsc);
+            var yPasc = rAsc * Math.sin(nuAsc);
+            var anECI = [Px * xPasc + Qx * yPasc, Py * xPasc + Qy * yPasc, Pz * xPasc + Qz * yPasc];
+            var tAN = elems.timeToAscendingNode || 0;
+            anPos = eciToCesiumCartesian(anECI, gmst + OMEGA_EARTH * tAN);
+
+            // Descending node: argument of latitude = π → true anomaly = π - argPeri
+            var nuDesc = ((Math.PI - w) % TWO_PI + TWO_PI) % TWO_PI;
+            var rDesc = a * (1 - e * e) / (1 + e * Math.cos(nuDesc));
+            var xPdesc = rDesc * Math.cos(nuDesc);
+            var yPdesc = rDesc * Math.sin(nuDesc);
+            var dnECI = [Px * xPdesc + Qx * yPdesc, Py * xPdesc + Qy * yPdesc, Pz * xPdesc + Qz * yPdesc];
+            var tDN = elems.timeToDescendingNode || 0;
+            dnPos = eciToCesiumCartesian(dnECI, gmst + OMEGA_EARTH * tDN);
+        }
+
         return {
             ap: eciToCesiumCartesian(apECI, gmstAp),
             pe: eciToCesiumCartesian(peECI, gmstPe),
+            an: anPos,
+            dn: dnPos,
         };
     }
 
@@ -547,8 +700,11 @@ const SpaceplaneOrbital = (function() {
             // Truly degenerate — eccentricity is NaN or non-numeric
             flightRegime = state.alt > KARMAN ? 'SUBORBITAL' : 'ATMOSPHERIC';
             currentOrbitPositions = [];
+            eciOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;
+            ascNodePosition = null;
+            descNodePosition = null;
             return;
         }
         if (!isOK(orbitalElements.sma)) {
@@ -561,8 +717,11 @@ const SpaceplaneOrbital = (function() {
                 flightRegime = 'ATMOSPHERIC';
             }
             currentOrbitPositions = [];
+            eciOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;
+            ascNodePosition = null;
+            descNodePosition = null;
             return;
         }
         flightRegime = detectFlightRegime(orbitalElements, state.alt);
@@ -570,8 +729,11 @@ const SpaceplaneOrbital = (function() {
         // Escape trajectory — clear orbit display immediately
         if (flightRegime === 'ESCAPE') {
             currentOrbitPositions = [];
+            eciOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;
+            ascNodePosition = null;
+            descNodePosition = null;
             return;
         }
 
@@ -583,20 +745,26 @@ const SpaceplaneOrbital = (function() {
         if (updateCounter % UPDATE_INTERVAL === 0 && showOrbitViz) {
             const gmst = OMEGA_EARTH * simTime;
 
-            // Predict orbit path
-            currentOrbitPositions = predictOrbitPath(orbitalElements, 360, gmst);
+            // Predict orbit paths (ECEF with multi-rev, ECI inertial)
+            currentOrbitPositions = predictOrbitPath(orbitalElements, 360, gmst, _numRevs);
+            eciOrbitPositions = predictOrbitPathECI(orbitalElements, 360, gmst, _numRevs);
 
-            // Compute AP/PE positions
+            // Compute AP/PE/AN/DN positions
             const apPe = computeApPePositions(orbitalElements, gmst);
             apoapsisPosition = apPe.ap;
             periapsisPosition = apPe.pe;
+            ascNodePosition = apPe.an;
+            descNodePosition = apPe.dn;
         }
 
         // Clear orbit display when fully atmospheric with no significant trajectory
         if (!showOrbitViz) {
             currentOrbitPositions = [];
+            eciOrbitPositions = [];
             apoapsisPosition = null;
             periapsisPosition = null;
+            ascNodePosition = null;
+            descNodePosition = null;
         }
     }
 
@@ -605,11 +773,15 @@ const SpaceplaneOrbital = (function() {
      */
     function reset() {
         currentOrbitPositions = [];
+        eciOrbitPositions = [];
         apoapsisPosition = null;
         periapsisPosition = null;
+        ascNodePosition = null;
+        descNodePosition = null;
         orbitalElements = null;
         flightRegime = 'ATMOSPHERIC';
         updateCounter = 0;
+        _numRevs = 1;
     }
 
     // ---- Vector math utilities ----
@@ -650,19 +822,24 @@ const SpaceplaneOrbital = (function() {
     return {
         // State (readable by viewer)
         get currentOrbitPositions() { return currentOrbitPositions; },
+        get eciOrbitPositions() { return eciOrbitPositions; },
         get apoapsisPosition() { return apoapsisPosition; },
         get periapsisPosition() { return periapsisPosition; },
+        get ascNodePosition() { return ascNodePosition; },
+        get descNodePosition() { return descNodePosition; },
         get orbitalElements() { return orbitalElements; },
         get flightRegime() { return flightRegime; },
 
         // Functions
         update,
         reset,
+        setNumRevs: function(n) { _numRevs = Math.max(1, Math.min(20, n)); },
         geodeticToECI,
         eciToCesiumCartesian,
         computeOrbitalElements,
         detectFlightRegime,
         predictOrbitPath,
+        predictOrbitPathECI,
         propagateKepler,
 
         // Vector utilities

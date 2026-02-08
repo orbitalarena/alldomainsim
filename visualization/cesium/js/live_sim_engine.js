@@ -40,6 +40,15 @@ const LiveSimEngine = (function() {
     // Propulsion
     let _propModes = ['AIR', 'HYPERSONIC', 'ROCKET'];
 
+    // Rocket engine presets: cycle with Shift+P
+    var ROCKET_ENGINES = [
+        { name: 'OMS 25kN',   thrust: 25000,   desc: 'Orbital Maneuvering' },
+        { name: 'AJ10 100kN', thrust: 100000,  desc: 'Medium Rocket' },
+        { name: 'RL10 500kN', thrust: 500000,  desc: 'Heavy Vacuum' },
+        { name: 'RS25 5MN',   thrust: 5000000, desc: 'Launch Engine' },
+    ];
+    var _rocketEngineIndex = 0; // default = OMS 25kN
+
     // Weapons & Sensors
     let _weaponList = [];       // [{name, type, count, maxCount}]
     let _weaponIndex = -1;      // -1 = no weapon selected
@@ -65,14 +74,54 @@ const LiveSimEngine = (function() {
     let _plannerCamRange = 5e7;
     let _globeControlsEnabled = true; // arrow keys active in earth/moon modes
 
-    // Trail
+    // Trail & orbit display
     let _playerTrail = [];
+    let _playerTrailTimes = [];
     let _trailCounter = 0;
     let _trailEntity = null;
     let _orbitPolyline = null;
+    let _eciOrbitPolyline = null;
     let _predictedOrbitPolyline = null;
     let _apMarker = null;
     let _peMarker = null;
+    let _anMarker = null;
+    let _dnMarker = null;
+
+    // Display toggles (persisted in localStorage)
+    let _showEciOrbit = false;
+    let _showEcefOrbit = true;
+    let _orbitRevs = 1;
+    let _showTrail = true;
+    let _trailDurationSec = 0;  // 0 = infinite
+
+    // Maneuver dialog
+    let _maneuverDialogOpen = false;
+    let _maneuverDialogNode = null;   // node being edited in dialog
+    let _maneuverUpdateTimer = null;  // debounce timer for dialog input
+
+    // Auto-execute state machine
+    let _autoExecState = null;    // null | 'warp_only' | 'warping' | 'orienting' | 'burning'
+    let _autoExecNode = null;     // reference to the executing node
+    let _autoExecBurnEnd = 0;     // simTime when burn should end (safety fallback)
+    let _autoExecOrientStart = 0; // simTime when orientation phase started
+    let _autoExecCumulativeDV = 0; // accumulated dV during burn (m/s)
+    let _autoExecTargetDV = 0;    // target dV for this burn (m/s)
+    let _autoExecTarget = null;   // orbital element targeting: {type, targetAltM, targetR}
+    let _pendingHohmann = null;   // {targetAltKm} for two-burn Hohmann sequence
+
+    /**
+     * Max time warp scaled by orbital altitude.
+     * Orbital period ∝ SMA^1.5, so warp scales the same way to keep
+     * GEO operations feeling as snappy as LEO at 1024x.
+     * LEO (400km) = 1024x, GEO (35793km) ≈ 10000x, cap at 10000x.
+     */
+    function _getMaxWarp() {
+        var LEO_SMA = 6771000;
+        var sma = 6371000 + (_playerState ? (_playerState.alt || 0) : 0);
+        if (sma <= LEO_SMA) return 1024;
+        var ratio = Math.pow(sma / LEO_SMA, 1.5);
+        return Math.min(10000, Math.round(1024 * ratio));
+    }
 
     // Keyboard
     const _keys = {};
@@ -157,6 +206,9 @@ const LiveSimEngine = (function() {
 
         // 9. Init settings gear (load prefs, wire handlers)
         _initSettingsGear();
+
+        // 9b. Init planner click handler (orbit click → create node)
+        _initPlannerClickHandler();
 
         // 10. Position camera on player
         _positionInitialCamera();
@@ -255,14 +307,25 @@ const LiveSimEngine = (function() {
         var physType = phys && phys.config && phys.config.type;
 
         if (physType === 'orbital_2body') {
-            _playerConfig = FighterSimEngine.SPACEPLANE_CONFIG;
+            _playerConfig = Object.assign({}, FighterSimEngine.SPACEPLANE_CONFIG);
         } else if (phys && phys._engineConfig) {
-            _playerConfig = phys._engineConfig;
+            _playerConfig = Object.assign({}, phys._engineConfig);
         } else {
             var configName = (phys && phys.config && phys.config.config) || 'f16';
-            _playerConfig = (configName === 'spaceplane') ?
-                FighterSimEngine.SPACEPLANE_CONFIG : FighterSimEngine.F16_CONFIG;
+            _playerConfig = Object.assign({},
+                (configName === 'spaceplane') ?
+                    FighterSimEngine.SPACEPLANE_CONFIG : FighterSimEngine.F16_CONFIG);
         }
+
+        // Set rocket engine from platform _custom or default to OMS 25kN
+        _rocketEngineIndex = 0;
+        var entDef = entity.def || {};
+        if (entDef._custom && entDef._custom.propulsion && entDef._custom.propulsion.rocketEngine) {
+            var rocketEngineMap = { 'oms_25kn': 0, 'aj10_100kn': 1, 'rl10_500kn': 2, 'rs25_5mn': 3 };
+            var mappedIdx = rocketEngineMap[entDef._custom.propulsion.rocketEngine];
+            if (mappedIdx !== undefined) _rocketEngineIndex = mappedIdx;
+        }
+        _playerConfig.thrust_rocket = ROCKET_ENGINES[_rocketEngineIndex].thrust;
 
         // Determine available propulsion modes
         _propModes = _resolvePropModes(entity);
@@ -610,27 +673,47 @@ const LiveSimEngine = (function() {
     // Orbit visualization entities
     // -----------------------------------------------------------------------
     function _createOrbitEntities() {
-        // Trail polyline
+        // Trail polyline (cyan, gated on _showTrail)
         _trailEntity = _viewer.entities.add({
             name: 'Player Trail',
             polyline: {
-                positions: new Cesium.CallbackProperty(function() { return _playerTrail; }, false),
+                positions: new Cesium.CallbackProperty(function() {
+                    return _showTrail ? _playerTrail : [];
+                }, false),
                 width: 2,
                 material: Cesium.Color.CYAN.withAlpha(0.6),
             },
         });
 
         // Orbit visualization — always created, SpaceplaneOrbital provides data when applicable
-        // Current orbit (green)
+        // Current ECEF orbit (lime green, gated on _showEcefOrbit)
         _orbitPolyline = _viewer.entities.add({
-            name: 'Current Orbit',
+            name: 'ECEF Orbit',
             polyline: {
                 positions: new Cesium.CallbackProperty(function() {
+                    if (!_showEcefOrbit) return [];
                     return (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.currentOrbitPositions) ?
                         SpaceplaneOrbital.currentOrbitPositions : [];
                 }, false),
                 width: 2,
                 material: Cesium.Color.LIME.withAlpha(0.7),
+            },
+        });
+
+        // ECI orbit (yellow dashed, gated on _showEciOrbit)
+        _eciOrbitPolyline = _viewer.entities.add({
+            name: 'ECI Orbit',
+            polyline: {
+                positions: new Cesium.CallbackProperty(function() {
+                    if (!_showEciOrbit) return [];
+                    return (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.eciOrbitPositions) ?
+                        SpaceplaneOrbital.eciOrbitPositions : [];
+                }, false),
+                width: 2,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.YELLOW.withAlpha(0.8),
+                    dashLength: 16,
+                }),
             },
         });
 
@@ -706,6 +789,54 @@ const LiveSimEngine = (function() {
                 style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                 verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                 pixelOffset: new Cesium.Cartesian2(0, -12),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        });
+
+        // Ascending Node marker
+        _anMarker = _viewer.entities.add({
+            name: 'Ascending Node',
+            position: new Cesium.CallbackProperty(function() {
+                return (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.ascNodePosition) ?
+                    SpaceplaneOrbital.ascNodePosition : Cesium.Cartesian3.fromDegrees(0, 0, 0);
+            }, false),
+            show: new Cesium.CallbackProperty(function() {
+                return typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.ascNodePosition != null;
+            }, false),
+            point: { pixelSize: 7, color: Cesium.Color.YELLOW },
+            label: {
+                text: 'AN',
+                font: '11px monospace',
+                fillColor: Cesium.Color.YELLOW,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        });
+
+        // Descending Node marker
+        _dnMarker = _viewer.entities.add({
+            name: 'Descending Node',
+            position: new Cesium.CallbackProperty(function() {
+                return (typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.descNodePosition) ?
+                    SpaceplaneOrbital.descNodePosition : Cesium.Cartesian3.fromDegrees(0, 0, 0);
+            }, false),
+            show: new Cesium.CallbackProperty(function() {
+                return typeof SpaceplaneOrbital !== 'undefined' && SpaceplaneOrbital.descNodePosition != null;
+            }, false),
+            point: { pixelSize: 7, color: Cesium.Color.YELLOW },
+            label: {
+                text: 'DN',
+                font: '11px monospace',
+                fillColor: Cesium.Color.YELLOW,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10),
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
         });
@@ -791,15 +922,8 @@ const LiveSimEngine = (function() {
 
         var pos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, _playerState.alt);
 
-        if (_plannerMode) {
-            _viewer.camera.lookAt(pos,
-                new Cesium.HeadingPitchRange(
-                    _playerState.heading + _camHeadingOffset,
-                    -Math.PI / 2.5,
-                    _plannerCamRange
-                ));
-            return;
-        }
+        // Planner mode: camera is free (Cesium handles rotation/zoom)
+        if (_plannerMode) return;
 
         // Shared helper: linear combination a*v1 + b*v2
         function lc(a, v1, b, v2) {
@@ -974,9 +1098,19 @@ const LiveSimEngine = (function() {
         if (_plannerMode) {
             _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
             _viewer.scene.screenSpaceCameraController.enableInputs = true;
-            _plannerCamRange = Math.max(_playerState.alt * 5, 5e6);
+            // Fly camera to Earth-centered overview — orbit fully visible
+            var orbitAlt = _playerState.alt || 400000;
+            var range = (6371000 + orbitAlt) * 3.5;
+            _viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromRadians(
+                    _playerState.lon, 0, range),
+                orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+                duration: 0.8
+            });
             _showMessage('PLANNER MODE');
         } else {
+            // Close dialog if open
+            if (_maneuverDialogOpen) _closeManeuverDialog(false);
             _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
             _cameraMode = 'chase';
             _viewer.scene.screenSpaceCameraController.enableInputs = false; // chase = we control camera
@@ -987,6 +1121,1355 @@ const LiveSimEngine = (function() {
             var hudCanvas = document.getElementById('hudCanvas');
             if (hudCanvas) hudCanvas.style.display = 'block';
             _showMessage('COCKPIT MODE');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Planner click handler — click on orbit to create node
+    // -----------------------------------------------------------------------
+    function _initPlannerClickHandler() {
+        var handler = new Cesium.ScreenSpaceEventHandler(_viewer.scene.canvas);
+        handler.setInputAction(function(click) {
+            if (!_plannerMode || _maneuverDialogOpen) return;
+            if (typeof SpaceplaneOrbital === 'undefined' || typeof SpaceplanePlanner === 'undefined') return;
+
+            // Get click position in ECEF
+            var clickPos = _viewer.scene.pickPosition(click.position);
+            if (!clickPos) {
+                // Fallback: ray-globe intersection
+                var ray = _viewer.camera.getPickRay(click.position);
+                clickPos = _viewer.scene.globe.pick(ray, _viewer.scene);
+            }
+            if (!clickPos) return;
+
+            // Find closest point on current ECEF orbit polyline
+            var orbitPts = SpaceplaneOrbital.currentOrbitPositions;
+            if (!orbitPts || orbitPts.length < 2) return;
+
+            var bestIdx = -1;
+            var bestDist = Infinity;
+            for (var i = 0; i < orbitPts.length; i++) {
+                var d = Cesium.Cartesian3.distance(clickPos, orbitPts[i]);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+
+            // Distance threshold: proportional to camera height for usability
+            var camHeight = _viewer.camera.positionCartographic.height;
+            var threshold = Math.max(camHeight * 0.05, 50000); // at least 50km
+            if (bestDist > threshold) return;
+
+            // Map orbit index to time offset
+            var elems = SpaceplaneOrbital.orbitalElements;
+            if (!elems || !elems.period || !isFinite(elems.period)) return;
+            var totalPoints = orbitPts.length - 1;
+            if (totalPoints <= 0) return;
+            var period = elems.period;
+            var dt = (bestIdx / totalPoints) * period;
+            // Wrap to first period
+            if (dt > period) dt = dt % period;
+
+            // Update engine params before creating node
+            _updatePlannerEngineParams();
+
+            // Create node at that future time
+            var node = SpaceplanePlanner.createNodeAtTime(_playerState, _simElapsed, dt);
+            if (node) {
+                _openManeuverDialog(node);
+            }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }
+
+    // -----------------------------------------------------------------------
+    // Engine params for planner burn time
+    // -----------------------------------------------------------------------
+    function _getPlannerEngineParams() {
+        var mode = _playerState.forcedPropMode || 'ROCKET';
+        var thrust;
+        if (mode === 'ROCKET') thrust = _playerConfig.thrust_rocket || 5000000;
+        else if (mode === 'HYPERSONIC') thrust = _playerConfig.thrust_hypersonic || 800000;
+        else thrust = _playerConfig.thrust_ab || _playerConfig.thrust_mil || 130000;
+        var mass = _playerConfig.mass_empty +
+                   (isFinite(_playerState.fuel) ? _playerState.fuel : 0) +
+                   (_playerState.weaponMass || 0);
+        return { thrust: thrust, mass: mass, label: mode + ' ' + (thrust / 1000).toFixed(0) + 'kN' };
+    }
+
+    function _updatePlannerEngineParams() {
+        if (typeof SpaceplanePlanner === 'undefined') return;
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+    }
+
+    // -----------------------------------------------------------------------
+    // Maneuver Dialog
+    // -----------------------------------------------------------------------
+    function _openManeuverDialog(node) {
+        _maneuverDialogNode = node;
+        _maneuverDialogOpen = true;
+
+        var dlg = document.getElementById('maneuverDialog');
+        if (!dlg) return;
+        dlg.classList.add('open');
+
+        // Populate inputs
+        document.getElementById('mnvPrograde').value = node.dvPrograde || 0;
+        document.getElementById('mnvNormal').value = node.dvNormal || 0;
+        document.getElementById('mnvRadial').value = node.dvRadial || 0;
+
+        // Update computed fields
+        _refreshManeuverDialog();
+
+        // Wire input listeners (remove old ones by replacing)
+        var inputs = ['mnvPrograde', 'mnvNormal', 'mnvRadial'];
+        for (var i = 0; i < inputs.length; i++) {
+            var el = document.getElementById(inputs[i]);
+            if (!el) continue;
+            var newEl = el.cloneNode(true);
+            el.parentNode.replaceChild(newEl, el);
+            newEl.addEventListener('input', _onManeuverInput);
+            // Stop keyboard events from reaching flight controls
+            newEl.addEventListener('keydown', function(e) { e.stopPropagation(); });
+            newEl.addEventListener('keyup', function(e) { e.stopPropagation(); });
+        }
+
+        // Wire execute time selector
+        var execTimeSel = document.getElementById('mnvExecTime');
+        if (execTimeSel) {
+            var newSel = execTimeSel.cloneNode(true);
+            execTimeSel.parentNode.replaceChild(newSel, execTimeSel);
+            newSel.value = 'current';
+            newSel.addEventListener('change', _onExecTimeChange);
+            newSel.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        }
+        var customTimeEl = document.getElementById('mnvCustomTime');
+        if (customTimeEl) {
+            var newCT = customTimeEl.cloneNode(true);
+            customTimeEl.parentNode.replaceChild(newCT, customTimeEl);
+            newCT.addEventListener('input', _onExecTimeChange);
+            newCT.addEventListener('keydown', function(e) { e.stopPropagation(); });
+            newCT.addEventListener('keyup', function(e) { e.stopPropagation(); });
+        }
+        var customRow = document.getElementById('mnvCustomTimeRow');
+        if (customRow) customRow.style.display = 'none';
+
+        // Wire buttons
+        _wireManeuverButton('mnvAccept', function() {
+            _createNodeMarker(_maneuverDialogNode);
+            _closeManeuverDialog(false);
+        });
+        _wireManeuverButton('mnvWarpToT', function() {
+            _createNodeMarker(_maneuverDialogNode);
+            _startAutoExec(_maneuverDialogNode, 'warp_only');
+            _closeManeuverDialog(false);
+        });
+        _wireManeuverButton('mnvExecute', function() {
+            _createNodeMarker(_maneuverDialogNode);
+            // Build orbital element target for Hohmann burn 1
+            var execTarget = null;
+            if (_pendingHohmann) {
+                var tgtR = 6371000 + _pendingHohmann.targetAltKm * 1000;
+                var curR = 6371000 + (_playerState.alt || 0);
+                execTarget = tgtR > curR
+                    ? { type: 'raise_apo', targetAltM: _pendingHohmann.targetAltKm * 1000 }
+                    : { type: 'lower_pe', targetAltM: _pendingHohmann.targetAltKm * 1000 };
+            }
+            _startAutoExec(_maneuverDialogNode, 'warping', execTarget);
+            _closeManeuverDialog(false);
+        });
+        _wireManeuverButton('mnvCancel', function() {
+            _closeManeuverDialog(true); // true = delete node
+        });
+
+        // Circularize helpers
+        _wireManeuverButton('mnvCircAP', function() { _circularizeAt('apogee'); });
+        _wireManeuverButton('mnvCircPE', function() { _circularizeAt('perigee'); });
+
+        // Solver buttons
+        _wireManeuverButton('mnvHohmann', function() { _openSolverPanel('hohmann'); });
+        _wireManeuverButton('mnvIntercept', function() { _openSolverPanel('intercept'); });
+        _wireManeuverButton('mnvNMC', function() { _openSolverPanel('nmc'); });
+        _wireManeuverButton('mnvOrbit', function() { _openSolverPanel('orbit'); });
+        _wireManeuverButton('mnvLagrange', function() { _openSolverPanel('lagrange'); });
+        _wireManeuverButton('mnvInclChg', function() { _openSolverPanel('inclChg'); });
+        _wireManeuverButton('mnvPlaneMatch', function() { _openSolverPanel('planeMatch'); });
+        _wireManeuverButton('mnvPlanet', function() { _openSolverPanel('planet'); });
+
+        // Reset solver panel
+        var solverPanel = document.getElementById('mnvSolverPanel');
+        if (solverPanel) { solverPanel.style.display = 'none'; solverPanel.innerHTML = ''; }
+        // Clear active state on solver buttons
+        ['mnvHohmann', 'mnvIntercept', 'mnvNMC', 'mnvOrbit', 'mnvLagrange', 'mnvInclChg', 'mnvPlaneMatch', 'mnvPlanet'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) btn.classList.remove('active');
+        });
+    }
+
+    function _wireManeuverButton(id, handler) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        var newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', handler);
+    }
+
+    function _onManeuverInput() {
+        if (_maneuverUpdateTimer) clearTimeout(_maneuverUpdateTimer);
+        _maneuverUpdateTimer = setTimeout(function() {
+            if (!_maneuverDialogNode || typeof SpaceplanePlanner === 'undefined') return;
+            var pro = parseFloat(document.getElementById('mnvPrograde').value) || 0;
+            var norm = parseFloat(document.getElementById('mnvNormal').value) || 0;
+            var rad = parseFloat(document.getElementById('mnvRadial').value) || 0;
+            SpaceplanePlanner.setNodeDV(pro, norm, rad);
+            _refreshManeuverDialog();
+        }, 150);
+    }
+
+    function _onExecTimeChange() {
+        if (!_maneuverDialogNode || typeof SpaceplanePlanner === 'undefined') return;
+        if (typeof SpaceplaneOrbital === 'undefined') return;
+
+        var sel = document.getElementById('mnvExecTime');
+        var customRow = document.getElementById('mnvCustomTimeRow');
+        if (!sel) return;
+
+        var val = sel.value;
+
+        // Show/hide custom time input
+        if (customRow) customRow.style.display = val === 'custom' ? 'flex' : 'none';
+
+        // Keep current if "current" selected
+        if (val === 'current') return;
+
+        // Get the target dt from orbital elements
+        var elems = SpaceplaneOrbital.orbitalElements;
+        var dt = 0;
+
+        if (val === 'apogee' && elems && elems.timeToApoapsis != null) {
+            dt = elems.timeToApoapsis;
+        } else if (val === 'perigee' && elems && elems.timeToPeriapsis != null) {
+            dt = elems.timeToPeriapsis;
+        } else if (val === 'asc_node' && elems && elems.timeToAscendingNode != null) {
+            dt = elems.timeToAscendingNode;
+        } else if (val === 'desc_node' && elems && elems.timeToDescendingNode != null) {
+            dt = elems.timeToDescendingNode;
+        } else if (val === 'ta90' && elems && elems.timeToTA90 != null) {
+            dt = elems.timeToTA90;
+        } else if (val === 'ta270' && elems && elems.timeToTA270 != null) {
+            dt = elems.timeToTA270;
+        } else if (val === 'custom') {
+            var customEl = document.getElementById('mnvCustomTime');
+            dt = customEl ? (parseFloat(customEl.value) || 0) : 0;
+            if (dt <= 0) return;
+        } else {
+            return; // No valid time available
+        }
+
+        if (dt <= 0) return;
+
+        // Save current DV inputs
+        var savedPro = _maneuverDialogNode.dvPrograde || 0;
+        var savedNorm = _maneuverDialogNode.dvNormal || 0;
+        var savedRad = _maneuverDialogNode.dvRadial || 0;
+
+        // Delete old node
+        SpaceplanePlanner.deleteNode(_maneuverDialogNode);
+
+        // Create new node at target time
+        var newNode = SpaceplanePlanner.createNodeAtTime(_playerState, _simElapsed, dt);
+        if (!newNode) return;
+
+        // Re-apply DV
+        _maneuverDialogNode = newNode;
+        SpaceplanePlanner.setNodeDV(savedPro, savedNorm, savedRad);
+
+        // Update engine params
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+
+        // Refresh UI
+        document.getElementById('mnvPrograde').value = savedPro;
+        document.getElementById('mnvNormal').value = savedNorm;
+        document.getElementById('mnvRadial').value = savedRad;
+        _refreshManeuverDialog();
+    }
+
+    function _circularizeAt(point) {
+        if (!_maneuverDialogNode || typeof SpaceplanePlanner === 'undefined') return;
+        if (typeof SpaceplaneOrbital === 'undefined') return;
+
+        var elems = SpaceplaneOrbital.orbitalElements;
+        if (!elems || !elems.sma || elems.eccentricity >= 1.0) return;
+
+        var MU = 3.986004418e14;
+        var a = elems.sma;
+        var e = elems.eccentricity;
+        var dt, rTarget, vCurrent, vCirc, dvPro;
+
+        if (point === 'apogee') {
+            dt = elems.timeToApoapsis || 0;
+            rTarget = a * (1 + e);                        // radius at apoapsis
+            vCurrent = Math.sqrt(MU * (2 / rTarget - 1 / a)); // vis-viva at apoapsis
+            vCirc = Math.sqrt(MU / rTarget);               // circular velocity at that radius
+            dvPro = vCirc - vCurrent;                       // positive = prograde (speed up at AP)
+        } else {
+            dt = elems.timeToPeriapsis || 0;
+            rTarget = a * (1 - e);                        // radius at periapsis
+            vCurrent = Math.sqrt(MU * (2 / rTarget - 1 / a)); // vis-viva at periapsis
+            vCirc = Math.sqrt(MU / rTarget);               // circular velocity at that radius
+            dvPro = vCirc - vCurrent;                       // negative = retrograde (slow down at PE)
+        }
+
+        if (!isFinite(dvPro)) return;
+
+        // Delete old node, create at the correct time
+        SpaceplanePlanner.deleteNode(_maneuverDialogNode);
+        var newNode = SpaceplanePlanner.createNodeAtTime(_playerState, _simElapsed, dt);
+        if (!newNode) return;
+
+        _maneuverDialogNode = newNode;
+        SpaceplanePlanner.setNodeDV(dvPro, 0, 0); // pure prograde/retrograde
+
+        // Store orbital element target for auto-execute
+        newNode._autoExecTarget = { type: 'circularize', targetR: rTarget };
+
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+
+        // Update UI
+        document.getElementById('mnvPrograde').value = Math.round(dvPro * 10) / 10;
+        document.getElementById('mnvNormal').value = 0;
+        document.getElementById('mnvRadial').value = 0;
+        var execSel = document.getElementById('mnvExecTime');
+        if (execSel) execSel.value = point === 'apogee' ? 'apogee' : 'perigee';
+        var customRow = document.getElementById('mnvCustomTimeRow');
+        if (customRow) customRow.style.display = 'none';
+        _refreshManeuverDialog();
+    }
+
+    // -----------------------------------------------------------------------
+    // Solver panel UI
+    // -----------------------------------------------------------------------
+    var _activeSolver = null;
+
+    function _openSolverPanel(type) {
+        var panel = document.getElementById('mnvSolverPanel');
+        if (!panel) return;
+
+        // Toggle off if same solver clicked
+        if (_activeSolver === type) {
+            panel.style.display = 'none';
+            panel.innerHTML = '';
+            _activeSolver = null;
+            ['mnvHohmann', 'mnvIntercept', 'mnvNMC', 'mnvOrbit', 'mnvLagrange', 'mnvInclChg', 'mnvPlaneMatch', 'mnvPlanet'].forEach(function(id) {
+                var btn = document.getElementById(id);
+                if (btn) btn.classList.remove('active');
+            });
+            return;
+        }
+
+        _activeSolver = type;
+        ['mnvHohmann', 'mnvIntercept', 'mnvNMC', 'mnvOrbit', 'mnvLagrange', 'mnvInclChg', 'mnvPlaneMatch', 'mnvPlanet'].forEach(function(id) {
+            var btn = document.getElementById(id);
+            if (btn) btn.classList.remove('active');
+        });
+        var btnIdMap = {
+            hohmann: 'mnvHohmann', intercept: 'mnvIntercept', nmc: 'mnvNMC',
+            orbit: 'mnvOrbit', lagrange: 'mnvLagrange', inclChg: 'mnvInclChg',
+            planeMatch: 'mnvPlaneMatch', planet: 'mnvPlanet'
+        };
+        var activeBtn = document.getElementById(btnIdMap[type] || '');
+        if (activeBtn) activeBtn.classList.add('active');
+
+        if (type === 'hohmann') _renderHohmannPanel(panel);
+        else if (type === 'intercept') _renderInterceptPanel(panel);
+        else if (type === 'nmc') _renderNMCPanel(panel);
+        else if (type === 'orbit') _renderOrbitPanel(panel);
+        else if (type === 'lagrange') _renderLagrangePanel(panel);
+        else if (type === 'inclChg') _renderInclChgPanel(panel);
+        else if (type === 'planeMatch') _renderPlaneMatchPanel(panel);
+        else if (type === 'planet') _renderPlanetPanel(panel);
+
+        panel.style.display = 'block';
+
+        // Stop keyboard propagation on solver inputs
+        var inputs = panel.querySelectorAll('input, select');
+        for (var i = 0; i < inputs.length; i++) {
+            inputs[i].addEventListener('keydown', function(e) { e.stopPropagation(); });
+            inputs[i].addEventListener('keyup', function(e) { e.stopPropagation(); });
+        }
+    }
+
+    function _getOrbitalTargets() {
+        var targets = [];
+        for (var i = 0; i < _entityListItems.length; i++) {
+            var item = _entityListItems[i];
+            if (item.entity && (!_playerEntity || item.entity.id !== _playerEntity.id)) {
+                var st = item.entity.state;
+                if (st && st._eci_pos && st._eci_vel) {
+                    targets.push({ id: item.entity.id, name: item.name || item.entity.name || item.entity.id, state: st });
+                }
+            }
+        }
+        return targets;
+    }
+
+    function _targetDropdownHTML(selectId) {
+        var targets = _getOrbitalTargets();
+        var html = '<select id="' + selectId + '">';
+        if (targets.length === 0) {
+            html += '<option value="">No orbital targets</option>';
+        } else {
+            for (var i = 0; i < targets.length; i++) {
+                html += '<option value="' + targets[i].id + '">' + targets[i].name + '</option>';
+            }
+        }
+        html += '</select>';
+        return html;
+    }
+
+    function _getTargetState(selectId) {
+        var sel = document.getElementById(selectId);
+        if (!sel || !sel.value) return null;
+        var targets = _getOrbitalTargets();
+        for (var i = 0; i < targets.length; i++) {
+            if (targets[i].id === sel.value) return targets[i].state;
+        }
+        return null;
+    }
+
+    function _applySolverResult(dvPro, dvNrm, dvRad) {
+        if (!_maneuverDialogNode || typeof SpaceplanePlanner === 'undefined') return;
+        SpaceplanePlanner.setNodeDV(dvPro, dvNrm, dvRad);
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+        document.getElementById('mnvPrograde').value = Math.round(dvPro * 10) / 10;
+        document.getElementById('mnvNormal').value = Math.round(dvNrm * 10) / 10;
+        document.getElementById('mnvRadial').value = Math.round(dvRad * 10) / 10;
+        _refreshManeuverDialog();
+    }
+
+    // --- Hohmann Panel ---
+    function _renderHohmannPanel(panel) {
+        var elems = (typeof SpaceplaneOrbital !== 'undefined') ? SpaceplaneOrbital.orbitalElements : null;
+        var curAlt = elems ? ((elems.sma - 6371000) / 1000).toFixed(0) : '400';
+        var curSMA = elems ? (elems.sma / 1000).toFixed(0) : '6771';
+
+        panel.innerHTML =
+            '<div class="slv-row"><label>Mode</label>' +
+            '<select id="slvHohMode" style="flex:1;background:#111;color:#ccc;border:1px solid #555;padding:2px 4px;font-size:11px">' +
+            '<option value="alt">Altitude (km)</option>' +
+            '<option value="sma">SMA (km)</option></select></div>' +
+            '<div class="slv-row"><label id="slvHohLabel">Target Alt</label>' +
+            '<input type="number" id="slvHohTarget" value="' + (parseInt(curAlt) + 200) + '" step="10">' +
+            '<span class="slv-unit">km</span></div>' +
+            '<button class="slv-compute" id="slvHohCompute">Compute Hohmann</button>' +
+            '<div class="slv-result" id="slvHohResult" style="display:none"></div>';
+
+        document.getElementById('slvHohMode').addEventListener('change', function() {
+            var label = document.getElementById('slvHohLabel');
+            var input = document.getElementById('slvHohTarget');
+            if (this.value === 'sma') {
+                label.textContent = 'Target SMA';
+                input.value = curSMA;
+            } else {
+                label.textContent = 'Target Alt';
+                input.value = parseInt(curAlt) + 200;
+            }
+        });
+        document.getElementById('slvHohCompute').addEventListener('click', _computeHohmann);
+    }
+
+    function _computeHohmann() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+        var elems = SpaceplaneOrbital.orbitalElements;
+        if (!elems || !elems.sma) return;
+
+        var mode = document.getElementById('slvHohMode').value;
+        var inputVal = parseFloat(document.getElementById('slvHohTarget').value) || 0;
+        if (inputVal <= 0) return;
+
+        // Convert to altitude (km) for computeHohmann
+        var targetAltKm = (mode === 'sma') ? (inputVal - 6371) : inputVal;
+        if (targetAltKm <= 0) return;
+
+        // Pass actual current radius for accurate vis-viva on elliptical orbits
+        var currentRadius = _playerState.alt ? (6371000 + _playerState.alt) : elems.sma;
+        var result = SpaceplanePlanner.computeHohmann(elems.sma, targetAltKm, currentRadius);
+        if (!result.valid) return;
+
+        var targetR = 6371 + targetAltKm;
+        var resultDiv = document.getElementById('slvHohResult');
+        if (resultDiv) {
+            var tMin = (result.transferTime / 60).toFixed(1);
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'Target: <span class="slv-val">' + targetAltKm.toFixed(0) + ' km alt</span> (' +
+                targetR.toFixed(0) + ' km SMA)<br>' +
+                'Burn 1: <span class="slv-val">' + result.dv1.toFixed(1) + ' m/s</span> prograde<br>' +
+                'Burn 2: <span class="slv-val">' + result.dv2.toFixed(1) + ' m/s</span> at target<br>' +
+                'Transfer: <span class="slv-val">' + tMin + ' min</span> &nbsp; Total: <span class="slv-val">' +
+                (Math.abs(result.dv1) + Math.abs(result.dv2)).toFixed(1) + ' m/s</span><br>' +
+                '<span style="color:#887700;font-size:10px">Both burns will execute automatically.</span>';
+        }
+
+        // Store pending Hohmann target — burn 2 will be recalculated after
+        // burn 1 completes using actual post-burn orbital elements
+        _pendingHohmann = {
+            targetAltKm: targetAltKm
+        };
+
+        // Apply burn 1 as prograde DV on current node
+        _applySolverResult(result.dv1, 0, 0);
+    }
+
+    // --- Orbit Calculator Panel ---
+    function _renderOrbitPanel(panel) {
+        var elems = (typeof SpaceplaneOrbital !== 'undefined') ? SpaceplaneOrbital.orbitalElements : null;
+        var curPeAlt = elems && elems.periapsisAlt != null ? (elems.periapsisAlt / 1000).toFixed(0) : '400';
+        var curApAlt = elems && elems.apoapsisAlt != null ? (elems.apoapsisAlt / 1000).toFixed(0) : '400';
+
+        panel.innerHTML =
+            '<div class="slv-row"><label>Perigee</label>' +
+            '<input type="number" id="slvOrbPe" value="' + curPeAlt + '" step="10" style="flex:1">' +
+            '<select id="slvOrbPeMode" style="width:58px;background:#111;color:#ccc;border:1px solid #555;padding:2px;font-size:10px">' +
+            '<option value="alt">Alt km</option><option value="rad">Rad km</option></select></div>' +
+            '<div class="slv-row"><label>Apogee</label>' +
+            '<input type="number" id="slvOrbAp" value="' + curApAlt + '" step="10" style="flex:1">' +
+            '<select id="slvOrbApMode" style="width:58px;background:#111;color:#ccc;border:1px solid #555;padding:2px;font-size:10px">' +
+            '<option value="alt">Alt km</option><option value="rad">Rad km</option></select></div>' +
+            '<button class="slv-compute" id="slvOrbCompute">Compute Orbit</button>' +
+            '<div class="slv-result" id="slvOrbResult" style="display:none"></div>';
+
+        document.getElementById('slvOrbCompute').addEventListener('click', _computeOrbit);
+    }
+
+    function _computeOrbit() {
+        var peVal = parseFloat(document.getElementById('slvOrbPe').value) || 0;
+        var apVal = parseFloat(document.getElementById('slvOrbAp').value) || 0;
+        var peMode = document.getElementById('slvOrbPeMode').value;
+        var apMode = document.getElementById('slvOrbApMode').value;
+        if (peVal <= 0 || apVal <= 0) return;
+
+        // Convert to radius in km
+        var rPeKm = (peMode === 'rad') ? peVal : (peVal + 6371);
+        var rApKm = (apMode === 'rad') ? apVal : (apVal + 6371);
+
+        // Ensure perigee <= apogee
+        if (rPeKm > rApKm) { var tmp = rPeKm; rPeKm = rApKm; rApKm = tmp; }
+
+        var MU_KM = 3.986004418e5; // km³/s²
+        var sma = (rPeKm + rApKm) / 2;
+        var ecc = (rApKm - rPeKm) / (rApKm + rPeKm);
+        var period = 2 * Math.PI * Math.sqrt(sma * sma * sma / MU_KM);
+        var vPe = Math.sqrt(MU_KM * (2 / rPeKm - 1 / sma));
+        var vAp = Math.sqrt(MU_KM * (2 / rApKm - 1 / sma));
+        var peAlt = rPeKm - 6371;
+        var apAlt = rApKm - 6371;
+
+        // Format period
+        var pStr;
+        if (period < 3600) pStr = (period / 60).toFixed(1) + ' min';
+        else if (period < 86400) pStr = (period / 3600).toFixed(2) + ' hr';
+        else pStr = (period / 86400).toFixed(2) + ' days';
+
+        var rd = document.getElementById('slvOrbResult');
+        if (rd) {
+            rd.style.display = 'block';
+            rd.innerHTML =
+                'SMA: <span class="slv-val">' + sma.toFixed(1) + ' km</span> &nbsp; ' +
+                'Ecc: <span class="slv-val">' + ecc.toFixed(6) + '</span><br>' +
+                'Period: <span class="slv-val">' + pStr + '</span><br>' +
+                'Perigee: <span class="slv-val">' + peAlt.toFixed(0) + ' km alt</span> (' +
+                rPeKm.toFixed(0) + ' km rad) &nbsp; V = <span class="slv-val">' + (vPe * 1000).toFixed(0) + ' m/s</span><br>' +
+                'Apogee: <span class="slv-val">' + apAlt.toFixed(0) + ' km alt</span> (' +
+                rApKm.toFixed(0) + ' km rad) &nbsp; V = <span class="slv-val">' + (vAp * 1000).toFixed(0) + ' m/s</span>';
+        }
+    }
+
+    // --- Intercept Panel ---
+    function _renderInterceptPanel(panel) {
+        var elems = (typeof SpaceplaneOrbital !== 'undefined') ? SpaceplaneOrbital.orbitalElements : null;
+        var defTOF = elems && elems.sma > 0 ? Math.round(Math.PI * Math.sqrt(elems.sma * elems.sma * elems.sma / 3.986004418e14)) : 2700;
+
+        panel.innerHTML =
+            '<div class="slv-row"><label>Target</label>' + _targetDropdownHTML('slvIntTarget') + '</div>' +
+            '<div class="slv-row"><label>TOF</label>' +
+            '<input type="number" id="slvIntTOF" value="' + defTOF + '" step="60">' +
+            '<span class="slv-unit">s</span></div>' +
+            '<div class="slv-row"><label>R offset</label>' +
+            '<input type="number" id="slvIntR" value="0" step="100">' +
+            '<span class="slv-unit">m</span></div>' +
+            '<div class="slv-row"><label>I offset</label>' +
+            '<input type="number" id="slvIntI" value="0" step="100">' +
+            '<span class="slv-unit">m</span></div>' +
+            '<div class="slv-row"><label>C offset</label>' +
+            '<input type="number" id="slvIntC" value="0" step="100">' +
+            '<span class="slv-unit">m</span></div>' +
+            '<button class="slv-compute" id="slvIntCompute">Compute Intercept</button>' +
+            '<div class="slv-result" id="slvIntResult" style="display:none"></div>';
+
+        document.getElementById('slvIntCompute').addEventListener('click', _computeIntercept);
+    }
+
+    function _computeIntercept() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+
+        var targetState = _getTargetState('slvIntTarget');
+        if (!targetState) {
+            var rd = document.getElementById('slvIntResult');
+            if (rd) { rd.style.display = 'block'; rd.innerHTML = '<span style="color:#aa4400">No target selected or target has no ECI state</span>'; }
+            return;
+        }
+
+        var tof = parseFloat(document.getElementById('slvIntTOF').value) || 0;
+        if (tof <= 0) return;
+
+        var ricOffset = {
+            r: parseFloat(document.getElementById('slvIntR').value) || 0,
+            i: parseFloat(document.getElementById('slvIntI').value) || 0,
+            c: parseFloat(document.getElementById('slvIntC').value) || 0,
+        };
+
+        var result = SpaceplanePlanner.computeIntercept(_playerState, targetState, _simElapsed, tof, ricOffset);
+
+        var resultDiv = document.getElementById('slvIntResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:#aa4400">Lambert solver failed — try different TOF</span>';
+                return;
+            }
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'Pro: <span class="slv-val">' + result.dvPro.toFixed(1) + '</span> ' +
+                'Nrm: <span class="slv-val">' + result.dvNrm.toFixed(1) + '</span> ' +
+                'Rad: <span class="slv-val">' + result.dvRad.toFixed(1) + '</span> m/s<br>' +
+                'Total: <span class="slv-val">' + result.dvTotal.toFixed(1) + ' m/s</span>' +
+                (ricOffset.r || ricOffset.i || ricOffset.c ? ' (w/ RIC offset)' : '');
+        }
+
+        _applySolverResult(result.dvPro, result.dvNrm, result.dvRad);
+    }
+
+    // --- NMC Panel ---
+    function _renderNMCPanel(panel) {
+        panel.innerHTML =
+            '<div class="slv-row"><label>Target</label>' + _targetDropdownHTML('slvNMCTarget') + '</div>' +
+            '<div class="slv-row"><label>Semi-minor</label>' +
+            '<input type="number" id="slvNMCSemiMinor" value="1.0" step="0.1">' +
+            '<span class="slv-unit">km</span></div>' +
+            '<div class="slv-row"><label>Phase</label>' +
+            '<input type="number" id="slvNMCPhase" value="0" step="15">' +
+            '<span class="slv-unit">deg</span></div>' +
+            '<button class="slv-compute" id="slvNMCCompute">Compute NMC</button>' +
+            '<div class="slv-result" id="slvNMCResult" style="display:none"></div>';
+
+        document.getElementById('slvNMCCompute').addEventListener('click', _computeNMC);
+    }
+
+    function _computeNMC() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+
+        var targetState = _getTargetState('slvNMCTarget');
+        if (!targetState) {
+            var rd = document.getElementById('slvNMCResult');
+            if (rd) { rd.style.display = 'block'; rd.innerHTML = '<span style="color:#aa4400">No target selected or target has no ECI state</span>'; }
+            return;
+        }
+
+        var semiMinor = parseFloat(document.getElementById('slvNMCSemiMinor').value) || 1.0;
+        var phase = parseFloat(document.getElementById('slvNMCPhase').value) || 0;
+
+        var result = SpaceplanePlanner.computeNMC(_playerState, targetState, _simElapsed, semiMinor, phase);
+
+        var resultDiv = document.getElementById('slvNMCResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:#aa4400">NMC computation failed</span>';
+                return;
+            }
+            var periodMin = (result.period / 60).toFixed(1);
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'Pro: <span class="slv-val">' + result.dvPro.toFixed(1) + '</span> ' +
+                'Nrm: <span class="slv-val">' + result.dvNrm.toFixed(1) + '</span> ' +
+                'Rad: <span class="slv-val">' + result.dvRad.toFixed(1) + '</span> m/s<br>' +
+                'Total: <span class="slv-val">' + result.dvTotal.toFixed(1) + ' m/s</span><br>' +
+                'NMC: <span class="slv-val">' + result.semiMinor + ' x ' + result.semiMajor + ' km</span> ' +
+                'Period: <span class="slv-val">' + periodMin + ' min</span>';
+        }
+
+        _applySolverResult(result.dvPro, result.dvNrm, result.dvRad);
+    }
+
+    // --- Lagrange Panel ---
+    function _renderLagrangePanel(panel) {
+        panel.innerHTML =
+            '<div class="slv-row"><label>System</label>' +
+            '<select id="slvLagSystem" style="flex:1;background:#111;color:#ccc;border:1px solid #555;padding:2px 4px;font-size:11px">' +
+            '<option value="earth-moon">Earth-Moon</option>' +
+            '<option value="earth-sun">Earth-Sun</option></select></div>' +
+            '<div class="slv-row"><label>Point</label>' +
+            '<select id="slvLagPoint" style="flex:1;background:#111;color:#ccc;border:1px solid #555;padding:2px 4px;font-size:11px">' +
+            '<option value="1">L1</option><option value="2">L2</option>' +
+            '<option value="3">L3</option><option value="4">L4</option>' +
+            '<option value="5">L5</option></select></div>' +
+            '<div class="slv-row"><label>TOF</label>' +
+            '<input type="number" id="slvLagTOF" value="3.0" step="0.5" min="0.1">' +
+            '<span class="slv-unit">days</span></div>' +
+            '<button class="slv-compute" id="slvLagCompute">Compute Transfer</button>' +
+            '<div class="slv-result" id="slvLagResult" style="display:none"></div>';
+
+        // Update default TOF when system changes
+        document.getElementById('slvLagSystem').addEventListener('change', function() {
+            var tofInput = document.getElementById('slvLagTOF');
+            tofInput.value = (this.value === 'earth-sun') ? '120' : '3.0';
+        });
+        document.getElementById('slvLagCompute').addEventListener('click', _computeLagrange);
+    }
+
+    function _computeLagrange() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+
+        var system = document.getElementById('slvLagSystem').value;
+        var lNum = parseInt(document.getElementById('slvLagPoint').value);
+        var tofDays = parseFloat(document.getElementById('slvLagTOF').value) || 3.0;
+        if (tofDays <= 0) return;
+
+        var result = SpaceplanePlanner.computeLagrangeTransfer(
+            _playerState, system, lNum, _simElapsed, tofDays
+        );
+
+        var resultDiv = document.getElementById('slvLagResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                var distStr = result.targetDist ? (result.targetDist / 1000).toFixed(0) + ' km' : 'unknown';
+                resultDiv.innerHTML = '<span style="color:#aa4400">Lambert solver failed for ' +
+                    (result.targetName || 'L' + lNum) + '</span><br>' +
+                    'Distance: ' + distStr + '. Try adjusting TOF.';
+                return;
+            }
+            var distKm = result.targetDist / 1000;
+            var distStr;
+            if (distKm > 1e6) distStr = (distKm / 1e6).toFixed(2) + ' M km';
+            else distStr = distKm.toFixed(0) + ' km';
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'Target: <span class="slv-val">' + result.targetName + '</span> at ' +
+                '<span class="slv-val">' + distStr + '</span><br>' +
+                'Pro: <span class="slv-val">' + result.dvPro.toFixed(1) + '</span> ' +
+                'Nrm: <span class="slv-val">' + result.dvNrm.toFixed(1) + '</span> ' +
+                'Rad: <span class="slv-val">' + result.dvRad.toFixed(1) + '</span> m/s<br>' +
+                'Total: <span class="slv-val">' + result.dvTotal.toFixed(1) + ' m/s</span> &nbsp; ' +
+                'TOF: <span class="slv-val">' + tofDays.toFixed(1) + ' days</span>';
+        }
+
+        _applySolverResult(result.dvPro, result.dvNrm, result.dvRad);
+    }
+
+    // --- Inclination Change Panel ---
+    function _renderInclChgPanel(panel) {
+        var elems = (typeof SpaceplaneOrbital !== 'undefined') ? SpaceplaneOrbital.orbitalElements : null;
+        var curInc = elems && elems.inclination != null ? (elems.inclination * RAD).toFixed(2) : '?';
+
+        panel.innerHTML =
+            '<div class="slv-row"><label>Target Inc</label>' +
+            '<input type="number" id="slvInclTarget" value="0" step="0.1">' +
+            '<span class="slv-unit">deg</span></div>' +
+            '<div style="font-size:10px;color:#887700;margin-bottom:6px">Current: ' + curInc + '\u00B0</div>' +
+            '<button class="slv-compute" id="slvInclCompute">Compute Incl Change</button>' +
+            '<div class="slv-result" id="slvInclResult" style="display:none"></div>';
+
+        document.getElementById('slvInclCompute').addEventListener('click', _computeInclChg);
+    }
+
+    function _computeInclChg() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+
+        var targetIncDeg = parseFloat(document.getElementById('slvInclTarget').value);
+        if (isNaN(targetIncDeg) || targetIncDeg < 0 || targetIncDeg > 180) return;
+
+        var result = SpaceplanePlanner.computeInclinationChange(_playerState, _simElapsed, targetIncDeg);
+
+        var resultDiv = document.getElementById('slvInclResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:#aa4400">Cannot compute plane change</span>';
+                return;
+            }
+            if (result.dvTotal < 0.1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'Already at target inclination';
+                return;
+            }
+            var escapeWarning = result.wouldEscape ?
+                '<br><span style="color:#ff4444">WARNING: DV exceeds escape velocity — orbit will be unbound! Use a higher orbit or smaller change.</span>' : '';
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'From <span class="slv-val">' + result.currentIncDeg.toFixed(2) + '\u00B0</span>' +
+                ' \u2192 <span class="slv-val">' + result.targetIncDeg.toFixed(2) + '\u00B0</span><br>' +
+                'DV: <span class="slv-val">' + (result.dvTotal / 1000).toFixed(2) + ' km/s</span> normal at ' +
+                '<span class="slv-val">' + result.nodeName + '</span> (T-' +
+                _fmtTimeDuration(result.nodeTimeDt) + ')' + escapeWarning;
+        }
+
+        // Don't create node if it would escape
+        if (result.wouldEscape) return;
+
+        // Create node at the specified time and apply normal DV
+        if (_maneuverDialogNode) {
+            SpaceplanePlanner.deleteNode(_maneuverDialogNode);
+        }
+        var newNode = SpaceplanePlanner.createNodeAtTime(_playerState, _simElapsed, result.nodeTimeDt);
+        if (!newNode) return;
+        _maneuverDialogNode = newNode;
+        SpaceplanePlanner.setNodeDV(0, result.dvNrm, 0);
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+        document.getElementById('mnvPrograde').value = 0;
+        document.getElementById('mnvNormal').value = Math.round(result.dvNrm * 10) / 10;
+        document.getElementById('mnvRadial').value = 0;
+        _refreshManeuverDialog();
+    }
+
+    // --- Plane Match Panel ---
+    function _renderPlaneMatchPanel(panel) {
+        panel.innerHTML =
+            '<div class="slv-row"><label>Target</label>' +
+            _targetDropdownHTML('slvPlaneTarget') + '</div>' +
+            '<button class="slv-compute" id="slvPlaneCompute">Compute Plane Match</button>' +
+            '<div class="slv-result" id="slvPlaneResult" style="display:none"></div>';
+
+        document.getElementById('slvPlaneCompute').addEventListener('click', _computePlaneMatch);
+    }
+
+    function _computePlaneMatch() {
+        if (typeof SpaceplanePlanner === 'undefined' || typeof SpaceplaneOrbital === 'undefined') return;
+
+        var targetState = _getTargetState('slvPlaneTarget');
+        if (!targetState) return;
+
+        var result = SpaceplanePlanner.computePlaneMatch(_playerState, targetState, _simElapsed);
+
+        var resultDiv = document.getElementById('slvPlaneResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:#aa4400">Cannot compute plane match</span>';
+                return;
+            }
+            if (result.dvTotal < 0.1) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = 'Planes already matched';
+                return;
+            }
+            var escapeWarning = result.wouldEscape ?
+                '<br><span style="color:#ff4444">WARNING: DV exceeds escape velocity — orbit will be unbound!</span>' : '';
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                '\u0394i = <span class="slv-val">' + result.deltaIncDeg.toFixed(2) + '\u00B0</span><br>' +
+                'DV: <span class="slv-val">' + (result.dvTotal / 1000).toFixed(2) + ' km/s</span> normal at intersection (T-' +
+                _fmtTimeDuration(result.nodeTimeDt) + ')' + escapeWarning;
+        }
+
+        // Don't create node if it would escape
+        if (result.wouldEscape) return;
+
+        // Create node at intersection and apply normal DV
+        if (_maneuverDialogNode) {
+            SpaceplanePlanner.deleteNode(_maneuverDialogNode);
+        }
+        var newNode = SpaceplanePlanner.createNodeAtTime(_playerState, _simElapsed, result.nodeTimeDt);
+        if (!newNode) return;
+        _maneuverDialogNode = newNode;
+        SpaceplanePlanner.setNodeDV(0, result.dvNrm, 0);
+        var ep = _getPlannerEngineParams();
+        SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+        document.getElementById('mnvPrograde').value = 0;
+        document.getElementById('mnvNormal').value = Math.round(result.dvNrm * 10) / 10;
+        document.getElementById('mnvRadial').value = 0;
+        _refreshManeuverDialog();
+    }
+
+    // --- Planetary Transfer Panel ---
+    function _renderPlanetPanel(panel) {
+        var planets = ['MERCURY', 'VENUS', 'MARS', 'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE'];
+        var defaultTOF = (typeof SpaceplanePlanner !== 'undefined') ?
+            SpaceplanePlanner.defaultPlanetaryTOF('MARS') : 259;
+
+        var selectHTML = '<select id="slvPlanetTarget">';
+        for (var i = 0; i < planets.length; i++) {
+            var name = planets[i].charAt(0) + planets[i].slice(1).toLowerCase();
+            var sel = planets[i] === 'MARS' ? ' selected' : '';
+            selectHTML += '<option value="' + planets[i] + '"' + sel + '>' + name + '</option>';
+        }
+        selectHTML += '</select>';
+
+        panel.innerHTML =
+            '<div class="slv-row"><label>Target</label>' + selectHTML + '</div>' +
+            '<div class="slv-row"><label>TOF</label>' +
+            '<input type="number" id="slvPlanetTOF" value="' + defaultTOF + '" step="10">' +
+            '<span class="slv-unit">days</span></div>' +
+            '<button class="slv-compute" id="slvPlanetCompute">Compute Transfer</button>' +
+            '<div class="slv-result" id="slvPlanetResult" style="display:none"></div>';
+
+        // Update default TOF when planet changes
+        document.getElementById('slvPlanetTarget').addEventListener('change', function() {
+            if (typeof SpaceplanePlanner !== 'undefined') {
+                document.getElementById('slvPlanetTOF').value =
+                    SpaceplanePlanner.defaultPlanetaryTOF(this.value);
+            }
+        });
+        document.getElementById('slvPlanetCompute').addEventListener('click', _computePlanetTransfer);
+    }
+
+    function _computePlanetTransfer() {
+        if (typeof SpaceplanePlanner === 'undefined') return;
+
+        var planet = document.getElementById('slvPlanetTarget').value;
+        var tofDays = parseFloat(document.getElementById('slvPlanetTOF').value) || 200;
+        if (tofDays <= 0) return;
+
+        var result = SpaceplanePlanner.computePlanetaryTransfer(
+            _playerState, _simElapsed, planet, tofDays
+        );
+
+        var resultDiv = document.getElementById('slvPlanetResult');
+        if (resultDiv) {
+            if (!result.valid) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:#aa4400">Lambert solver failed for ' +
+                    (result.targetName || planet) + '</span><br>Try adjusting TOF.';
+                return;
+            }
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML =
+                'Target: <span class="slv-val">' + result.targetName + '</span><br>' +
+                'Departure \u0394V: <span class="slv-val">' + (result.dvDepart / 1000).toFixed(2) + ' km/s</span><br>' +
+                'C3: <span class="slv-val">' + (result.c3 / 1e6).toFixed(2) + ' km\u00B2/s\u00B2</span> &nbsp; ' +
+                'V\u221E: <span class="slv-val">' + (result.vInfMag / 1000).toFixed(2) + ' km/s</span><br>' +
+                'Pro: <span class="slv-val">' + result.dvPro.toFixed(1) + '</span> ' +
+                'Nrm: <span class="slv-val">' + result.dvNrm.toFixed(1) + '</span> ' +
+                'Rad: <span class="slv-val">' + result.dvRad.toFixed(1) + '</span> m/s<br>' +
+                'TOF: <span class="slv-val">' + tofDays + ' days</span>';
+        }
+
+        _applySolverResult(result.dvPro, result.dvNrm, result.dvRad);
+    }
+
+    function _refreshManeuverDialog() {
+        var node = _maneuverDialogNode;
+        if (!node) return;
+
+        // Time display
+        var ttn = node.timeToNode || (node.simTime - _simElapsed);
+        document.getElementById('mnvTimeToNode').textContent = 'T- ' + _fmtTimeDuration(Math.abs(ttn));
+
+        var burnAtSec = node.simTime;
+        var h = Math.floor(burnAtSec / 3600);
+        var m = Math.floor((burnAtSec % 3600) / 60);
+        var s = Math.floor(burnAtSec % 60);
+        document.getElementById('mnvBurnAt').textContent = 'Burn @ ' +
+            String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+
+        // Computed fields
+        document.getElementById('mnvTotalDV').textContent = node.dv.toFixed(1) + ' m/s';
+
+        var bt = node.burnTime || 0;
+        var btText = bt < 60 ? bt.toFixed(1) + 's' : (bt / 60).toFixed(1) + 'min';
+        document.getElementById('mnvBurnTime').textContent = btText;
+
+        document.getElementById('mnvEngine').textContent = node.engineLabel || _getPlannerEngineParams().label;
+
+        document.getElementById('mnvPostAP').textContent =
+            node.postAP != null ? (node.postAP / 1000).toFixed(0) + ' km' : '-- km';
+        document.getElementById('mnvPostPE').textContent =
+            node.postPE != null ? (node.postPE / 1000).toFixed(0) + ' km' : '-- km';
+    }
+
+    function _closeManeuverDialog(deleteNode) {
+        _maneuverDialogOpen = false;
+        _activeSolver = null;
+        var dlg = document.getElementById('maneuverDialog');
+        if (dlg) dlg.classList.remove('open');
+
+        // Clean up solver panel
+        var solverPanel = document.getElementById('mnvSolverPanel');
+        if (solverPanel) { solverPanel.style.display = 'none'; solverPanel.innerHTML = ''; }
+
+        if (deleteNode && _maneuverDialogNode && typeof SpaceplanePlanner !== 'undefined') {
+            SpaceplanePlanner.deleteNode(_maneuverDialogNode);
+            _pendingHohmann = null; // clear pending 2-burn if node deleted
+        }
+        _maneuverDialogNode = null;
+        if (_maneuverUpdateTimer) { clearTimeout(_maneuverUpdateTimer); _maneuverUpdateTimer = null; }
+    }
+
+    function _fmtTimeDuration(sec) {
+        if (!isFinite(sec)) return '--:--';
+        sec = Math.round(sec);
+        if (sec >= 86400) return Math.floor(sec / 86400) + 'd ' + Math.floor((sec % 86400) / 3600) + 'h';
+        if (sec >= 3600) return Math.floor(sec / 3600) + 'h ' + String(Math.floor((sec % 3600) / 60)).padStart(2, '0') + 'm';
+        return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    }
+
+    // -----------------------------------------------------------------------
+    // Node marker entities
+    // -----------------------------------------------------------------------
+    function _createNodeMarker(node) {
+        if (!node || !_viewer) return;
+        // Remove existing marker if any
+        if (node._marker) {
+            try { _viewer.entities.remove(node._marker); } catch(e) {}
+        }
+
+        var gmst = 7.2921159e-5 * node.simTime;
+        var cosG = Math.cos(-gmst), sinG = Math.sin(-gmst);
+        var ex = node.eciPos[0], ey = node.eciPos[1], ez = node.eciPos[2];
+        var ecefX = cosG * ex - sinG * ey;
+        var ecefY = sinG * ex + cosG * ey;
+        var ecefZ = ez;
+
+        var markerPos = new Cesium.Cartesian3(ecefX, ecefY, ecefZ);
+
+        var dvLabel = '\u0394V ' + node.dv.toFixed(0) + ' m/s';
+        var btLabel = (node.burnTime < 60 ? node.burnTime.toFixed(1) + 's' : (node.burnTime / 60).toFixed(1) + 'min');
+
+        node._marker = _viewer.entities.add({
+            name: 'Maneuver Node',
+            position: markerPos,
+            point: { pixelSize: 12, color: Cesium.Color.ORANGE, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+            label: {
+                text: dvLabel + '\n' + btLabel + ' ' + (node.engineLabel || ''),
+                font: '11px monospace',
+                fillColor: Cesium.Color.ORANGE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -10),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+        });
+        // Store viewer ref for cleanup
+        node._marker._viewer = _viewer;
+    }
+
+    function _removeNodeMarker(node) {
+        if (!node || !node._marker || !_viewer) return;
+        try { _viewer.entities.remove(node._marker); } catch(e) {}
+        node._marker = null;
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-execute state machine
+    // -----------------------------------------------------------------------
+    function _startAutoExec(node, mode, target) {
+        _autoExecNode = node;
+        _autoExecState = mode; // 'warp_only' or 'warping'
+        _autoExecTarget = target || node._autoExecTarget || null;
+        // Ensure no thrust during coast
+        _playerState.throttle = 0;
+        _playerState.alpha = 0;
+        _playerState.yawOffset = 0;
+        // Unpause if paused
+        if (_isPaused) {
+            _isPaused = false;
+            _setText('pauseStatus', 'RUNNING');
+            _lastTickTime = null;
+        }
+        _timeWarp = _getMaxWarp();
+        _setText('timeWarpDisplay', _timeWarp + 'x');
+        _showMessage('WARPING TO BURN POINT');
+    }
+
+    function _cancelAutoExec() {
+        if (!_autoExecState) return;
+        _autoExecState = null;
+        _autoExecNode = null;
+        _autoExecTarget = null;
+        _pendingHohmann = null;
+        _timeWarp = 1;
+        _setText('timeWarpDisplay', '1x');
+        _playerState.throttle = 0;
+        _playerState.alpha = 0;
+        _playerState.yawOffset = 0;
+        _showMessage('AUTO-EXECUTE CANCELLED');
+    }
+
+    /**
+     * Compute burn alpha/yawOffset from CURRENT orbital frame.
+     * Uses the node's dvPrograde/dvNormal/dvRadial in the player's current
+     * orbital frame, NOT the stored node frame. This ensures the burn direction
+     * is always correct relative to the current velocity (prograde stays prograde).
+     */
+    function _computeBurnOrientation(node) {
+        if (typeof SpaceplaneOrbital === 'undefined' || typeof SpaceplanePlanner === 'undefined') return;
+        var dvP = node.dvPrograde || 0;
+        var dvN = node.dvNormal || 0;
+        var dvR = node.dvRadial || 0;
+        var dvMag = Math.sqrt(dvP * dvP + dvN * dvN + dvR * dvR);
+        if (dvMag < 0.01) return;
+
+        var eci = SpaceplaneOrbital.geodeticToECI(_playerState, _simElapsed);
+        var vMag = SpaceplaneOrbital.vecMag(eci.vel);
+        if (vMag < 100) return;
+
+        // Compute burn direction in ECI from CURRENT orbital frame
+        var frame = SpaceplanePlanner.computeOrbitalFrame(eci.pos, eci.vel);
+        var burnDirECI = [
+            (frame.prograde[0] * dvP + frame.normal[0] * dvN + frame.radial[0] * dvR) / dvMag,
+            (frame.prograde[1] * dvP + frame.normal[1] * dvN + frame.radial[1] * dvR) / dvMag,
+            (frame.prograde[2] * dvP + frame.normal[2] * dvN + frame.radial[2] * dvR) / dvMag
+        ];
+
+        // Project onto physics frame (prograde / up-from-vel / lateral)
+        var proDir = SpaceplaneOrbital.vecScale(eci.vel, 1 / vMag);
+        var rMag = SpaceplaneOrbital.vecMag(eci.pos);
+        var rHat = SpaceplaneOrbital.vecScale(eci.pos, 1 / rMag);
+        var rDotPro = SpaceplaneOrbital.vecDot(rHat, proDir);
+        var upFromVel = [
+            rHat[0] - rDotPro * proDir[0],
+            rHat[1] - rDotPro * proDir[1],
+            rHat[2] - rDotPro * proDir[2]
+        ];
+        var upMag = SpaceplaneOrbital.vecMag(upFromVel);
+        if (upMag > 0.001) upFromVel = SpaceplaneOrbital.vecScale(upFromVel, 1 / upMag);
+        var latFromVel = SpaceplaneOrbital.vecCross(proDir, upFromVel);
+
+        var bPro = SpaceplaneOrbital.vecDot(burnDirECI, proDir);
+        var bUp = SpaceplaneOrbital.vecDot(burnDirECI, upFromVel);
+        var bLat = SpaceplaneOrbital.vecDot(burnDirECI, latFromVel);
+
+        _playerState.alpha = Math.atan2(bUp, Math.sqrt(bPro * bPro + bLat * bLat));
+        _playerState.yawOffset = Math.atan2(bLat, bPro);
+    }
+
+    function _tickAutoExec(frameDt) {
+        if (!_autoExecState || !_autoExecNode) return;
+
+        var node = _autoExecNode;
+        var burnStartTime = node.simTime - (node.burnTime || 0) / 2;
+
+        var timeRemaining = burnStartTime - _simElapsed;
+
+        switch (_autoExecState) {
+            case 'warp_only':
+            case 'warping':
+                if (timeRemaining <= 0) {
+                    if (_autoExecState === 'warp_only') {
+                        _timeWarp = 1;
+                        _setText('timeWarpDisplay', '1x');
+                        _autoExecState = null;
+                        _autoExecNode = null;
+                        _showMessage('ARRIVED AT BURN POINT');
+                    } else {
+                        // Skip separate orient phase — set orientation instantly
+                        // and go straight to burning. Keeps warp high.
+                        var dvTotal = Math.sqrt(
+                            (node.dvPrograde || 0) * (node.dvPrograde || 0) +
+                            (node.dvNormal || 0) * (node.dvNormal || 0) +
+                            (node.dvRadial || 0) * (node.dvRadial || 0)
+                        );
+                        if (dvTotal < 0.01) {
+                            _autoExecState = null;
+                            _autoExecNode = null;
+                            _timeWarp = 1;
+                            _setText('timeWarpDisplay', '1x');
+                            _showMessage('NO BURN REQUIRED');
+                        } else {
+                            // Set orientation instantly from current orbital frame
+                            _computeBurnOrientation(node);
+                            _autoExecState = 'burning';
+                            _playerState.throttle = 1.0;
+                            _playerState.engineOn = true;
+                            _autoExecBurnEnd = _simElapsed + (node.burnTime || 1) * 2; // safety fallback at 2x
+                            _autoExecCumulativeDV = 0;
+                            _autoExecTargetDV = node.dv || 0;
+                            _showMessage('EXECUTING BURN');
+                        }
+                    }
+                } else {
+                    // Maintain max warp while coasting to burn point
+                    _timeWarp = _getMaxWarp();
+                    _setText('timeWarpDisplay', _timeWarp + 'x');
+                }
+                break;
+
+            case 'burning':
+                // Maintain throttle
+                _playerState.throttle = 1.0;
+                _playerState.engineOn = true;
+
+                // Accumulate delivered delta-V
+                if (frameDt > 0) {
+                    var epBurn = _getPlannerEngineParams();
+                    if (epBurn.mass > 0 && epBurn.thrust > 0) {
+                        _autoExecCumulativeDV += (epBurn.thrust / epBurn.mass) * frameDt;
+                    }
+
+                    // Dynamic warp: scale down as burn approaches completion to prevent overshoot
+                    var dvEstRemaining = _autoExecTargetDV - _autoExecCumulativeDV;
+                    if (dvEstRemaining > 0 && epBurn.thrust > 0 && epBurn.mass > 0) {
+                        var dvPerSecondAt1x = epBurn.thrust / epBurn.mass;
+                        var dvPerFrameAt1x = dvPerSecondAt1x / 60;
+                        var mxW = _getMaxWarp();
+                        var maxWarpForDV = dvPerFrameAt1x > 0 ?
+                            Math.max(1, Math.floor(dvEstRemaining / dvPerFrameAt1x)) : mxW;
+                        _timeWarp = Math.min(mxW, maxWarpForDV);
+                        _setText('timeWarpDisplay', _timeWarp + 'x');
+                    } else if (_autoExecTarget && dvEstRemaining <= 0) {
+                        // Past estimated DV but orbital target not yet reached —
+                        // this is finite burn loss compensation. Use moderate warp.
+                        _timeWarp = 8;
+                        _setText('timeWarpDisplay', '8x');
+                    }
+                }
+
+                // Update orientation from CURRENT orbital frame (not stale node state)
+                _computeBurnOrientation(node);
+
+                // Check burn completion via orbital element targeting or DV fallback
+                var burnDone = false;
+
+                if (_autoExecTarget && typeof SpaceplaneOrbital !== 'undefined') {
+                    // Orbital element targeting — compute elements from current ECI state
+                    var eci = SpaceplaneOrbital.geodeticToECI(_playerState, _simElapsed);
+                    var rr = eci.pos, vv = eci.vel;
+                    var rM = Math.sqrt(rr[0]*rr[0] + rr[1]*rr[1] + rr[2]*rr[2]);
+                    var vM = Math.sqrt(vv[0]*vv[0] + vv[1]*vv[1] + vv[2]*vv[2]);
+                    var ene = 0.5 * vM * vM - 3.986004418e14 / rM;
+
+                    if (ene < 0) {
+                        var curSMA = -3.986004418e14 / (2 * ene);
+                        var rdv = rr[0]*vv[0] + rr[1]*vv[1] + rr[2]*vv[2];
+                        var cf1 = vM*vM - 3.986004418e14 / rM;
+                        var evx = (cf1*rr[0] - rdv*vv[0]) / 3.986004418e14;
+                        var evy = (cf1*rr[1] - rdv*vv[1]) / 3.986004418e14;
+                        var evz = (cf1*rr[2] - rdv*vv[2]) / 3.986004418e14;
+                        var curEcc = Math.sqrt(evx*evx + evy*evy + evz*evz);
+                        var curApoAlt = curSMA * (1 + curEcc) - 6371000;
+                        var curPeAlt = curSMA * (1 - curEcc) - 6371000;
+
+                        if (_autoExecTarget.type === 'raise_apo') {
+                            burnDone = curApoAlt >= _autoExecTarget.targetAltM;
+                        } else if (_autoExecTarget.type === 'lower_pe') {
+                            burnDone = curPeAlt <= _autoExecTarget.targetAltM;
+                        } else if (_autoExecTarget.type === 'circularize') {
+                            var tR = _autoExecTarget.targetR;
+                            // Done when SMA is within 10km of target radius and ecc < 0.01
+                            burnDone = Math.abs(curSMA - tR) < 10000 || curEcc < 0.003;
+                        }
+                    }
+
+                    // Safety: don't burn more than 2x the computed DV
+                    if (_autoExecCumulativeDV >= _autoExecTargetDV * 2.0) burnDone = true;
+                } else {
+                    // No orbital targeting — use DV-based cutoff
+                    burnDone = _autoExecCumulativeDV >= _autoExecTargetDV;
+                }
+
+                // Time safety fallback
+                if (_simElapsed >= _autoExecBurnEnd) burnDone = true;
+
+                if (burnDone) {
+                    // Burn complete — the continuous thrust already applied the DV
+                    // through the physics engine. Just clean up the node (do NOT call
+                    // executeNode which would apply the full impulse DV again).
+                    _playerState.throttle = 0;
+                    _playerState.alpha = 0;
+                    _playerState.yawOffset = 0;
+                    _removeNodeMarker(node);
+                    SpaceplanePlanner.deleteNode(node);
+                    _autoExecState = null;
+                    _autoExecNode = null;
+                    _autoExecTarget = null;
+
+                    // Check for pending Hohmann burn 2
+                    if (_pendingHohmann && typeof SpaceplaneOrbital !== 'undefined') {
+                        var ph = _pendingHohmann;
+                        _pendingHohmann = null;
+                        _showMessage('BURN 1 COMPLETE — COMPUTING BURN 2');
+
+                        // Force orbital elements update from actual post-burn state
+                        SpaceplaneOrbital.update(_playerState, _simElapsed);
+                        var postElems = SpaceplaneOrbital.orbitalElements;
+
+                        if (postElems && postElems.sma > 0 && (postElems.eccentricity || 0) < 1.0) {
+                            var MU_E = 3.986004418e14;
+                            var e = postElems.eccentricity || 0;
+                            var apoR = postElems.sma * (1 + e);
+                            var peR = postElems.sma * (1 - e);
+                            var targetR = 6371000 + ph.targetAltKm * 1000;
+
+                            // Determine which end of the transfer orbit is the target:
+                            // Raising orbit → target is near apoapsis (far end)
+                            // Lowering orbit → target is near periapsis (near end)
+                            var diffApo = Math.abs(targetR - apoR);
+                            var diffPe = Math.abs(targetR - peR);
+
+                            var burnR, dtToBurn, burnLabel;
+                            if (diffApo <= diffPe) {
+                                burnR = apoR;
+                                dtToBurn = postElems.timeToApoapsis;
+                                burnLabel = 'apoapsis';
+                            } else {
+                                burnR = peR;
+                                dtToBurn = postElems.timeToPeriapsis;
+                                burnLabel = 'periapsis';
+                            }
+
+                            // Guard: ensure valid time
+                            if (dtToBurn == null || !isFinite(dtToBurn) || dtToBurn < 1) {
+                                // Fallback: use half the orbital period
+                                dtToBurn = postElems.period ? postElems.period / 2 : 2700;
+                            }
+
+                            var vAtBurn = Math.sqrt(MU_E * (2 / burnR - 1 / postElems.sma));
+                            var vCirc = Math.sqrt(MU_E / burnR);
+                            var dv2 = vCirc - vAtBurn; // positive=prograde at AP, negative=retrograde at PE
+
+                            if (!isFinite(dv2)) {
+                                _timeWarp = 1;
+                                _setText('timeWarpDisplay', '1x');
+                                _showMessage('BURN 1 COMPLETE — Invalid transfer orbit');
+                            } else {
+                                var node2 = SpaceplanePlanner.createNodeAtTime(
+                                    _playerState, _simElapsed, dtToBurn
+                                );
+                                if (node2) {
+                                    SpaceplanePlanner.setNodeDV(dv2, 0, 0);
+                                    var ep = _getPlannerEngineParams();
+                                    SpaceplanePlanner.setEngineParams(ep.thrust, ep.mass, ep.label);
+                                    _createNodeMarker(node2);
+                                    SpaceplanePlanner.updateNodePrediction();
+                                    _showMessage('BURN 2: ' + dv2.toFixed(1) + ' m/s at ' + burnLabel + ' (' +
+                                        (dtToBurn / 60).toFixed(1) + ' min)');
+                                    _startAutoExec(node2, 'warping', { type: 'circularize', targetR: targetR });
+                                } else {
+                                    _timeWarp = 1;
+                                    _setText('timeWarpDisplay', '1x');
+                                    _showMessage('BURN 1 COMPLETE — Could not create burn 2 node');
+                                }
+                            }
+                        } else {
+                            _timeWarp = 1;
+                            _setText('timeWarpDisplay', '1x');
+                            _showMessage('BURN 1 COMPLETE — No valid orbit for burn 2');
+                        }
+                    } else {
+                        // All burns complete — drop warp
+                        _timeWarp = 1;
+                        _setText('timeWarpDisplay', '1x');
+                        _showMessage('BURN COMPLETE');
+                    }
+                    // Stay in planner mode so user can chain maneuvers
+                }
+                break;
         }
     }
 
@@ -1009,32 +2492,58 @@ const LiveSimEngine = (function() {
 
             // Planner mode controls
             if (_plannerMode) {
+                // If dialog is open, only handle Escape to cancel
+                if (_maneuverDialogOpen) {
+                    if (e.code === 'Escape') {
+                        _closeManeuverDialog(true);
+                    }
+                    // Let inputs handle their own keys
+                    return;
+                }
+
                 switch (e.code) {
-                    case 'KeyM': _togglePlannerMode(); break;
+                    case 'KeyM':
+                        if (_autoExecState) _cancelAutoExec();
+                        _togglePlannerMode();
+                        break;
                     case 'KeyN':
                         if (typeof SpaceplanePlanner !== 'undefined') {
-                            SpaceplanePlanner.createNode(_playerState, _simElapsed);
-                            _showMessage('MANEUVER NODE CREATED');
+                            _updatePlannerEngineParams();
+                            var node = SpaceplanePlanner.createNode(_playerState, _simElapsed);
+                            if (node) _openManeuverDialog(node);
                         } break;
                     case 'Delete': case 'Backspace':
                         if (typeof SpaceplanePlanner !== 'undefined') {
+                            var selNode = SpaceplanePlanner.selectedNode;
+                            if (selNode) _removeNodeMarker(selNode);
                             SpaceplanePlanner.deleteSelectedNode();
                             _showMessage('NODE DELETED');
                         } break;
                     case 'Enter': case 'NumpadEnter':
+                        // Quick-execute as impulse (advanced)
                         if (typeof SpaceplanePlanner !== 'undefined') {
+                            var execNode = SpaceplanePlanner.selectedNode;
+                            if (execNode) _removeNodeMarker(execNode);
                             SpaceplanePlanner.executeNode(_playerState, _simElapsed);
                             _showMessage('EXECUTING NODE');
                         } break;
-                    case 'KeyP': _cyclePropulsionMode(); break;
+                    case 'KeyP':
+                        if (e.shiftKey) { _cycleRocketEngine(); }
+                        else { _cyclePropulsionMode(); }
+                        _updatePlannerEngineParams();
+                        break;
                     case 'Escape':
-                        _isPaused = !_isPaused;
-                        _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
-                        _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
-                        if (!_isPaused) _lastTickTime = null;
+                        if (_autoExecState) {
+                            _cancelAutoExec();
+                        } else {
+                            _isPaused = !_isPaused;
+                            _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
+                            _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
+                            if (!_isPaused) _lastTickTime = null;
+                        }
                         break;
                     case 'Equal': case 'NumpadAdd':
-                        _timeWarp = Math.min(_timeWarp * 2, 1024);
+                        _timeWarp = Math.min(_timeWarp * 2, _getMaxWarp());
                         _setText('timeWarpDisplay', _timeWarp + 'x');
                         _showMessage('TIME WARP: ' + _timeWarp + 'x');
                         break;
@@ -1066,7 +2575,7 @@ const LiveSimEngine = (function() {
                         break;
                     case 'KeyH': _togglePanel('help'); break;
                     case 'Equal': case 'NumpadAdd':
-                        _timeWarp = Math.min(_timeWarp * 2, 1024);
+                        _timeWarp = Math.min(_timeWarp * 2, _getMaxWarp());
                         _setText('timeWarpDisplay', _timeWarp + 'x');
                         _showMessage('TIME WARP: ' + _timeWarp + 'x');
                         break;
@@ -1123,14 +2632,24 @@ const LiveSimEngine = (function() {
                     }
                     break;
                 case 'KeyT':
-                    _adjustTrim(e.shiftKey ? -1 : 1);
+                    // Shift+T = manual trim step down, Ctrl+T = manual trim step up
+                    // Plain T = auto-trim (handled per-frame in tick while held)
+                    if (e.shiftKey) {
+                        _adjustTrim(-1);
+                    } else if (e.ctrlKey) {
+                        _adjustTrim(1);
+                    }
+                    // Plain T: auto-trim runs in tick() via _keys['KeyT']
                     break;
-                case 'KeyP': _cyclePropulsionMode(); break;
+                case 'KeyP':
+                    if (e.shiftKey) _cycleRocketEngine();
+                    else _cyclePropulsionMode();
+                    break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
                 case 'KeyH': _togglePanel('help'); break;
                 case 'Equal': case 'NumpadAdd':
-                    _timeWarp = Math.min(_timeWarp * 2, 1024);
+                    _timeWarp = Math.min(_timeWarp * 2, _getMaxWarp());
                     _setText('timeWarpDisplay', _timeWarp + 'x');
                     _showMessage('TIME WARP: ' + _timeWarp + 'x');
                     break;
@@ -1222,6 +2741,7 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     // Pitch trim
     // -----------------------------------------------------------------------
+    // Manual trim: Shift+T = nose down, no modifier on T starts auto-trim
     function _adjustTrim(dir) {
         if (!_playerState) return;
         var DEG = Math.PI / 180;
@@ -1231,6 +2751,42 @@ const LiveSimEngine = (function() {
         _playerState.trimAlpha = Math.max(-5 * DEG, Math.min(10 * DEG, _playerState.trimAlpha));
         var trimDeg = (_playerState.trimAlpha / DEG).toFixed(1);
         _showMessage('TRIM: ' + trimDeg + '°');
+    }
+
+    // Auto-trim: called each tick while T is held.
+    // Observes gamma drift and adjusts trimAlpha to converge on zero drift.
+    var _lastGamma = null;
+    var _autoTrimActive = false;
+    function _runAutoTrim(dt) {
+        if (!_playerState || dt <= 0) return;
+        var DEG = Math.PI / 180;
+
+        var gamma = _playerState.gamma || 0;
+
+        if (_lastGamma === null) {
+            _lastGamma = gamma;
+            return;
+        }
+
+        // Gamma rate (rad/s) — positive = climbing, negative = descending
+        var gammaRate = (gamma - _lastGamma) / dt;
+        _lastGamma = gamma;
+
+        // Adjust trim to oppose drift: if climbing, reduce trim; if descending, increase trim
+        // Gain tuned for convergence in 2-3 seconds
+        var trimAdj = -gammaRate * 0.3 * dt;
+        _playerState.trimAlpha = (_playerState.trimAlpha || 0) + trimAdj;
+
+        // Also nudge alpha toward trim for immediate effect
+        _playerState.alpha = _playerState.alpha + trimAdj * 0.5;
+
+        // Clamp
+        _playerState.trimAlpha = Math.max(-5 * DEG, Math.min(10 * DEG, _playerState.trimAlpha));
+
+        if (!_autoTrimActive) {
+            _autoTrimActive = true;
+            _showMessage('AUTO TRIM');
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1245,8 +2801,21 @@ const LiveSimEngine = (function() {
         _playerState.propulsionMode = next;
         _setText('propModeDisplay', next);
         var propColor = next === 'ROCKET' ? 'alert' : next === 'HYPERSONIC' ? 'warn' : '';
-        _setTextWithClass('sysProp', next, propColor);
-        _showMessage('PROPULSION: ' + next);
+        var engineInfo = next === 'ROCKET' ? ' [' + ROCKET_ENGINES[_rocketEngineIndex].name + ']' : '';
+        _setTextWithClass('sysProp', next + engineInfo, propColor);
+        _showMessage('PROPULSION: ' + next + engineInfo);
+    }
+
+    function _cycleRocketEngine() {
+        _rocketEngineIndex = (_rocketEngineIndex + 1) % ROCKET_ENGINES.length;
+        var eng = ROCKET_ENGINES[_rocketEngineIndex];
+        // Update config dynamically
+        _playerConfig.thrust_rocket = eng.thrust;
+        _setText('propModeDisplay', 'ROCKET');
+        _setTextWithClass('sysProp', 'ROCKET [' + eng.name + ']', 'alert');
+        _showMessage('ENGINE: ' + eng.name + ' (' + eng.desc + ')');
+        // Update planner engine params if dialog is open
+        if (_maneuverDialogOpen) _updatePlannerEngineParams();
     }
 
     // -----------------------------------------------------------------------
@@ -1266,6 +2835,15 @@ const LiveSimEngine = (function() {
         _simElapsed += totalDt;
 
         // --- PLAYER PATH ---
+
+        // Auto-trim: hold T to auto-converge on zero gamma drift
+        if (_keys['KeyT'] && !_keys['ShiftLeft'] && !_keys['ShiftRight'] &&
+            !_keys['ControlLeft'] && !_keys['ControlRight']) {
+            _runAutoTrim(totalDt);
+        } else {
+            _autoTrimActive = false;
+            _lastGamma = null;
+        }
 
         // 1. Read controls (keyboard + gamepad)
         var controls = _getControls();
@@ -1310,17 +2888,33 @@ const LiveSimEngine = (function() {
             steps++;
         }
 
-        // 4. Update player trail
+        // 3b. Auto-execute state machine (warp/orient/burn)
+        if (_autoExecState) _tickAutoExec(totalDt);
+
+        // 4. Update player trail (with time-based trimming)
         _trailCounter++;
         if (_trailCounter % 10 === 0) {
             _playerTrail.push(Cesium.Cartesian3.fromRadians(
                 _playerState.lon, _playerState.lat, _playerState.alt));
-            if (_playerTrail.length > 1000) _playerTrail.shift();
+            _playerTrailTimes.push(_simElapsed);
+            // Time-based trim
+            if (_trailDurationSec > 0) {
+                var cutoff = _simElapsed - _trailDurationSec;
+                while (_playerTrailTimes.length > 0 && _playerTrailTimes[0] < cutoff) {
+                    _playerTrailTimes.shift();
+                    _playerTrail.shift();
+                }
+            } else if (_playerTrail.length > 100000) {
+                // Infinite mode cap
+                _playerTrail.shift();
+                _playerTrailTimes.shift();
+            }
         }
 
         // 5. Update orbital state (always — SpaceplaneOrbital handles regime detection)
         if (typeof SpaceplaneOrbital !== 'undefined') {
             try {
+                SpaceplaneOrbital.setNumRevs(_orbitRevs);
                 SpaceplaneOrbital.update(_playerState, _simElapsed);
             } catch (orbErr) {
                 console.warn('Orbital update error (escape?):', orbErr.message);
@@ -1328,12 +2922,19 @@ const LiveSimEngine = (function() {
                 if (SpaceplaneOrbital.currentOrbitPositions) {
                     SpaceplaneOrbital.currentOrbitPositions.length = 0;
                 }
+                if (SpaceplaneOrbital.eciOrbitPositions) {
+                    SpaceplaneOrbital.eciOrbitPositions.length = 0;
+                }
             }
         }
 
         // 6. Update planner
         if (typeof SpaceplanePlanner !== 'undefined') {
             SpaceplanePlanner.update(_playerState, _simElapsed);
+            // Keep dialog time display updated (throttled to ~4Hz)
+            if (_maneuverDialogOpen && _maneuverDialogNode && _trailCounter % 15 === 0) {
+                _refreshManeuverDialog();
+            }
         }
 
         // --- ECS PATH ---
@@ -1546,8 +3147,15 @@ const LiveSimEngine = (function() {
             _setText('orbPeriod', '---');
         }
 
+        _setText('orbRAAN', elems.raan != null ? (elems.raan * RAD).toFixed(2) + '\u00B0' : '---');
+        _setText('orbArgPE', elems.argPeriapsis != null ? (elems.argPeriapsis * RAD).toFixed(2) + '\u00B0' : '---');
+        _setText('orbTA', elems.trueAnomaly != null ? (elems.trueAnomaly * RAD).toFixed(2) + '\u00B0' : '---');
         _setText('orbTAP', elems.timeToApoapsis != null ? _formatTime(elems.timeToApoapsis) : '---');
         _setText('orbTPE', elems.timeToPeriapsis != null ? _formatTime(elems.timeToPeriapsis) : '---');
+        _setText('orbTAN', elems.timeToAscendingNode != null ? _formatTime(elems.timeToAscendingNode) : '---');
+        _setText('orbTDN', elems.timeToDescendingNode != null ? _formatTime(elems.timeToDescendingNode) : '---');
+        _setText('orbTTA90', elems.timeToTA90 != null ? _formatTime(elems.timeToTA90) : '---');
+        _setText('orbTTA270', elems.timeToTA270 != null ? _formatTime(elems.timeToTA270) : '---');
 
         // Maneuver node info
         if (typeof SpaceplanePlanner !== 'undefined' && SpaceplanePlanner.selectedNode) {
@@ -1601,6 +3209,8 @@ const LiveSimEngine = (function() {
     // Panel toggles
     // -----------------------------------------------------------------------
     function _handlePanelToggle(code) {
+        var tag = document.activeElement && document.activeElement.tagName;
+        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return false;
         switch (code) {
             case 'Digit1': case 'Numpad1': _togglePanel('flightData'); return true;
             case 'Digit2': case 'Numpad2': _togglePanel('systems'); return true;
@@ -1655,6 +3265,21 @@ const LiveSimEngine = (function() {
             _showMessage('ALL UI RESTORED');
         }
         _applyPanelVisibility();
+        _savePanelPrefs();
+    }
+
+    function _toggleTrace(key) {
+        if (key === 'ecef') {
+            _showEcefOrbit = !_showEcefOrbit;
+            _showMessage('ECEF ORBIT: ' + (_showEcefOrbit ? 'ON' : 'OFF'));
+        } else if (key === 'eci') {
+            _showEciOrbit = !_showEciOrbit;
+            _showMessage('ECI ORBIT: ' + (_showEciOrbit ? 'ON' : 'OFF'));
+        } else if (key === 'trail') {
+            _showTrail = !_showTrail;
+            _showMessage('TRAIL: ' + (_showTrail ? 'ON' : 'OFF'));
+        }
+        _syncSettingsUI();
         _savePanelPrefs();
     }
 
@@ -1713,9 +3338,34 @@ const LiveSimEngine = (function() {
             if (!item) return;
             var panel = item.getAttribute('data-panel');
             var hudKey = item.getAttribute('data-hud');
+            var traceKey = item.getAttribute('data-trace');
             if (panel) _togglePanel(panel);
             else if (hudKey) _toggleHud(hudKey);
+            else if (traceKey) _toggleTrace(traceKey);
         });
+
+        // Orbit revolutions selector
+        var revSelect = document.getElementById('orbitRevSelect');
+        if (revSelect) {
+            revSelect.value = String(_orbitRevs);
+            revSelect.addEventListener('change', function() {
+                _orbitRevs = parseInt(revSelect.value) || 1;
+                _showMessage('ORBIT REVS: ' + _orbitRevs);
+                _savePanelPrefs();
+            });
+        }
+
+        // Trail duration input
+        var trailInput = document.getElementById('trailDuration');
+        if (trailInput) {
+            trailInput.value = String(_trailDurationSec);
+            trailInput.addEventListener('change', function() {
+                _trailDurationSec = Math.max(0, parseInt(trailInput.value) || 0);
+                trailInput.value = String(_trailDurationSec);
+                _showMessage('TRAIL DURATION: ' + (_trailDurationSec === 0 ? 'INFINITE' : _trailDurationSec + 's'));
+                _savePanelPrefs();
+            });
+        }
 
         _syncSettingsUI();
     }
@@ -1728,6 +3378,7 @@ const LiveSimEngine = (function() {
         for (var i = 0; i < items.length; i++) {
             var panel = items[i].getAttribute('data-panel');
             var hudKey = items[i].getAttribute('data-hud');
+            var traceKey = items[i].getAttribute('data-trace');
             var isActive = false;
 
             if (panel) {
@@ -1738,6 +3389,10 @@ const LiveSimEngine = (function() {
                 }
             } else if (hudKey && typeof FighterHUD !== 'undefined' && FighterHUD.toggles) {
                 isActive = !!FighterHUD.toggles[hudKey];
+            } else if (traceKey) {
+                if (traceKey === 'ecef') isActive = _showEcefOrbit;
+                else if (traceKey === 'eci') isActive = _showEciOrbit;
+                else if (traceKey === 'trail') isActive = _showTrail;
             }
 
             if (isActive) {
@@ -1759,6 +3414,12 @@ const LiveSimEngine = (function() {
                 if (prefs.help !== undefined) _panelVisible.help = prefs.help;
                 if (prefs.entityList !== undefined) _panelVisible.entityList = prefs.entityList;
                 if (prefs.statusBar !== undefined) _panelVisible.statusBar = prefs.statusBar;
+                // Restore trace/orbit display settings
+                if (prefs.showEcefOrbit !== undefined) _showEcefOrbit = prefs.showEcefOrbit;
+                if (prefs.showEciOrbit !== undefined) _showEciOrbit = prefs.showEciOrbit;
+                if (prefs.orbitRevs !== undefined) _orbitRevs = prefs.orbitRevs;
+                if (prefs.showTrail !== undefined) _showTrail = prefs.showTrail;
+                if (prefs.trailDurationSec !== undefined) _trailDurationSec = prefs.trailDurationSec;
                 // Restore HUD element toggles
                 if (prefs.hudToggles && typeof FighterHUD !== 'undefined' && FighterHUD.setToggle) {
                     var keys = Object.keys(prefs.hudToggles);
@@ -1773,6 +3434,12 @@ const LiveSimEngine = (function() {
     function _savePanelPrefs() {
         try {
             var data = JSON.parse(JSON.stringify(_panelVisible));
+            // Include trace/orbit display settings
+            data.showEcefOrbit = _showEcefOrbit;
+            data.showEciOrbit = _showEciOrbit;
+            data.orbitRevs = _orbitRevs;
+            data.showTrail = _showTrail;
+            data.trailDurationSec = _trailDurationSec;
             // Include HUD toggle states
             if (typeof FighterHUD !== 'undefined' && FighterHUD.getToggles) {
                 data.hudToggles = FighterHUD.getToggles();

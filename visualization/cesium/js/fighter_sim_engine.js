@@ -634,8 +634,8 @@ const FighterSimEngine = (function() {
             state.isStalling = false;
         }
 
-        // Overspeed: config-driven (default off)
-        state.isOverspeed = config.max_mach ? (state.mach > config.max_mach) : false;
+        // Overspeed: only meaningful in atmosphere where dynamic pressure creates structural stress
+        state.isOverspeed = (aeroBlend > 0.5 && config.max_mach) ? (state.mach > config.max_mach) : false;
 
         // Always compute orbital telemetry — useful at any altitude
         const orbitalV = Math.sqrt(MU_EARTH / (R_EARTH + state.alt));
@@ -666,46 +666,32 @@ const FighterSimEngine = (function() {
         const aero = getAeroCoeffs(state, config);
         const inVacuum = (aeroBlend !== undefined && aeroBlend < 0.5);
 
-        // Roll control
+        // Roll control — free 360° everywhere, no auto-rollout.
+        // Tap arrow keys to set bank angle, hold for continuous roll.
+        // Roll stays where you put it (like trim) for sustained G-turns.
         const rollCommand = (controls.roll || 0) * config.max_roll_rate;
-        const rollDiff = rollCommand * dt;
-        state.roll += rollDiff;
-        // Roll damping when no input (disabled in vacuum — no atmosphere to damp)
-        if (!controls.roll && !inVacuum) {
-            state.roll *= (1 - 2.0 * dt); // decay toward wings-level
-        }
-        // Roll clamp: free 360° in vacuum, ±80° in atmosphere
-        if (inVacuum) {
-            state.roll = wrapAngle(state.roll);
-        } else {
-            state.roll = clamp(state.roll, -80 * DEG, 80 * DEG);
-        }
+        state.roll += rollCommand * dt;
+        state.roll = wrapAngle(state.roll);
 
-        // Pitch control → alpha → G-load
+        // Pitch control → alpha
+        // Pitch input changes alpha directly. No auto-trim-back — alpha stays
+        // where the pilot puts it. Use T key for auto-trim to zero drift.
         if (controls.pitch) {
-            // Pitch input changes alpha
             const pitchRate = controls.pitch * config.max_pitch_rate;
             state.alpha += pitchRate * dt;
-        } else if (!inVacuum) {
-            // Trim to configured AoA for level flight (disabled in vacuum)
-            const trimAlpha = (state.trimAlpha !== undefined) ? state.trimAlpha : 2 * DEG;
-            state.alpha += (trimAlpha - state.alpha) * 1.5 * dt;
         }
 
+        // Alpha wrap/clamp and G-limit
         if (inVacuum) {
-            // In vacuum: no alpha clamp, no G-limit — free body orientation
-            // Wrap alpha to [-π, π]
             state.alpha = wrapAngle(state.alpha);
         } else {
-            // Clamp alpha and enforce G limits in atmosphere
             state.alpha = clamp(state.alpha, -10 * DEG, config.max_aoa);
 
-            // Available G at current speed
+            // Structural G limit in atmosphere
             const cl_at_alpha = getCL(state.alpha, config, aero);
             const lift_at_alpha = qS * Math.abs(cl_at_alpha);
             const g_commanded = lift_at_alpha / weight;
 
-            // Structural G limit
             if (g_commanded > config.max_g) {
                 const cl_limit = config.max_g * weight / Math.max(qS, 1);
                 state.alpha = clamp(state.alpha,

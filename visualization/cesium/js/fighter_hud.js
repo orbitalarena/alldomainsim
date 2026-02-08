@@ -1146,6 +1146,11 @@ const FighterHUD = (function() {
      * Draw prograde/retrograde/normal/radial markers on the pitch ladder
      * These show the orbital velocity direction relative to the vehicle's nose
      */
+    // Smoothed radial direction to prevent edge-indicator flashing
+    var _smoothedRadialOut = null;
+    var _smoothedRadialIn = null;
+    var _radialSmoothAlpha = 0.08; // lower = smoother (EMA factor per frame)
+
     function drawOrbitalMarkers(state, scale, simTime) {
         if (typeof SpaceplaneOrbital === 'undefined') return;
         if (!state || state.alt < 30000 || simTime == null) return;
@@ -1169,7 +1174,20 @@ const FighterHUD = (function() {
         const normal = hMag > 0 ? O.vecScale(h, 1 / hMag) : [0, 0, 1];
         const antinormal = O.vecScale(normal, -1);
 
-        const radialOut = O.vecScale(eci.pos, 1 / rMag);
+        // Smooth radial direction with EMA to prevent flashing on edge indicators
+        var rawRadialOut = O.vecScale(eci.pos, 1 / rMag);
+        if (!_smoothedRadialOut) {
+            _smoothedRadialOut = rawRadialOut.slice();
+        } else {
+            var a = _radialSmoothAlpha;
+            for (var si = 0; si < 3; si++) {
+                _smoothedRadialOut[si] += a * (rawRadialOut[si] - _smoothedRadialOut[si]);
+            }
+            // Re-normalize
+            var sm = O.vecMag(_smoothedRadialOut);
+            if (sm > 0.001) _smoothedRadialOut = O.vecScale(_smoothedRadialOut, 1 / sm);
+        }
+        const radialOut = _smoothedRadialOut;
         const radialIn  = O.vecScale(radialOut, -1);
 
         // ECI → local ENU conversion setup
@@ -1213,11 +1231,17 @@ const FighterHUD = (function() {
             const relBrgDeg = relBrg * RAD;
             const elevDeg   = elev * RAD;
 
+            // Check if behind the camera (>90° off-axis)
+            const behind = Math.abs(relBrgDeg) > 90 || Math.abs(elevDeg - pitchDeg) > 90;
+
             // Pitch ladder coordinates
             return {
                 x: relBrgDeg * pxPerDeg,
                 y: -(elevDeg - pitchDeg) * pxPerDeg,
-                visible: Math.abs(relBrgDeg) < 18 && Math.abs(elevDeg - pitchDeg) < 22
+                visible: Math.abs(relBrgDeg) < 18 && Math.abs(elevDeg - pitchDeg) < 22,
+                relBrgDeg: relBrgDeg,
+                relElevDeg: elevDeg - pitchDeg,
+                behind: behind
             };
         }
 
@@ -1238,13 +1262,102 @@ const FighterHUD = (function() {
             { dir: radialIn,    color: '#44ffcc', type: 'radial_in',   label: 'R-' },
         ];
 
+        // Add maneuver node burn direction if available
+        if (typeof SpaceplanePlanner !== 'undefined') {
+            var selNode = SpaceplanePlanner.selectedNode;
+            if (selNode) {
+                var burnDir = SpaceplanePlanner.getBurnDirectionECI(selNode);
+                if (burnDir) {
+                    markers.push({ dir: burnDir, color: '#ff8800', type: 'maneuver', label: 'MNV' });
+                }
+            }
+        }
+
+        var edgeMarkers = [];
         for (const m of markers) {
             const pos = markerPos(m.dir);
-            if (!pos.visible) continue;
-            drawMarkerSymbol(pos.x, pos.y, scale, m.color, m.type, m.label);
+            if (pos.visible) {
+                drawMarkerSymbol(pos.x, pos.y, scale, m.color, m.type, m.label);
+            } else {
+                edgeMarkers.push({ pos: pos, color: m.color, type: m.type, label: m.label });
+            }
         }
 
         ctx.restore();
+
+        // Draw edge-of-screen indicators for off-screen markers (unclipped)
+        if (edgeMarkers.length > 0) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(-state.roll);
+
+            var edgeW = 140 * scale; // half-width margin from center
+            var edgeH = 160 * scale; // half-height margin from center
+            var margin = 30 * scale;
+
+            for (var ei = 0; ei < edgeMarkers.length; ei++) {
+                var em = edgeMarkers[ei];
+                var brgD = em.pos.relBrgDeg;
+                var elvD = em.pos.relElevDeg;
+
+                // Direction vector from center (in pitch-ladder space)
+                var dx = brgD;
+                var dy = -elvD; // y flipped (up is negative on canvas)
+
+                // Skip degenerate
+                if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue;
+
+                // Compute edge-clamped position by ray-rect intersection
+                var ex, ey;
+                var aDx = Math.abs(dx), aDy = Math.abs(dy);
+
+                if (aDx < 0.01) {
+                    // Straight up or down
+                    ex = 0;
+                    ey = dy > 0 ? edgeH : -edgeH;
+                } else if (aDy < 0.01) {
+                    // Straight left or right
+                    ex = dx > 0 ? edgeW : -edgeW;
+                    ey = 0;
+                } else {
+                    // Ray intersection with rectangle
+                    var tX = edgeW / aDx;
+                    var tY = edgeH / aDy;
+                    var t = Math.min(tX, tY);
+                    ex = dx * t;
+                    ey = dy * t;
+                }
+
+                // Clamp within bounds
+                ex = Math.max(-edgeW, Math.min(edgeW, ex));
+                ey = Math.max(-edgeH, Math.min(edgeH, ey));
+
+                // Draw semi-transparent marker at edge
+                ctx.globalAlpha = 0.35;
+                drawMarkerSymbol(ex, ey, scale * 0.5, em.color, em.type, em.label);
+                ctx.globalAlpha = 1.0;
+
+                // Draw chevron pointing toward actual direction
+                var chevLen = 8 * scale;
+                var angle = Math.atan2(dy, dx);
+                var cx2 = ex + Math.cos(angle) * (12 * scale);
+                var cy2 = ey + Math.sin(angle) * (12 * scale);
+
+                ctx.strokeStyle = em.color;
+                ctx.lineWidth = 1.5 * scale;
+                ctx.globalAlpha = 0.5;
+                ctx.beginPath();
+                ctx.moveTo(cx2 - Math.cos(angle - 0.5) * chevLen,
+                           cy2 - Math.sin(angle - 0.5) * chevLen);
+                ctx.lineTo(cx2, cy2);
+                ctx.lineTo(cx2 - Math.cos(angle + 0.5) * chevLen,
+                           cy2 - Math.sin(angle + 0.5) * chevLen);
+                ctx.stroke();
+                ctx.globalAlpha = 1.0;
+            }
+
+            ctx.restore();
+        }
     }
 
     /**
@@ -1350,6 +1463,18 @@ const FighterHUD = (function() {
                 ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(x + di, y - di); ctx.lineTo(x - di, y + di);
+                ctx.stroke();
+                break;
+
+            case 'maneuver':
+                // Filled diamond for burn direction
+                ctx.beginPath();
+                ctx.moveTo(x, y - r);
+                ctx.lineTo(x + r * 0.7, y);
+                ctx.lineTo(x, y + r);
+                ctx.lineTo(x - r * 0.7, y);
+                ctx.closePath();
+                ctx.fill();
                 ctx.stroke();
                 break;
         }

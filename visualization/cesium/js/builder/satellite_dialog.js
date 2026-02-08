@@ -177,18 +177,32 @@ const SatelliteDialog = (function() {
             _resolvePromise = resolve;
             _rejectPromise = reject;
 
-            // Get template-specific defaults
+            // Get template-specific defaults — prefer Platform Builder COE if available
             var defaults = _templateDefaults[template.name] || _templateDefaults['LEO Satellite'];
+            var pbCoe = template._custom && template._custom.physics && template._custom.physics.coe;
+            if (pbCoe) {
+                defaults = {
+                    sma_km: pbCoe.sma_km || defaults.sma_km,
+                    ecc: pbCoe.ecc !== undefined ? pbCoe.ecc : defaults.ecc,
+                    inc_deg: pbCoe.inc_deg !== undefined ? pbCoe.inc_deg : defaults.inc_deg,
+                    raan_deg: pbCoe.raan_deg !== undefined ? pbCoe.raan_deg : defaults.raan_deg,
+                    argPe_deg: pbCoe.argPe_deg !== undefined ? pbCoe.argPe_deg : defaults.argPe_deg,
+                    meanAnom_deg: pbCoe.ma_deg !== undefined ? pbCoe.ma_deg : defaults.meanAnom_deg
+                };
+            }
 
             // Seed RAAN from click longitude, inclination from |latitude|
-            var seededRaan = clickLatLon ? ((clickLatLon.lon + 360) % 360) : defaults.raan_deg;
-            var seededInc = clickLatLon ? Math.max(Math.abs(clickLatLon.lat), defaults.inc_deg) : defaults.inc_deg;
+            // For Platform Builder COE templates, use their values directly (don't override)
+            var seededRaan = pbCoe ? defaults.raan_deg :
+                (clickLatLon ? ((clickLatLon.lon + 360) % 360) : defaults.raan_deg);
+            var seededInc = pbCoe ? defaults.inc_deg :
+                (clickLatLon ? Math.max(Math.abs(clickLatLon.lat), defaults.inc_deg) : defaults.inc_deg);
 
             // Fill fields
             _fields.sma_km.value       = defaults.sma_km;
             _fields.ecc.value          = defaults.ecc;
-            _fields.inc_deg.value      = seededInc.toFixed(2);
-            _fields.raan_deg.value     = seededRaan.toFixed(2);
+            _fields.inc_deg.value      = typeof seededInc === 'number' ? seededInc.toFixed(2) : seededInc;
+            _fields.raan_deg.value     = typeof seededRaan === 'number' ? seededRaan.toFixed(2) : seededRaan;
             _fields.argPe_deg.value    = defaults.argPe_deg;
             _fields.meanAnom_deg.value = defaults.meanAnom_deg;
 

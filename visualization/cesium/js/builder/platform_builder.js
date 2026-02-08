@@ -42,6 +42,7 @@ const PlatformBuilder = (function() {
             air: false,
             hypersonic: false,
             rocket: false,
+            rocketEngine: 'oms_25kn',
             ion: false,
             rcs: false,
             defaultMode: 'rocket'
@@ -595,8 +596,16 @@ const PlatformBuilder = (function() {
                 <label class="pb-checkbox-item">
                     <input type="checkbox" id="pb-prop-rocket" ${_formState.propulsion.rocket ? 'checked' : ''} />
                     <span class="pb-check-label">Rocket</span>
-                    <span class="pb-check-desc">Chemical rocket, 2 MN, works in vacuum</span>
+                    <span class="pb-check-desc">Chemical rocket, works in vacuum</span>
                 </label>
+                <div id="pb-rocket-engine-row" style="margin-left:30px;margin-bottom:8px;${_formState.propulsion.rocket ? '' : 'display:none'}">
+                    <select id="pb-rocket-engine" style="width:100%;padding:4px;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:3px;font-size:12px;">
+                        <option value="oms_25kn" ${_formState.propulsion.rocketEngine === 'oms_25kn' ? 'selected' : ''}>OMS 25 kN — Orbital Maneuvering</option>
+                        <option value="aj10_100kn" ${_formState.propulsion.rocketEngine === 'aj10_100kn' ? 'selected' : ''}>AJ10 100 kN — Medium Rocket</option>
+                        <option value="rl10_500kn" ${_formState.propulsion.rocketEngine === 'rl10_500kn' ? 'selected' : ''}>RL10 500 kN — Heavy Vacuum</option>
+                        <option value="rs25_5mn" ${_formState.propulsion.rocketEngine === 'rs25_5mn' ? 'selected' : ''}>RS25 5 MN — Launch Engine</option>
+                    </select>
+                </div>
 
                 <label class="pb-checkbox-item">
                     <input type="checkbox" id="pb-prop-ion" ${_formState.propulsion.ion ? 'checked' : ''} />
@@ -1157,10 +1166,18 @@ const PlatformBuilder = (function() {
             document.getElementById(`pb-prop-${mode}`)?.addEventListener('change', e => {
                 _formState.propulsion[mode] = e.target.checked;
                 _updateDefaultModeOptions();
+                // Show/hide rocket engine selector
+                if (mode === 'rocket') {
+                    var row = document.getElementById('pb-rocket-engine-row');
+                    if (row) row.style.display = e.target.checked ? '' : 'none';
+                }
             });
         });
         document.getElementById('pb-prop-default')?.addEventListener('change', e => {
             _formState.propulsion.defaultMode = e.target.value;
+        });
+        document.getElementById('pb-rocket-engine')?.addEventListener('change', e => {
+            _formState.propulsion.rocketEngine = e.target.value;
         });
 
         // Sensor checkboxes - generic handler for all sensors
@@ -1885,6 +1902,11 @@ const PlatformBuilder = (function() {
                 var cb = document.getElementById('pb-prop-' + m);
                 if (cb) cb.checked = !!_formState.propulsion[m];
             });
+            // Rocket engine selector
+            var rocketEngSel = document.getElementById('pb-rocket-engine');
+            if (rocketEngSel) rocketEngSel.value = _formState.propulsion.rocketEngine || 'oms_25kn';
+            var rocketRow = document.getElementById('pb-rocket-engine-row');
+            if (rocketRow) rocketRow.style.display = _formState.propulsion.rocket ? '' : 'none';
             var defMode = document.getElementById('pb-default-mode');
             if (defMode) defMode.value = _formState.propulsion.defaultMode || 'rocket';
 
