@@ -37,18 +37,32 @@ const LiveSimEngine = (function() {
     let _lastRegime = 'ATMOSPHERIC';
     let _started = false;
 
-    // Propulsion
-    let _propModes = ['AIR', 'HYPERSONIC', 'ROCKET'];
+    // Propulsion — flat list of all individual engines
+    let _propModes = [];   // [{name, mode, thrust?, desc?, color}]
+    let _propModeIndex = 0;
 
-    // Rocket engine presets: cycle with Shift+P
+    // Engine presets — expanded into _propModes when rocket is enabled
+    // Sorted smallest→largest. P key cycles through all sequentially.
     var ROCKET_ENGINES = [
-        { name: 'OMS 25kN',   thrust: 25000,   desc: 'Orbital Maneuvering' },
-        { name: 'AJ10 100kN', thrust: 100000,  desc: 'Medium Rocket' },
-        { name: 'RL10 500kN', thrust: 500000,  desc: 'Heavy Vacuum' },
-        { name: 'RS25 5MN',   thrust: 5000000, desc: 'Launch Engine' },
+        // Micro thrusters
+        { name: 'ION 0.5N',       thrust: 0.5,        desc: 'Station Keeping' },
+        { name: 'HALL 5N',        thrust: 5,           desc: 'Hall Effect' },
+        { name: 'Cold Gas 50N',   thrust: 50,          desc: 'Attitude Jets' },
+        { name: 'RCS 500N',       thrust: 500,         desc: 'Reaction Control' },
+        // Prop / light
+        { name: 'PROP 2kN',       thrust: 2000,        desc: 'Propeller' },
+        { name: 'TURBOPROP 15kN', thrust: 15000,       desc: 'Cargo Aircraft' },
+        // Medium rockets
+        { name: 'OMS 25kN',       thrust: 25000,       desc: 'Orbital Maneuvering' },
+        { name: 'AJ10 100kN',     thrust: 100000,      desc: 'Medium Rocket' },
+        { name: '1G ACCEL 147kN', thrust: 147150,      desc: '1G Constant Accel' },
+        // Large rockets
+        { name: 'NERVA 350kN',    thrust: 350000,      desc: 'Nuclear Thermal' },
+        { name: 'RL10 500kN',     thrust: 500000,      desc: 'Heavy Vacuum' },
+        { name: 'Raptor 2.2MN',   thrust: 2200000,     desc: 'Methalox' },
+        { name: 'RS25 5MN',       thrust: 5000000,     desc: 'Launch Engine' },
+        { name: 'TORCH 50MN',     thrust: 50000000,    desc: '1 AU/day Class' },
     ];
-    var _rocketEngineIndex = 0; // default = OMS 25kN
-
     // Weapons & Sensors
     let _weaponList = [];       // [{name, type, count, maxCount}]
     let _weaponIndex = -1;      // -1 = no weapon selected
@@ -108,6 +122,18 @@ const LiveSimEngine = (function() {
     let _autoExecTargetDV = 0;    // target dV for this burn (m/s)
     let _autoExecTarget = null;   // orbital element targeting: {type, targetAltM, targetR}
     let _pendingHohmann = null;   // {targetAltKm} for two-burn Hohmann sequence
+
+    // Quest/mission guidance system
+    let _questActive = false;
+    let _questMode = 'takeoff';    // 'takeoff' or 'landing'
+    let _questWaypoints = [];      // [{lat, lon, radius, name, msg, hint, reached}]
+    let _questMilestones = [];     // [{type, value, msg, triggered}]
+    let _questCurrentWP = 0;       // index of next waypoint
+    let _questEntities = [];       // Cesium entities for cleanup
+    let _questRouteEntity = null;  // taxi route polyline
+    let _questArrowEntity = null;  // direction arrow from player to next WP
+    let _questComplete = false;
+    let _questRouteAlt = 40;       // altitude for route polyline & markers
 
     /**
      * Max time warp scaled by orbital altitude.
@@ -317,29 +343,29 @@ const LiveSimEngine = (function() {
                     FighterSimEngine.SPACEPLANE_CONFIG : FighterSimEngine.F16_CONFIG);
         }
 
-        // Set rocket engine from platform _custom or default to OMS 25kN
-        _rocketEngineIndex = 0;
-        var entDef = entity.def || {};
-        if (entDef._custom && entDef._custom.propulsion && entDef._custom.propulsion.rocketEngine) {
-            var rocketEngineMap = { 'oms_25kn': 0, 'aj10_100kn': 1, 'rl10_500kn': 2, 'rs25_5mn': 3 };
-            var mappedIdx = rocketEngineMap[entDef._custom.propulsion.rocketEngine];
-            if (mappedIdx !== undefined) _rocketEngineIndex = mappedIdx;
-        }
-        _playerConfig.thrust_rocket = ROCKET_ENGINES[_rocketEngineIndex].thrust;
-
-        // Determine available propulsion modes
+        // Determine available propulsion modes (flat list — P cycles all)
         _propModes = _resolvePropModes(entity);
+        _propModeIndex = 0;
 
-        // Set initial propulsion mode — high-altitude entities default to ROCKET
+        // Set initial propulsion mode — high-altitude entities default to first ROCKET
         // (AIR mode has zero thrust at orbital altitude due to density lapse)
         if (!_playerState.forcedPropMode) {
-            var defaultMode = _propModes[0] || 'AIR';
+            var defaultEntry = _propModes[0];
             var isHighAlt = (_playerState.alt || 0) > 100000;
-            if (isHighAlt && _propModes.indexOf('ROCKET') >= 0) {
-                defaultMode = 'ROCKET';
+            if (isHighAlt) {
+                for (var pi = 0; pi < _propModes.length; pi++) {
+                    if (_propModes[pi].mode === 'ROCKET') {
+                        defaultEntry = _propModes[pi];
+                        _propModeIndex = pi;
+                        break;
+                    }
+                }
             }
-            _playerState.forcedPropMode = defaultMode;
-            _playerState.propulsionMode = defaultMode;
+            _playerState.forcedPropMode = defaultEntry.mode;
+            _playerState.propulsionMode = defaultEntry.mode;
+            if (defaultEntry.mode === 'ROCKET' && defaultEntry.thrust) {
+                _playerConfig.thrust_rocket = defaultEntry.thrust;
+            }
         }
 
         // For orbital entities, derive heading/gamma from ECI velocity
@@ -355,6 +381,7 @@ const LiveSimEngine = (function() {
         if (_playerState.engineOn === undefined) _playerState.engineOn = !isHighAlt;
         if (_playerState.gearDown === undefined) _playerState.gearDown = false;
         if (_playerState.flapsDown === undefined) _playerState.flapsDown = false;
+        if (_playerState.speedBrakeOut === undefined) _playerState.speedBrakeOut = false;
         if (_playerState.brakesOn === undefined) _playerState.brakesOn = false;
         if (_playerState.infiniteFuel === undefined) _playerState.infiniteFuel = true;
         if (_playerState.weaponMass === undefined) _playerState.weaponMass = 0;
@@ -367,6 +394,11 @@ const LiveSimEngine = (function() {
         if (_playerState.yawOffset === undefined) _playerState.yawOffset = 0;
         if (_playerState.trimAlpha === undefined) _playerState.trimAlpha = 2 * Math.PI / 180;  // 2° default trim
 
+        // Set ground altitude reference for non-Edwards airports
+        if (_playerState.phase === 'PARKED' || _playerState.phase === 'LANDED') {
+            _playerState.groundAlt = _playerState.alt;
+        }
+
         // Create autopilot
         if (typeof FighterAutopilot !== 'undefined') {
             _autopilotState = FighterAutopilot.createAutopilotState();
@@ -374,34 +406,77 @@ const LiveSimEngine = (function() {
 
         // Build weapon & sensor lists from entity definition
         _initWeaponsAndSensors(entity);
+
+        // Initialize quest system if entity has quest data
+        if (_playerDef._quest) {
+            _initQuest(_playerDef._quest);
+        }
     }
 
     function _resolvePropModes(entity) {
         var def = entity.def || {};
+        var entries = [];
+
+        function addRocketEngines(selected) {
+            for (var i = 0; i < ROCKET_ENGINES.length; i++) {
+                // If selected list provided, only include matching engines
+                if (selected && selected.indexOf(ROCKET_ENGINES[i].name) < 0) continue;
+                entries.push({
+                    name: ROCKET_ENGINES[i].name,
+                    mode: 'ROCKET',
+                    thrust: ROCKET_ENGINES[i].thrust,
+                    desc: ROCKET_ENGINES[i].desc,
+                    color: 'alert'
+                });
+            }
+        }
 
         // From Platform Builder _custom metadata
         if (def._custom && def._custom.propulsion) {
             var p = def._custom.propulsion;
-            var modes = [];
-            if (p.air) modes.push('AIR');
-            if (p.hypersonic) modes.push('HYPERSONIC');
-            if (p.rocket) modes.push('ROCKET');
-            if (modes.length > 0) return modes;
+            if (p.taxi) entries.push({ name: 'TAXI', mode: 'TAXI', color: 'blue' });
+            if (p.air) entries.push({ name: 'AIR', mode: 'AIR', color: '' });
+            if (p.hypersonic) entries.push({ name: 'HYPERSONIC', mode: 'HYPERSONIC', color: 'warn' });
+            // engines[] selects specific rocket engines; rocket:true = all rockets
+            if (p.engines && p.engines.length > 0) {
+                addRocketEngines(p.engines);
+            } else if (p.rocket) {
+                addRocketEngines();
+            }
+            if (entries.length > 0) return entries;
         }
 
-        // From components.propulsion
+        // From components.propulsion (legacy modes[] or new taxi/air/hypersonic/engines[] format)
         var compDef = (def.components && def.components.propulsion) || {};
+        if (compDef.taxi || compDef.air || compDef.hypersonic || (compDef.engines && compDef.engines.length > 0)) {
+            if (compDef.taxi) entries.push({ name: 'TAXI', mode: 'TAXI', color: 'blue' });
+            if (compDef.air) entries.push({ name: 'AIR', mode: 'AIR', color: '' });
+            if (compDef.hypersonic) entries.push({ name: 'HYPERSONIC', mode: 'HYPERSONIC', color: 'warn' });
+            if (compDef.engines && compDef.engines.length > 0) addRocketEngines(compDef.engines);
+            if (entries.length > 0) return entries;
+        }
         if (compDef.modes && compDef.modes.length > 0) {
-            return compDef.modes.map(function(m) { return m.toUpperCase(); });
+            compDef.modes.forEach(function(m) {
+                var mode = m.toUpperCase();
+                if (mode === 'ROCKET') {
+                    addRocketEngines();
+                } else {
+                    var color = mode === 'TAXI' ? 'blue' : mode === 'HYPERSONIC' ? 'warn' : '';
+                    entries.push({ name: mode, mode: mode, color: color });
+                }
+            });
+            if (entries.length > 0) return entries;
         }
 
-        // Detect from config: if config defines rocket/hypersonic thrust, include those modes
-        var modes = ['AIR'];
-        if (_playerConfig && _playerConfig.thrust_hypersonic) modes.push('HYPERSONIC');
-        if (_playerConfig && _playerConfig.thrust_rocket) modes.push('ROCKET');
-        if (modes.length > 1) return modes;
-
-        return ['AIR'];
+        // Detect from config
+        entries.push({ name: 'AIR', mode: 'AIR', color: '' });
+        if (_playerConfig && _playerConfig.thrust_hypersonic) {
+            entries.push({ name: 'HYPERSONIC', mode: 'HYPERSONIC', color: 'warn' });
+        }
+        if (_playerConfig && _playerConfig.thrust_rocket) {
+            addRocketEngines();
+        }
+        return entries;
     }
 
     function _initWeaponsAndSensors(entity) {
@@ -600,6 +675,377 @@ const LiveSimEngine = (function() {
         if (_sensorNoiseCanvas) {
             _sensorNoiseCanvas.style.display = 'none';
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Quest / Mission Guidance System
+    // -----------------------------------------------------------------------
+
+    function _initQuest(questDef) {
+        _questActive = true;
+        _questComplete = false;
+        _questCurrentWP = 0;
+        _questMode = questDef.mode || 'takeoff';
+
+        // Set ground altitude from quest definition (for non-Edwards airports in landing mode)
+        if (questDef.groundAlt != null && _playerState) {
+            _playerState.groundAlt = questDef.groundAlt;
+        }
+
+        // Route altitude for polyline and markers
+        _questRouteAlt = questDef.routeAlt || ((_playerState ? _playerState.alt : 38) + 2);
+
+        // Parse waypoints (convert deg → rad for distance/bearing calculations)
+        _questWaypoints = (questDef.waypoints || []).map(function(wp) {
+            return {
+                lat: wp.lat * DEG,
+                lon: wp.lon * DEG,
+                latDeg: wp.lat,
+                lonDeg: wp.lon,
+                radius: wp.radius || 200,
+                name: wp.name || 'WAYPOINT',
+                msg: wp.msg || '',
+                hint: wp.hint || '',
+                reached: false
+            };
+        });
+
+        // Parse milestones
+        _questMilestones = (questDef.milestones || []).map(function(ms) {
+            return {
+                type: ms.type,
+                value: ms.value,
+                msg: ms.msg || '',
+                triggered: false
+            };
+        });
+
+        // Create Cesium visualization
+        if (_viewer && _questWaypoints.length > 0) {
+            _createQuestVisuals();
+        }
+
+        // Show initial objective — configurable per quest mode
+        var initialMsg = questDef.initialMsg || (_questMode === 'landing'
+            ? 'Begin approach — reduce throttle, descend'
+            : 'Press E to start engine');
+        var initialHint = questDef.initialHint || (_questMode === 'landing'
+            ? 'Nose down gently (S/Down). Follow the approach path.'
+            : 'Throttle up (W/Up), release B to roll. P cycles TAXI/AIR modes.');
+
+        _updateQuestPanel(
+            initialMsg,
+            initialHint,
+            'Waypoint 1/' + _questWaypoints.length + ': ' + (_questWaypoints[0] ? _questWaypoints[0].name : '')
+        );
+
+        // Show quest panel
+        var panel = document.getElementById('questPanel');
+        if (panel) panel.style.display = 'block';
+    }
+
+    function _createQuestVisuals() {
+        // Route polyline — dashed line at quest-defined altitude
+        // NOT clampToGround — ground clamping can freeze Cesium on dynamic scenes
+        var routeAlt = _questRouteAlt;
+        var routeColor = _questMode === 'landing'
+            ? Cesium.Color.CYAN.withAlpha(0.7)     // cyan for approach path
+            : Cesium.Color.LIME.withAlpha(0.8);     // green for taxi route
+        var routePositions = _questWaypoints.map(function(wp) {
+            return Cesium.Cartesian3.fromRadians(wp.lon, wp.lat, routeAlt);
+        });
+
+        // Add player start position at the beginning
+        if (_playerState) {
+            routePositions.unshift(
+                Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat,
+                    _questMode === 'landing' ? _playerState.alt : routeAlt)
+            );
+        }
+
+        _questRouteEntity = _viewer.entities.add({
+            name: 'Quest Route',
+            polyline: {
+                positions: routePositions,
+                width: 4,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: routeColor,
+                    dashLength: 12
+                })
+            }
+        });
+        _questEntities.push(_questRouteEntity);
+
+        // Waypoint markers — at route altitude, no ground clamping
+        for (var i = 0; i < _questWaypoints.length; i++) {
+            var wp = _questWaypoints[i];
+            var isNext = (i === 0);
+            var marker = _viewer.entities.add({
+                name: 'Quest WP ' + wp.name,
+                position: Cesium.Cartesian3.fromRadians(wp.lon, wp.lat, routeAlt),
+                point: {
+                    pixelSize: isNext ? 14 : 8,
+                    color: isNext ? Cesium.Color.GOLD : Cesium.Color.YELLOW.withAlpha(0.6),
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                },
+                label: {
+                    text: wp.name,
+                    font: isNext ? 'bold 14px monospace' : '11px monospace',
+                    fillColor: isNext ? Cesium.Color.GOLD : Cesium.Color.YELLOW.withAlpha(0.6),
+                    outlineColor: Cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                    pixelOffset: new Cesium.Cartesian2(0, -16),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                }
+            });
+            wp._marker = marker;
+            _questEntities.push(marker);
+        }
+
+        // Direction arrow — polyline from player to next waypoint (updated per tick)
+        // NOT clampToGround — dynamic ground-clamped polylines are expensive and can freeze Cesium
+        _questArrowEntity = _viewer.entities.add({
+            name: 'Quest Arrow',
+            polyline: {
+                positions: new Cesium.CallbackProperty(function() {
+                    if (!_questActive || _questComplete || _questCurrentWP >= _questWaypoints.length) return [];
+                    if (!_playerState) return [];
+                    // Takeoff: hide arrow once airborne. Landing: hide after landed/crashed.
+                    if (_questMode === 'takeoff' && _playerState.phase === 'FLIGHT') return [];
+                    if (_playerState.phase === 'LANDED' || _playerState.phase === 'CRASHED') return [];
+                    var wp = _questWaypoints[_questCurrentWP];
+                    var arrowAlt = _questMode === 'landing' ? _playerState.alt : routeAlt;
+                    var pPos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, arrowAlt);
+                    var wPos = Cesium.Cartesian3.fromRadians(wp.lon, wp.lat, routeAlt);
+                    return [pPos, wPos];
+                }, false),
+                width: 3,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    color: Cesium.Color.GOLD.withAlpha(0.6),
+                    glowPower: 0.3
+                })
+            }
+        });
+        _questEntities.push(_questArrowEntity);
+    }
+
+    function _tickQuest() {
+        if (!_questActive || _questComplete) return;
+
+        // Remove ground visuals once airborne (takeoff mode only)
+        // Landing mode starts in FLIGHT — don't remove visuals
+        if (_questMode === 'takeoff' && _playerState && _playerState.phase === 'FLIGHT' && _questRouteEntity) {
+            _viewer.entities.remove(_questRouteEntity);
+            _questRouteEntity = null;
+            if (_questArrowEntity) {
+                _viewer.entities.remove(_questArrowEntity);
+                _questArrowEntity = null;
+            }
+            // Remove waypoint markers
+            for (var w = 0; w < _questWaypoints.length; w++) {
+                if (_questWaypoints[w]._marker) {
+                    _viewer.entities.remove(_questWaypoints[w]._marker);
+                    _questWaypoints[w]._marker = null;
+                }
+            }
+        }
+
+        // Landing mode: remove route visuals after touchdown
+        if (_questMode === 'landing' && _playerState &&
+            (_playerState.phase === 'LANDED' || _playerState.phase === 'CRASHED') && _questRouteEntity) {
+            _viewer.entities.remove(_questRouteEntity);
+            _questRouteEntity = null;
+            if (_questArrowEntity) {
+                _viewer.entities.remove(_questArrowEntity);
+                _questArrowEntity = null;
+            }
+            for (var w2 = 0; w2 < _questWaypoints.length; w2++) {
+                if (_questWaypoints[w2]._marker) {
+                    _viewer.entities.remove(_questWaypoints[w2]._marker);
+                    _questWaypoints[w2]._marker = null;
+                }
+            }
+        }
+
+        // 1. Waypoint proximity check
+        if (_questCurrentWP < _questWaypoints.length && _playerState) {
+            var wp = _questWaypoints[_questCurrentWP];
+            var dist = FighterSimEngine.distance(
+                _playerState.lat, _playerState.lon,
+                wp.lat, wp.lon
+            );
+
+            if (dist < wp.radius) {
+                wp.reached = true;
+                _questCurrentWP++;
+                _showMessage(wp.name + ' REACHED', 2000);
+
+                // Update quest panel
+                if (_questCurrentWP < _questWaypoints.length) {
+                    var next = _questWaypoints[_questCurrentWP];
+                    _updateQuestPanel(
+                        wp.msg,
+                        next.hint || wp.hint || '',
+                        'Waypoint ' + (_questCurrentWP + 1) + '/' + _questWaypoints.length + ': ' + next.name
+                    );
+
+                    // Highlight next waypoint, dim reached one
+                    if (wp._marker) {
+                        wp._marker.point.pixelSize = 6;
+                        wp._marker.point.color = Cesium.Color.GREEN.withAlpha(0.4);
+                        wp._marker.label.fillColor = Cesium.Color.GREEN.withAlpha(0.4);
+                        wp._marker.label.font = '10px monospace';
+                    }
+                    if (next._marker) {
+                        next._marker.point.pixelSize = 14;
+                        next._marker.point.color = Cesium.Color.GOLD;
+                        next._marker.label.fillColor = Cesium.Color.GOLD;
+                        next._marker.label.font = 'bold 14px monospace';
+                    }
+                } else {
+                    // All waypoints reached
+                    var allReachedMsg = _questMode === 'landing'
+                        ? 'On final — touchdown imminent!'
+                        : 'All waypoints reached — complete takeoff!';
+                    var allReachedPhase = _questMode === 'landing' ? 'LANDING' : 'TAKEOFF PHASE';
+                    _updateQuestPanel(wp.msg, allReachedMsg, allReachedPhase);
+                    // Dim last waypoint
+                    if (wp._marker) {
+                        wp._marker.point.pixelSize = 6;
+                        wp._marker.point.color = Cesium.Color.GREEN.withAlpha(0.4);
+                        wp._marker.label.fillColor = Cesium.Color.GREEN.withAlpha(0.4);
+                    }
+                }
+            }
+        }
+
+        // 2. Milestone checks
+        for (var i = 0; i < _questMilestones.length; i++) {
+            var ms = _questMilestones[i];
+            if (ms.triggered) continue;
+
+            var fired = false;
+            var agl;
+            switch (ms.type) {
+                // --- Takeoff milestones ---
+                case 'engine':
+                    fired = _playerState.engineOn;
+                    break;
+                case 'phase':
+                    fired = (_playerState.phase === ms.value);
+                    break;
+                case 'speed':
+                    fired = (_playerState.speed >= ms.value);
+                    break;
+                case 'alt':
+                    agl = _playerState.alt - (_playerState.groundAlt || 0);
+                    fired = (agl >= ms.value);
+                    break;
+                case 'gearUp':
+                    fired = (!_playerState.gearDown && _playerState.phase === 'FLIGHT');
+                    break;
+                case 'flapsUp':
+                    fired = (!_playerState.flapsDown && _playerState.phase === 'FLIGHT');
+                    break;
+
+                // --- Landing milestones ---
+                case 'gearDown':
+                    fired = (_playerState.gearDown === true);
+                    break;
+                case 'flapsDown':
+                    fired = (_playerState.flapsDown === true);
+                    break;
+                case 'speedBelow':
+                    fired = (_playerState.speed <= ms.value);
+                    break;
+                case 'altBelow':
+                    agl = _playerState.alt - (_playerState.groundAlt || 0);
+                    fired = (agl <= ms.value);
+                    break;
+                case 'landed':
+                    fired = (_playerState.phase === 'LANDED');
+                    break;
+                case 'stopped':
+                    fired = (_playerState.phase === 'LANDED' && _playerState.speed < 1);
+                    break;
+            }
+
+            if (fired) {
+                ms.triggered = true;
+                _showMessage(ms.msg, 3000);
+
+                // Mode-aware quest panel updates
+                if (_questMode === 'landing') {
+                    _tickQuestLandingPanel(ms);
+                } else {
+                    _tickQuestTakeoffPanel(ms);
+                }
+            }
+        }
+
+        // Crash detection for landing mode
+        if (_questMode === 'landing' && _playerState && _playerState.phase === 'CRASHED' && !_questComplete) {
+            _questComplete = true;
+            _showMessage('CRASH! Try again.', 5000);
+            _updateQuestPanel('CRASHED', 'Too fast, no gear, steep angle, or wings not level.', 'FAILED');
+            setTimeout(function() { _cleanupQuest(); }, 5000);
+        }
+    }
+
+    function _tickQuestTakeoffPanel(ms) {
+        if (ms.type === 'phase' && ms.value === 'FLIGHT') {
+            _updateQuestPanel(ms.msg, 'Retract gear (G) and flaps (F)', 'CLIMB OUT');
+        } else if (ms.type === 'gearUp') {
+            _updateQuestPanel(ms.msg, 'Now raise flaps (F)', 'CLEAN CONFIG');
+        } else if (ms.type === 'alt' && ms.value >= 1000) {
+            _questComplete = true;
+            _updateQuestPanel(ms.msg, '', 'COMPLETE');
+            setTimeout(function() { _cleanupQuest(); }, 5000);
+        }
+    }
+
+    function _tickQuestLandingPanel(ms) {
+        if (ms.type === 'gearDown') {
+            _updateQuestPanel(ms.msg, 'Now deploy flaps (F)', 'GEAR DOWN');
+        } else if (ms.type === 'flapsDown') {
+            _updateQuestPanel(ms.msg, 'Slow to 80-100 m/s approach speed', 'CONFIGURED');
+        } else if (ms.type === 'altBelow' && ms.value <= 50) {
+            _updateQuestPanel(ms.msg, 'Idle throttle, ease nose up', 'FLARE');
+        } else if (ms.type === 'landed') {
+            _updateQuestPanel(ms.msg, 'Hold B to brake!', 'ROLLOUT');
+        } else if (ms.type === 'stopped') {
+            _questComplete = true;
+            _updateQuestPanel(ms.msg, '', 'COMPLETE');
+            setTimeout(function() { _cleanupQuest(); }, 5000);
+        }
+    }
+
+    function _updateQuestPanel(objective, hint, progress) {
+        var objEl = document.getElementById('questObjective');
+        var hintEl = document.getElementById('questHint');
+        var progEl = document.getElementById('questProgress');
+        if (objEl) objEl.textContent = objective || '';
+        if (hintEl) hintEl.textContent = hint || '';
+        if (progEl) progEl.textContent = progress || '';
+    }
+
+    function _cleanupQuest() {
+        // Remove Cesium entities
+        for (var i = 0; i < _questEntities.length; i++) {
+            _viewer.entities.remove(_questEntities[i]);
+        }
+        _questEntities = [];
+        _questRouteEntity = null;
+        _questArrowEntity = null;
+        _questActive = false;
+
+        // Hide quest panel
+        var panel = document.getElementById('questPanel');
+        if (panel) panel.style.display = 'none';
     }
 
     /**
@@ -1191,7 +1637,9 @@ const LiveSimEngine = (function() {
         var mass = _playerConfig.mass_empty +
                    (isFinite(_playerState.fuel) ? _playerState.fuel : 0) +
                    (_playerState.weaponMass || 0);
-        return { thrust: thrust, mass: mass, label: mode + ' ' + (thrust / 1000).toFixed(0) + 'kN' };
+        var entry = _propModes[_propModeIndex];
+        var label = entry ? entry.name : mode;
+        return { thrust: thrust, mass: mass, label: label + ' ' + (thrust / 1000).toFixed(0) + 'kN' };
     }
 
     function _updatePlannerEngineParams() {
@@ -2528,8 +2976,7 @@ const LiveSimEngine = (function() {
                             _showMessage('EXECUTING NODE');
                         } break;
                     case 'KeyP':
-                        if (e.shiftKey) { _cycleRocketEngine(); }
-                        else { _cyclePropulsionMode(); }
+                        _cyclePropulsionMode();
                         _updatePlannerEngineParams();
                         break;
                     case 'Escape':
@@ -2621,9 +3068,14 @@ const LiveSimEngine = (function() {
                     _playerState.flapsDown = !_playerState.flapsDown;
                     _showMessage(_playerState.flapsDown ? 'FLAPS DOWN' : 'FLAPS UP');
                     break;
+                case 'KeyX':
+                    _playerState.speedBrakeOut = !_playerState.speedBrakeOut;
+                    _showMessage(_playerState.speedBrakeOut ? 'SPEED BRAKE OUT' : 'SPEED BRAKE IN');
+                    break;
                 case 'KeyB':
-                    _playerState.brakesOn = !_playerState.brakesOn;
-                    _showMessage(_playerState.brakesOn ? 'BRAKES ON' : 'BRAKES OFF');
+                    // Hold-to-brake: keydown = brakes on, keyup = brakes off
+                    _playerState.brakesOn = true;
+                    _showMessage('BRAKES ON');
                     break;
                 case 'KeyA':
                     if (_autopilotState && typeof FighterAutopilot !== 'undefined') {
@@ -2642,8 +3094,7 @@ const LiveSimEngine = (function() {
                     // Plain T: auto-trim runs in tick() via _keys['KeyT']
                     break;
                 case 'KeyP':
-                    if (e.shiftKey) _cycleRocketEngine();
-                    else _cyclePropulsionMode();
+                    _cyclePropulsionMode();
                     break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
@@ -2687,6 +3138,12 @@ const LiveSimEngine = (function() {
 
         window.addEventListener('keyup', function(e) {
             _keys[e.code] = false;
+
+            // Hold-to-brake: release B = brakes off
+            if (e.code === 'KeyB' && _playerState) {
+                _playerState.brakesOn = false;
+            }
+
             // Only capture keyup in chase/cockpit — let free/globe pass to Cesium
             if (_started && (_cameraMode === 'chase' || _cameraMode === 'cockpit')) {
                 e.preventDefault();
@@ -2794,28 +3251,17 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     function _cyclePropulsionMode() {
         if (!_playerState || _propModes.length <= 1) return;
-        var cur = _playerState.forcedPropMode || _propModes[0];
-        var idx = _propModes.indexOf(cur);
-        var next = _propModes[(idx + 1) % _propModes.length];
-        _playerState.forcedPropMode = next;
-        _playerState.propulsionMode = next;
-        _setText('propModeDisplay', next);
-        var propColor = next === 'ROCKET' ? 'alert' : next === 'HYPERSONIC' ? 'warn' : '';
-        var engineInfo = next === 'ROCKET' ? ' [' + ROCKET_ENGINES[_rocketEngineIndex].name + ']' : '';
-        _setTextWithClass('sysProp', next + engineInfo, propColor);
-        _showMessage('PROPULSION: ' + next + engineInfo);
-    }
-
-    function _cycleRocketEngine() {
-        _rocketEngineIndex = (_rocketEngineIndex + 1) % ROCKET_ENGINES.length;
-        var eng = ROCKET_ENGINES[_rocketEngineIndex];
-        // Update config dynamically
-        _playerConfig.thrust_rocket = eng.thrust;
-        _setText('propModeDisplay', 'ROCKET');
-        _setTextWithClass('sysProp', 'ROCKET [' + eng.name + ']', 'alert');
-        _showMessage('ENGINE: ' + eng.name + ' (' + eng.desc + ')');
-        // Update planner engine params if dialog is open
-        if (_maneuverDialogOpen) _updatePlannerEngineParams();
+        _propModeIndex = (_propModeIndex + 1) % _propModes.length;
+        var entry = _propModes[_propModeIndex];
+        _playerState.forcedPropMode = entry.mode;
+        _playerState.propulsionMode = entry.mode;
+        if (entry.mode === 'ROCKET' && entry.thrust) {
+            _playerConfig.thrust_rocket = entry.thrust;
+        }
+        _setText('propModeDisplay', entry.name);
+        _setTextWithClass('sysProp', entry.name, entry.color || '');
+        var desc = entry.desc ? ' (' + entry.desc + ')' : '';
+        _showMessage('PROPULSION: ' + entry.name + desc);
     }
 
     // -----------------------------------------------------------------------
@@ -2890,6 +3336,9 @@ const LiveSimEngine = (function() {
 
         // 3b. Auto-execute state machine (warp/orient/burn)
         if (_autoExecState) _tickAutoExec(totalDt);
+
+        // 3c. Quest system update
+        if (_questActive) _tickQuest();
 
         // 4. Update player trail (with time-based trimming)
         _trailCounter++;
@@ -3067,13 +3516,17 @@ const LiveSimEngine = (function() {
         _setTextWithClass('sysEngine', _playerState.engineOn ? 'ON' : 'OFF',
             _playerState.engineOn ? '' : 'alert');
 
-        var propMode = _playerState.propulsionMode || 'AIR';
-        var propColor = propMode === 'ROCKET' ? 'alert' : propMode === 'HYPERSONIC' ? 'warn' : '';
-        _setTextWithClass('sysProp', propMode, propColor);
-        _setText('propModeDisplay', propMode);
+        var propEntry = _propModes[_propModeIndex];
+        var propName = propEntry ? propEntry.name : (_playerState.propulsionMode || 'AIR');
+        var propColor = propEntry ? (propEntry.color || '') :
+            (_playerState.propulsionMode === 'ROCKET' ? 'alert' : _playerState.propulsionMode === 'HYPERSONIC' ? 'warn' : '');
+        _setTextWithClass('sysProp', propName, propColor);
+        _setText('propModeDisplay', propName);
 
         _setText('sysGear', _playerState.gearDown ? 'DOWN' : 'UP');
         _setText('sysFlaps', _playerState.flapsDown ? 'DOWN' : 'UP');
+        _setTextWithClass('sysSpeedBrake', _playerState.speedBrakeOut ? 'OUT' : 'IN',
+            _playerState.speedBrakeOut ? 'warn' : '');
         _setText('sysBrakes', _playerState.brakesOn ? 'ON' : 'OFF');
 
         // Flight regime (shown whenever orbital module is loaded)

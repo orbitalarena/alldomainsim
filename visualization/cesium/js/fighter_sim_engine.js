@@ -34,8 +34,9 @@ const FighterSimEngine = (function() {
         wing_span: 9.96,         // m
         aspect_ratio: 3.55,
         cd0: 0.0175,             // zero-lift drag (clean)
-        cd0_gear: 0.025,         // with gear down
-        cd0_flaps: 0.008,        // additional flap drag
+        cd0_gear: 0.035,         // with gear down (significant drag rise)
+        cd0_flaps: 0.015,        // additional flap drag
+        cd0_speedbrake: 0.04,    // speed brake deployed
         oswald: 0.85,            // Oswald efficiency
         cl_max: 1.6,             // max lift coefficient (clean)
         cl_max_flaps: 2.0,       // with flaps
@@ -54,7 +55,7 @@ const FighterSimEngine = (function() {
         v_rotate: 80,             // m/s rotation speed
         v_approach: 75,           // m/s approach speed
         gear_transition_time: 3,  // seconds
-        brake_decel: 4.0,         // m/s² ground braking
+        brake_decel: 6.0,         // m/s² ground braking (strong anti-skid)
         ground_friction: 0.03,    // rolling friction coefficient
         idle_thrust_frac: 0.05,   // fraction of mil thrust at idle
         max_mach: 2.05,           // structural Mach limit (overspeed warning)
@@ -71,7 +72,7 @@ const FighterSimEngine = (function() {
         aspect_ratio: 4.1,
 
         // Aero (subsonic similar to F-16, modified for hypersonic)
-        cd0: 0.018,  cd0_gear: 0.025,  cd0_flaps: 0.008,
+        cd0: 0.018,  cd0_gear: 0.035,  cd0_flaps: 0.015,  cd0_speedbrake: 0.04,
         oswald: 0.80,  cl_max: 1.5,  cl_max_flaps: 1.9,  cl_alpha: 0.07,
         cd0_hypersonic: 0.040,       // higher base drag at Mach 5+
         cl_alpha_hypersonic: 0.03,   // reduced lift slope at hypersonic
@@ -95,7 +96,7 @@ const FighterSimEngine = (function() {
         // Ground ops
         v_rotate: 85,  v_approach: 80,
         corner_speed: 200,
-        gear_transition_time: 4,  brake_decel: 3.5,
+        gear_transition_time: 4,  brake_decel: 6.0,
         ground_friction: 0.03,  idle_thrust_frac: 0.05,
 
         // Spaceplane flag
@@ -231,6 +232,11 @@ const FighterSimEngine = (function() {
         const mode = getPropulsionMode(state);
         state.propulsionMode = mode;
 
+        if (mode === 'TAXI') {
+            const taxiThrust = config.thrust_taxi || 10000;  // 10 kN default — ground ops
+            return { thrust: state.throttle * taxiThrust, sfc: 0, mode };
+        }
+
         if (mode === 'ROCKET') {
             const rocketThrust = config.thrust_rocket || 5000000;  // 5 MN default
             return { thrust: state.throttle * rocketThrust, sfc: 0, mode };
@@ -277,7 +283,9 @@ const FighterSimEngine = (function() {
      */
     function getAeroCoeffs(state, config) {
         const cd0_base = state.gearDown ? config.cd0_gear : config.cd0;
-        const cd0 = cd0_base + (state.flapsDown ? config.cd0_flaps : 0);
+        const cd0 = cd0_base
+            + (state.flapsDown ? (config.cd0_flaps || 0) : 0)
+            + (state.speedBrakeOut ? (config.cd0_speedbrake || 0.04) : 0);
         const cl_max = state.flapsDown ? config.cl_max_flaps : config.cl_max;
 
         return { cd0, cl_max };
@@ -339,7 +347,9 @@ const FighterSimEngine = (function() {
         }
 
         // Phase-dependent physics
-        if (state.phase === Phase.PARKED || state.phase === Phase.LANDED) {
+        if (state.phase === Phase.LANDED) {
+            stepLanded(state, controls, dt, config, atm, mass);
+        } else if (state.phase === Phase.PARKED) {
             stepGround(state, controls, dt, config, atm, mass);
         } else if (state.phase === Phase.TAXI) {
             stepTaxi(state, controls, dt, config, atm, mass);
@@ -357,7 +367,7 @@ const FighterSimEngine = (function() {
         }
 
         // Ground collision check
-        const groundAlt = EDWARDS.alt; // simplified: flat ground at runway elevation
+        const groundAlt = state.groundAlt != null ? state.groundAlt : EDWARDS.alt;
         if (state.phase === Phase.FLIGHT || state.phase === Phase.APPROACH) {
             if (state.alt <= groundAlt) {
                 // Check if this is a landing or a crash
@@ -386,7 +396,7 @@ const FighterSimEngine = (function() {
     }
 
     /**
-     * Ground (parked/landed) state
+     * Ground (parked) state — stationary or low-speed taxi initiation
      */
     function stepGround(state, controls, dt, config, atm, mass) {
         state.speed = Math.max(0, state.speed);
@@ -413,10 +423,56 @@ const FighterSimEngine = (function() {
             state.speed = Math.max(0, state.speed - config.brake_decel * dt);
         }
 
-        // Transition to taxi if moving
+        // Transition to taxi if moving (PARKED only — LANDED uses stepLanded)
         if (state.engineOn && state.speed > 1) {
             state.phase = Phase.TAXI;
         }
+    }
+
+    /**
+     * Landed rollout — post-touchdown deceleration with aero drag + wheel brakes.
+     * Stays in LANDED until stopped, then transitions to PARKED.
+     */
+    function stepLanded(state, controls, dt, config, atm, mass) {
+        state.gamma = 0;
+        state.roll = 0;
+        state.g_load = 1.0;
+        state.alpha = 0;
+
+        // Aerodynamic drag on ground roll (significant at high speed)
+        const q = 0.5 * atm.density * state.speed * state.speed;
+        const S = config.wing_area;
+        const aero = getAeroCoeffs(state, config);
+        const cd = aero.cd0;
+        const aeroDrag = q * S * cd;
+
+        // Ground friction
+        const friction = config.ground_friction * mass * G;
+
+        // Wheel brakes (always active during rollout + manual B for extra)
+        const brakeForce = config.brake_decel * mass;
+
+        // Total deceleration
+        const totalDecel = (aeroDrag + friction + brakeForce) / mass;
+        state.speed = Math.max(0, state.speed - totalDecel * dt);
+
+        // Heading control (nosewheel steering at low speed)
+        if (state.speed > 5 && controls.roll) {
+            const steerRate = 15 * DEG;
+            state.heading += controls.roll * steerRate * dt;
+            state.heading = normalizeAngle(state.heading);
+        }
+
+        // Update position
+        updatePosition(state, dt);
+
+        // Transition to parked when stopped
+        if (state.speed < 0.5) {
+            state.speed = 0;
+            state.phase = Phase.PARKED;
+        }
+
+        applyThrottleControl(state, controls, dt);
     }
 
     /**

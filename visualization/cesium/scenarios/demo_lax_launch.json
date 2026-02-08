@@ -1,0 +1,106 @@
+{
+    "metadata": {
+        "name": "LAX Runway Launch",
+        "description": "Guided taxi-to-takeoff tutorial at Los Angeles International Airport",
+        "version": "1.0"
+    },
+    "environment": {
+        "atmosphere": "us_standard_1976",
+        "gravity": "constant",
+        "maxTimeWarp": 4
+    },
+    "entities": [
+        {
+            "id": "player",
+            "name": "EAGLE 1",
+            "type": "aircraft",
+            "team": "blue",
+            "initialState": {
+                "lat": 33.9400,
+                "lon": -118.3960,
+                "alt": 38,
+                "speed": 0,
+                "heading": 270,
+                "gamma": 0,
+                "throttle": 0,
+                "engineOn": false,
+                "gearDown": true,
+                "brakesOn": true,
+                "flapsDown": false,
+                "infiniteFuel": true
+            },
+            "components": {
+                "physics": { "type": "flight3dof", "config": "f16" },
+                "control": { "type": "player_input", "config": "fighter" },
+                "visual":  { "type": "point", "color": "#44aaff", "pixelSize": 12, "trail": true, "trailColor": "#4488ff88", "label": "EAGLE 1" }
+            },
+            "_custom": {
+                "propulsion": { "taxi": true, "air": true }
+            },
+            "_quest": {
+                "waypoints": [
+                    {
+                        "lat": 33.9400, "lon": -118.4020,
+                        "radius": 200,
+                        "name": "TAXIWAY A",
+                        "msg": "Follow the green line west along the taxiway.",
+                        "hint": "TAXI mode (P) for low thrust. Hold B to brake. Steer with Left/Right."
+                    },
+                    {
+                        "lat": 33.9410, "lon": -118.4100,
+                        "radius": 200,
+                        "name": "TURN NORTH",
+                        "msg": "Turn right toward the runway. Keep speed under 30 m/s.",
+                        "hint": "Steer right with D/Right arrow"
+                    },
+                    {
+                        "lat": 33.9440, "lon": -118.4150,
+                        "radius": 200,
+                        "name": "TAXIWAY B",
+                        "msg": "Continue north along the taxiway.",
+                        "hint": "Straighten out and hold heading"
+                    },
+                    {
+                        "lat": 33.9470, "lon": -118.4200,
+                        "radius": 200,
+                        "name": "HOLD SHORT",
+                        "msg": "Hold short of Runway 25L. Hold B to brake, then switch to AIR mode (P).",
+                        "hint": "Set flaps down (F) for extra lift. Switch to AIR (P) before takeoff!"
+                    },
+                    {
+                        "lat": 33.9480, "lon": -118.4230,
+                        "radius": 250,
+                        "name": "LINE UP",
+                        "msg": "Line up with Runway 25L heading 249°. Release brakes when ready.",
+                        "hint": "Steer to heading ~249° (WSW)"
+                    },
+                    {
+                        "lat": 33.9460, "lon": -118.4350,
+                        "radius": 300,
+                        "name": "RUNWAY 25L",
+                        "msg": "CLEARED FOR TAKEOFF! Make sure AIR mode (P), full throttle, release B!",
+                        "hint": "Hold steady, speed builds to 80+ m/s for rotation"
+                    }
+                ],
+                "milestones": [
+                    { "type": "engine", "msg": "ENGINE START — Release brakes (let go of B) to begin taxi." },
+                    { "type": "phase", "value": "TAXI", "msg": "TAXI — Steer with arrows. Hold B to brake. Switch to AIR (P) for takeoff." },
+                    { "type": "speed", "value": 50, "msg": "50 m/s — Approaching takeoff speed..." },
+                    { "type": "phase", "value": "TAKEOFF", "msg": "ROTATE — Nose coming up, hold steady..." },
+                    { "type": "speed", "value": 80, "msg": "V1 — COMMIT TO TAKEOFF" },
+                    { "type": "phase", "value": "FLIGHT", "msg": "LIFTOFF! Retract gear (G) and raise flaps (F)." },
+                    { "type": "gearUp", "msg": "GEAR UP — Clean configuration. Climb away!" },
+                    { "type": "flapsUp", "msg": "FLAPS UP — Accelerating to cruise speed." },
+                    { "type": "alt", "value": 300, "msg": "300m AGL — Positive rate of climb confirmed." },
+                    { "type": "alt", "value": 1000, "msg": "MISSION COMPLETE — 1000m AGL. You've mastered the takeoff!" }
+                ]
+            }
+        }
+    ],
+    "camera": {
+        "mode": "chase",
+        "target": "player",
+        "range": 80,
+        "pitch": -0.15
+    }
+}

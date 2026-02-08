@@ -664,6 +664,7 @@
         <div class="data-row"><span class="data-label">Propulsion</span><span class="data-value" id="sysProp">---</span></div>
         <div class="data-row"><span class="data-label">Gear</span><span class="data-value" id="sysGear">DOWN</span></div>
         <div class="data-row"><span class="data-label">Flaps</span><span class="data-value" id="sysFlaps">UP</span></div>
+        <div class="data-row"><span class="data-label">Spd Brake</span><span class="data-value" id="sysSpeedBrake">IN</span></div>
         <div class="data-row"><span class="data-label">Brakes</span><span class="data-value" id="sysBrakes">OFF</span></div>
         <div class="data-row"><span class="data-label">Regime</span><span class="data-value" id="sysRegime">ATMOSPHERIC</span></div>
 
@@ -723,6 +724,7 @@
             </div>
             <div class="key-grid">
                 <span class="key">F</span><span class="key-desc">Toggle flaps</span>
+                <span class="key">X</span><span class="key-desc">Speed brake</span>
                 <span class="key">B</span><span class="key-desc">Wheel brakes</span>
                 <span class="key">Esc</span><span class="key-desc">Pause</span>
                 <span class="key">A</span><span class="key-desc">Toggle autopilot</span>
@@ -990,6 +992,15 @@
         <h1>LIVE SIM</h1>
         <div id="loadingStatus">Initializing...</div>
         <div id="loadingError"></div>
+    </div>
+
+    <!-- Quest/Mission Objective Panel -->
+    <div id="questPanel" class="panel" style="display:none; top:70px; left:50%; transform:translateX(-50%);
+         border-color:#ffaa00; min-width:320px; max-width:500px; text-align:center; z-index:25;">
+        <h3 style="color:#ffcc00; border-bottom-color:#664400;">MISSION</h3>
+        <div id="questObjective" style="color:#ffcc00; font-size:14px; line-height:1.4;">---</div>
+        <div id="questHint" style="color:#aa8800; font-size:11px; margin-top:4px;">---</div>
+        <div id="questProgress" style="color:#886600; font-size:10px; margin-top:6px; border-top:1px solid #664400; padding-top:4px;">---</div>
     </div>
 
     <!-- Temporary Message Overlay -->

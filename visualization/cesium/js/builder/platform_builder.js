@@ -39,13 +39,11 @@ const PlatformBuilder = (function() {
             atmospheric: { config: 'f16', alt: 5000, speed: 200, heading: 90 }
         },
         propulsion: {
+            taxi: false,
             air: false,
             hypersonic: false,
-            rocket: false,
-            rocketEngine: 'oms_25kn',
-            ion: false,
-            rcs: false,
-            defaultMode: 'rocket'
+            engines: [],     // selected engine names from ROCKET_ENGINES roster
+            defaultMode: 'air'
         },
         sensors: {
             radar: { enabled: false, maxRange_m: 150000, fov_deg: 120 },
@@ -572,63 +570,86 @@ const PlatformBuilder = (function() {
     // -------------------------------------------------------------------------
     // Propulsion Tab
     // -------------------------------------------------------------------------
+    // Engine roster — matches ROCKET_ENGINES in live_sim_engine.js
+    var PB_ENGINE_ROSTER = [
+        { name: 'ION 0.5N',       thrust: '0.5 N',   cat: 'micro',  desc: 'Station Keeping' },
+        { name: 'HALL 5N',        thrust: '5 N',     cat: 'micro',  desc: 'Hall Effect' },
+        { name: 'Cold Gas 50N',   thrust: '50 N',    cat: 'micro',  desc: 'Attitude Jets' },
+        { name: 'RCS 500N',       thrust: '500 N',   cat: 'micro',  desc: 'Reaction Control' },
+        { name: 'PROP 2kN',       thrust: '2 kN',    cat: 'light',  desc: 'Propeller' },
+        { name: 'TURBOPROP 15kN', thrust: '15 kN',   cat: 'light',  desc: 'Cargo Aircraft' },
+        { name: 'OMS 25kN',       thrust: '25 kN',   cat: 'medium', desc: 'Orbital Maneuvering' },
+        { name: 'AJ10 100kN',     thrust: '100 kN',  cat: 'medium', desc: 'Medium Rocket' },
+        { name: '1G ACCEL 147kN', thrust: '147 kN',  cat: 'medium', desc: '1G Constant Accel' },
+        { name: 'NERVA 350kN',    thrust: '350 kN',  cat: 'heavy',  desc: 'Nuclear Thermal' },
+        { name: 'RL10 500kN',     thrust: '500 kN',  cat: 'heavy',  desc: 'Heavy Vacuum' },
+        { name: 'Raptor 2.2MN',   thrust: '2.2 MN',  cat: 'heavy',  desc: 'Methalox' },
+        { name: 'RS25 5MN',       thrust: '5 MN',    cat: 'heavy',  desc: 'Launch Engine' },
+        { name: 'TORCH 50MN',     thrust: '50 MN',   cat: 'heavy',  desc: '1 AU/day Class' },
+    ];
+
     function _createPropulsionTab() {
         const tab = document.createElement('div');
         tab.className = 'pb-tab-content';
 
+        var selectedEngines = _formState.propulsion.engines || [];
+
+        // Build engine grid HTML grouped by category
+        var categories = [
+            { id: 'micro',  label: 'MICRO THRUSTERS' },
+            { id: 'light',  label: 'PROP / LIGHT' },
+            { id: 'medium', label: 'MEDIUM ROCKETS' },
+            { id: 'heavy',  label: 'HEAVY / EXOTIC' },
+        ];
+
+        var engineGridHTML = '';
+        categories.forEach(function(cat) {
+            var engines = PB_ENGINE_ROSTER.filter(function(e) { return e.cat === cat.id; });
+            engineGridHTML += '<div class="pb-engine-cat">' + cat.label + '</div>';
+            engineGridHTML += '<div class="pb-engine-grid">';
+            engines.forEach(function(eng) {
+                var checked = selectedEngines.indexOf(eng.name) >= 0 ? 'checked' : '';
+                var safeId = 'pb-eng-' + eng.name.replace(/[^a-zA-Z0-9]/g, '_');
+                engineGridHTML += '<label class="pb-engine-item" title="' + eng.desc + '">' +
+                    '<input type="checkbox" data-engine="' + eng.name + '" class="pb-engine-check" ' + checked + '/>' +
+                    '<span class="pb-eng-name">' + eng.name + '</span>' +
+                    '<span class="pb-eng-desc">' + eng.desc + '</span>' +
+                    '</label>';
+            });
+            engineGridHTML += '</div>';
+        });
+
         tab.innerHTML = `
-            <div class="pb-section-title">ENGINE MODES <span class="pb-hint">(P key cycles through enabled modes)</span></div>
-            <div class="pb-propulsion-hint">Select multiple engines for multi-regime vehicles (spaceplanes, reentry capsules, etc.)</div>
+            <div class="pb-section-title">PROPULSION <span class="pb-hint">(P key cycles through all enabled engines)</span></div>
 
-            <div class="pb-checkbox-group" id="pb-propulsion-options">
-                <label class="pb-checkbox-item">
-                    <input type="checkbox" id="pb-prop-air" ${_formState.propulsion.air ? 'checked' : ''} />
-                    <span class="pb-check-label">Air-Breathing</span>
-                    <span class="pb-check-desc">Turbofan/turbojet, 90-160 kN with density lapse</span>
-                </label>
-
-                <label class="pb-checkbox-item">
-                    <input type="checkbox" id="pb-prop-hypersonic" ${_formState.propulsion.hypersonic ? 'checked' : ''} />
-                    <span class="pb-check-label">Hypersonic</span>
-                    <span class="pb-check-desc">Scramjet/ramjet, 400 kN constant, Mach 2-10</span>
-                </label>
-
-                <label class="pb-checkbox-item">
-                    <input type="checkbox" id="pb-prop-rocket" ${_formState.propulsion.rocket ? 'checked' : ''} />
-                    <span class="pb-check-label">Rocket</span>
-                    <span class="pb-check-desc">Chemical rocket, works in vacuum</span>
-                </label>
-                <div id="pb-rocket-engine-row" style="margin-left:30px;margin-bottom:8px;${_formState.propulsion.rocket ? '' : 'display:none'}">
-                    <select id="pb-rocket-engine" style="width:100%;padding:4px;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:3px;font-size:12px;">
-                        <option value="oms_25kn" ${_formState.propulsion.rocketEngine === 'oms_25kn' ? 'selected' : ''}>OMS 25 kN — Orbital Maneuvering</option>
-                        <option value="aj10_100kn" ${_formState.propulsion.rocketEngine === 'aj10_100kn' ? 'selected' : ''}>AJ10 100 kN — Medium Rocket</option>
-                        <option value="rl10_500kn" ${_formState.propulsion.rocketEngine === 'rl10_500kn' ? 'selected' : ''}>RL10 500 kN — Heavy Vacuum</option>
-                        <option value="rs25_5mn" ${_formState.propulsion.rocketEngine === 'rs25_5mn' ? 'selected' : ''}>RS25 5 MN — Launch Engine</option>
-                    </select>
+            <div class="pb-checkbox-group" style="margin-bottom:8px">
+                <div class="pb-engine-cat">ATMOSPHERIC MODES</div>
+                <div class="pb-engine-grid">
+                    <label class="pb-engine-item" title="10 kN ground taxi">
+                        <input type="checkbox" id="pb-prop-taxi" ${_formState.propulsion.taxi ? 'checked' : ''} />
+                        <span class="pb-eng-name">TAXI 10kN</span>
+                        <span class="pb-eng-desc">Ground Ops</span>
+                    </label>
+                    <label class="pb-engine-item" title="Turbofan with density lapse">
+                        <input type="checkbox" id="pb-prop-air" ${_formState.propulsion.air ? 'checked' : ''} />
+                        <span class="pb-eng-name">AIR 79-130kN</span>
+                        <span class="pb-eng-desc">Turbofan</span>
+                    </label>
+                    <label class="pb-engine-item" title="Scramjet, Mach 2-10">
+                        <input type="checkbox" id="pb-prop-hypersonic" ${_formState.propulsion.hypersonic ? 'checked' : ''} />
+                        <span class="pb-eng-name">HYPER 800kN</span>
+                        <span class="pb-eng-desc">Scramjet</span>
+                    </label>
                 </div>
-
-                <label class="pb-checkbox-item">
-                    <input type="checkbox" id="pb-prop-ion" ${_formState.propulsion.ion ? 'checked' : ''} />
-                    <span class="pb-check-label">Ion/Electric</span>
-                    <span class="pb-check-desc">Low thrust (0.5 N), high Isp, station-keeping</span>
-                </label>
-
-                <label class="pb-checkbox-item">
-                    <input type="checkbox" id="pb-prop-rcs" ${_formState.propulsion.rcs ? 'checked' : ''} />
-                    <span class="pb-check-label">RCS Thrusters</span>
-                    <span class="pb-check-desc">Attitude control, proximity ops, docking</span>
-                </label>
             </div>
 
-            <div class="pb-default-mode" id="pb-default-mode">
-                <label>Default Mode:</label>
-                <select id="pb-prop-default">
-                    <option value="rocket">Rocket</option>
-                    <option value="air">Air-Breathing</option>
-                    <option value="hypersonic">Hypersonic</option>
-                    <option value="ion">Ion</option>
-                    <option value="rcs">RCS</option>
-                </select>
+            <div class="pb-checkbox-group" id="pb-engine-roster">
+                ${engineGridHTML}
+            </div>
+
+            <div style="margin-top:6px;text-align:right">
+                <button id="pb-eng-all" class="pb-small-btn">All</button>
+                <button id="pb-eng-none" class="pb-small-btn">None</button>
             </div>
         `;
 
@@ -1161,23 +1182,35 @@ const PlatformBuilder = (function() {
             _drawModelAxes();
         });
 
-        // Propulsion checkboxes
-        ['air', 'hypersonic', 'rocket', 'ion', 'rcs'].forEach(mode => {
+        // Propulsion: atmospheric mode checkboxes
+        ['taxi', 'air', 'hypersonic'].forEach(mode => {
             document.getElementById(`pb-prop-${mode}`)?.addEventListener('change', e => {
                 _formState.propulsion[mode] = e.target.checked;
-                _updateDefaultModeOptions();
-                // Show/hide rocket engine selector
-                if (mode === 'rocket') {
-                    var row = document.getElementById('pb-rocket-engine-row');
-                    if (row) row.style.display = e.target.checked ? '' : 'none';
+            });
+        });
+
+        // Propulsion: individual engine checkboxes
+        document.querySelectorAll('.pb-engine-check').forEach(cb => {
+            cb.addEventListener('change', e => {
+                var engName = e.target.getAttribute('data-engine');
+                var engines = _formState.propulsion.engines;
+                if (e.target.checked) {
+                    if (engines.indexOf(engName) < 0) engines.push(engName);
+                } else {
+                    var idx = engines.indexOf(engName);
+                    if (idx >= 0) engines.splice(idx, 1);
                 }
             });
         });
-        document.getElementById('pb-prop-default')?.addEventListener('change', e => {
-            _formState.propulsion.defaultMode = e.target.value;
+
+        // All / None buttons
+        document.getElementById('pb-eng-all')?.addEventListener('click', () => {
+            _formState.propulsion.engines = PB_ENGINE_ROSTER.map(e => e.name);
+            document.querySelectorAll('.pb-engine-check').forEach(cb => { cb.checked = true; });
         });
-        document.getElementById('pb-rocket-engine')?.addEventListener('change', e => {
-            _formState.propulsion.rocketEngine = e.target.value;
+        document.getElementById('pb-eng-none')?.addEventListener('click', () => {
+            _formState.propulsion.engines = [];
+            document.querySelectorAll('.pb-engine-check').forEach(cb => { cb.checked = false; });
         });
 
         // Sensor checkboxes - generic handler for all sensors
@@ -1320,39 +1353,11 @@ const PlatformBuilder = (function() {
     // Payload visibility is now handled by checkbox event listeners in _attachEventListeners
 
     function _updatePropulsionAvailability() {
-        // Propulsion is now available for all physics types
-        // (spaceplanes can re-enter, satellites can have thrusters, etc.)
-        const defaultMode = document.getElementById('pb-default-mode');
-        if (defaultMode) defaultMode.style.display = 'flex';
+        // Propulsion is available for all physics types — no restrictions
     }
 
     function _updateDefaultModeOptions() {
-        const select = document.getElementById('pb-prop-default');
-        if (!select) return;
-
-        const modeLabels = {
-            air: 'Air-Breathing',
-            hypersonic: 'Hypersonic',
-            rocket: 'Rocket',
-            ion: 'Ion',
-            rcs: 'RCS'
-        };
-
-        const enabledModes = [];
-        if (_formState.propulsion.air) enabledModes.push('air');
-        if (_formState.propulsion.hypersonic) enabledModes.push('hypersonic');
-        if (_formState.propulsion.rocket) enabledModes.push('rocket');
-        if (_formState.propulsion.ion) enabledModes.push('ion');
-        if (_formState.propulsion.rcs) enabledModes.push('rcs');
-
-        select.innerHTML = enabledModes.map(m =>
-            `<option value="${m}" ${_formState.propulsion.defaultMode === m ? 'selected' : ''}>${modeLabels[m]}</option>`
-        ).join('');
-
-        // Update default if current isn't available
-        if (!enabledModes.includes(_formState.propulsion.defaultMode) && enabledModes.length > 0) {
-            _formState.propulsion.defaultMode = enabledModes[0];
-        }
+        // No longer needed — P cycles all enabled engines sequentially
     }
 
     function _updateCOEComputed() {
@@ -1492,16 +1497,15 @@ const PlatformBuilder = (function() {
         }
 
         // Propulsion modes (available for ALL physics types - satellites can have thrusters, spaceplanes can re-enter)
-        const enabledModes = [];
-        if (_formState.propulsion.air) enabledModes.push('air');
-        if (_formState.propulsion.hypersonic) enabledModes.push('hypersonic');
-        if (_formState.propulsion.rocket) enabledModes.push('rocket');
-        if (_formState.propulsion.ion) enabledModes.push('ion');
-        if (_formState.propulsion.rcs) enabledModes.push('rcs');
-        if (enabledModes.length > 0) {
+        // New format: taxi/air/hypersonic booleans + engines[] array of individual engine names
+        var hasProp = _formState.propulsion.taxi || _formState.propulsion.air ||
+            _formState.propulsion.hypersonic || (_formState.propulsion.engines && _formState.propulsion.engines.length > 0);
+        if (hasProp) {
             platform.components.propulsion = {
-                modes: enabledModes,
-                defaultMode: _formState.propulsion.defaultMode
+                taxi: _formState.propulsion.taxi || false,
+                air: _formState.propulsion.air || false,
+                hypersonic: _formState.propulsion.hypersonic || false,
+                engines: _formState.propulsion.engines.slice()
             };
         }
 
@@ -1700,11 +1704,11 @@ const PlatformBuilder = (function() {
 
         // Propulsion
         const propModes = [];
+        if (_formState.propulsion.taxi) propModes.push('taxi');
         if (_formState.propulsion.air) propModes.push('air');
         if (_formState.propulsion.hypersonic) propModes.push('hyper');
-        if (_formState.propulsion.rocket) propModes.push('rocket');
-        if (_formState.propulsion.ion) propModes.push('ion');
-        if (_formState.propulsion.rcs) propModes.push('rcs');
+        var numEngines = (_formState.propulsion.engines || []).length;
+        if (numEngines > 0) propModes.push(numEngines + ' engine' + (numEngines > 1 ? 's' : ''));
         if (propModes.length > 0) parts.push(propModes.join('/'));
 
         // Sensors
@@ -1821,11 +1825,20 @@ const PlatformBuilder = (function() {
             // Reset form state
             _formState.name = 'Custom Platform';
             _formState.model = { file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 };
+            _formState.propulsion = { taxi: false, air: false, hypersonic: false, engines: [], defaultMode: 'air' };
             _activeTab = 'physics';
 
             _overlay.style.display = 'flex';
             _switchTab('physics');
             _attachEventListeners();
+
+            // Reset propulsion checkboxes in DOM
+            ['taxi', 'air', 'hypersonic'].forEach(function(m) {
+                var cb = document.getElementById('pb-prop-' + m);
+                if (cb) cb.checked = false;
+            });
+            document.querySelectorAll('.pb-engine-check').forEach(function(cb) { cb.checked = false; });
+
             _updateCOEComputed();
             _updatePropulsionAvailability();
             _updateDefaultModeOptions();
@@ -1854,8 +1867,33 @@ const PlatformBuilder = (function() {
                 if (c.physics.atmospheric) Object.assign(_formState.physics.atmospheric, c.physics.atmospheric);
             }
 
-            // Propulsion
-            if (c.propulsion) Object.assign(_formState.propulsion, c.propulsion);
+            // Propulsion — handle legacy format (rocket/ion/rcs booleans) + new format (engines[])
+            if (c.propulsion) {
+                _formState.propulsion.taxi = !!c.propulsion.taxi;
+                _formState.propulsion.air = !!c.propulsion.air;
+                _formState.propulsion.hypersonic = !!c.propulsion.hypersonic;
+                if (c.propulsion.engines && c.propulsion.engines.length > 0) {
+                    _formState.propulsion.engines = c.propulsion.engines.slice();
+                } else if (c.propulsion.rocket) {
+                    // Legacy: had rocket=true with optional rocketEngine name
+                    // Map old rocketEngine id to new engine name, or default to OMS
+                    var legacyMap = { 'oms_25kn': 'OMS 25kN', 'aj10_100kn': 'AJ10 100kN',
+                        'rl10_500kn': 'RL10 500kN', 'rs25_5mn': 'RS25 5MN' };
+                    var mapped = legacyMap[c.propulsion.rocketEngine];
+                    _formState.propulsion.engines = mapped ? [mapped] : ['OMS 25kN'];
+                } else {
+                    _formState.propulsion.engines = [];
+                }
+                // Legacy ion/rcs → map to closest new engines
+                if (c.propulsion.ion) {
+                    if (_formState.propulsion.engines.indexOf('ION 0.5N') < 0)
+                        _formState.propulsion.engines.push('ION 0.5N');
+                }
+                if (c.propulsion.rcs) {
+                    if (_formState.propulsion.engines.indexOf('RCS 500N') < 0)
+                        _formState.propulsion.engines.push('RCS 500N');
+                }
+            }
 
             // Sensors
             if (c.sensors) {
@@ -1897,18 +1935,17 @@ const PlatformBuilder = (function() {
             var physRadio = document.querySelector('input[name="physics-mode"][value="' + _formState.physics.mode + '"]');
             if (physRadio) { physRadio.checked = true; physRadio.dispatchEvent(new Event('change')); }
 
-            // Propulsion checkboxes
-            ['air', 'hypersonic', 'rocket', 'ion', 'rcs'].forEach(function(m) {
+            // Propulsion: atmospheric mode checkboxes
+            ['taxi', 'air', 'hypersonic'].forEach(function(m) {
                 var cb = document.getElementById('pb-prop-' + m);
                 if (cb) cb.checked = !!_formState.propulsion[m];
             });
-            // Rocket engine selector
-            var rocketEngSel = document.getElementById('pb-rocket-engine');
-            if (rocketEngSel) rocketEngSel.value = _formState.propulsion.rocketEngine || 'oms_25kn';
-            var rocketRow = document.getElementById('pb-rocket-engine-row');
-            if (rocketRow) rocketRow.style.display = _formState.propulsion.rocket ? '' : 'none';
-            var defMode = document.getElementById('pb-default-mode');
-            if (defMode) defMode.value = _formState.propulsion.defaultMode || 'rocket';
+            // Engine roster checkboxes
+            var engines = _formState.propulsion.engines || [];
+            document.querySelectorAll('.pb-engine-check').forEach(function(cb) {
+                var engName = cb.getAttribute('data-engine');
+                cb.checked = engines.indexOf(engName) >= 0;
+            });
 
             // Model select
             var modelSel = document.getElementById('pb-model-file');
@@ -1944,8 +1981,9 @@ const PlatformBuilder = (function() {
         }
 
         if (_formState.physics.mode === 'atmospheric') {
-            const hasEngine = _formState.propulsion.air || _formState.propulsion.hypersonic ||
-                              _formState.propulsion.rocket || _formState.propulsion.ion || _formState.propulsion.rcs;
+            const hasEngine = _formState.propulsion.taxi || _formState.propulsion.air ||
+                              _formState.propulsion.hypersonic ||
+                              (_formState.propulsion.engines && _formState.propulsion.engines.length > 0);
             if (!hasEngine) {
                 alert('Please select at least one propulsion mode for atmospheric flight.');
                 return;
@@ -2033,7 +2071,8 @@ const PlatformBuilder = (function() {
             platform.components.physics.type === 'flight3dof';
         // Default to 'spacecraft' if orbital physics OR space-capable propulsion
         var hasSpaceProp = platform._custom && platform._custom.propulsion &&
-            (platform._custom.propulsion.rocket || platform._custom.propulsion.hypersonic || platform._custom.propulsion.ion);
+            (platform._custom.propulsion.hypersonic ||
+             (platform._custom.propulsion.engines && platform._custom.propulsion.engines.length > 0));
         var defaultMode = (isAtmospheric && !hasSpaceProp) ? 'aircraft' : 'spacecraft';
         [{ v: 'spacecraft', l: 'Space' }, { v: 'aircraft', l: 'Air' }, { v: 'ground', l: 'Ground' }].forEach(function(m) {
             var opt = document.createElement('option');
@@ -2395,6 +2434,64 @@ const PlatformBuilder = (function() {
                 font-size: 11px;
                 margin-bottom: 12px;
                 font-style: italic;
+            }
+            .pb-engine-cat {
+                color: #888;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                padding: 6px 0 4px 0;
+                border-bottom: 1px solid #222;
+                margin-bottom: 4px;
+            }
+            .pb-engine-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 2px 8px;
+                margin-bottom: 6px;
+            }
+            .pb-engine-item {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                cursor: pointer;
+                padding: 4px 6px;
+                border-radius: 3px;
+                font-size: 11px;
+            }
+            .pb-engine-item:hover {
+                background: #1a1a2e;
+            }
+            .pb-engine-item input[type="checkbox"] {
+                accent-color: #4af;
+                margin: 0;
+            }
+            .pb-eng-name {
+                font-weight: bold;
+                color: #ccc;
+                white-space: nowrap;
+                font-size: 11px;
+            }
+            .pb-eng-desc {
+                color: #666;
+                font-size: 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .pb-small-btn {
+                background: #333;
+                color: #aaa;
+                border: 1px solid #444;
+                padding: 3px 10px;
+                border-radius: 3px;
+                font-size: 10px;
+                cursor: pointer;
+            }
+            .pb-small-btn:hover {
+                background: #444;
+                color: #ddd;
             }
             .pb-payload-section {
                 margin-bottom: 16px;

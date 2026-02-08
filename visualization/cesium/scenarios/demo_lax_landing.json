@@ -1,0 +1,110 @@
+{
+    "metadata": {
+        "name": "LAX Landing Practice",
+        "description": "Guided approach and landing at Los Angeles International Airport",
+        "version": "1.0"
+    },
+    "environment": {
+        "atmosphere": "us_standard_1976",
+        "gravity": "constant",
+        "maxTimeWarp": 4
+    },
+    "entities": [
+        {
+            "id": "player",
+            "name": "EAGLE 1",
+            "type": "aircraft",
+            "team": "blue",
+            "initialState": {
+                "lat": 33.98,
+                "lon": -118.10,
+                "alt": 2000,
+                "speed": 200,
+                "heading": 249,
+                "gamma": 0,
+                "throttle": 0.5,
+                "engineOn": true,
+                "gearDown": false,
+                "brakesOn": false,
+                "flapsDown": false,
+                "infiniteFuel": true
+            },
+            "components": {
+                "physics": { "type": "flight3dof", "config": "f16" },
+                "control": { "type": "player_input", "config": "fighter" },
+                "visual":  { "type": "point", "color": "#44aaff", "pixelSize": 12, "trail": true, "trailColor": "#4488ff88", "label": "EAGLE 1" }
+            },
+            "_custom": {
+                "propulsion": { "air": true }
+            },
+            "_quest": {
+                "mode": "landing",
+                "groundAlt": 38,
+                "routeAlt": 200,
+                "initialMsg": "Approach LAX Runway 25L — reduce throttle, begin descent",
+                "initialHint": "Nose down gently (S/Down). Keep wings level. Follow the approach path.",
+                "waypoints": [
+                    {
+                        "lat": 33.975, "lon": -118.18,
+                        "radius": 1000,
+                        "name": "DESCENT",
+                        "msg": "Begin descent. Reduce throttle to 30%, nose down gently.",
+                        "hint": "Target -3° glide angle. Speed should decrease naturally."
+                    },
+                    {
+                        "lat": 33.965, "lon": -118.26,
+                        "radius": 1000,
+                        "name": "10 MILE",
+                        "msg": "10 miles out. Slow below 150 m/s. Continue descent.",
+                        "hint": "Reduce throttle further. You should be passing through ~1500m."
+                    },
+                    {
+                        "lat": 33.957, "lon": -118.33,
+                        "radius": 800,
+                        "name": "CONFIGURE",
+                        "msg": "Deploy landing gear (G). Gear drag helps slow you down.",
+                        "hint": "Should be ~1000m altitude. Gear creates drag — helps slow down."
+                    },
+                    {
+                        "lat": 33.951, "lon": -118.38,
+                        "radius": 700,
+                        "name": "5 MILE",
+                        "msg": "Deploy flaps (F). Slow to 80-100 m/s approach speed.",
+                        "hint": "Flaps give extra lift at low speed. Keep descending smoothly."
+                    },
+                    {
+                        "lat": 33.947, "lon": -118.41,
+                        "radius": 500,
+                        "name": "FINAL",
+                        "msg": "On final approach. Runway ahead — hold glidepath steady.",
+                        "hint": "Below 100 m/s, gear & flaps down. Small throttle adjustments."
+                    },
+                    {
+                        "lat": 33.944, "lon": -118.43,
+                        "radius": 600,
+                        "name": "THRESHOLD",
+                        "msg": "Touchdown zone! Idle throttle, flare nose up, hold B to brake.",
+                        "hint": "Speed < 120, gear down, wings level = safe landing."
+                    }
+                ],
+                "milestones": [
+                    { "type": "speedBelow", "value": 150, "msg": "Below 150 m/s — good descent speed." },
+                    { "type": "altBelow", "value": 1000, "msg": "Below 1000m — entering pattern altitude." },
+                    { "type": "gearDown", "msg": "GEAR DOWN — drag increasing, slowing naturally." },
+                    { "type": "flapsDown", "msg": "FLAPS DOWN — approach configuration set." },
+                    { "type": "speedBelow", "value": 100, "msg": "Below 100 m/s — on-speed for approach." },
+                    { "type": "altBelow", "value": 200, "msg": "200m AGL — short final! Hold steady..." },
+                    { "type": "altBelow", "value": 50, "msg": "50m — FLARE! Nose up gently, idle throttle." },
+                    { "type": "landed", "msg": "TOUCHDOWN! Hold B to brake. Well done!" },
+                    { "type": "stopped", "msg": "FULL STOP — LANDING COMPLETE! You've mastered the approach!" }
+                ]
+            }
+        }
+    ],
+    "camera": {
+        "mode": "chase",
+        "target": "player",
+        "range": 120,
+        "pitch": -0.1
+    }
+}
