@@ -142,6 +142,49 @@ const EnvironmentDialog = (function() {
                 </div>
 
                 <div class="env-section">
+                    <div class="env-section-title">Weather</div>
+                    <div class="env-group">
+                        <div class="env-row">
+                            <div class="env-field">
+                                <label>Weather Preset</label>
+                                <select id="env-weather-preset">
+                                    <option value="none">None (calm)</option>
+                                    <option value="clear">Clear (light wind)</option>
+                                    <option value="overcast">Overcast (moderate wind)</option>
+                                    <option value="stormy">Stormy (heavy turbulence)</option>
+                                    <option value="high_altitude_clear">High Alt Clear (jet stream)</option>
+                                    <option value="arctic">Arctic (strong crosswind)</option>
+                                    <option value="custom">Custom</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="env-sub-fields" id="env-weather-custom-fields" style="display:none">
+                            <div class="env-row">
+                                <div class="env-field">
+                                    <label>Wind Speed (m/s)</label>
+                                    <input type="number" id="env-weather-windspeed" value="5" min="0" max="100" step="1" />
+                                </div>
+                                <div class="env-field">
+                                    <label>Wind Heading (&deg;)</label>
+                                    <input type="number" id="env-weather-winddir" value="270" min="0" max="360" step="5" />
+                                </div>
+                            </div>
+                            <div class="env-row">
+                                <div class="env-field">
+                                    <label>Turbulence (0-5)</label>
+                                    <input type="number" id="env-weather-turbulence" value="0" min="0" max="5" step="0.5" />
+                                </div>
+                                <div class="env-field">
+                                    <label>Visibility (km)</label>
+                                    <input type="number" id="env-weather-visibility" value="50" min="0.1" max="100" step="1" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="env-section">
                     <div class="env-section-title">Magnetic Field & Ionosphere</div>
                     <div class="env-group">
                         <label class="env-checkbox">
@@ -260,6 +303,16 @@ const EnvironmentDialog = (function() {
             });
         }
 
+        // Weather preset toggle
+        var weatherPreset = document.getElementById('env-weather-preset');
+        var weatherCustom = document.getElementById('env-weather-custom-fields');
+        if (weatherPreset && weatherCustom) {
+            weatherPreset.addEventListener('change', function() {
+                weatherCustom.style.display = (weatherPreset.value === 'custom') ? 'block' : 'none';
+            });
+        }
+
+
         // Buttons
         document.getElementById('env-btn-confirm').addEventListener('click', function() {
             if (_resolvePromise) _resolvePromise(_readFormValues());
@@ -302,6 +355,30 @@ const EnvironmentDialog = (function() {
 
         // Time warp
         var tw = document.getElementById('env-timewarp');
+
+        // Weather
+        var wp = document.getElementById('env-weather-preset');
+        var wcf = document.getElementById('env-weather-custom-fields');
+        if (wp) {
+            if (env.weather && env.weather.preset) {
+                wp.value = env.weather.preset;
+                if (env.weather.preset === 'custom' && wcf) {
+                    wcf.style.display = 'block';
+                    var ws = document.getElementById('env-weather-windspeed');
+                    var wd = document.getElementById('env-weather-winddir');
+                    var wt = document.getElementById('env-weather-turbulence');
+                    var wv = document.getElementById('env-weather-visibility');
+                    if (ws) ws.value = env.weather.windSpeed || 5;
+                    if (wd) wd.value = env.weather.windHeading || 270;
+                    if (wt) wt.value = env.weather.turbulence || 0;
+                    if (wv) wv.value = env.weather.visibility || 50;
+                }
+            } else {
+                wp.value = 'none';
+                if (wcf) wcf.style.display = 'none';
+            }
+        }
+
         if (tw) tw.value = String(env.maxTimeWarp || 64);
 
         // Magnetic field
@@ -358,6 +435,20 @@ const EnvironmentDialog = (function() {
             ionosphere: null,
             radiationBelt: null
         };
+
+        // Weather
+        var weatherPresetEl = document.getElementById('env-weather-preset');
+        var weatherPresetVal = weatherPresetEl ? weatherPresetEl.value : 'none';
+        if (weatherPresetVal !== 'none') {
+            env.weather = { preset: weatherPresetVal };
+            if (weatherPresetVal === 'custom') {
+                env.weather.windSpeed = parseFloat(document.getElementById('env-weather-windspeed').value) || 5;
+                env.weather.windHeading = parseFloat(document.getElementById('env-weather-winddir').value) || 270;
+                env.weather.turbulence = parseFloat(document.getElementById('env-weather-turbulence').value) || 0;
+                env.weather.visibility = parseFloat(document.getElementById('env-weather-visibility').value) || 50;
+            }
+        }
+
 
         if (document.getElementById('env-magnetic').checked) {
             env.magneticField = {

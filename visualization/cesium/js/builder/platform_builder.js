@@ -66,6 +66,8 @@ const PlatformBuilder = (function() {
             nuclearWarhead: { enabled: false, yield_kt: 1400, burstType: 'exoatmospheric', trigger: 'command' },
             nuclearCruiseMissile: { enabled: false, yield_kt: 150, burstType: 'airburst', range_km: 2500 }
         },
+        // RCS override (null = auto by entity type)
+        rcs_m2: null,
         // Environment settings moved to global scenario level (EnvironmentDialog)
         model: {
             file: '',
@@ -294,6 +296,13 @@ const PlatformBuilder = (function() {
                             <input type="number" id="pb-atmo-heading" value="${_formState.physics.atmospheric.heading}" min="0" max="360" step="1" />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="pb-coe-row" style="margin-top:10px;border-top:1px solid #333;padding-top:8px">
+                <div class="pb-coe-field">
+                    <label>RCS Override (m²) <span class="pb-hint">blank = auto by type</span></label>
+                    <input type="number" id="pb-rcs-override" value="${_formState.rcs_m2 || ''}" min="0.0001" max="100000" step="0.01" placeholder="auto" />
                 </div>
             </div>
         `;
@@ -620,7 +629,7 @@ const PlatformBuilder = (function() {
         });
 
         tab.innerHTML = `
-            <div class="pb-section-title">PROPULSION <span class="pb-hint">(P key cycles through all enabled engines)</span></div>
+            <div class="pb-section-title">PROPULSION <span class="pb-hint">(P key opens engine selection panel)</span></div>
 
             <div class="pb-checkbox-group" style="margin-bottom:8px">
                 <div class="pb-engine-cat">ATMOSPHERIC MODES</div>
@@ -647,9 +656,12 @@ const PlatformBuilder = (function() {
                 ${engineGridHTML}
             </div>
 
-            <div style="margin-top:6px;text-align:right">
-                <button id="pb-eng-all" class="pb-small-btn">All</button>
-                <button id="pb-eng-none" class="pb-small-btn">None</button>
+            <div style="margin-top:8px;display:flex;gap:6px;justify-content:space-between;align-items:center">
+                <button id="pb-prop-all-domain" class="pb-small-btn" style="background:rgba(0,60,120,0.5);border-color:#4488ff;color:#44aaff;flex:1;padding:6px 12px;font-size:11px;letter-spacing:1px">SELECT ALL DOMAIN</button>
+                <div style="display:flex;gap:4px">
+                    <button id="pb-eng-all" class="pb-small-btn">All Engines</button>
+                    <button id="pb-eng-none" class="pb-small-btn">None</button>
+                </div>
             </div>
         `;
 
@@ -1204,6 +1216,19 @@ const PlatformBuilder = (function() {
         });
 
         // All / None buttons
+        document.getElementById('pb-prop-all-domain')?.addEventListener('click', () => {
+            // Check all atmospheric modes
+            _formState.propulsion.taxi = true;
+            _formState.propulsion.air = true;
+            _formState.propulsion.hypersonic = true;
+            ['taxi', 'air', 'hypersonic'].forEach(mode => {
+                var cb = document.getElementById('pb-prop-' + mode);
+                if (cb) cb.checked = true;
+            });
+            // Check all engines
+            _formState.propulsion.engines = PB_ENGINE_ROSTER.map(e => e.name);
+            document.querySelectorAll('.pb-engine-check').forEach(cb => { cb.checked = true; });
+        });
         document.getElementById('pb-eng-all')?.addEventListener('click', () => {
             _formState.propulsion.engines = PB_ENGINE_ROSTER.map(e => e.name);
             document.querySelectorAll('.pb-engine-check').forEach(cb => { cb.checked = true; });
@@ -1494,6 +1519,13 @@ const PlatformBuilder = (function() {
             platform.components.visual.modelHeading = _formState.model.heading || 0;
             platform.components.visual.modelPitch = _formState.model.pitch || 0;
             platform.components.visual.modelRoll = _formState.model.roll || 0;
+        }
+
+        // RCS override (store in _custom if user entered a value)
+        var rcsInput = document.getElementById('pb-rcs-override');
+        var rcsVal = rcsInput ? parseFloat(rcsInput.value) : NaN;
+        if (!isNaN(rcsVal) && rcsVal > 0) {
+            platform._custom.rcs_m2 = rcsVal;
         }
 
         // Propulsion modes (available for ALL physics types - satellites can have thrusters, spaceplanes can re-enter)

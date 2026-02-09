@@ -710,10 +710,11 @@ var ObjectPalette = (function() {
             name: 'CVN Nimitz Carrier',
             icon: '#4466aa',
             description: 'Nuclear carrier, embarked air wing',
-            type: 'ground',
+            type: 'naval',
             team: 'blue',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 8 },
             components: {
+                physics: { type: 'naval', config: 'cvn_nimitz' },
                 sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.90 },
                 visual: { type: 'ground_station', color: '#4466aa', label: 'CVN', sensorRange_m: 200000, sensorColor: 'rgba(68,102,170,0.04)', sensorOutlineColor: '#4466aa' }
             }
@@ -723,10 +724,11 @@ var ObjectPalette = (function() {
             name: 'DDG Arleigh Burke',
             icon: '#3355aa',
             description: 'Aegis destroyer, SPY-1D radar, SM-2/3',
-            type: 'ground',
+            type: 'naval',
             team: 'blue',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 10 },
             components: {
+                physics: { type: 'naval', config: 'ddg_arleigh_burke' },
                 sensors: { type: 'radar', maxRange_m: 350000, fov_deg: 360, scanRate_dps: 40, detectionProbability: 0.92 },
                 weapons: { type: 'sam_battery', maxRange_m: 170000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#3355aa', label: 'DDG', sensorRange_m: 350000, sensorColor: 'rgba(51,85,170,0.04)', sensorOutlineColor: '#3355aa' }
@@ -737,10 +739,11 @@ var ObjectPalette = (function() {
             name: 'SSN Virginia',
             icon: '#224488',
             description: 'Nuclear attack submarine, Tomahawk capable',
-            type: 'ground',
+            type: 'naval',
             team: 'blue',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 8 },
             components: {
+                physics: { type: 'naval', config: 'ssn_virginia', submarine: true },
                 sensors: { type: 'radar', maxRange_m: 40000, fov_deg: 360, scanRate_dps: 10, detectionProbability: 0.70 },
                 visual: { type: 'ground_station', color: '#224488', label: 'SSN', sensorRange_m: 40000, sensorColor: 'rgba(34,68,136,0.06)', sensorOutlineColor: '#224488' }
             }
@@ -750,10 +753,11 @@ var ObjectPalette = (function() {
             name: 'FFG Constellation',
             icon: '#5577aa',
             description: 'Multi-mission frigate, EASR radar',
-            type: 'ground',
+            type: 'naval',
             team: 'blue',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 10 },
             components: {
+                physics: { type: 'naval', config: 'ffg_constellation' },
                 sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.85 },
                 weapons: { type: 'sam_battery', maxRange_m: 50000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#5577aa', label: 'FFG', sensorRange_m: 200000, sensorColor: 'rgba(85,119,170,0.04)', sensorOutlineColor: '#5577aa' }
@@ -764,10 +768,11 @@ var ObjectPalette = (function() {
             name: 'LHD Wasp',
             icon: '#668899',
             description: 'Amphibious assault ship, helo/F-35B',
-            type: 'ground',
+            type: 'naval',
             team: 'blue',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 10 },
             components: {
+                physics: { type: 'naval', config: 'lpd_san_antonio' },
                 sensors: { type: 'radar', maxRange_m: 100000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.80 },
                 visual: { type: 'ground_station', color: '#668899', label: 'LHD', sensorRange_m: 100000, sensorColor: 'rgba(102,136,153,0.05)', sensorOutlineColor: '#668899' }
             }
@@ -777,10 +782,11 @@ var ObjectPalette = (function() {
             name: 'Kirov Battlecruiser',
             icon: '#aa3333',
             description: 'Nuclear battlecruiser, S-300F SAM, P-700 AShM',
-            type: 'ground',
+            type: 'naval',
             team: 'red',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 15 },
             components: {
+                physics: { type: 'naval', config: 'ddg_arleigh_burke' },
                 sensors: { type: 'radar', maxRange_m: 300000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.90 },
                 weapons: { type: 'sam_battery', maxRange_m: 150000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#aa3333', label: 'KIROV', sensorRange_m: 300000, sensorColor: 'rgba(170,51,51,0.04)', sensorOutlineColor: '#aa3333' }
@@ -791,10 +797,11 @@ var ObjectPalette = (function() {
             name: 'Admiral Kuznetsov',
             icon: '#993333',
             description: 'Aircraft carrier, Su-33 air wing',
-            type: 'ground',
+            type: 'naval',
             team: 'red',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 8 },
             components: {
+                physics: { type: 'naval', config: 'cvn_nimitz' },
                 sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.85 },
                 visual: { type: 'ground_station', color: '#993333', label: 'KUZNTSV', sensorRange_m: 200000, sensorColor: 'rgba(153,51,51,0.04)', sensorOutlineColor: '#993333' }
             }
@@ -804,10 +811,11 @@ var ObjectPalette = (function() {
             name: 'Kilo-class Submarine',
             icon: '#882222',
             description: 'Diesel-electric attack submarine, very quiet',
-            type: 'ground',
+            type: 'naval',
             team: 'red',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 5 },
             components: {
+                physics: { type: 'naval', config: 'ssk_diesel', submarine: true },
                 sensors: { type: 'radar', maxRange_m: 30000, fov_deg: 360, scanRate_dps: 8, detectionProbability: 0.65 },
                 visual: { type: 'ground_station', color: '#882222', label: 'KILO', sensorRange_m: 30000, sensorColor: 'rgba(136,34,34,0.06)', sensorOutlineColor: '#882222' }
             }
@@ -817,10 +825,11 @@ var ObjectPalette = (function() {
             name: 'Slava-class Cruiser',
             icon: '#bb4444',
             description: 'Guided missile cruiser, S-300F, P-500',
-            type: 'ground',
+            type: 'naval',
             team: 'red',
-            defaults: { alt: 0, speed: 0 },
+            defaults: { alt: 0, speed: 15 },
             components: {
+                physics: { type: 'naval', config: 'ddg_arleigh_burke' },
                 sensors: { type: 'radar', maxRange_m: 250000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.88 },
                 weapons: { type: 'sam_battery', maxRange_m: 120000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#bb4444', label: 'SLAVA', sensorRange_m: 250000, sensorColor: 'rgba(187,68,68,0.04)', sensorOutlineColor: '#bb4444' }

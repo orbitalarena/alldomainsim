@@ -102,11 +102,25 @@
                 };
             }
 
-            // 3D Model rendering (optional — from Platform Builder model selection)
+            // 3D Model rendering — explicit config, Platform Builder, or auto-resolved via ModelMap
+            var modelInfo = null;
             if (cfg.model) {
-                self._modelHeadingOffset = (cfg.modelHeading || 0) * Math.PI / 180;
-                self._modelPitchOffset = (cfg.modelPitch || 0) * Math.PI / 180;
-                self._modelRollOffset = (cfg.modelRoll || 0) * Math.PI / 180;
+                modelInfo = {
+                    uri: cfg.model,
+                    scale: cfg.modelScale || 1.0,
+                    headingOffset: (cfg.modelHeading || 0) * Math.PI / 180,
+                    pitchOffset: (cfg.modelPitch || 0) * Math.PI / 180,
+                    rollOffset: (cfg.modelRoll || 0) * Math.PI / 180
+                };
+            } else if (typeof ModelMap !== 'undefined') {
+                // Auto-resolve from entity definition
+                modelInfo = ModelMap.resolve(entity.def || {});
+            }
+
+            if (modelInfo) {
+                self._modelHeadingOffset = modelInfo.headingOffset || 0;
+                self._modelPitchOffset = modelInfo.pitchOffset || 0;
+                self._modelRollOffset = modelInfo.rollOffset || 0;
 
                 entityOpts.orientation = new Cesium.CallbackProperty(function() {
                     var h = (state.heading || 0) + self._modelHeadingOffset;
@@ -117,10 +131,10 @@
                 }, false);
 
                 entityOpts.model = {
-                    uri: cfg.model,
+                    uri: modelInfo.uri,
                     minimumPixelSize: 32,
-                    maximumScale: (cfg.modelScale || 1.0) * 500,
-                    scale: cfg.modelScale || 1.0,
+                    maximumScale: (modelInfo.scale || 1.0) * 500,
+                    scale: modelInfo.scale || 1.0,
                 };
 
                 // Reduce point size when model is present (point serves as far-distance fallback)

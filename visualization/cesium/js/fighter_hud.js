@@ -633,7 +633,7 @@ const FighterHUD = (function() {
             // Fire hint
             ctx.font = `${9 * scale}px 'Courier New', monospace`;
             ctx.fillStyle = HUD_DIM;
-            ctx.fillText('[SPACE] FIRE  [W] CYCLE', x, baseY + lineH);
+            ctx.fillText('[SPACE] FIRE  [R] CYCLE', x, baseY + lineH);
         } else {
             ctx.fillStyle = HUD_DIM;
             ctx.fillText('NO WEAPON', x, baseY);

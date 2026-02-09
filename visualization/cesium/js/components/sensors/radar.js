@@ -281,9 +281,20 @@ const RadarSensor = (function() {
                 if (bearingDelta < -180) bearingDelta += 360;
                 if (Math.abs(bearingDelta) > effectiveHalfCoverage) return;
 
-                // Apply detection probability (seeded RNG for MC determinism)
+                // Apply detection probability — use EWSystem RCS if available, else flat Pd
                 var rng = world.rng;
-                var detected = rng ? rng.bernoulli(self._pDetect) : (Math.random() < self._pDetect);
+                var detected;
+                if (typeof EWSystem !== 'undefined') {
+                    var targetDef = target.def || {};
+                    var targetConfig = (targetDef.components && targetDef.components.physics)
+                        ? targetDef.components.physics.config : null;
+                    var customRcs = targetDef._custom && targetDef._custom.rcs_m2;
+                    var rcs = customRcs != null ? customRcs : EWSystem.getRCS(target.type, targetConfig);
+                    var pd = EWSystem.computeDetectionPd(null, null, range, rcs, null, null);
+                    detected = rng ? rng.bernoulli(pd) : (Math.random() < pd);
+                } else {
+                    detected = rng ? rng.bernoulli(self._pDetect) : (Math.random() < self._pDetect);
+                }
 
                 detections.push({
                     targetId:      target.id,

@@ -223,6 +223,16 @@
             var state = this.entity.state;
             var commands = state._commands || {};
             FighterSimEngine.step(state, commands, dt, this._engineConfig);
+
+            // Apply weather wind effects
+            if (typeof WeatherSystem !== 'undefined') {
+                var wind = WeatherSystem.applyWindToState(entity.state, dt);
+                if (wind) {
+                    entity.state.speed += wind.dSpeed;
+                    entity.state.heading += wind.dHeading;
+                    if (wind.dGamma) entity.state.gamma += wind.dGamma;
+                }
+            }
         }
     }
 

@@ -27,6 +27,7 @@ const LiveSimEngine = (function() {
     let _playerConfig = null;   // FighterSimEngine config
     let _playerDef = null;      // Original entity definition
     let _autopilotState = null;
+    let _scenarioJson = null;      // Stored scenario data for subsystem init
 
     let _isPaused = false;
     let _timeWarp = 1;
@@ -107,6 +108,14 @@ const LiveSimEngine = (function() {
     let _orbitRevs = 1;
     let _showTrail = true;
     let _trailDurationSec = 0;  // 0 = infinite
+
+    // Subsystem toggles (persisted in localStorage)
+    let _audioEnabled = true;
+    let _visualFxEnabled = true;
+
+    // Engine selection panel
+    let _enginePanelOpen = false;
+    let _propKeyMap = {};  // digit string -> _propModes index
 
     // Maneuver dialog
     let _maneuverDialogOpen = false;
@@ -203,6 +212,7 @@ const LiveSimEngine = (function() {
         const resp = await fetch(scenarioUrl);
         if (!resp.ok) throw new Error('Failed to load scenario: ' + resp.status);
         const scenarioJson = await resp.json();
+        _scenarioJson = scenarioJson;
 
         _world = ScenarioLoader.build(scenarioJson, viewer);
 
@@ -256,6 +266,20 @@ const LiveSimEngine = (function() {
 
         // 11. Init gamepad
         if (typeof GamepadInput !== 'undefined') GamepadInput.init();
+
+        // 12. Init simulation subsystems (respect saved prefs)
+        if (_audioEnabled && typeof SimAudio !== 'undefined') SimAudio.init();
+        if (_visualFxEnabled && typeof SimEffects !== 'undefined') SimEffects.init(viewer);
+        if (typeof WeatherSystem !== 'undefined') {
+            var weatherCfg = (_scenarioJson && _scenarioJson.environment && _scenarioJson.environment.weather)
+                ? _scenarioJson.environment.weather : null;
+            if (weatherCfg) {
+                WeatherSystem.init(viewer, weatherCfg.preset === 'custom' ? weatherCfg : weatherCfg.preset);
+            } else {
+                WeatherSystem.init(viewer);
+            }
+        }
+        if (typeof EWSystem !== 'undefined') EWSystem.init();
 
         _started = true;
         _lastTickTime = null;
@@ -347,18 +371,36 @@ const LiveSimEngine = (function() {
         _propModes = _resolvePropModes(entity);
         _propModeIndex = 0;
 
-        // Set initial propulsion mode — high-altitude entities default to first ROCKET
-        // (AIR mode has zero thrust at orbital altitude due to density lapse)
+        // Set initial propulsion mode — high-altitude entities default to OMS 25kN
+        // (AIR mode has zero thrust at orbital altitude due to density lapse,
+        //  and micro-thrusters like ION 0.5N are too weak for maneuvering)
         if (!_playerState.forcedPropMode) {
             var defaultEntry = _propModes[0];
             var isHighAlt = (_playerState.alt || 0) > 100000;
             if (isHighAlt) {
+                // Find OMS 25kN by name, else first engine with thrust >= 25kN,
+                // else first ROCKET of any size
+                var firstRocketIdx = -1;
+                var firstUsableIdx = -1;
                 for (var pi = 0; pi < _propModes.length; pi++) {
                     if (_propModes[pi].mode === 'ROCKET') {
-                        defaultEntry = _propModes[pi];
-                        _propModeIndex = pi;
-                        break;
+                        if (firstRocketIdx < 0) firstRocketIdx = pi;
+                        if (_propModes[pi].name === 'OMS 25kN') {
+                            defaultEntry = _propModes[pi];
+                            _propModeIndex = pi;
+                            firstUsableIdx = -1; // signal found exact match
+                            break;
+                        }
+                        if (firstUsableIdx < 0 && _propModes[pi].thrust >= 25000) {
+                            firstUsableIdx = pi;
+                        }
                     }
+                }
+                // If no exact OMS match, use first usable or first rocket
+                if (defaultEntry === _propModes[0] && (firstUsableIdx >= 0 || firstRocketIdx >= 0)) {
+                    var idx = firstUsableIdx >= 0 ? firstUsableIdx : firstRocketIdx;
+                    defaultEntry = _propModes[idx];
+                    _propModeIndex = idx;
                 }
             }
             _playerState.forcedPropMode = defaultEntry.mode;
@@ -1458,6 +1500,12 @@ const LiveSimEngine = (function() {
 
     function _cycleCamera() {
         if (_plannerMode) return;
+        // Close engine panel on camera change
+        if (_enginePanelOpen) {
+            _enginePanelOpen = false;
+            var epanel = document.getElementById('enginePanel');
+            if (epanel) epanel.classList.remove('open');
+        }
         var modes = ['chase', 'cockpit', 'free', 'earth', 'moon'];
         var idx = modes.indexOf(_cameraMode);
 
@@ -2738,6 +2786,11 @@ const LiveSimEngine = (function() {
                             _autoExecBurnEnd = _simElapsed + (node.burnTime || 1) * 2; // safety fallback at 2x
                             _autoExecCumulativeDV = 0;
                             _autoExecTargetDV = node.dv || 0;
+                            // Drop warp to 1 at burn start — dynamic warp ramps
+                            // up in subsequent frames. Prevents first-frame DV
+                            // overshoot when transitioning from high coast warp.
+                            _timeWarp = 1;
+                            _setText('timeWarpDisplay', '1x');
                             _showMessage('EXECUTING BURN');
                         }
                     }
@@ -2764,7 +2817,9 @@ const LiveSimEngine = (function() {
                     var dvEstRemaining = _autoExecTargetDV - _autoExecCumulativeDV;
                     if (dvEstRemaining > 0 && epBurn.thrust > 0 && epBurn.mass > 0) {
                         var dvPerSecondAt1x = epBurn.thrust / epBurn.mass;
-                        var dvPerFrameAt1x = dvPerSecondAt1x / 60;
+                        // Use actual frame dt (not assumed 60fps) for accurate warp scaling
+                        var realFrameDt = _timeWarp > 0 ? frameDt / _timeWarp : 0.017;
+                        var dvPerFrameAt1x = dvPerSecondAt1x * realFrameDt;
                         var mxW = _getMaxWarp();
                         var maxWarpForDV = dvPerFrameAt1x > 0 ?
                             Math.max(1, Math.floor(dvEstRemaining / dvPerFrameAt1x)) : mxW;
@@ -2809,8 +2864,31 @@ const LiveSimEngine = (function() {
                             burnDone = curPeAlt <= _autoExecTarget.targetAltM;
                         } else if (_autoExecTarget.type === 'circularize') {
                             var tR = _autoExecTarget.targetR;
-                            // Done when SMA is within 10km of target radius and ecc < 0.01
-                            burnDone = Math.abs(curSMA - tR) < 10000 || curEcc < 0.003;
+                            // Monotonic SMA crossing — prograde burns increase SMA,
+                            // retrograde burns decrease it. This check can never be
+                            // missed at high warp (unlike threshold-based checks where
+                            // a single frame can overshoot both ecc and SMA windows).
+                            var dvSign = (node.dvPrograde || 0) >= 0 ? 1 : -1;
+                            if (dvSign > 0) {
+                                burnDone = curSMA >= tR;
+                            } else {
+                                burnDone = curSMA <= tR;
+                            }
+                        }
+
+                        // SMA-proximity warp scaling for circularize precision
+                        // Reduces warp as SMA approaches target to limit per-frame
+                        // overshoot from the monotonic crossing check.
+                        if (_autoExecTarget.type === 'circularize' && !burnDone) {
+                            var tRw = _autoExecTarget.targetR;
+                            var smaDist = Math.abs(curSMA - tRw);
+                            if (smaDist < 500000) {
+                                var smaMaxWarp = Math.max(1, Math.floor(smaDist / 10000));
+                                if (_timeWarp > smaMaxWarp) {
+                                    _timeWarp = smaMaxWarp;
+                                    _setText('timeWarpDisplay', _timeWarp + 'x');
+                                }
+                            }
                         }
                     }
 
@@ -2976,8 +3054,7 @@ const LiveSimEngine = (function() {
                             _showMessage('EXECUTING NODE');
                         } break;
                     case 'KeyP':
-                        _cyclePropulsionMode();
-                        _updatePlannerEngineParams();
+                        _toggleEnginePanel();
                         break;
                     case 'Escape':
                         if (_autoExecState) {
@@ -3041,6 +3118,12 @@ const LiveSimEngine = (function() {
             // preventDefault to stop Cesium from consuming arrow keys etc.
             switch (e.code) {
                 case 'Escape':
+                    if (_enginePanelOpen) {
+                        _enginePanelOpen = false;
+                        var epanel = document.getElementById('enginePanel');
+                        if (epanel) epanel.classList.remove('open');
+                        break;
+                    }
                     _isPaused = !_isPaused;
                     _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
                     _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
@@ -3049,7 +3132,7 @@ const LiveSimEngine = (function() {
                 case 'Space':
                     _fireWeapon();
                     break;
-                case 'KeyW':
+                case 'KeyR':
                     _cycleWeapon();
                     break;
                 case 'KeyV':
@@ -3094,7 +3177,7 @@ const LiveSimEngine = (function() {
                     // Plain T: auto-trim runs in tick() via _keys['KeyT']
                     break;
                 case 'KeyP':
-                    _cyclePropulsionMode();
+                    _toggleEnginePanel();
                     break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
@@ -3265,6 +3348,121 @@ const LiveSimEngine = (function() {
     }
 
     // -----------------------------------------------------------------------
+    // Engine Selection Panel
+    // -----------------------------------------------------------------------
+
+    function _formatThrust(n) {
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + ' MN';
+        if (n >= 1000) return (n / 1000).toFixed(0) + ' kN';
+        return n.toFixed(1) + ' N';
+    }
+
+    function _buildEnginePanel() {
+        var container = document.getElementById('enginePanelContent');
+        if (!container) return;
+
+        // Group by category
+        var cats = [
+            { label: 'ATMOSPHERIC', entries: [] },
+            { label: 'MICRO THRUSTERS', entries: [] },
+            { label: 'PROP / LIGHT', entries: [] },
+            { label: 'MEDIUM ROCKETS', entries: [] },
+            { label: 'HEAVY / EXOTIC', entries: [] }
+        ];
+
+        for (var i = 0; i < _propModes.length; i++) {
+            var e = _propModes[i];
+            var catIdx;
+            if (e.mode === 'TAXI' || e.mode === 'AIR' || e.mode === 'HYPERSONIC') {
+                catIdx = 0;
+            } else if (!e.thrust || e.thrust <= 500) {
+                catIdx = 1;
+            } else if (e.thrust <= 15000) {
+                catIdx = 2;
+            } else if (e.thrust <= 200000) {
+                catIdx = 3;
+            } else {
+                catIdx = 4;
+            }
+            cats[catIdx].entries.push({ index: i, entry: e });
+        }
+
+        var html = '';
+        var keyNum = 1;
+        _propKeyMap = {};
+        cats.forEach(function(cat) {
+            if (cat.entries.length === 0) return;
+            html += '<div class="ep-cat">' + cat.label + '</div>';
+            cat.entries.forEach(function(item) {
+                var shortcut = '';
+                if (keyNum <= 9) { shortcut = String(keyNum); _propKeyMap[shortcut] = item.index; keyNum++; }
+                else if (keyNum === 10) { shortcut = '0'; _propKeyMap['0'] = item.index; keyNum++; }
+                var activeCls = (item.index === _propModeIndex) ? ' active' : '';
+                var thrustStr = item.entry.thrust ? _formatThrust(item.entry.thrust) : '';
+                html += '<div class="ep-item' + activeCls + '" data-idx="' + item.index + '">' +
+                    '<span class="ep-key">' + shortcut + '</span>' +
+                    '<span class="ep-name">' + item.entry.name + '</span>' +
+                    '<span class="ep-thrust">' + thrustStr + '</span>' +
+                    '<span class="ep-desc">' + (item.entry.desc || '') + '</span>' +
+                    '</div>';
+            });
+        });
+
+        container.innerHTML = html;
+    }
+
+    function _toggleEnginePanel() {
+        if (_propModes.length <= 1) {
+            _showMessage('SINGLE ENGINE');
+            return;
+        }
+        _enginePanelOpen = !_enginePanelOpen;
+        var panel = document.getElementById('enginePanel');
+        if (panel) {
+            panel.classList.toggle('open', _enginePanelOpen);
+            if (_enginePanelOpen) _buildEnginePanel();
+        }
+    }
+
+    function _selectEngineByIndex(idx) {
+        if (idx < 0 || idx >= _propModes.length) return;
+        _propModeIndex = idx;
+        var entry = _propModes[idx];
+        _playerState.forcedPropMode = entry.mode;
+        _playerState.propulsionMode = entry.mode;
+        if (entry.mode === 'ROCKET' && entry.thrust) {
+            _playerConfig.thrust_rocket = entry.thrust;
+        }
+        _setText('propModeDisplay', entry.name);
+        _setTextWithClass('sysProp', entry.name, entry.color || '');
+        var desc = entry.desc ? ' (' + entry.desc + ')' : '';
+        _showMessage('ENGINE: ' + entry.name + desc);
+
+        // Close panel
+        _enginePanelOpen = false;
+        var panel = document.getElementById('enginePanel');
+        if (panel) panel.classList.remove('open');
+
+        // If in planner mode, update engine params for burn time calc
+        if (_plannerMode && typeof _updatePlannerEngineParams === 'function') {
+            _updatePlannerEngineParams();
+        }
+    }
+
+    // Attach click handler for engine panel (event delegation)
+    document.addEventListener('DOMContentLoaded', function() {
+        var epContent = document.getElementById('enginePanelContent');
+        if (epContent) {
+            epContent.addEventListener('click', function(e) {
+                var item = e.target.closest('.ep-item');
+                if (!item) return;
+                var idx = parseInt(item.getAttribute('data-idx'));
+                if (!isNaN(idx)) _selectEngineByIndex(idx);
+            });
+        }
+    });
+
+    // -----------------------------------------------------------------------
     // Main tick
     // -----------------------------------------------------------------------
     function tick() {
@@ -3322,17 +3520,28 @@ const LiveSimEngine = (function() {
             if (apControls.throttleSet !== undefined) controls.throttleSet = apControls.throttleSet;
         }
 
-        // 3. Step player physics (sub-stepped)
-        var maxSubDt = 0.05;
-        var maxSubSteps = 500;
-        var remaining = totalDt;
-        var steps = 0;
-        while (remaining > 0 && steps < maxSubSteps) {
-            var subDt = Math.min(remaining, maxSubDt);
-            FighterSimEngine.step(_playerState, controls, subDt, _playerConfig);
-            remaining -= subDt;
-            steps++;
+        // 3. Step player physics (sub-stepped, no hard cap)
+        // Substep count scales with totalDt so physics always keeps pace
+        // with _simElapsed at high warp. FighterSimEngine.step() internally
+        // caps dt to 0.05s, so each substep must be ≤ 0.05s.
+        if (totalDt > 0) {
+            var maxSubDt = 0.05;
+            var numSteps = Math.ceil(totalDt / maxSubDt);
+            var subDt = totalDt / numSteps;
+            for (var _ss = 0; _ss < numSteps; _ss++) {
+                FighterSimEngine.step(_playerState, controls, subDt, _playerConfig);
+            }
         }
+
+            // Apply weather wind to player
+            if (typeof WeatherSystem !== 'undefined') {
+                var windDelta = WeatherSystem.applyWindToState(_playerState, totalDt);
+                if (windDelta) {
+                    _playerState.speed += windDelta.dSpeed;
+                    _playerState.heading += windDelta.dHeading;
+                    if (windDelta.dGamma) _playerState.gamma += windDelta.dGamma;
+                }
+            }
 
         // 3b. Auto-execute state machine (warp/orient/burn)
         if (_autoExecState) _tickAutoExec(totalDt);
@@ -3398,6 +3607,45 @@ const LiveSimEngine = (function() {
         // --- Check player death ---
         if (!_playerEntity.active) {
             _showMessage('DESTROYED', 5000);
+        }
+
+        // --- SIMULATION SUBSYSTEMS ---
+
+        // Audio engine — drive sounds from player state
+        if (_audioEnabled && typeof SimAudio !== 'undefined') {
+            SimAudio.update(_playerState, totalDt);
+        }
+
+        // Visual effects — update particles, trails, reentry glow
+        if (_visualFxEnabled && typeof SimEffects !== 'undefined') {
+            // Build lightweight entity array for effects system
+            var effectEntities = [];
+            if (_playerState) {
+                effectEntities.push({
+                    id: _playerEntity ? _playerEntity.id : 'player',
+                    engineOn: _playerState.engineOn,
+                    throttle: _playerState.throttle,
+                    position: Cesium.Cartesian3.fromRadians(
+                        _playerState.lon, _playerState.lat, _playerState.alt),
+                    propulsionMode: _playerState.forcedPropMode || 'AIR',
+                    alt: _playerState.alt,
+                    speed: _playerState.speed,
+                    mach: _playerState.mach || 0,
+                    aeroBlend: _playerState.aeroBlend || 0,
+                    dynamicPressure: _playerState.dynamicPressure || 0
+                });
+            }
+            SimEffects.update(totalDt, effectEntities);
+        }
+
+        // Weather — apply wind to player physics and update environment
+        if (typeof WeatherSystem !== 'undefined') {
+            WeatherSystem.update(totalDt, _simElapsed);
+        }
+
+        // EW system — update jamming/detection/decoys
+        if (typeof EWSystem !== 'undefined') {
+            EWSystem.update(totalDt, _simElapsed);
         }
 
         // --- COCKPIT RENDERING ---
@@ -3664,6 +3912,19 @@ const LiveSimEngine = (function() {
     function _handlePanelToggle(code) {
         var tag = document.activeElement && document.activeElement.tagName;
         if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return false;
+
+        // When engine panel is open, digit keys select engines
+        if (_enginePanelOpen) {
+            var digit = null;
+            if (code === 'Digit0' || code === 'Numpad0') digit = '0';
+            else if (code >= 'Digit1' && code <= 'Digit9') digit = code.charAt(5);
+            else if (code >= 'Numpad1' && code <= 'Numpad9') digit = code.charAt(6);
+            if (digit !== null && _propKeyMap[digit] !== undefined) {
+                _selectEngineByIndex(_propKeyMap[digit]);
+                return true;
+            }
+        }
+
         switch (code) {
             case 'Digit1': case 'Numpad1': _togglePanel('flightData'); return true;
             case 'Digit2': case 'Numpad2': _togglePanel('systems'); return true;
@@ -3752,6 +4013,32 @@ const LiveSimEngine = (function() {
         _savePanelPrefs();
     }
 
+    function _toggleSubsystem(key) {
+        if (key === 'audio') {
+            _audioEnabled = !_audioEnabled;
+            if (typeof SimAudio !== 'undefined') {
+                if (_audioEnabled) {
+                    SimAudio.init();
+                } else {
+                    SimAudio.cleanup();
+                }
+            }
+            _showMessage('AUDIO: ' + (_audioEnabled ? 'ON' : 'OFF'));
+        } else if (key === 'visualfx') {
+            _visualFxEnabled = !_visualFxEnabled;
+            if (typeof SimEffects !== 'undefined') {
+                if (!_visualFxEnabled) {
+                    SimEffects.cleanup();
+                } else {
+                    SimEffects.init(_viewer);
+                }
+            }
+            _showMessage('VISUAL FX: ' + (_visualFxEnabled ? 'ON' : 'OFF'));
+        }
+        _syncSettingsUI();
+        _savePanelPrefs();
+    }
+
     function _applyPanelVisibility() {
         _setDisplay('flightDataPanel', _panelVisible.flightData);
         _setDisplay('systemsPanel', _panelVisible.systems);
@@ -3792,9 +4079,11 @@ const LiveSimEngine = (function() {
             var panel = item.getAttribute('data-panel');
             var hudKey = item.getAttribute('data-hud');
             var traceKey = item.getAttribute('data-trace');
+            var subsysKey = item.getAttribute('data-subsystem');
             if (panel) _togglePanel(panel);
             else if (hudKey) _toggleHud(hudKey);
             else if (traceKey) _toggleTrace(traceKey);
+            else if (subsysKey) _toggleSubsystem(subsysKey);
         });
 
         // Orbit revolutions selector
@@ -3846,6 +4135,10 @@ const LiveSimEngine = (function() {
                 if (traceKey === 'ecef') isActive = _showEcefOrbit;
                 else if (traceKey === 'eci') isActive = _showEciOrbit;
                 else if (traceKey === 'trail') isActive = _showTrail;
+            } else if (items[i].getAttribute('data-subsystem')) {
+                var subsysKey = items[i].getAttribute('data-subsystem');
+                if (subsysKey === 'audio') isActive = _audioEnabled;
+                else if (subsysKey === 'visualfx') isActive = _visualFxEnabled;
             }
 
             if (isActive) {
@@ -3873,6 +4166,9 @@ const LiveSimEngine = (function() {
                 if (prefs.orbitRevs !== undefined) _orbitRevs = prefs.orbitRevs;
                 if (prefs.showTrail !== undefined) _showTrail = prefs.showTrail;
                 if (prefs.trailDurationSec !== undefined) _trailDurationSec = prefs.trailDurationSec;
+                // Restore subsystem toggles
+                if (prefs.audioEnabled !== undefined) _audioEnabled = prefs.audioEnabled;
+                if (prefs.visualFxEnabled !== undefined) _visualFxEnabled = prefs.visualFxEnabled;
                 // Restore HUD element toggles
                 if (prefs.hudToggles && typeof FighterHUD !== 'undefined' && FighterHUD.setToggle) {
                     var keys = Object.keys(prefs.hudToggles);
@@ -3893,6 +4189,9 @@ const LiveSimEngine = (function() {
             data.orbitRevs = _orbitRevs;
             data.showTrail = _showTrail;
             data.trailDurationSec = _trailDurationSec;
+            // Include subsystem toggles
+            data.audioEnabled = _audioEnabled;
+            data.visualFxEnabled = _visualFxEnabled;
             // Include HUD toggle states
             if (typeof FighterHUD !== 'undefined' && FighterHUD.getToggles) {
                 data.hudToggles = FighterHUD.getToggles();
