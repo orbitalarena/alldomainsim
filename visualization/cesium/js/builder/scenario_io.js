@@ -293,33 +293,45 @@ const ScenarioIO = (function() {
      * @param {object} scenarioData
      * @returns {Promise<string>} resolves with the viewer URL
      */
-    function exportToViewer(scenarioData) {
+    function exportToViewer(scenarioData, exportName) {
         if (!scenarioData) {
             return Promise.reject(new Error('No scenario data'));
         }
 
-        var defaultName = (scenarioData.metadata && scenarioData.metadata.name) || 'Untitled Scenario';
-        var name = prompt('Export scenario as:', defaultName);
-        if (!name) {
-            return Promise.reject(new Error('Export cancelled'));
+        // If name provided by caller, use it directly; otherwise prompt
+        var namePromise;
+        if (exportName) {
+            namePromise = Promise.resolve(exportName);
+        } else if (typeof BuilderApp !== 'undefined' && BuilderApp.showPrompt) {
+            var defaultName = (scenarioData.metadata && scenarioData.metadata.name) || 'Untitled Scenario';
+            namePromise = BuilderApp.showPrompt('Export Sim', 'Export scenario as:', defaultName);
+        } else {
+            var defaultName2 = (scenarioData.metadata && scenarioData.metadata.name) || 'Untitled Scenario';
+            var name2 = prompt('Export scenario as:', defaultName2);
+            if (!name2) return Promise.reject(new Error('cancelled'));
+            namePromise = Promise.resolve(name2);
         }
 
-        // Update metadata name to match
-        if (scenarioData.metadata) {
-            scenarioData.metadata.name = name;
-        }
+        return namePromise.then(function(name) {
+            if (!name) return Promise.reject(new Error('cancelled'));
 
-        return fetch('/api/export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name, scenario: scenarioData })
-        }).then(function(response) {
-            return response.json();
-        }).then(function(result) {
-            if (result.error) {
-                throw new Error(result.error);
+            // Update metadata name to match
+            if (scenarioData.metadata) {
+                scenarioData.metadata.name = name;
             }
-            return result;
+
+            return fetch('/api/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, scenario: scenarioData })
+            }).then(function(response) {
+                return response.json();
+            }).then(function(result) {
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                return result;
+            });
         });
     }
 
@@ -336,17 +348,14 @@ const ScenarioIO = (function() {
      * @param {number} sampleHz       position samples per second (default 2)
      * @returns {Promise<object>}     resolves with { filename, viewerUrl }
      */
-    function exportModel(scenarioData, viewer, duration, sampleHz) {
+    function exportModel(scenarioData, viewer, duration, sampleHz, onProgress) {
         if (!scenarioData) return Promise.reject(new Error('No scenario data'));
 
-        var defaultName = (scenarioData.metadata && scenarioData.metadata.name) || 'Untitled';
-        var name = prompt('Export model as:', defaultName);
-        if (!name) return Promise.reject(new Error('Export cancelled'));
+        // Name prompt now handled by caller (BuilderApp modal)
+        var name = (scenarioData.metadata && scenarioData.metadata.name) || 'Untitled';
 
         duration = duration || 600;   // default 10 min
         sampleHz = sampleHz || 2;
-
-        if (scenarioData.metadata) scenarioData.metadata.name = name;
 
         return new Promise(function(resolve, reject) {
             try {
@@ -370,85 +379,109 @@ const ScenarioIO = (function() {
                     };
                 });
 
-                // Run headlessly
+                // Run headlessly with chunked progress
                 var tickDt = dt;
-                for (var step = 0; step <= steps; step++) {
-                    var simTime = step * dt;
-                    world.simTime = simTime;
+                var step = 0;
+                var CHUNK = 50;  // steps per chunk (yield to UI)
 
-                    // Run physics systems only (skip visual/HUD/UI)
-                    for (var s = 0; s < world.systems.length; s++) {
-                        var sys = world.systems[s];
-                        // Only run physics-relevant systems
-                        if (sys.name === 'ai' || sys.name === 'control' ||
-                            sys.name === 'physics' || sys.name === 'sensor' ||
-                            sys.name === 'weapon' || sys.name === 'event') {
-                            sys.fn(tickDt, world);
+                function runChunk() {
+                    var end = Math.min(step + CHUNK, steps);
+                    for (; step <= end; step++) {
+                        var simTime = step * dt;
+                        world.simTime = simTime;
+
+                        // Run physics systems only (skip visual/HUD/UI)
+                        for (var s = 0; s < world.systems.length; s++) {
+                            var sys = world.systems[s];
+                            if (sys.name === 'ai' || sys.name === 'control' ||
+                                sys.name === 'physics' || sys.name === 'sensor' ||
+                                sys.name === 'weapon' || sys.name === 'event') {
+                                sys.fn(tickDt, world);
+                            }
                         }
+
+                        // Sample all entity positions
+                        world.entities.forEach(function(entity) {
+                            if (!entity.active) return;
+                            var es = entity.state;
+                            if (es.lat === undefined || es.lon === undefined) return;
+
+                            var track = tracks[entity.id];
+                            if (!track) return;
+
+                            track.positions.push(
+                                simTime,
+                                (es.lon !== undefined ? es.lon : 0) * (180 / Math.PI),
+                                (es.lat !== undefined ? es.lat : 0) * (180 / Math.PI),
+                                es.alt || 0
+                            );
+                        });
                     }
 
-                    // Sample all entity positions
-                    world.entities.forEach(function(entity) {
-                        if (!entity.active) return;
-                        var s = entity.state;
-                        if (s.lat === undefined || s.lon === undefined) return;
+                    // Report progress
+                    var pct = Math.min(100, (step / steps) * 100);
+                    if (typeof onProgress === 'function') {
+                        onProgress(pct, 'Simulating... ' + (step * dt).toFixed(0) + 's / ' + duration + 's');
+                    }
 
-                        var track = tracks[entity.id];
-                        if (!track) return;
-
-                        // CZML cartographicDegrees format: time, lon, lat, alt
-                        track.positions.push(
-                            simTime,
-                            (s.lon !== undefined ? s.lon : 0) * (180 / Math.PI),  // rad → deg
-                            (s.lat !== undefined ? s.lat : 0) * (180 / Math.PI),  // rad → deg
-                            s.alt || 0
-                        );
-                    });
+                    if (step <= steps) {
+                        setTimeout(runChunk, 0);
+                    } else {
+                        finishExport();
+                    }
                 }
 
-                // Clean up world
-                world.entities.forEach(function(entity) {
-                    for (var cn in entity.components) {
-                        entity.components[cn].cleanup(world);
+                function finishExport() {
+                    if (typeof onProgress === 'function') {
+                        onProgress(100, 'Building CZML...');
                     }
-                });
 
-                // Build CZML document
-                var czml = _buildCZML(name, epoch, duration, tracks);
-                var czmlStr = JSON.stringify(czml, null, 2);
+                    // Clean up world
+                    world.entities.forEach(function(entity) {
+                        for (var cn in entity.components) {
+                            entity.components[cn].cleanup(world);
+                        }
+                    });
 
-                // POST to server
-                var safeName = sanitizeFilename(name);
-                fetch('/api/export', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: safeName + '_model',
-                        scenario: { _czml: true, data: czml }
-                    })
-                }).then(function(resp) {
-                    return resp.json();
-                }).then(function() {
-                    // Also save the raw CZML as its own file
-                    return fetch('/api/export', {
+                    // Build CZML document
+                    var czml = _buildCZML(name, epoch, duration, tracks);
+
+                    // POST to server
+                    var safeName = sanitizeFilename(name);
+                    fetch('/api/export', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            name: safeName + '_czml',
-                            scenario: czml
+                            name: safeName + '_model',
+                            scenario: { _czml: true, data: czml }
                         })
-                    });
-                }).then(function(resp) {
-                    return resp.json();
-                }).then(function(result) {
-                    resolve({
-                        filename: safeName + '_czml.json',
-                        viewerUrl: 'model_viewer.html?czml=scenarios/' + safeName + '_czml.json',
-                        entityCount: Object.keys(tracks).length,
-                        duration: duration,
-                        steps: steps
-                    });
-                }).catch(reject);
+                    }).then(function(resp) {
+                        return resp.json();
+                    }).then(function() {
+                        // Also save the raw CZML as its own file
+                        return fetch('/api/export', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: safeName + '_czml',
+                                scenario: czml
+                            })
+                        });
+                    }).then(function(resp) {
+                        return resp.json();
+                    }).then(function(result) {
+                        resolve({
+                            filename: safeName + '_czml.json',
+                            viewerUrl: 'model_viewer.html?czml=scenarios/' + safeName + '_czml.json',
+                            entityCount: Object.keys(tracks).length,
+                            duration: duration,
+                            steps: steps
+                        });
+                    }).catch(reject);
+                }
+
+                // Start the chunked sim
+                runChunk();
 
             } catch (e) {
                 reject(e);
@@ -640,6 +673,125 @@ const ScenarioIO = (function() {
     }
 
     // -------------------------------------------------------------------
+    // TLE Catalog Import (from serve.py API)
+    // -------------------------------------------------------------------
+    function importTLECatalog() {
+        // Create constellation picker modal
+        return new Promise(function(resolve, reject) {
+            var modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;' +
+                'background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;';
+
+            var panel = document.createElement('div');
+            panel.style.cssText = 'background:#1a1a2e;border:1px solid #44cc88;border-radius:8px;' +
+                'padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#eee;font-family:monospace;';
+            panel.innerHTML = '<h3 style="color:#44cc88;margin:0 0 12px">IMPORT TLE CATALOG</h3>' +
+                '<div id="tleBuilderList" style="margin-bottom:12px">Loading catalog...</div>' +
+                '<div style="display:flex;gap:8px">' +
+                '<button id="tleBuilderAll" style="flex:1;padding:6px;background:#335;color:#4af;border:1px solid #4af;border-radius:3px;cursor:pointer;font-family:monospace">ALL</button>' +
+                '<button id="tleBuilderNone" style="flex:1;padding:6px;background:#335;color:#4af;border:1px solid #4af;border-radius:3px;cursor:pointer;font-family:monospace">NONE</button>' +
+                '<button id="tleBuilderImport" style="flex:1;padding:6px;background:#244;color:#4c8;border:1px solid #4c8;border-radius:3px;cursor:pointer;font-family:monospace;font-weight:bold">IMPORT</button>' +
+                '<button id="tleBuilderCancel" style="flex:1;padding:6px;background:#333;color:#aaa;border:1px solid #666;border-radius:3px;cursor:pointer;font-family:monospace">CANCEL</button></div>';
+            modal.appendChild(panel);
+            document.body.appendChild(modal);
+
+            fetch('/api/tle/catalog')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var list = document.getElementById('tleBuilderList');
+                    var constellations = data.constellations || [];
+                    var html = '';
+                    for (var i = 0; i < constellations.length; i++) {
+                        var c = constellations[i];
+                        var preselected = ['GPS', 'IRIDIUM', 'GALILEO'].indexOf(c.name) >= 0;
+                        html += '<label style="display:block;padding:3px 0;cursor:pointer">' +
+                            '<input type="checkbox" class="tle-builder-check" data-name="' + c.name + '"' +
+                            (preselected ? ' checked' : '') + '> ' + c.name +
+                            ' <span style="color:#666">(' + c.count + ')</span></label>';
+                    }
+                    list.innerHTML = html;
+                })
+                .catch(function(err) {
+                    document.getElementById('tleBuilderList').innerHTML =
+                        '<span style="color:#f44">' + err.message + '</span>';
+                });
+
+            document.getElementById('tleBuilderAll').onclick = function() {
+                modal.querySelectorAll('.tle-builder-check').forEach(function(cb) { cb.checked = true; });
+            };
+            document.getElementById('tleBuilderNone').onclick = function() {
+                modal.querySelectorAll('.tle-builder-check').forEach(function(cb) { cb.checked = false; });
+            };
+            document.getElementById('tleBuilderCancel').onclick = function() {
+                document.body.removeChild(modal);
+                resolve(0);
+            };
+            document.getElementById('tleBuilderImport').onclick = function() {
+                var checks = modal.querySelectorAll('.tle-builder-check:checked');
+                var names = [];
+                checks.forEach(function(cb) { names.push(cb.getAttribute('data-name')); });
+                if (names.length === 0) return;
+
+                document.getElementById('tleBuilderImport').textContent = 'Loading...';
+                document.getElementById('tleBuilderImport').disabled = true;
+
+                var promises = names.map(function(name) {
+                    return fetch('/api/tle/constellation/' + encodeURIComponent(name))
+                        .then(function(r) { return r.json(); });
+                });
+
+                Promise.all(promises).then(function(results) {
+                    var count = 0;
+                    for (var i = 0; i < results.length; i++) {
+                        var constData = results[i];
+                        var sats = constData.satellites || [];
+                        // For large constellations (>500), use smaller viz settings
+                        var isLarge = sats.length > 500;
+                        for (var j = 0; j < sats.length; j++) {
+                            var sat = sats[j];
+                            var entityDef = {
+                                id: 'tle_' + sat.norad,
+                                name: sat.name,
+                                type: 'satellite',
+                                team: 'neutral',
+                                vizCategory: constData.name,
+                                initialState: {},
+                                components: {
+                                    physics: {
+                                        type: 'orbital_2body',
+                                        source: 'tle',
+                                        tle_line1: sat.line1,
+                                        tle_line2: sat.line2
+                                    },
+                                    visual: {
+                                        type: 'satellite',
+                                        pixelSize: isLarge ? 3 : 6,
+                                        orbitPath: !isLarge,
+                                        groundTrack: false,
+                                        apPeMarkers: false
+                                    }
+                                }
+                            };
+                            if (typeof BuilderApp !== 'undefined') {
+                                BuilderApp.addEntity(entityDef);
+                                count++;
+                            }
+                        }
+                    }
+                    document.body.removeChild(modal);
+                    if (typeof BuilderApp !== 'undefined' && BuilderApp.showMessage) {
+                        BuilderApp.showMessage('Imported ' + count + ' satellites from ' + names.length + ' constellation(s)', 3000);
+                    }
+                    resolve(count);
+                }).catch(function(err) {
+                    document.body.removeChild(modal);
+                    reject(err);
+                });
+            };
+        });
+    }
+
+    // -------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------
     return {
@@ -650,6 +802,7 @@ const ScenarioIO = (function() {
         exportToViewer: exportToViewer,
         exportModel: exportModel,
         importTLEFile: importTLEFile,
+        importTLECatalog: importTLECatalog,
         validateScenario: validateScenario,
         sanitizeFilename: sanitizeFilename
     };

@@ -37,6 +37,19 @@ const LiveSimEngine = (function() {
     let _plannerMode = false;
     let _lastRegime = 'ATMOSPHERIC';
     let _started = false;
+    let _observerMode = false;
+
+    // Per-entity visualization control groups
+    let _vizGroups = {};  // { groupKey: { show, orbits, trails, labels, sensors } }
+    let _vizGlobalOrbits = true;
+    let _vizGlobalTrails = true;
+    let _vizGlobalLabels = true;
+    let _vizGlobalSensors = true;
+
+    // Entity picker state
+    let _pickPopup = null;
+    let _pickedEntity = null;
+    let _trackingEntity = null; // entity being camera-tracked in observer mode
 
     // Propulsion — flat list of all individual engines
     let _propModes = [];   // [{name, mode, thrust?, desc?, color}]
@@ -76,9 +89,29 @@ const LiveSimEngine = (function() {
     let _sensorNoiseAnimFrame = null;
     let _activeSensorFilter = null;
     var SENSOR_FILTERS = {
-        optical: { css: 'grayscale(1) contrast(1.2)', noise: 0.12, label: 'EO | B&W' },
-        ir:      { css: 'grayscale(1) invert(0.85) contrast(1.8) brightness(1.1)', noise: 0.08, label: 'FLIR | WHT-HOT' }
+        optical: { css: 'grayscale(1) contrast(1.2) brightness(0.4)', noise: 0.12, label: 'EO | B&W', visual: true },
+        ir:      { css: 'grayscale(1) invert(0.85) contrast(1.8) brightness(0.6)', noise: 0.08, label: 'FLIR | WHT-HOT', visual: true }
     };
+
+    // Auto-pointing system
+    let _pointingMode = 'manual';  // manual|prograde|retrograde|normal|antinormal|radial|radial_neg|nadir|sun|target
+    let _pointingLocked = true;    // when true, pointing is maintained each frame
+    let _pointingTarget = null;    // entity id for 'target' mode
+    let _pointingPanelOpen = false;
+    var _JD_SIM_EPOCH_LOCAL = 2460676.5; // JD of 2026-01-01 00:00 UTC
+
+    var POINTING_MODES = [
+        { id: 'manual',       label: 'MANUAL',       desc: 'Free flight controls' },
+        { id: 'prograde',     label: 'PROGRADE',     desc: 'Velocity direction' },
+        { id: 'retrograde',   label: 'RETROGRADE',   desc: 'Anti-velocity' },
+        { id: 'normal',       label: 'NORMAL',       desc: 'Orbit normal (+H)' },
+        { id: 'antinormal',   label: 'ANTI-NORMAL',  desc: 'Orbit anti-normal (-H)' },
+        { id: 'radial',       label: 'RADIAL OUT',   desc: 'Away from Earth' },
+        { id: 'radial_neg',   label: 'RADIAL IN',    desc: 'Toward Earth' },
+        { id: 'nadir',        label: 'NADIR',        desc: 'Earth center (down)' },
+        { id: 'sun',          label: 'SUN',          desc: 'Solar direction' },
+        { id: 'target',       label: 'TARGET',       desc: 'Track selected target' },
+    ];
 
     // Camera
     let _camHeadingOffset = 0;
@@ -216,58 +249,94 @@ const LiveSimEngine = (function() {
 
         _world = ScenarioLoader.build(scenarioJson, viewer);
 
-        // 2. Select player entity
-        _playerEntity = _selectPlayer(_world, playerIdParam);
-        if (!_playerEntity) {
-            throw new Error('No controllable aircraft found in scenario');
-        }
+        // Check for observer mode (no player)
+        _observerMode = (playerIdParam === '__observer__');
 
-        // 3. Hijack player from ECS
-        _hijackPlayer(_playerEntity);
+        if (_observerMode) {
+            // OBSERVER MODE — no player entity, just ECS world + camera
+            _playerEntity = null;
+            _playerState = null;
 
-        // 4. Initialize cockpit systems
-        _initCockpit(_playerEntity);
+            _buildEntityList();
+            _setupCameraHandlers();
+            _setupKeyboard();
+            _initSettingsGear();
+            _setupEntityPicker();
+            _buildVizGroups();
 
-        // 5. Create orbit visualization entities
-        _createOrbitEntities();
+            // Start in earth camera mode
+            _cameraMode = 'earth';
+            _viewer.scene.screenSpaceCameraController.enableInputs = true;
+            _viewer.camera.flyHome(0);
 
-        // 6. Build entity list for UI
-        _buildEntityList();
+            // Hide HUD in observer mode
+            var hudCanvas = document.getElementById('hudCanvas');
+            if (hudCanvas) hudCanvas.style.display = 'none';
 
-        // 7. Setup camera handlers
-        _setupCameraHandlers();
+            // Show entity list by default
+            _panelVisible.entityList = true;
+            _panelVisible.flightData = false;
+            _panelVisible.systems = false;
 
-        // 8. Setup keyboard
-        _setupKeyboard();
+        } else {
+            // COCKPIT MODE — normal player path
+            // 2. Select player entity
+            _playerEntity = _selectPlayer(_world, playerIdParam);
+            if (!_playerEntity) {
+                throw new Error('No controllable aircraft found in scenario');
+            }
 
-        // 9. Init settings gear (load prefs, wire handlers)
-        _initSettingsGear();
+            // 3. Hijack player from ECS
+            _hijackPlayer(_playerEntity);
 
-        // 9b. Init planner click handler (orbit click → create node)
-        _initPlannerClickHandler();
+            // 4. Initialize cockpit systems
+            _initCockpit(_playerEntity);
 
-        // 10. Position camera on player
-        _positionInitialCamera();
+            // 5. Create orbit visualization entities
+            _createOrbitEntities();
 
-        // 10. Init HUD
-        var hudCanvas = document.getElementById('hudCanvas');
-        if (hudCanvas) {
-            hudCanvas.width = hudCanvas.clientWidth;
-            hudCanvas.height = hudCanvas.clientHeight;
-            FighterHUD.init(hudCanvas);
+            // 6. Build entity list for UI
+            _buildEntityList();
 
-            window.addEventListener('resize', function() {
+            // 7. Setup camera handlers
+            _setupCameraHandlers();
+
+            // 8. Setup keyboard
+            _setupKeyboard();
+
+            // 9. Init settings gear (load prefs, wire handlers)
+            _initSettingsGear();
+
+            // 9b. Init planner click handler (orbit click → create node)
+            _initPlannerClickHandler();
+
+            // Setup entity picker (works in both modes)
+            _setupEntityPicker();
+            _buildVizGroups();
+
+            // 10. Position camera on player
+            _positionInitialCamera();
+
+            // 10. Init HUD
+            var hudCanvas = document.getElementById('hudCanvas');
+            if (hudCanvas) {
                 hudCanvas.width = hudCanvas.clientWidth;
                 hudCanvas.height = hudCanvas.clientHeight;
-                FighterHUD.resize();
-                if (typeof SpaceplaneHUD !== 'undefined') SpaceplaneHUD.resize(hudCanvas);
-            });
+                FighterHUD.init(hudCanvas);
+
+                window.addEventListener('resize', function() {
+                    hudCanvas.width = hudCanvas.clientWidth;
+                    hudCanvas.height = hudCanvas.clientHeight;
+                    FighterHUD.resize();
+                    if (typeof SpaceplaneHUD !== 'undefined') SpaceplaneHUD.resize(hudCanvas);
+                });
+            }
+
+            // 11. Init gamepad
+            if (typeof GamepadInput !== 'undefined') GamepadInput.init();
         }
 
-        // 11. Init gamepad
-        if (typeof GamepadInput !== 'undefined') GamepadInput.init();
-
-        // 12. Init simulation subsystems (respect saved prefs)
+        // 12. Init simulation subsystems (both modes)
         if (_audioEnabled && typeof SimAudio !== 'undefined') SimAudio.init();
         if (_visualFxEnabled && typeof SimEffects !== 'undefined') SimEffects.init(viewer);
         if (typeof WeatherSystem !== 'undefined') {
@@ -287,8 +356,9 @@ const LiveSimEngine = (function() {
         return {
             world: _world,
             playerEntity: _playerEntity,
-            playerName: _playerEntity.name,
-            entityCount: _world.entities.size
+            playerName: _playerEntity ? _playerEntity.name : 'OBSERVER',
+            entityCount: _world.entities.size,
+            observerMode: _observerMode
         };
     }
 
@@ -667,6 +737,12 @@ const LiveSimEngine = (function() {
         if (container) container.style.filter = filter.css;
         _activeSensorFilter = sensorType;
 
+        // Enhance darkness: disable atmospheric glow and fog for sensor realism
+        if (_viewer) {
+            _viewer.scene.globe.showGroundAtmosphere = false;
+            _viewer.scene.fog.enabled = false;
+        }
+
         // Create or update noise overlay
         _startSensorNoise(filter.noise);
     }
@@ -676,6 +752,12 @@ const LiveSimEngine = (function() {
         if (container) container.style.filter = '';
         _activeSensorFilter = null;
         _stopSensorNoise();
+
+        // Restore atmospheric glow and fog
+        if (_viewer) {
+            _viewer.scene.globe.showGroundAtmosphere = true;
+            _viewer.scene.fog.enabled = true;
+        }
     }
 
     function _startSensorNoise(opacity) {
@@ -1335,14 +1417,17 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     function _buildEntityList() {
         _entityListItems = [];
+        var playerId = _playerEntity ? _playerEntity.id : null;
         _world.entities.forEach(function(entity) {
             _entityListItems.push({
                 id: entity.id,
                 name: entity.name,
                 type: entity.type,
                 team: entity.team,
-                isPlayer: entity.id === _playerEntity.id,
+                isPlayer: playerId && entity.id === playerId,
                 entity: entity,
+                vizCategory: entity.vizCategory || null,
+                hasPhysics: !!entity.getComponent('physics'),
             });
         });
     }
@@ -1359,6 +1444,14 @@ const LiveSimEngine = (function() {
 
         container.addEventListener('mousedown', function(e) {
             if (_cameraMode === 'free' || _isGlobeMode()) return;
+            // Middle-click: reset chase camera to defaults
+            if (e.button === 1 && (_cameraMode === 'chase' || _cameraMode === 'cockpit')) {
+                _camRange = 150;
+                _camHeadingOffset = 0;
+                _camPitch = -0.3;
+                e.preventDefault();
+                return;
+            }
             if (e.shiftKey || e.button === 2) {
                 _camDragging = true;
                 _camDragStart = { x: e.clientX, y: e.clientY };
@@ -1371,8 +1464,11 @@ const LiveSimEngine = (function() {
             var dx = e.clientX - _camDragStart.x;
             var dy = e.clientY - _camDragStart.y;
             _camDragStart = { x: e.clientX, y: e.clientY };
-            _camHeadingOffset += dx * 0.005;
-            _camPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(0.3, _camPitch - dy * 0.005));
+            _camHeadingOffset += dx * 0.003;
+            // Wrap heading offset at +/- PI
+            if (_camHeadingOffset > Math.PI) _camHeadingOffset -= 2 * Math.PI;
+            if (_camHeadingOffset < -Math.PI) _camHeadingOffset += 2 * Math.PI;
+            _camPitch = Math.max(-1.2, Math.min(0.3, _camPitch - dy * 0.003));
         });
 
         window.addEventListener('mouseup', function() { _camDragging = false; });
@@ -1382,9 +1478,11 @@ const LiveSimEngine = (function() {
             if (_plannerMode) {
                 _plannerCamRange *= (1 + e.deltaY * 0.001);
                 _plannerCamRange = Math.max(1e5, Math.min(1e8, _plannerCamRange));
-            } else {
-                _camRange *= (1 + e.deltaY * 0.001);
-                _camRange = Math.max(20, Math.min(50000, _camRange));
+            } else if (_cameraMode === 'chase' || _cameraMode === 'cockpit') {
+                // Smooth multiplicative zoom: 0.9x per scroll-up, 1.1x per scroll-down
+                var factor = e.deltaY > 0 ? 1.1 : 0.9;
+                _camRange *= factor;
+                _camRange = Math.max(30, Math.min(3000, _camRange));
             }
             e.preventDefault();
         }, { passive: false });
@@ -1468,33 +1566,92 @@ const LiveSimEngine = (function() {
             _viewer.camera.right = Cesium.Cartesian3.normalize(rgt2, rgt2);
 
         } else if (_cameraMode === 'cockpit') {
-            var h = _playerState.heading + (_playerState.yawOffset || 0);
-            var p = _playerState.pitch;
-            var r = -_playerState.roll;
+            // Check if sensor view is active with non-manual pointing
+            var sensorActive = _sensorIndex >= 0 && _sensorList[_sensorIndex] &&
+                SENSOR_FILTERS[_sensorList[_sensorIndex].type];
+            var usePointingCam = sensorActive && _pointingMode !== 'manual' && _playerState.alt > 80000;
 
-            var fwd = lc(Math.sin(h), E, Math.cos(h), N);
-            var rgt = lc(Math.cos(h), E, -Math.sin(h), N);
-            var up = Cesium.Cartesian3.clone(U);
+            if (usePointingCam) {
+                // Sensor view camera: look in pointing direction
+                var dirECI = _getPointingDirectionECI();
+                if (dirECI) {
+                    // Convert ECI direction to ENU at player position
+                    // ENU basis: E, N, U already computed above
+                    // ECI→ECEF rotation: need GMST angle
+                    var omega = 7.2921159e-5;
+                    var gmst = omega * _simElapsed;
+                    var cg = Math.cos(gmst), sg = Math.sin(gmst);
+                    // Rotate ECI direction to ECEF
+                    var ecefDir = [
+                        cg * dirECI[0] + sg * dirECI[1],
+                        -sg * dirECI[0] + cg * dirECI[1],
+                        dirECI[2]
+                    ];
+                    // Project ECEF direction onto ENU basis
+                    var enuE = E, enuN = N, enuU = U;
+                    var dE = ecefDir[0] * enuE.x + ecefDir[1] * enuE.y + ecefDir[2] * enuE.z;
+                    var dN = ecefDir[0] * enuN.x + ecefDir[1] * enuN.y + ecefDir[2] * enuN.z;
+                    var dU = ecefDir[0] * enuU.x + ecefDir[1] * enuU.y + ecefDir[2] * enuU.z;
 
-            var fwd2 = lc(Math.cos(p), fwd, Math.sin(p), up);
-            var up2 = lc(-Math.sin(p), fwd, Math.cos(p), up);
-            fwd = fwd2; up = up2;
+                    // Build camera direction in ECEF
+                    var fwd = lc(dE, E, 0, N);
+                    Cesium.Cartesian3.add(fwd,
+                        Cesium.Cartesian3.multiplyByScalar(N, dN, new Cesium.Cartesian3()), fwd);
+                    Cesium.Cartesian3.add(fwd,
+                        Cesium.Cartesian3.multiplyByScalar(U, dU, new Cesium.Cartesian3()), fwd);
+                    Cesium.Cartesian3.normalize(fwd, fwd);
 
-            var rgt2 = lc(Math.cos(r), rgt, Math.sin(r), up);
-            var up3 = lc(-Math.sin(r), rgt, Math.cos(r), up);
-            rgt = rgt2; up = up3;
+                    // Up vector: use U unless looking straight up/down, then use N
+                    var up = Cesium.Cartesian3.clone(U);
+                    if (Math.abs(dU) > 0.95) {
+                        up = Cesium.Cartesian3.clone(N);
+                    }
+                    var rgt = Cesium.Cartesian3.cross(fwd, up, new Cesium.Cartesian3());
+                    Cesium.Cartesian3.normalize(rgt, rgt);
+                    up = Cesium.Cartesian3.cross(rgt, fwd, new Cesium.Cartesian3());
+                    Cesium.Cartesian3.normalize(up, up);
 
-            var camPos = Cesium.Cartesian3.clone(pos);
-            Cesium.Cartesian3.add(camPos,
-                Cesium.Cartesian3.multiplyByScalar(fwd, 20, new Cesium.Cartesian3()), camPos);
-            Cesium.Cartesian3.add(camPos,
-                Cesium.Cartesian3.multiplyByScalar(up, 2, new Cesium.Cartesian3()), camPos);
+                    _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+                    _viewer.camera.position = pos;
+                    _viewer.camera.direction = fwd;
+                    _viewer.camera.up = up;
+                    _viewer.camera.right = rgt;
+                } else {
+                    // Fallback to nose direction
+                    usePointingCam = false;
+                }
+            }
 
-            _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-            _viewer.camera.position = camPos;
-            _viewer.camera.direction = Cesium.Cartesian3.normalize(fwd, fwd);
-            _viewer.camera.up = Cesium.Cartesian3.normalize(up, up);
-            _viewer.camera.right = Cesium.Cartesian3.normalize(rgt, rgt);
+            if (!usePointingCam) {
+                // Standard cockpit: look along nose direction
+                var h = _playerState.heading + (_playerState.yawOffset || 0);
+                var p = _playerState.pitch;
+                var r = -_playerState.roll;
+
+                var fwd = lc(Math.sin(h), E, Math.cos(h), N);
+                var rgt = lc(Math.cos(h), E, -Math.sin(h), N);
+                var up = Cesium.Cartesian3.clone(U);
+
+                var fwd2 = lc(Math.cos(p), fwd, Math.sin(p), up);
+                var up2 = lc(-Math.sin(p), fwd, Math.cos(p), up);
+                fwd = fwd2; up = up2;
+
+                var rgt2 = lc(Math.cos(r), rgt, Math.sin(r), up);
+                var up3 = lc(-Math.sin(r), rgt, Math.cos(r), up);
+                rgt = rgt2; up = up3;
+
+                var camPos = Cesium.Cartesian3.clone(pos);
+                Cesium.Cartesian3.add(camPos,
+                    Cesium.Cartesian3.multiplyByScalar(fwd, 20, new Cesium.Cartesian3()), camPos);
+                Cesium.Cartesian3.add(camPos,
+                    Cesium.Cartesian3.multiplyByScalar(up, 2, new Cesium.Cartesian3()), camPos);
+
+                _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+                _viewer.camera.position = camPos;
+                _viewer.camera.direction = Cesium.Cartesian3.normalize(fwd, fwd);
+                _viewer.camera.up = Cesium.Cartesian3.normalize(up, up);
+                _viewer.camera.right = Cesium.Cartesian3.normalize(rgt, rgt);
+            }
         }
     }
 
@@ -1506,8 +1663,15 @@ const LiveSimEngine = (function() {
             var epanel = document.getElementById('enginePanel');
             if (epanel) epanel.classList.remove('open');
         }
-        var modes = ['chase', 'cockpit', 'free', 'earth', 'moon'];
+        if (_pointingPanelOpen) {
+            _pointingPanelOpen = false;
+            var ppanel = document.getElementById('pointingPanel');
+            if (ppanel) ppanel.classList.remove('open');
+        }
+        var modes = (_observerMode && !_playerEntity) ?
+            ['free', 'earth', 'moon'] : ['chase', 'cockpit', 'free', 'earth', 'moon'];
         var idx = modes.indexOf(_cameraMode);
+        if (idx < 0) idx = 0;
 
         // Fully release camera from any lookAt / trackedEntity binding
         _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
@@ -1522,9 +1686,11 @@ const LiveSimEngine = (function() {
             (_cameraMode === 'free' || _cameraMode === 'earth' || _cameraMode === 'moon');
 
         // Hide player point in cockpit mode
-        var vis = _playerEntity.getComponent('visual');
-        if (vis && vis._cesiumEntity) {
-            vis._cesiumEntity.show = (_cameraMode !== 'cockpit');
+        if (_playerEntity) {
+            var vis = _playerEntity.getComponent('visual');
+            if (vis && vis._cesiumEntity) {
+                vis._cesiumEntity.show = (_cameraMode !== 'cockpit');
+            }
         }
 
         // HUD visibility — hide in globe modes
@@ -2745,6 +2911,240 @@ const LiveSimEngine = (function() {
         _playerState.yawOffset = Math.atan2(bLat, bPro);
     }
 
+    // -----------------------------------------------------------------------
+    // Auto-Pointing System
+    // -----------------------------------------------------------------------
+
+    /**
+     * Convert an ECI target direction into alpha/yawOffset on the player.
+     * Same math as _computeBurnOrientation() but takes an arbitrary ECI direction.
+     */
+    function _eciDirToAttitude(dirECI) {
+        if (typeof SpaceplaneOrbital === 'undefined') return;
+        var O = SpaceplaneOrbital;
+
+        var eci = O.geodeticToECI(_playerState, _simElapsed);
+        var vMag = O.vecMag(eci.vel);
+        if (vMag < 100) return;
+
+        // Velocity-aligned frame
+        var proDir = O.vecScale(eci.vel, 1 / vMag);
+        var rMag = O.vecMag(eci.pos);
+        var rHat = O.vecScale(eci.pos, 1 / rMag);
+        var rDotPro = O.vecDot(rHat, proDir);
+        var upFromVel = [
+            rHat[0] - rDotPro * proDir[0],
+            rHat[1] - rDotPro * proDir[1],
+            rHat[2] - rDotPro * proDir[2]
+        ];
+        var upMag = O.vecMag(upFromVel);
+        if (upMag > 0.001) upFromVel = O.vecScale(upFromVel, 1 / upMag);
+        var latFromVel = O.vecCross(proDir, upFromVel);
+
+        // Project target direction onto physics frame
+        var bPro = O.vecDot(dirECI, proDir);
+        var bUp = O.vecDot(dirECI, upFromVel);
+        var bLat = O.vecDot(dirECI, latFromVel);
+
+        _playerState.alpha = Math.atan2(bUp, Math.sqrt(bPro * bPro + bLat * bLat));
+        _playerState.yawOffset = Math.atan2(bLat, bPro);
+    }
+
+    /**
+     * Compute the ECI pointing direction for the current pointing mode.
+     * Returns a unit vector [x,y,z] in ECI, or null if mode is manual.
+     */
+    function _getPointingDirectionECI() {
+        if (_pointingMode === 'manual') return null;
+        if (typeof SpaceplaneOrbital === 'undefined') return null;
+        var O = SpaceplaneOrbital;
+
+        var eci = O.geodeticToECI(_playerState, _simElapsed);
+        var vMag = O.vecMag(eci.vel);
+        var rMag = O.vecMag(eci.pos);
+        if (vMag < 100 || rMag < 1000) return null;
+
+        // Orbital frame
+        var frame = null;
+        if (typeof SpaceplanePlanner !== 'undefined') {
+            frame = SpaceplanePlanner.computeOrbitalFrame(eci.pos, eci.vel);
+        } else {
+            // Fallback: compute inline
+            var prograde = O.vecScale(eci.vel, 1 / vMag);
+            var h = O.vecCross(eci.pos, eci.vel);
+            var hMag = O.vecMag(h);
+            var normal = hMag > 0 ? O.vecScale(h, 1 / hMag) : [0, 0, 1];
+            var radial = O.vecCross(prograde, normal);
+            frame = { prograde: prograde, normal: normal, radial: radial };
+        }
+
+        switch (_pointingMode) {
+            case 'prograde':
+                return frame.prograde;
+            case 'retrograde':
+                return O.vecScale(frame.prograde, -1);
+            case 'normal':
+                return frame.normal;
+            case 'antinormal':
+                return O.vecScale(frame.normal, -1);
+            case 'radial':
+                return frame.radial;
+            case 'radial_neg':
+                return O.vecScale(frame.radial, -1);
+            case 'nadir':
+                // Negative position unit vector (toward Earth center)
+                return O.vecScale(eci.pos, -1 / rMag);
+            case 'sun': {
+                // Use Cesium's own sun model so pointing matches rendered sun exactly.
+                // Cesium gives sun position in ICRF (J2000 ECI). Our sim ECI frame has
+                // GMST=0 at simTime=0, so we convert ICRF→ECEF via Cesium, then ECEF→simECI.
+                try {
+                    var ct = _viewer.clock.currentTime;
+                    var sunICRF = Cesium.Simon1994PlanetaryPositions.computeSunPositionInEarthInertialFrame(ct);
+                    // ICRF → ECEF via Cesium's own Earth rotation (includes precession/nutation)
+                    var icrfToFixed = Cesium.Transforms.computeIcrfToFixedMatrix(ct);
+                    if (!icrfToFixed) icrfToFixed = Cesium.Transforms.computeTemeToPseudoFixedMatrix(ct);
+                    var sunECEF = Cesium.Matrix3.multiplyByVector(icrfToFixed, sunICRF, new Cesium.Cartesian3());
+                    // ECEF → sim-ECI: rotate by -simGmst around Z
+                    var simGmst = 7.2921159e-5 * _simElapsed;
+                    var cg = Math.cos(-simGmst), sg = Math.sin(-simGmst);
+                    var sunDir = [
+                        cg * sunECEF.x + sg * sunECEF.y,
+                        -sg * sunECEF.x + cg * sunECEF.y,
+                        sunECEF.z
+                    ];
+                    var sunMag = Math.sqrt(sunDir[0]*sunDir[0] + sunDir[1]*sunDir[1] + sunDir[2]*sunDir[2]);
+                    if (sunMag > 0) return O.vecScale(sunDir, 1 / sunMag);
+                } catch (e) { /* fallback below */ }
+                // Fallback: SolarSystemEngine (won't match Cesium exactly)
+                if (typeof SolarSystemEngine !== 'undefined') {
+                    var jd = _JD_SIM_EPOCH_LOCAL + _simElapsed / 86400;
+                    var earthPos = SolarSystemEngine.getPlanetPositionHCI('EARTH', jd);
+                    var sunDir2 = [-earthPos.x, -earthPos.y, -earthPos.z];
+                    var sunMag2 = Math.sqrt(sunDir2[0]*sunDir2[0] + sunDir2[1]*sunDir2[1] + sunDir2[2]*sunDir2[2]);
+                    if (sunMag2 > 0) return O.vecScale(sunDir2, 1 / sunMag2);
+                }
+                return null;
+            }
+            case 'target': {
+                // Direction to target entity (position-only, no velocity needed)
+                if (!_pointingTarget || !_world) return null;
+                var targetEnt = _world.entities[_pointingTarget];
+                if (!targetEnt || !targetEnt.state) return null;
+                var ts = targetEnt.state;
+                // Convert target geodetic to ECEF→ECI (position only)
+                var tR = 6371000 + (ts.alt || 0);
+                var tCosLat = Math.cos(ts.lat || 0), tSinLat = Math.sin(ts.lat || 0);
+                var tCosLon = Math.cos(ts.lon || 0), tSinLon = Math.sin(ts.lon || 0);
+                var tX_ecef = tR * tCosLat * tCosLon;
+                var tY_ecef = tR * tCosLat * tSinLon;
+                var tZ_ecef = tR * tSinLat;
+                // Rotate ECEF→ECI via GMST
+                var tGmst = 7.2921159e-5 * _simElapsed;
+                var tCg = Math.cos(tGmst), tSg = Math.sin(tGmst);
+                var tPosECI = [
+                    tCg * tX_ecef - tSg * tY_ecef,
+                    tSg * tX_ecef + tCg * tY_ecef,
+                    tZ_ecef
+                ];
+                var dir = [
+                    tPosECI[0] - eci.pos[0],
+                    tPosECI[1] - eci.pos[1],
+                    tPosECI[2] - eci.pos[2]
+                ];
+                var dirMag = O.vecMag(dir);
+                if (dirMag < 1) return null;
+                return O.vecScale(dir, 1 / dirMag);
+            }
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Per-frame pointing update. Sets alpha/yawOffset to maintain pointing direction.
+     */
+    function _tickPointing() {
+        if (_pointingMode === 'manual') return;
+        if (!_pointingLocked) return;
+        // Only active above 80km (vacuum — aero forces would fight it below)
+        if (_playerState.alt < 80000) return;
+        // Don't override during auto-exec burns
+        if (_autoExecState) return;
+
+        var dir = _getPointingDirectionECI();
+        if (dir) {
+            _eciDirToAttitude(dir);
+        }
+    }
+
+    function _cyclePointingMode() {
+        if (_playerState.alt < 80000) {
+            _showMessage('POINTING: ATM — orbit only');
+            return;
+        }
+        var modes = POINTING_MODES;
+        var curIdx = 0;
+        for (var i = 0; i < modes.length; i++) {
+            if (modes[i].id === _pointingMode) { curIdx = i; break; }
+        }
+        // Skip 'target' if no target available
+        var nextIdx = (curIdx + 1) % modes.length;
+        if (modes[nextIdx].id === 'target' && !_pointingTarget) {
+            nextIdx = (nextIdx + 1) % modes.length;
+        }
+        _pointingMode = modes[nextIdx].id;
+        _pointingLocked = (_pointingMode !== 'manual');
+        var label = modes[nextIdx].label;
+        _showMessage('POINTING: ' + label);
+        _setText('pointingModeDisplay', _pointingMode === 'manual' ? '' : 'PTG:' + label + ' | ');
+    }
+
+    function _buildPointingPanel() {
+        var container = document.getElementById('pointingPanelContent');
+        if (!container) return;
+        var html = '';
+        for (var i = 0; i < POINTING_MODES.length; i++) {
+            var m = POINTING_MODES[i];
+            // Skip target if no target
+            if (m.id === 'target' && !_pointingTarget) continue;
+            var activeCls = (m.id === _pointingMode) ? ' active' : '';
+            html += '<div class="pp-item' + activeCls + '" data-mode="' + m.id + '">' +
+                '<span class="pp-label">' + m.label + '</span>' +
+                '<span class="pp-desc">' + m.desc + '</span>' +
+                '</div>';
+        }
+        container.innerHTML = html;
+    }
+
+    function _togglePointingPanel() {
+        if (_playerState.alt < 80000) {
+            _showMessage('POINTING: ATM — orbit only');
+            return;
+        }
+        _pointingPanelOpen = !_pointingPanelOpen;
+        var panel = document.getElementById('pointingPanel');
+        if (panel) {
+            panel.classList.toggle('open', _pointingPanelOpen);
+            if (_pointingPanelOpen) _buildPointingPanel();
+        }
+    }
+
+    function _selectPointingMode(modeId) {
+        _pointingMode = modeId;
+        _pointingLocked = (modeId !== 'manual');
+        var label = 'MANUAL';
+        for (var i = 0; i < POINTING_MODES.length; i++) {
+            if (POINTING_MODES[i].id === modeId) { label = POINTING_MODES[i].label; break; }
+        }
+        _showMessage('POINTING: ' + label);
+        _setText('pointingModeDisplay', modeId === 'manual' ? '' : 'PTG:' + label + ' | ');
+        // Close panel
+        _pointingPanelOpen = false;
+        var panel = document.getElementById('pointingPanel');
+        if (panel) panel.classList.remove('open');
+    }
+
     function _tickAutoExec(frameDt) {
         if (!_autoExecState || !_autoExecNode) return;
 
@@ -3056,6 +3456,12 @@ const LiveSimEngine = (function() {
                     case 'KeyP':
                         _toggleEnginePanel();
                         break;
+                    case 'KeyI':
+                        _cyclePointingMode();
+                        break;
+                    case 'KeyL':
+                        _togglePointingPanel();
+                        break;
                     case 'Escape':
                         if (_autoExecState) {
                             _cancelAutoExec();
@@ -3124,6 +3530,12 @@ const LiveSimEngine = (function() {
                         if (epanel) epanel.classList.remove('open');
                         break;
                     }
+                    if (_pointingPanelOpen) {
+                        _pointingPanelOpen = false;
+                        var ppanel = document.getElementById('pointingPanel');
+                        if (ppanel) ppanel.classList.remove('open');
+                        break;
+                    }
                     _isPaused = !_isPaused;
                     _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
                     _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
@@ -3178,6 +3590,12 @@ const LiveSimEngine = (function() {
                     break;
                 case 'KeyP':
                     _toggleEnginePanel();
+                    break;
+                case 'KeyI':
+                    _cyclePointingMode();
+                    break;
+                case 'KeyL':
+                    _togglePointingPanel();
                     break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
@@ -3460,13 +3878,64 @@ const LiveSimEngine = (function() {
                 if (!isNaN(idx)) _selectEngineByIndex(idx);
             });
         }
+        // Pointing panel click handler
+        var ppContent = document.getElementById('pointingPanelContent');
+        if (ppContent) {
+            ppContent.addEventListener('click', function(e) {
+                var item = e.target.closest('.pp-item');
+                if (!item) return;
+                var mode = item.getAttribute('data-mode');
+                if (mode) _selectPointingMode(mode);
+            });
+        }
     });
 
     // -----------------------------------------------------------------------
     // Main tick
     // -----------------------------------------------------------------------
     function tick() {
-        if (!_started || !_playerState) return;
+        if (!_started) return;
+        // Observer mode with no player: tick ECS only
+        if (_observerMode && !_playerState) {
+            if (_isPaused) { _lastTickTime = null; return; }
+            var now = Date.now();
+            if (_lastTickTime === null) { _lastTickTime = now; return; }
+            var realDt = (now - _lastTickTime) / 1000;
+            _lastTickTime = now;
+            realDt = Math.min(realDt, 0.1);
+            var totalDt = realDt * _timeWarp;
+            _simElapsed += totalDt;
+
+            // Tick ECS world only
+            _world.simTime = _simElapsed;
+            _world.timeWarp = _timeWarp;
+            for (var si = 0; si < _world.systems.length; si++) {
+                _world.systems[si].fn(totalDt, _world);
+            }
+
+            // Apply viz controls
+            _applyVizControls();
+
+            // Update observer camera tracking
+            if (_trackingEntity && _trackingEntity.state) {
+                var ts = _trackingEntity.state;
+                if (ts.lat != null && ts.lon != null) {
+                    var tpos = Cesium.Cartesian3.fromRadians(ts.lon, ts.lat, ts.alt || 0);
+                    _viewer.camera.lookAt(tpos,
+                        new Cesium.HeadingPitchRange(0, -0.5, (ts.alt || 500) * 3 + 1000));
+                }
+            }
+
+            // Update UI
+            _updateTimeDisplay();
+            _updateEntityListPanel();
+
+            // Subsystems
+            if (typeof WeatherSystem !== 'undefined') WeatherSystem.update(totalDt, _simElapsed);
+            if (typeof EWSystem !== 'undefined') EWSystem.update(totalDt, _simElapsed);
+            return;
+        }
+        if (!_playerState) return;
         if (_isPaused) { _lastTickTime = null; return; }
 
         var now = Date.now();
@@ -3543,10 +4012,13 @@ const LiveSimEngine = (function() {
                 }
             }
 
-        // 3b. Auto-execute state machine (warp/orient/burn)
+        // 3b. Auto-pointing system (maintains attitude toward reference direction)
+        _tickPointing();
+
+        // 3c. Auto-execute state machine (warp/orient/burn)
         if (_autoExecState) _tickAutoExec(totalDt);
 
-        // 3c. Quest system update
+        // 3d. Quest system update
         if (_questActive) _tickQuest();
 
         // 4. Update player trail (with time-based trimming)
@@ -3604,8 +4076,11 @@ const LiveSimEngine = (function() {
             _world.systems[i].fn(totalDt, _world);
         }
 
+        // Apply visualization controls
+        _applyVizControls();
+
         // --- Check player death ---
-        if (!_playerEntity.active) {
+        if (_playerEntity && !_playerEntity.active) {
             _showMessage('DESTROYED', 5000);
         }
 
@@ -3677,9 +4152,24 @@ const LiveSimEngine = (function() {
                     allSensors: _sensorList,
                     sensorIndex: _sensorIndex
                 } : null;
-                // Attach sensor/trim to state for HUD display
+                // Attach sensor/trim/pointing/warp/nearby to state for HUD display
                 _playerState._sensor = sensorHud;
                 _playerState._trim = _playerState.trimAlpha;
+                _playerState._pointingMode = _pointingMode;
+                _playerState._pointingLocked = _pointingLocked;
+                _playerState._timeWarp = _timeWarp;
+                // Build nearby entity list for minimap
+                var nearbyList = [];
+                _world.entities.forEach(function(ent) {
+                    if (_playerEntity && ent.id === _playerEntity.id) return;
+                    var s = ent.state;
+                    if (!s || s.lat == null || s.lon == null) return;
+                    nearbyList.push({
+                        lat: s.lat, lon: s.lon, alt: s.alt || 0,
+                        name: ent.name, team: ent.team, type: ent.type
+                    });
+                });
+                _playerState._nearby = nearbyList;
                 FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
 
                 if (typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {
@@ -3894,16 +4384,33 @@ const LiveSimEngine = (function() {
             var teamColor = item.team === 'blue' ? '#4488ff' :
                 item.team === 'red' ? '#ff4444' : '#888888';
             var statusIcon = alive ? '\u25CF' : '\u2716';
-            var style = alive ? '' : 'opacity:0.4;text-decoration:line-through;';
+            var style = alive ? 'cursor:pointer;' : 'opacity:0.4;text-decoration:line-through;';
             var playerTag = item.isPlayer ? ' <span style="color:#44aaff">[YOU]</span>' : '';
+            var catTag = item.vizCategory ? ' <span style="color:#666;font-size:9px">' + item.vizCategory + '</span>' : '';
+            var trackTag = (_trackingEntity && _trackingEntity.id === item.id) ?
+                ' <span style="color:#ff0">\u25C9</span>' : '';
 
-            html += '<div class="entity-row" style="' + style + '">' +
+            html += '<div class="entity-row" data-eid="' + item.id + '" style="' + style + '">' +
                 '<span style="color:' + teamColor + '">' + statusIcon + '</span> ' +
-                '<span class="entity-name">' + item.name + '</span>' + playerTag +
-                ' <span class="entity-type">' + item.type + '</span>' +
+                '<span class="entity-name">' + item.name + '</span>' + playerTag + trackTag +
+                ' <span class="entity-type">' + item.type + '</span>' + catTag +
                 '</div>';
         }
         listEl.innerHTML = html;
+
+        // Attach click handlers (delegated)
+        if (!listEl._clickWired) {
+            listEl._clickWired = true;
+            listEl.addEventListener('click', function(e) {
+                var row = e.target.closest('.entity-row');
+                if (!row) return;
+                var eid = row.getAttribute('data-eid');
+                if (!eid) return;
+                var entity = _world.getEntity(eid);
+                if (!entity) return;
+                _trackEntity(entity);
+            });
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -4039,6 +4546,22 @@ const LiveSimEngine = (function() {
         _savePanelPrefs();
     }
 
+    function _toggleGlobalViz(key, item) {
+        switch (key) {
+            case 'globalOrbits': _vizGlobalOrbits = !_vizGlobalOrbits; break;
+            case 'globalTrails': _vizGlobalTrails = !_vizGlobalTrails; break;
+            case 'globalLabels': _vizGlobalLabels = !_vizGlobalLabels; break;
+            case 'globalSensors': _vizGlobalSensors = !_vizGlobalSensors; break;
+        }
+        if (item) item.classList.toggle('active');
+        _applyVizControls();
+        var label = key.replace('global', '').toUpperCase();
+        var val = key === 'globalOrbits' ? _vizGlobalOrbits :
+                  key === 'globalTrails' ? _vizGlobalTrails :
+                  key === 'globalLabels' ? _vizGlobalLabels : _vizGlobalSensors;
+        _showMessage(label + ': ' + (val ? 'ON' : 'OFF'));
+    }
+
     function _applyPanelVisibility() {
         _setDisplay('flightDataPanel', _panelVisible.flightData);
         _setDisplay('systemsPanel', _panelVisible.systems);
@@ -4080,10 +4603,12 @@ const LiveSimEngine = (function() {
             var hudKey = item.getAttribute('data-hud');
             var traceKey = item.getAttribute('data-trace');
             var subsysKey = item.getAttribute('data-subsystem');
+            var vizKey = item.getAttribute('data-viz');
             if (panel) _togglePanel(panel);
             else if (hudKey) _toggleHud(hudKey);
             else if (traceKey) _toggleTrace(traceKey);
             else if (subsysKey) _toggleSubsystem(subsysKey);
+            else if (vizKey) _toggleGlobalViz(vizKey, item);
         });
 
         // Orbit revolutions selector
@@ -4200,6 +4725,287 @@ const LiveSimEngine = (function() {
         } catch (e) { /* ignore */ }
     }
 
+    // -----------------------------------------------------------------------
+    // Entity Picker (click-to-select, assume control)
+    // -----------------------------------------------------------------------
+    function _setupEntityPicker() {
+        var handler = new Cesium.ScreenSpaceEventHandler(_viewer.scene.canvas);
+
+        handler.setInputAction(function(click) {
+            var picked = _viewer.scene.pick(click.position);
+            if (Cesium.defined(picked) && picked.id && picked.id._ecsEntityId) {
+                var ecsId = picked.id._ecsEntityId;
+                var entity = _world.getEntity(ecsId);
+                if (entity) {
+                    _showPickPopup(entity, click.position);
+                    return;
+                }
+            }
+            // Hide popup if clicking empty space (only in observer/earth/moon modes)
+            if (_observerMode || _isGlobeMode()) {
+                _hidePickPopup();
+            }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }
+
+    function _showPickPopup(entity, screenPos) {
+        _pickedEntity = entity;
+        var popup = document.getElementById('entityPickPopup');
+        if (!popup) {
+            // Create popup element dynamically
+            popup = document.createElement('div');
+            popup.id = 'entityPickPopup';
+            popup.style.cssText = 'position:fixed;z-index:200;background:rgba(0,0,0,0.85);' +
+                'border:1px solid #44aaff;border-radius:6px;padding:10px 14px;color:#eee;' +
+                'font-family:monospace;font-size:12px;min-width:180px;display:none;' +
+                'pointer-events:auto;';
+            document.body.appendChild(popup);
+            _pickPopup = popup;
+        }
+
+        var s = entity.state || {};
+        var altStr = s.alt != null ? (s.alt > 10000 ? (s.alt / 1000).toFixed(1) + ' km' : Math.round(s.alt) + ' m') : '---';
+        var teamColor = entity.team === 'blue' ? '#4488ff' : entity.team === 'red' ? '#ff4444' : '#aaa';
+        var hasPhysics = !!entity.getComponent('physics');
+        var isCurrentPlayer = _playerEntity && entity.id === _playerEntity.id;
+
+        var html = '<div style="font-size:14px;font-weight:bold;color:' + teamColor + ';margin-bottom:4px">' +
+            entity.name + '</div>' +
+            '<div style="color:#888;margin-bottom:2px">Type: ' + (entity.type || '?') + '</div>' +
+            '<div style="color:#888;margin-bottom:2px">Team: ' + (entity.team || 'neutral') + '</div>' +
+            (entity.vizCategory ? '<div style="color:#888;margin-bottom:2px">Group: ' + entity.vizCategory + '</div>' : '') +
+            '<div style="color:#888;margin-bottom:6px">Alt: ' + altStr + '</div>' +
+            '<div style="display:flex;gap:6px">' +
+            '<button id="pickTrackBtn" style="flex:1;padding:4px 8px;background:#335;color:#4af;border:1px solid #4af;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px">TRACK</button>';
+
+        if (hasPhysics && !isCurrentPlayer) {
+            html += '<button id="pickAssumeBtn" style="flex:1;padding:4px 8px;background:#533;color:#fa4;border:1px solid #fa4;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px">ASSUME CONTROL</button>';
+        }
+        html += '</div>';
+
+        popup.innerHTML = html;
+        popup.style.display = 'block';
+
+        // Position near click but within viewport
+        var x = Math.min(screenPos.x + 15, window.innerWidth - 250);
+        var y = Math.min(screenPos.y - 20, window.innerHeight - 200);
+        popup.style.left = x + 'px';
+        popup.style.top = y + 'px';
+
+        // Wire buttons
+        var trackBtn = document.getElementById('pickTrackBtn');
+        if (trackBtn) {
+            trackBtn.onclick = function() {
+                _trackEntity(entity);
+                _hidePickPopup();
+            };
+        }
+        var assumeBtn = document.getElementById('pickAssumeBtn');
+        if (assumeBtn) {
+            assumeBtn.onclick = function() {
+                _assumeControl(entity);
+                _hidePickPopup();
+            };
+        }
+    }
+
+    function _hidePickPopup() {
+        var popup = document.getElementById('entityPickPopup');
+        if (popup) popup.style.display = 'none';
+        _pickedEntity = null;
+    }
+
+    function _trackEntity(entity) {
+        _trackingEntity = entity;
+        var s = entity.state;
+        if (s && s.lat != null && s.lon != null) {
+            var pos = Cesium.Cartesian3.fromRadians(s.lon, s.lat, s.alt || 0);
+            var range = (s.alt || 500) * 3 + 1000;
+            _viewer.camera.flyTo({
+                destination: pos,
+                orientation: { heading: 0, pitch: -0.5, roll: 0 },
+                duration: 1.0,
+                complete: function() {
+                    _viewer.camera.lookAt(pos,
+                        new Cesium.HeadingPitchRange(0, -0.5, range));
+                }
+            });
+        }
+        _showMessage('TRACKING: ' + entity.name);
+    }
+
+    function _assumeControl(entity) {
+        // 1. Un-hijack old player (re-enable ECS components)
+        if (_playerEntity) {
+            var oldPhys = _playerEntity.getComponent('physics');
+            if (oldPhys) oldPhys.enabled = true;
+            var oldCtrl = _playerEntity.getComponent('control');
+            if (oldCtrl) oldCtrl.enabled = true;
+            var oldAi = _playerEntity.getComponent('ai');
+            if (oldAi) oldAi.enabled = true;
+        }
+
+        // 2. Hijack new entity
+        _hijackPlayer(entity);
+
+        // 3. Init cockpit
+        _initCockpit(entity);
+        _playerEntity = entity;
+
+        // 4. Recreate orbit visualization for new player
+        _cleanupOrbitEntities();
+        _createOrbitEntities();
+
+        // 5. Rebuild entity list with new [YOU] tag
+        _buildEntityList();
+
+        // 6. Exit observer mode
+        _observerMode = false;
+        _trackingEntity = null;
+        _cameraMode = 'chase';
+
+        // 7. Release camera from any transform/tracking
+        _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+        if (_viewer.trackedEntity) _viewer.trackedEntity = undefined;
+
+        // 8. Disable Cesium controller inputs (cockpit mode takes over)
+        _viewer.scene.screenSpaceCameraController.enableInputs = false;
+
+        // 9. Position camera
+        _positionInitialCamera();
+
+        // 10. Init HUD if not already
+        var hudCanvas = document.getElementById('hudCanvas');
+        if (hudCanvas) {
+            hudCanvas.style.display = 'block';
+            if (!FighterHUD._ctx) {
+                hudCanvas.width = hudCanvas.clientWidth;
+                hudCanvas.height = hudCanvas.clientHeight;
+                FighterHUD.init(hudCanvas);
+            }
+        }
+
+        // 11. Init planner handler if not done
+        if (typeof SpaceplanePlanner !== 'undefined' && !_plannerMode) {
+            _initPlannerClickHandler();
+        }
+
+        _showMessage('ASSUMING CONTROL: ' + entity.name, 3000);
+    }
+
+    // -----------------------------------------------------------------------
+    // Visualization Groups (per-entity/type/team/category toggles)
+    // -----------------------------------------------------------------------
+    function _buildVizGroups() {
+        _vizGroups = {};
+        _world.entities.forEach(function(entity) {
+            // Group by type
+            var typeKey = 'type:' + (entity.type || 'unknown');
+            if (!_vizGroups[typeKey]) _vizGroups[typeKey] = { show: true, label: entity.type || 'unknown', kind: 'type' };
+
+            // Group by team
+            var teamKey = 'team:' + (entity.team || 'neutral');
+            if (!_vizGroups[teamKey]) _vizGroups[teamKey] = { show: true, label: entity.team || 'neutral', kind: 'team' };
+
+            // Group by vizCategory (constellation name, etc.)
+            if (entity.vizCategory) {
+                var catKey = 'cat:' + entity.vizCategory;
+                if (!_vizGroups[catKey]) _vizGroups[catKey] = { show: true, label: entity.vizCategory, kind: 'category' };
+            }
+        });
+
+        // Populate the viz group list in the settings panel
+        _populateVizGroupList();
+    }
+
+    function _populateVizGroupList() {
+        var container = document.getElementById('vizGroupList');
+        if (!container) return;
+
+        var html = '';
+        // Sort groups: categories first, then types, then teams
+        var keys = Object.keys(_vizGroups).sort(function(a, b) {
+            var order = { category: 0, type: 1, team: 2 };
+            var ka = order[_vizGroups[a].kind] || 3;
+            var kb = order[_vizGroups[b].kind] || 3;
+            if (ka !== kb) return ka - kb;
+            return a.localeCompare(b);
+        });
+
+        for (var i = 0; i < keys.length; i++) {
+            var g = _vizGroups[keys[i]];
+            var icon = g.kind === 'category' ? '\u2606' : g.kind === 'type' ? '\u25CB' : '\u25A0';
+            var activeClass = g.show ? ' active' : '';
+            html += '<div class="settings-item' + activeClass + '" data-vizgroup="' + keys[i] + '">' +
+                '<span style="margin-right:6px">' + icon + '</span>' +
+                g.label.toUpperCase() +
+                '<span style="color:#666;margin-left:auto;font-size:10px">' + g.kind + '</span></div>';
+        }
+        container.innerHTML = html;
+
+        // Wire click handlers
+        container.addEventListener('click', function(e) {
+            var item = e.target.closest('.settings-item');
+            if (!item) return;
+            var groupKey = item.getAttribute('data-vizgroup');
+            if (groupKey && _vizGroups[groupKey]) {
+                _vizGroups[groupKey].show = !_vizGroups[groupKey].show;
+                item.classList.toggle('active');
+                _applyVizControls();
+            }
+        });
+    }
+
+    function _applyVizControls() {
+        _world.entities.forEach(function(entity) {
+            var s = entity.state;
+            if (!s) return;
+
+            // Determine effective visibility from all matching groups
+            var show = true;
+
+            // Check type group
+            var typeKey = 'type:' + (entity.type || 'unknown');
+            if (_vizGroups[typeKey] && !_vizGroups[typeKey].show) show = false;
+
+            // Check team group
+            var teamKey = 'team:' + (entity.team || 'neutral');
+            if (_vizGroups[teamKey] && !_vizGroups[teamKey].show) show = false;
+
+            // Check category group
+            if (entity.vizCategory) {
+                var catKey = 'cat:' + entity.vizCategory;
+                if (_vizGroups[catKey] && !_vizGroups[catKey].show) show = false;
+            }
+
+            // Don't hide the player
+            if (_playerEntity && entity.id === _playerEntity.id) show = true;
+
+            // Write viz state for visual components to read
+            s._vizShow = show;
+            s._vizOrbits = show && _vizGlobalOrbits;
+            s._vizTrails = show && _vizGlobalTrails;
+            s._vizLabels = show && _vizGlobalLabels;
+            s._vizSensors = show && _vizGlobalSensors;
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Cleanup orbit entities for player switch
+    // -----------------------------------------------------------------------
+    function _cleanupOrbitEntities() {
+        if (_trailEntity) { _viewer.entities.remove(_trailEntity); _trailEntity = null; }
+        if (_orbitPolyline) { _viewer.entities.remove(_orbitPolyline); _orbitPolyline = null; }
+        if (_eciOrbitPolyline) { _viewer.entities.remove(_eciOrbitPolyline); _eciOrbitPolyline = null; }
+        if (_predictedOrbitPolyline) { _viewer.entities.remove(_predictedOrbitPolyline); _predictedOrbitPolyline = null; }
+        if (_apMarker) { _viewer.entities.remove(_apMarker); _apMarker = null; }
+        if (_peMarker) { _viewer.entities.remove(_peMarker); _peMarker = null; }
+        if (_anMarker) { _viewer.entities.remove(_anMarker); _anMarker = null; }
+        if (_dnMarker) { _viewer.entities.remove(_dnMarker); _dnMarker = null; }
+        _playerTrail = [];
+        _playerTrailTimes = [];
+    }
+
     function showUI() {
         var btn = document.getElementById('settingsBtn');
         if (btn) btn.style.display = 'flex';
@@ -4255,6 +5061,7 @@ const LiveSimEngine = (function() {
         init: init,
         tick: tick,
         showUI: showUI,
+        assumeControl: _assumeControl,
 
         get isPaused() { return _isPaused; },
         get timeWarp() { return _timeWarp; },
@@ -4262,5 +5069,6 @@ const LiveSimEngine = (function() {
         get playerEntity() { return _playerEntity; },
         get playerState() { return _playerState; },
         get world() { return _world; },
+        get observerMode() { return _observerMode; },
     };
 })();

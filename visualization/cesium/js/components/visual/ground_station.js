@@ -114,6 +114,7 @@
                     scale: 0.9
                 }
             });
+            this._pointEntity._ecsEntityId = entity.id;
 
             // --- Sensor coverage ellipse ---
             if (showSensorCone) {

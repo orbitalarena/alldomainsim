@@ -12,6 +12,7 @@ var PropertyInspector = (function() {
     var _currentEntityId = null;
     var _readOnly = false;
     var _debounceTimers = {};
+    var _previousValues = {};  // cache previous valid values per field for NaN fallback
 
     // -----------------------------------------------------------------------
     // Helpers
@@ -80,6 +81,87 @@ var PropertyInspector = (function() {
         span.className = 'inspector-readonly';
         span.textContent = text;
         return span;
+    }
+
+    // -----------------------------------------------------------------------
+    // Numeric input validation
+    // -----------------------------------------------------------------------
+
+    /** Validation rules for numeric fields. */
+    var _validationRules = {
+        lat:      { min: -90,  max: 90,  wrap: false },
+        lon:      { min: -180, max: 180, wrap: false },
+        alt:      { min: 0,    max: null, wrap: false },
+        speed:    { min: 0,    max: null, wrap: false },
+        heading:  { min: 0,    max: 360, wrap: true  },
+        gamma:    { min: -90,  max: 90,  wrap: false },
+        throttle: { min: 0,    max: 1,   wrap: false }
+    };
+
+    /**
+     * Validate and correct a numeric value per field rules.
+     * Returns { value: correctedNumber, corrected: boolean }.
+     * If the raw string parses to NaN, uses prevValue (or 0).
+     */
+    function _validateNumeric(fieldName, rawValue, prevValue) {
+        var val = parseFloat(rawValue);
+        var rule = _validationRules[fieldName];
+        var corrected = false;
+
+        // NaN guard — revert to previous value or 0
+        if (isNaN(val)) {
+            return { value: (prevValue !== undefined && !isNaN(prevValue)) ? prevValue : 0, corrected: true };
+        }
+
+        if (!rule) return { value: val, corrected: false };
+
+        if (rule.wrap && rule.min !== null && rule.max !== null) {
+            // Wrap into [min, max) — used for heading
+            var range = rule.max - rule.min;
+            while (val < rule.min) val += range;
+            while (val >= rule.max) val -= range;
+            if (val !== parseFloat(rawValue)) corrected = true;
+        } else {
+            // Clamp
+            if (rule.min !== null && val < rule.min) { val = rule.min; corrected = true; }
+            if (rule.max !== null && val > rule.max) { val = rule.max; corrected = true; }
+        }
+
+        return { value: val, corrected: corrected };
+    }
+
+    /** Flash the input border red briefly to signal auto-correction. */
+    function _flashInvalid(inputEl) {
+        inputEl.classList.add('pi-invalid');
+        setTimeout(function() {
+            inputEl.classList.remove('pi-invalid');
+        }, 400);
+    }
+
+    /**
+     * Create a validated numeric input change handler.
+     * @param {string} fieldName   - Validation rule key (lat, lon, alt, etc.)
+     * @param {HTMLInputElement} inputEl - The input element
+     * @param {function} onValid   - Callback with corrected numeric value
+     */
+    function _makeValidatedHandler(fieldName, inputEl, onValid) {
+        return function() {
+            var prev = _previousValues[fieldName];
+            var result = _validateNumeric(fieldName, inputEl.value, prev);
+
+            if (result.corrected) {
+                _flashInvalid(inputEl);
+                // Update the input to show the corrected value after a brief delay
+                // so the user sees the flash alongside the correction
+                var correctedVal = result.value;
+                setTimeout(function() {
+                    inputEl.value = correctedVal;
+                }, 200);
+            }
+
+            _previousValues[fieldName] = result.value;
+            onValid(result.value);
+        };
     }
 
     /** Create a select dropdown. */
@@ -236,45 +318,48 @@ var PropertyInspector = (function() {
 
         // Lat
         var latRow = _createRow('Lat (\u00B0)');
-        var latInput = _createInput('number', state.lat !== undefined ? state.lat : 0, function() {
-            var val = parseFloat(latInput.value);
-            if (isNaN(val)) return;
-            _debounce('lat', function() {
-                _pushChange({ initialState: { lat: val } });
-            });
-        });
+        var latInitial = state.lat !== undefined ? state.lat : 0;
+        _previousValues['lat'] = latInitial;
+        var latInput = _createInput('number', latInitial, null);
         latInput.step = '0.01';
         latInput.min = '-90';
         latInput.max = '90';
+        latInput.addEventListener('input', _makeValidatedHandler('lat', latInput, function(val) {
+            _debounce('lat', function() {
+                _pushChange({ initialState: { lat: val } });
+            });
+        }));
         latRow.valueCell.appendChild(latInput);
         sec.body.appendChild(latRow.row);
 
         // Lon
         var lonRow = _createRow('Lon (\u00B0)');
-        var lonInput = _createInput('number', state.lon !== undefined ? state.lon : 0, function() {
-            var val = parseFloat(lonInput.value);
-            if (isNaN(val)) return;
-            _debounce('lon', function() {
-                _pushChange({ initialState: { lon: val } });
-            });
-        });
+        var lonInitial = state.lon !== undefined ? state.lon : 0;
+        _previousValues['lon'] = lonInitial;
+        var lonInput = _createInput('number', lonInitial, null);
         lonInput.step = '0.01';
         lonInput.min = '-180';
         lonInput.max = '180';
+        lonInput.addEventListener('input', _makeValidatedHandler('lon', lonInput, function(val) {
+            _debounce('lon', function() {
+                _pushChange({ initialState: { lon: val } });
+            });
+        }));
         lonRow.valueCell.appendChild(lonInput);
         sec.body.appendChild(lonRow.row);
 
         // Alt
         var altRow = _createRow('Alt (m)');
-        var altInput = _createInput('number', state.alt !== undefined ? state.alt : 0, function() {
-            var val = parseFloat(altInput.value);
-            if (isNaN(val)) return;
+        var altInitial = state.alt !== undefined ? state.alt : 0;
+        _previousValues['alt'] = altInitial;
+        var altInput = _createInput('number', altInitial, null);
+        altInput.step = '100';
+        altInput.min = '0';
+        altInput.addEventListener('input', _makeValidatedHandler('alt', altInput, function(val) {
             _debounce('alt', function() {
                 _pushChange({ initialState: { alt: val } });
             });
-        });
-        altInput.step = '100';
-        altInput.min = '0';
+        }));
         altRow.valueCell.appendChild(altInput);
         sec.body.appendChild(altRow.row);
 
@@ -291,45 +376,48 @@ var PropertyInspector = (function() {
 
         // Speed
         var speedRow = _createRow('Speed (m/s)');
-        var speedInput = _createInput('number', state.speed !== undefined ? state.speed : 0, function() {
-            var val = parseFloat(speedInput.value);
-            if (isNaN(val)) return;
+        var speedInitial = state.speed !== undefined ? state.speed : 0;
+        _previousValues['speed'] = speedInitial;
+        var speedInput = _createInput('number', speedInitial, null);
+        speedInput.step = '10';
+        speedInput.min = '0';
+        speedInput.addEventListener('input', _makeValidatedHandler('speed', speedInput, function(val) {
             _debounce('speed', function() {
                 _pushChange({ initialState: { speed: val } });
             });
-        });
-        speedInput.step = '10';
-        speedInput.min = '0';
+        }));
         speedRow.valueCell.appendChild(speedInput);
         sec.body.appendChild(speedRow.row);
 
         // Heading
         var hdgRow = _createRow('Heading (\u00B0)');
-        var hdgInput = _createInput('number', state.heading !== undefined ? state.heading : 0, function() {
-            var val = parseFloat(hdgInput.value);
-            if (isNaN(val)) return;
-            _debounce('heading', function() {
-                _pushChange({ initialState: { heading: val } });
-            });
-        });
+        var hdgInitial = state.heading !== undefined ? state.heading : 0;
+        _previousValues['heading'] = hdgInitial;
+        var hdgInput = _createInput('number', hdgInitial, null);
         hdgInput.step = '1';
         hdgInput.min = '0';
         hdgInput.max = '360';
+        hdgInput.addEventListener('input', _makeValidatedHandler('heading', hdgInput, function(val) {
+            _debounce('heading', function() {
+                _pushChange({ initialState: { heading: val } });
+            });
+        }));
         hdgRow.valueCell.appendChild(hdgInput);
         sec.body.appendChild(hdgRow.row);
 
         // Gamma (flight path angle)
         var gammaRow = _createRow('Gamma (\u00B0)');
-        var gammaInput = _createInput('number', state.gamma !== undefined ? state.gamma : 0, function() {
-            var val = parseFloat(gammaInput.value);
-            if (isNaN(val)) return;
-            _debounce('gamma', function() {
-                _pushChange({ initialState: { gamma: val } });
-            });
-        });
+        var gammaInitial = state.gamma !== undefined ? state.gamma : 0;
+        _previousValues['gamma'] = gammaInitial;
+        var gammaInput = _createInput('number', gammaInitial, null);
         gammaInput.step = '1';
         gammaInput.min = '-90';
         gammaInput.max = '90';
+        gammaInput.addEventListener('input', _makeValidatedHandler('gamma', gammaInput, function(val) {
+            _debounce('gamma', function() {
+                _pushChange({ initialState: { gamma: val } });
+            });
+        }));
         gammaRow.valueCell.appendChild(gammaInput);
         sec.body.appendChild(gammaRow.row);
 
@@ -490,6 +578,7 @@ var PropertyInspector = (function() {
             '.inspector-value { flex: 1; min-width: 0; }',
             '.inspector-input { width: 100%; padding: 3px 6px; background: #1a1a2e; border: 1px solid #333; border-radius: 3px; color: #ccc; font-size: 12px; outline: none; box-sizing: border-box; }',
             '.inspector-input:focus { border-color: #4488ff; }',
+            '.inspector-input.pi-invalid { border-color: #ff4444; transition: border-color 0.3s; }',
             '.inspector-input:disabled { opacity: 0.5; cursor: not-allowed; }',
             '.inspector-select { cursor: pointer; }',
             '.inspector-readonly { color: #666; font-size: 12px; }',

@@ -157,57 +157,113 @@ var DOEResults = (function() {
 
     function _processResults(data) {
         var rows = [];
+        if (!data || !data.permutations || !Array.isArray(data.permutations)) {
+            return rows;
+        }
+
         for (var i = 0; i < data.permutations.length; i++) {
-            var p = data.permutations[i];
-            var cfg = p.config;
-            var run = (p.results && p.results.runs && p.results.runs[0]) || {};
-            var surv = run.entitySurvival || {};
+            try {
+                var p = data.permutations[i];
+                var cfg = p.config || {};
 
-            var blueHvaAlive = 0, blueHvaTotal = 0;
-            var redHvaAlive = 0, redHvaTotal = 0;
-            var blueAlive = 0, blueTotal = 0;
-            var redAlive = 0, redTotal = 0;
+                // Check if this permutation has valid results
+                var hasResults = p.results && p.results.runs && Array.isArray(p.results.runs) && p.results.runs.length > 0;
+                var run = hasResults ? p.results.runs[0] : null;
 
-            var ids = Object.keys(surv);
-            for (var j = 0; j < ids.length; j++) {
-                var e = surv[ids[j]];
-                if (e.team === 'blue') {
-                    blueTotal++;
-                    if (e.alive) blueAlive++;
-                    if (e.role === 'hva') {
-                        blueHvaTotal++;
-                        if (e.alive) blueHvaAlive++;
-                    }
-                } else if (e.team === 'red') {
-                    redTotal++;
-                    if (e.alive) redAlive++;
-                    if (e.role === 'hva') {
-                        redHvaTotal++;
-                        if (e.alive) redHvaAlive++;
+                if (!run) {
+                    // Permutation failed or returned no results — mark as ERROR
+                    rows.push({
+                        permId: i,
+                        hva: cfg.hvaPerSide || 0,
+                        def: cfg.defendersPerSide || 0,
+                        atk: cfg.attackersPerSide || 0,
+                        esc: cfg.escortsPerSide || 0,
+                        swp: cfg.sweepsPerSide || 0,
+                        totalPerSide: (cfg.hvaPerSide || 0) + (cfg.defendersPerSide || 0) +
+                            (cfg.attackersPerSide || 0) + (cfg.escortsPerSide || 0) + (cfg.sweepsPerSide || 0),
+                        blueHvaPct: 0,
+                        redHvaPct: 0,
+                        blueAlive: 0,
+                        blueTotal: 0,
+                        redAlive: 0,
+                        redTotal: 0,
+                        totalKills: 0,
+                        simTime: 0,
+                        error: true
+                    });
+                    continue;
+                }
+
+                var surv = run.entitySurvival || {};
+
+                var blueHvaAlive = 0, blueHvaTotal = 0;
+                var redHvaAlive = 0, redHvaTotal = 0;
+                var blueAlive = 0, blueTotal = 0;
+                var redAlive = 0, redTotal = 0;
+
+                var ids = Object.keys(surv);
+                for (var j = 0; j < ids.length; j++) {
+                    var e = surv[ids[j]];
+                    if (e.team === 'blue') {
+                        blueTotal++;
+                        if (e.alive) blueAlive++;
+                        if (e.role === 'hva') {
+                            blueHvaTotal++;
+                            if (e.alive) blueHvaAlive++;
+                        }
+                    } else if (e.team === 'red') {
+                        redTotal++;
+                        if (e.alive) redAlive++;
+                        if (e.role === 'hva') {
+                            redHvaTotal++;
+                            if (e.alive) redHvaAlive++;
+                        }
                     }
                 }
-            }
 
-            rows.push({
-                permId: i,
-                hva: cfg.hvaPerSide || 0,
-                def: cfg.defendersPerSide || 0,
-                atk: cfg.attackersPerSide || 0,
-                esc: cfg.escortsPerSide || 0,
-                swp: cfg.sweepsPerSide || 0,
-                totalPerSide: (cfg.hvaPerSide || 0) + (cfg.defendersPerSide || 0) +
-                    (cfg.attackersPerSide || 0) + (cfg.escortsPerSide || 0) + (cfg.sweepsPerSide || 0),
-                blueHvaPct: blueHvaTotal > 0 ? blueHvaAlive / blueHvaTotal : 0,
-                redHvaPct: redHvaTotal > 0 ? redHvaAlive / redHvaTotal : 0,
-                blueAlive: blueAlive,
-                blueTotal: blueTotal,
-                redAlive: redAlive,
-                redTotal: redTotal,
-                totalKills: (run.engagementLog || run.engagements || []).filter(function(e) {
-                    return (e.result || e.type || '').toUpperCase() === 'KILL';
-                }).length,
-                simTime: run.simTimeFinal || 0
-            });
+                rows.push({
+                    permId: i,
+                    hva: cfg.hvaPerSide || 0,
+                    def: cfg.defendersPerSide || 0,
+                    atk: cfg.attackersPerSide || 0,
+                    esc: cfg.escortsPerSide || 0,
+                    swp: cfg.sweepsPerSide || 0,
+                    totalPerSide: (cfg.hvaPerSide || 0) + (cfg.defendersPerSide || 0) +
+                        (cfg.attackersPerSide || 0) + (cfg.escortsPerSide || 0) + (cfg.sweepsPerSide || 0),
+                    blueHvaPct: blueHvaTotal > 0 ? blueHvaAlive / blueHvaTotal : 0,
+                    redHvaPct: redHvaTotal > 0 ? redHvaAlive / redHvaTotal : 0,
+                    blueAlive: blueAlive,
+                    blueTotal: blueTotal,
+                    redAlive: redAlive,
+                    redTotal: redTotal,
+                    totalKills: (run.engagementLog || run.engagements || []).filter(function(e) {
+                        return (e.result || e.type || '').toUpperCase() === 'KILL';
+                    }).length,
+                    simTime: run.simTimeFinal || 0
+                });
+            } catch (err) {
+                // Catch any unexpected errors processing this permutation
+                var errCfg = (data.permutations[i] && data.permutations[i].config) || {};
+                rows.push({
+                    permId: i,
+                    hva: errCfg.hvaPerSide || 0,
+                    def: errCfg.defendersPerSide || 0,
+                    atk: errCfg.attackersPerSide || 0,
+                    esc: errCfg.escortsPerSide || 0,
+                    swp: errCfg.sweepsPerSide || 0,
+                    totalPerSide: 0,
+                    blueHvaPct: 0,
+                    redHvaPct: 0,
+                    blueAlive: 0,
+                    blueTotal: 0,
+                    redAlive: 0,
+                    redTotal: 0,
+                    totalKills: 0,
+                    simTime: 0,
+                    error: true
+                });
+                console.warn('[DOEResults] Error processing permutation ' + i + ':', err);
+            }
         }
         return rows;
     }
@@ -604,20 +660,25 @@ var DOEResults = (function() {
             html += '<td>' + r.swp + '</td>';
             html += '<td>' + r.totalPerSide + '</td>';
 
-            // Blue HVA% with color-coded background
-            var blueHvaBg = _survivalColor(r.blueHvaPct);
-            html += '<td style="background:' + blueHvaBg + ';color:#fff;">' +
-                (r.blueHvaPct * 100).toFixed(1) + '%</td>';
+            if (r.error) {
+                // Failed permutation — show ERROR across result columns
+                html += '<td colspan="6" style="background:#3a1111;color:#ff4444;text-align:center;font-weight:bold;">ERROR</td>';
+            } else {
+                // Blue HVA% with color-coded background
+                var blueHvaBg = _survivalColor(r.blueHvaPct);
+                html += '<td style="background:' + blueHvaBg + ';color:#fff;">' +
+                    (r.blueHvaPct * 100).toFixed(1) + '%</td>';
 
-            // Red HVA% with color-coded background
-            var redHvaBg = _survivalColor(r.redHvaPct);
-            html += '<td style="background:' + redHvaBg + ';color:#fff;">' +
-                (r.redHvaPct * 100).toFixed(1) + '%</td>';
+                // Red HVA% with color-coded background
+                var redHvaBg = _survivalColor(r.redHvaPct);
+                html += '<td style="background:' + redHvaBg + ';color:#fff;">' +
+                    (r.redHvaPct * 100).toFixed(1) + '%</td>';
 
-            html += '<td>' + r.blueAlive + '/' + r.blueTotal + '</td>';
-            html += '<td>' + r.redAlive + '/' + r.redTotal + '</td>';
-            html += '<td>' + r.totalKills + '</td>';
-            html += '<td>' + r.simTime.toFixed(1) + 's</td>';
+                html += '<td>' + r.blueAlive + '/' + r.blueTotal + '</td>';
+                html += '<td>' + r.redAlive + '/' + r.redTotal + '</td>';
+                html += '<td>' + r.totalKills + '</td>';
+                html += '<td>' + r.simTime.toFixed(1) + 's</td>';
+            }
             html += '</tr>';
         }
 

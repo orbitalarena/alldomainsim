@@ -45,6 +45,8 @@
                 this._initFromElements(state, cfg, simTime);
             } else {
                 // ---- Initialize from geodetic state (default) ----
+                console.warn('[Orbital2Body] ' + entity.id + ': fallback to _initFromState' +
+                    ' (source=' + cfg.source + ', tle_line1=' + !!cfg.tle_line1 + ')');
                 this._initFromState(state, simTime);
             }
 
@@ -132,15 +134,19 @@
 
         _initFromElements(state, cfg, simTime) {
             // Build a synthetic TLE-like object from classical elements
+            // Accept both short (ecc, inc) and long (eccentricity, inclination) field names
             var sma = cfg.sma || (R_EARTH + (state.alt || 400000));
-            var ecc = cfg.eccentricity != null ? cfg.eccentricity : 0.001;
+            var ecc = cfg.eccentricity != null ? cfg.eccentricity :
+                      cfg.ecc != null ? cfg.ecc : 0.001;
+            var inc = cfg.inclination != null ? cfg.inclination :
+                      cfg.inc != null ? cfg.inc : 51.6;
             var n_rad = Math.sqrt(MU / (sma * sma * sma));
             var meanMotion = n_rad * 86400 / TWO_PI;
 
             var synthSat = {
                 sma: sma,
                 eccentricity: ecc,
-                inclination: cfg.inclination != null ? cfg.inclination : 51.6,
+                inclination: inc,
                 raan: cfg.raan != null ? cfg.raan : 0,
                 argPerigee: cfg.argPerigee != null ? cfg.argPerigee : 0,
                 meanAnomaly: cfg.meanAnomaly != null ? cfg.meanAnomaly : 0,

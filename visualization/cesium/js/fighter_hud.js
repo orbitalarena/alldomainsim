@@ -31,8 +31,16 @@ const FighterHUD = (function() {
         engineFuel: true,   // Throttle + fuel gauge
         weapons: true,      // Weapons status + target reticle + steer cue
         warnings: true,     // Warnings + phase indicator + regime
-        orbital: true       // Orbital markers + navball
+        orbital: true,      // Orbital markers + navball
+        minimap: true,      // Radar minimap scope
+        coordinates: true,  // Lat/lon/alt readout
+        warpIndicator: true,// Time warp indicator
+        approachAids: true  // Landing approach aids
     };
+
+    // Fuel burn tracking for time-remaining calculation
+    var _lastFuel = -1;
+    var _fuelBurnRate = 0;  // kg/s (smoothed)
 
     let canvas, ctx;
     let width, height, cx, cy;
@@ -107,7 +115,13 @@ const FighterHUD = (function() {
         if (_toggles.speedTape)   drawMachIndicator(state, scale);
         if (_toggles.altTape)     drawVerticalSpeed(state, scale);
         if (_toggles.warnings)    drawRegimeIndicator(state, scale);
+        if (_toggles.warnings)    drawPointingIndicator(state, scale);
         if (_toggles.orbital)     drawCompactNavball(state, scale, simTime);
+        if (_toggles.minimap)     drawMinimap(state, scale);
+        if (_toggles.coordinates) drawCoordinates(state, scale);
+        if (_toggles.warpIndicator) drawTimeWarp(state, scale);
+        if (_toggles.approachAids) drawApproachAids(state, scale);
+        drawSensorReticle(state, scale);
 
         ctx.restore();
     }
@@ -308,9 +322,53 @@ const FighterHUD = (function() {
         ctx.rect(x - 45 * scale, cy - tapeH / 2, 50 * scale, tapeH);
         ctx.clip();
 
+        // Caution bands (stall speed red, overspeed amber)
+        var stallKts = 120; // default stall speed KIAS
+        var overspeedKts = 800; // default overspeed limit
+        var vneKts = 900; // never exceed
+        if (typeof FighterSimEngine !== 'undefined' && FighterSimEngine.getConfig) {
+            var cfg = FighterSimEngine.getConfig();
+            if (cfg && cfg.stall_speed) stallKts = cfg.stall_speed * MPS_TO_KNOTS;
+            if (cfg && cfg.vne) overspeedKts = cfg.vne * MPS_TO_KNOTS;
+            if (cfg && cfg.vne) vneKts = cfg.vne * MPS_TO_KNOTS * 1.1;
+        }
+        // Stall band (red stripe at left edge of tape)
+        var stallY = cy - (stallKts - kias) * pxPerKt;
+        var bottomY = cy + tapeH / 2;
+        if (stallY < bottomY) {
+            ctx.fillStyle = 'rgba(255, 50, 50, 0.25)';
+            ctx.fillRect(x - 45 * scale, Math.max(stallY, cy - tapeH / 2), 4 * scale, Math.min(bottomY - stallY, tapeH));
+            // Stall line
+            ctx.strokeStyle = HUD_ALERT;
+            ctx.lineWidth = 2 * scale;
+            ctx.setLineDash([4 * scale, 3 * scale]);
+            ctx.beginPath();
+            ctx.moveTo(x - 45 * scale, stallY);
+            ctx.lineTo(x + 5 * scale, stallY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        // Overspeed band (amber stripe at left edge)
+        var overspeedY = cy - (overspeedKts - kias) * pxPerKt;
+        var topY = cy - tapeH / 2;
+        if (overspeedY > topY) {
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.15)';
+            ctx.fillRect(x - 45 * scale, topY, 4 * scale, Math.min(overspeedY - topY, tapeH));
+            // Overspeed line
+            ctx.strokeStyle = HUD_WARN;
+            ctx.lineWidth = 2 * scale;
+            ctx.setLineDash([4 * scale, 3 * scale]);
+            ctx.beginPath();
+            ctx.moveTo(x - 45 * scale, overspeedY);
+            ctx.lineTo(x + 5 * scale, overspeedY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
         // Speed ticks and labels
         ctx.strokeStyle = HUD_GREEN;
         ctx.fillStyle = HUD_GREEN;
+        ctx.lineWidth = 1.5 * scale;
         ctx.font = `${12 * scale}px 'Courier New', monospace`;
         ctx.textAlign = 'right';
 
@@ -585,6 +643,23 @@ const FighterHUD = (function() {
         ctx.strokeRect(x, y + 35 * scale, barW, barH);
         ctx.fillStyle = fuelPct < 15 ? HUD_ALERT : fuelPct < 30 ? HUD_WARN : HUD_GREEN;
         ctx.fillRect(x, y + 35 * scale, barW * (fuelPct / 100), barH);
+
+        // Fuel burn rate + time remaining
+        if (_lastFuel >= 0 && state.fuel < _lastFuel) {
+            var rawRate = (_lastFuel - state.fuel) * 60; // per-frame delta scaled to ~per-second (assumes 60fps)
+            _fuelBurnRate = _fuelBurnRate * 0.95 + rawRate * 0.05; // EMA smooth
+        }
+        _lastFuel = state.fuel;
+
+        if (_fuelBurnRate > 0.01 && state.fuel > 0) {
+            var timeRemSec = state.fuel / _fuelBurnRate;
+            var trMin = Math.floor(timeRemSec / 60);
+            var trSec = Math.floor(timeRemSec % 60);
+            var timeStr = trMin > 99 ? (trMin + 'm') : (trMin + ':' + (trSec < 10 ? '0' : '') + trSec);
+            ctx.fillStyle = timeRemSec < 120 ? HUD_ALERT : timeRemSec < 300 ? HUD_WARN : HUD_DIM;
+            ctx.font = `${11 * scale}px 'Courier New', monospace`;
+            ctx.fillText(`BURN ${_fuelBurnRate.toFixed(1)} kg/s  T-${timeStr}`, x, y + 50 * scale);
+        }
     }
 
     /**
@@ -953,6 +1028,80 @@ const FighterHUD = (function() {
         ctx.textAlign = 'right';
         ctx.fillStyle = regimeColors[regime] || HUD_GREEN;
         ctx.fillText(regime, width - 20 * scale, 30 * scale);
+    }
+
+    /**
+     * Draw pointing mode indicator (below regime indicator, top-right)
+     */
+    function drawPointingIndicator(state, scale) {
+        if (!state || !state._pointingMode || state._pointingMode === 'manual') return;
+
+        var mode = state._pointingMode.toUpperCase().replace('_', ' ');
+        var locked = state._pointingLocked;
+
+        ctx.font = `bold ${12 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = locked ? '#44ccff' : '#ffff00';
+        ctx.fillText('PTG: ' + mode, width - 20 * scale, 48 * scale);
+
+        // Lock indicator dot
+        var dotX = width - 20 * scale + 8 * scale;
+        var dotY = 48 * scale;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, 3 * scale, 0, Math.PI * 2);
+        ctx.fillStyle = locked ? '#00ff88' : '#ffaa00';
+        ctx.fill();
+    }
+
+    /**
+     * Draw sensor reticle crosshair when sensor view is active
+     */
+    function drawSensorReticle(state, scale) {
+        if (!state || !state._sensor) return;
+        var filterInfo = state._sensor.filterInfo;
+        if (!filterInfo) return;
+
+        var rcx = cx;
+        var rcy = cy;
+        var sz = 30 * scale;
+
+        ctx.strokeStyle = '#00ff44';
+        ctx.lineWidth = 1 * scale;
+        ctx.globalAlpha = 0.7;
+
+        // Crosshair lines
+        ctx.beginPath();
+        ctx.moveTo(rcx - sz, rcy); ctx.lineTo(rcx - sz * 0.4, rcy);
+        ctx.moveTo(rcx + sz * 0.4, rcy); ctx.lineTo(rcx + sz, rcy);
+        ctx.moveTo(rcx, rcy - sz); ctx.lineTo(rcx, rcy - sz * 0.4);
+        ctx.moveTo(rcx, rcy + sz * 0.4); ctx.lineTo(rcx, rcy + sz);
+        ctx.stroke();
+
+        // Corner brackets
+        var bsz = sz * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(rcx - bsz, rcy - bsz); ctx.lineTo(rcx - bsz, rcy - bsz + 8 * scale);
+        ctx.moveTo(rcx - bsz, rcy - bsz); ctx.lineTo(rcx - bsz + 8 * scale, rcy - bsz);
+        ctx.moveTo(rcx + bsz, rcy - bsz); ctx.lineTo(rcx + bsz, rcy - bsz + 8 * scale);
+        ctx.moveTo(rcx + bsz, rcy - bsz); ctx.lineTo(rcx + bsz - 8 * scale, rcy - bsz);
+        ctx.moveTo(rcx - bsz, rcy + bsz); ctx.lineTo(rcx - bsz, rcy + bsz - 8 * scale);
+        ctx.moveTo(rcx - bsz, rcy + bsz); ctx.lineTo(rcx - bsz + 8 * scale, rcy + bsz);
+        ctx.moveTo(rcx + bsz, rcy + bsz); ctx.lineTo(rcx + bsz, rcy + bsz - 8 * scale);
+        ctx.moveTo(rcx + bsz, rcy + bsz); ctx.lineTo(rcx + bsz - 8 * scale, rcy + bsz);
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+
+        // Sensor mode label at bottom of reticle
+        ctx.font = `${10 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#00ff44';
+        ctx.fillText(filterInfo.label, rcx, rcy + sz + 14 * scale);
+
+        // Pointing mode label above reticle
+        if (state._pointingMode && state._pointingMode !== 'manual') {
+            ctx.fillText('PTG: ' + state._pointingMode.toUpperCase(), rcx, rcy - sz - 8 * scale);
+        }
     }
 
     /**
@@ -1486,6 +1635,230 @@ const FighterHUD = (function() {
         ctx.fillStyle = color;
         ctx.fillText(label, x, y + r + 4 * scale);
         ctx.textBaseline = 'middle'; // reset
+    }
+
+    // -----------------------------------------------------------------
+    // Minimap radar scope (PPI display showing nearby entities)
+    // -----------------------------------------------------------------
+    function drawMinimap(state, scale) {
+        if (!state._nearby || state._nearby.length === 0) return;
+
+        var r = 60 * scale;        // scope radius
+        var cx0 = width - 80 * scale;
+        var cy0 = 180 * scale;
+        var rangeM = 200000;        // 200 km display range
+
+        // Background circle
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#001100';
+        ctx.beginPath();
+        ctx.arc(cx0, cy0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // Range rings
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 0.5 * scale;
+        for (var i = 1; i <= 3; i++) {
+            ctx.beginPath();
+            ctx.arc(cx0, cy0, r * i / 3, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Cross hairs
+        ctx.beginPath();
+        ctx.moveTo(cx0 - r, cy0); ctx.lineTo(cx0 + r, cy0);
+        ctx.moveTo(cx0, cy0 - r); ctx.lineTo(cx0, cy0 + r);
+        ctx.stroke();
+
+        // Border
+        ctx.strokeStyle = HUD_GREEN;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.beginPath();
+        ctx.arc(cx0, cy0, r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Heading line (nose direction)
+        var hdg = state.heading + (state.yawOffset || 0);
+
+        // Clip to scope
+        ctx.beginPath();
+        ctx.arc(cx0, cy0, r - 1, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Plot entities
+        var pLat = state.lat;
+        var pLon = state.lon;
+        var cosLat = Math.cos(pLat);
+        var entities = state._nearby;
+        for (var j = 0; j < entities.length; j++) {
+            var e = entities[j];
+            // Approximate relative position in meters (flat Earth near player)
+            var dN = (e.lat - pLat) * 6371000;
+            var dE = (e.lon - pLon) * 6371000 * cosLat;
+            // Rotate to heading-up
+            var sinH = Math.sin(-hdg), cosH = Math.cos(-hdg);
+            var rx = dE * cosH - dN * sinH;
+            var ry = -(dN * cosH + dE * sinH); // Y-up on screen = north, negate for canvas Y-down
+            var dist = Math.sqrt(rx * rx + ry * ry);
+            if (dist > rangeM) continue;
+
+            var px = cx0 + (rx / rangeM) * r;
+            var py = cy0 + (ry / rangeM) * r;
+
+            // Color by team
+            ctx.fillStyle = e.team === 'blue' ? '#4488ff' :
+                            e.team === 'red' ? '#ff4444' : HUD_DIM;
+            ctx.beginPath();
+            ctx.arc(px, py, 2.5 * scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        ctx.restore();
+
+        // Labels
+        ctx.font = `${9 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('200km', cx0, cy0 + r + 10 * scale);
+    }
+
+    // -----------------------------------------------------------------
+    // Lat/Lon/Alt coordinates readout
+    // -----------------------------------------------------------------
+    function drawCoordinates(state, scale) {
+        var latDeg = state.lat * RAD;
+        var lonDeg = state.lon * RAD;
+        var altKm = state.alt / 1000;
+
+        var latStr = Math.abs(latDeg).toFixed(3) + '\u00b0' + (latDeg >= 0 ? 'N' : 'S');
+        var lonStr = Math.abs(lonDeg).toFixed(3) + '\u00b0' + (lonDeg >= 0 ? 'E' : 'W');
+        var altStr = altKm >= 100 ? altKm.toFixed(0) + ' km' :
+                     altKm >= 1 ? altKm.toFixed(1) + ' km' :
+                     (state.alt).toFixed(0) + ' m';
+
+        var x = 20 * scale;
+        var y = height - 30 * scale;
+
+        ctx.font = `${11 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText(latStr + '  ' + lonStr + '  ' + altStr, x, y);
+    }
+
+    // -----------------------------------------------------------------
+    // Time warp indicator (shown when warp != 1x)
+    // -----------------------------------------------------------------
+    function drawTimeWarp(state, scale) {
+        var warp = state._timeWarp;
+        if (!warp || warp === 1) return;
+
+        var x = cx;
+        var y = 25 * scale;
+
+        // Pulsing alpha at high warp
+        var alpha = 1.0;
+        if (warp >= 64) {
+            alpha = 0.6 + 0.4 * Math.abs(Math.sin(Date.now() / 300));
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Background pill
+        var text = '\u25b6\u25b6 ' + warp + 'x';
+        ctx.font = `bold ${16 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        var tw = ctx.measureText(text).width + 16 * scale;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        var pillH = 22 * scale;
+        var px0 = x - tw / 2, py0 = y - pillH / 2, pr = 4 * scale;
+        ctx.beginPath();
+        ctx.moveTo(px0 + pr, py0);
+        ctx.lineTo(px0 + tw - pr, py0);
+        ctx.arcTo(px0 + tw, py0, px0 + tw, py0 + pr, pr);
+        ctx.lineTo(px0 + tw, py0 + pillH - pr);
+        ctx.arcTo(px0 + tw, py0 + pillH, px0 + tw - pr, py0 + pillH, pr);
+        ctx.lineTo(px0 + pr, py0 + pillH);
+        ctx.arcTo(px0, py0 + pillH, px0, py0 + pillH - pr, pr);
+        ctx.lineTo(px0, py0 + pr);
+        ctx.arcTo(px0, py0, px0 + pr, py0, pr);
+        ctx.closePath();
+        ctx.fill();
+
+        // Text
+        ctx.fillStyle = warp >= 64 ? HUD_WARN : warp >= 8 ? HUD_CYAN : HUD_GREEN;
+        ctx.fillText(text, x, y);
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // Approach / landing aids (glideslope + runway heading cue)
+    // -----------------------------------------------------------------
+    function drawApproachAids(state, scale) {
+        // Only show below 3000m AGL and gear-appropriate speed
+        if (!state || state.alt > 3000 || state.alt < 5) return;
+        var spdKts = state.speed * MPS_TO_KNOTS;
+        if (spdKts > 350) return; // too fast for approach
+
+        // Glideslope reference: -3° flight path angle
+        var targetGamma = -3.0;
+        var gammaErr = (state.gamma * RAD) - targetGamma; // + means above glideslope
+
+        // Draw glideslope diamond (right side, near altitude tape)
+        var gsX = width - 55 * scale;
+        var gsY = cy;
+        var gsScale = 4 * scale; // pixels per degree error
+        var diamondY = gsY - gammaErr * gsScale * 8;
+        // Clamp diamond to visible range
+        diamondY = Math.max(gsY - 80 * scale, Math.min(gsY + 80 * scale, diamondY));
+
+        // Glideslope scale markings
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 1 * scale;
+        for (var i = -2; i <= 2; i++) {
+            var dotY = gsY - i * 20 * scale;
+            if (i === 0) {
+                // Center reference line
+                ctx.beginPath();
+                ctx.moveTo(gsX - 6 * scale, dotY);
+                ctx.lineTo(gsX + 6 * scale, dotY);
+                ctx.stroke();
+            } else {
+                ctx.beginPath();
+                ctx.arc(gsX, dotY, 2 * scale, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+
+        // Glideslope diamond
+        var onGS = Math.abs(gammaErr) < 0.5;
+        ctx.strokeStyle = onGS ? HUD_GREEN : Math.abs(gammaErr) > 2 ? HUD_ALERT : HUD_WARN;
+        ctx.lineWidth = 2 * scale;
+        var ds = 6 * scale;
+        ctx.beginPath();
+        ctx.moveTo(gsX, diamondY - ds);
+        ctx.lineTo(gsX + ds, diamondY);
+        ctx.lineTo(gsX, diamondY + ds);
+        ctx.lineTo(gsX - ds, diamondY);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Altitude / distance readout
+        var altFt = state.alt * M_TO_FT;
+        ctx.font = `${11 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('AGL ' + Math.round(altFt) + ' ft', gsX + 30 * scale, gsY + 95 * scale);
+
+        // Speed advisory
+        var tgtSpd = spdKts > 200 ? 'FAST' : spdKts < 130 ? 'SLOW' : 'ON SPD';
+        var spdColor = spdKts > 200 ? HUD_WARN : spdKts < 130 ? HUD_ALERT : HUD_GREEN;
+        ctx.fillStyle = spdColor;
+        ctx.textAlign = 'center';
+        ctx.fillText(tgtSpd, gsX, gsY + 110 * scale);
     }
 
     /**

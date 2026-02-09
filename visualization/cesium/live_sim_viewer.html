@@ -517,6 +517,42 @@
             text-align: right;
         }
 
+        /* Pointing Panel */
+        #pointingPanel {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            background: rgba(10, 15, 10, 0.92);
+            border: 1px solid #0088aa;
+            border-radius: 4px;
+            padding: 8px 0;
+            z-index: 25;
+            display: none;
+            min-width: 200px;
+            max-width: 280px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            pointer-events: auto;
+        }
+        #pointingPanel.open { display: block; }
+        .pp-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 14px;
+            cursor: pointer;
+            color: #00aacc;
+            gap: 8px;
+            transition: background 0.1s;
+        }
+        .pp-item:hover { background: rgba(0, 40, 60, 0.5); }
+        .pp-item.active {
+            color: #00ffff;
+            background: rgba(0, 60, 80, 0.4);
+            border-left: 2px solid #00ffff;
+        }
+        .pp-label { flex: 1; font-weight: bold; font-size: 11px; }
+        .pp-desc { color: #006688; font-size: 9px; }
+
         /* Maneuver Dialog */
         #maneuverDialog {
             display: none;
@@ -694,6 +730,83 @@
             border-top: 1px solid #332200; padding-top: 4px;
         }
         #mnvSolverPanel .slv-result .slv-val { color: #ffcc00; font-weight: bold; }
+
+        /* ===================== HUD BRIGHTNESS SLIDER ===================== */
+        .settings-range-row {
+            display: flex;
+            align-items: center;
+            padding: 4px 14px;
+            gap: 6px;
+            color: #00aa00;
+            font-size: 12px;
+        }
+        .settings-range-row .settings-label { flex-shrink: 0; }
+        .settings-range-row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: #003300;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+        .settings-range-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #00ff00;
+            border: 1px solid #005500;
+            cursor: pointer;
+        }
+        .settings-range-row input[type="range"]::-moz-range-thumb {
+            width: 12px; height: 12px;
+            border-radius: 50%;
+            background: #00ff00;
+            border: 1px solid #005500;
+            cursor: pointer;
+        }
+        .settings-range-row input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            border-radius: 2px;
+        }
+        .settings-range-val {
+            color: #00ff00;
+            font-size: 10px;
+            min-width: 28px;
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* ===================== ALL ON / ALL OFF BUTTONS ===================== */
+        .settings-section-header {
+            display: flex;
+            align-items: center;
+            padding: 3px 14px;
+            gap: 6px;
+        }
+        .settings-section-header .settings-section-title {
+            flex: 1;
+            padding: 0;
+        }
+        .hud-toggle-btn {
+            background: rgba(0, 40, 0, 0.6);
+            border: 1px solid #005500;
+            color: #00aa00;
+            font-family: 'Courier New', monospace;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 2px;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            transition: border-color 0.1s, color 0.1s;
+            white-space: nowrap;
+        }
+        .hud-toggle-btn:hover {
+            border-color: #00ff00;
+            color: #00ff00;
+        }
     </style>
 </head>
 <body>
@@ -707,6 +820,7 @@
         <span id="timeWarpDisplay">1x</span> |
         <span id="pauseStatus">RUNNING</span> |
         <span id="propModeDisplay">---</span> |
+        <span id="pointingModeDisplay" style="color:#44ccff"></span>
         <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span>
     </div>
 
@@ -813,7 +927,9 @@
                 <span class="key" style="color:#00ffff">Combat:</span><span class="key-desc"></span>
                 <span class="key">Space</span><span class="key-desc">Fire / activate weapon</span>
                 <span class="key">R</span><span class="key-desc">Cycle weapon</span>
-                <span class="key">V</span><span class="key-desc">Cycle sensor</span>
+                <span class="key">V</span><span class="key-desc">Cycle sensor (EO/IR)</span>
+                <span class="key">I</span><span class="key-desc">Cycle pointing mode</span>
+                <span class="key">L</span><span class="key-desc">Pointing panel</span>
             </div>
             <div class="key-grid">
                 <span class="key">+ / -</span><span class="key-desc">Time warp</span>
@@ -900,7 +1016,16 @@
             <input type="number" id="trailDuration" value="0" min="0" step="30" title="0 = infinite">
         </div>
         <div class="settings-sep"></div>
-        <div class="settings-section-title">HUD Elements</div>
+        <div class="settings-section-header">
+            <div class="settings-section-title">HUD Elements</div>
+            <button class="hud-toggle-btn" id="hudAllOn">All On</button>
+            <button class="hud-toggle-btn" id="hudAllOff">All Off</button>
+        </div>
+        <div class="settings-range-row">
+            <span class="settings-label">Brightness</span>
+            <input type="range" id="hudBrightness" min="30" max="200" value="100" step="5">
+            <span class="settings-range-val" id="hudBrightnessVal">100%</span>
+        </div>
         <div class="settings-item active" data-hud="hud">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">HUD (master)</span>
@@ -945,6 +1070,22 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Orbital / Navball</span>
         </div>
+        <div class="settings-item active" data-hud="minimap">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Minimap Scope</span>
+        </div>
+        <div class="settings-item active" data-hud="coordinates">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Coordinates</span>
+        </div>
+        <div class="settings-item active" data-hud="warpIndicator">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Time Warp</span>
+        </div>
+        <div class="settings-item active" data-hud="approachAids">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Approach Aids</span>
+        </div>
         <div class="settings-sep"></div>
         <div class="settings-section-title">Subsystems</div>
         <div class="settings-item active" data-subsystem="audio">
@@ -955,12 +1096,39 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Visual Effects</span>
         </div>
+        <div class="settings-sep"></div>
+        <div class="settings-section-title">Entity Display</div>
+        <div class="settings-item active" data-viz="globalOrbits">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">All Orbits</span>
+        </div>
+        <div class="settings-item active" data-viz="globalTrails">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">All Trails</span>
+        </div>
+        <div class="settings-item active" data-viz="globalLabels">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">All Labels</span>
+        </div>
+        <div class="settings-item active" data-viz="globalSensors">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Display Sensors</span>
+        </div>
+        <div class="settings-sep"></div>
+        <div class="settings-section-title">Groups</div>
+        <div id="vizGroupList"></div>
     </div>
 
     <!-- Engine Selection Panel (P key toggles) -->
     <div id="enginePanel">
         <div class="ep-title">ENGINE SELECT <span class="ep-hint">[P] close</span></div>
         <div id="enginePanelContent"></div>
+    </div>
+
+    <!-- Pointing Mode Panel (L key toggles) -->
+    <div id="pointingPanel">
+        <div class="ep-title" style="color:#00ddff">POINTING MODE <span class="ep-hint" style="color:#005566">[I] cycle &middot; [L] panel</span></div>
+        <div id="pointingPanelContent"></div>
     </div>
 
     <!-- ===================== MANEUVER DIALOG ===================== -->
@@ -1071,10 +1239,15 @@
         <!-- Step 2: Select entity -->
         <div id="splashStep2" style="display:none">
             <div class="splash-back-link" id="btnBackToSims">&lt; Back to scenario list</div>
-            <div class="splash-section-title">Select Your Entity</div>
-            <div id="entityPickList"></div>
             <div id="entityPickStatus" class="splash-status"></div>
-            <button class="splash-btn primary" id="btnLaunchCockpit" disabled>LAUNCH</button>
+            <div style="display:flex;gap:8px;margin-top:12px;margin-bottom:12px">
+                <button class="splash-btn" id="btnObserve" style="flex:1;font-size:16px;padding:12px">OBSERVE</button>
+                <button class="splash-btn primary" id="btnLaunchCockpit" disabled style="flex:1;font-size:16px;padding:12px">LAUNCH</button>
+            </div>
+            <div id="entityPickToggle" style="display:none;cursor:pointer;color:#4af;font-size:12px;margin-bottom:6px;user-select:none">
+                &#9654; Select entity to control <span id="entityPickCount" style="color:#888"></span>
+            </div>
+            <div id="entityPickList" style="display:none;max-height:300px;overflow-y:auto"></div>
         </div>
     </div>
 
@@ -1142,6 +1315,7 @@
     <script src="js/components/visual/satellite_visual.js"></script>
     <script src="js/components/visual/ground_station.js"></script>
     <script src="js/components/visual/radar_coverage.js"></script>
+    <script src="js/components/visual/sensor_footprint.js"></script>
 
     <!-- Scripts: Simulation subsystems -->
     <script src="js/model_map.js"></script>
@@ -1220,6 +1394,7 @@
                             'Use the Scenario Builder to create and save sims.</div>';
                         // Also show built-in scenario files
                         loadBuiltinScenarios(listEl, statusEl);
+                        appendTLECatalogCard(listEl);
                         return;
                     }
 
@@ -1228,12 +1403,16 @@
 
                     // Also append built-in scenarios section
                     loadBuiltinScenarios(listEl, null);
+
+                    // Append TLE catalog card
+                    appendTLECatalogCard(listEl);
                 })
                 .catch(function(err) {
                     statusEl.textContent = '';
                     statusEl.innerHTML = '<span class="splash-error">Failed to load: ' + err.message + '</span>';
                     // Fallback: show built-in scenarios
                     loadBuiltinScenarios(listEl, statusEl);
+                    appendTLECatalogCard(listEl);
                 });
         }
 
@@ -1301,6 +1480,164 @@
             if (statusEl) statusEl.textContent = '';
         }
 
+        function appendTLECatalogCard(container) {
+            var heading = document.createElement('div');
+            heading.className = 'splash-section-title';
+            heading.style.marginTop = '24px';
+            heading.textContent = 'TLE Satellite Catalog';
+            container.appendChild(heading);
+
+            var card = document.createElement('div');
+            card.className = 'sim-card';
+            card.style.borderColor = '#44cc88';
+            card.innerHTML = '<div class="sim-card-name" style="color:#44cc88">\u2606 TLE CATALOG</div>' +
+                '<div class="sim-card-meta"><span>14,304 satellites</span><span>Pick constellations</span></div>';
+            container.appendChild(card);
+
+            card.addEventListener('click', function() {
+                openTLEConstellationPicker();
+            });
+        }
+
+        function openTLEConstellationPicker() {
+            // Create modal for constellation picker
+            var modal = document.createElement('div');
+            modal.id = 'tlePickerModal';
+            modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;' +
+                'background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;';
+
+            var panel = document.createElement('div');
+            panel.style.cssText = 'background:#1a1a2e;border:1px solid #44cc88;border-radius:8px;' +
+                'padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#eee;font-family:monospace;';
+            panel.innerHTML = '<h3 style="color:#44cc88;margin:0 0 12px">SELECT CONSTELLATIONS</h3>' +
+                '<div id="tleConstellationList" style="margin-bottom:12px">Loading catalog...</div>' +
+                '<div style="display:flex;gap:8px">' +
+                '<button id="tlePickAll" class="splash-btn" style="flex:1;padding:6px;font-size:11px">SELECT ALL</button>' +
+                '<button id="tlePickNone" class="splash-btn" style="flex:1;padding:6px;font-size:11px">CLEAR</button>' +
+                '<button id="tlePickLoad" class="splash-btn primary" style="flex:1;padding:6px">LOAD</button>' +
+                '<button id="tlePickCancel" class="splash-btn" style="flex:1;padding:6px;font-size:11px">CANCEL</button></div>';
+            modal.appendChild(panel);
+            document.body.appendChild(modal);
+
+            // Fetch catalog
+            fetch('/api/tle/catalog')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var list = document.getElementById('tleConstellationList');
+                    var constellations = data.constellations || [];
+                    var html = '';
+                    for (var i = 0; i < constellations.length; i++) {
+                        var c = constellations[i];
+                        // Pre-select common ones
+                        var preselected = ['GPS', 'IRIDIUM', 'GALILEO'].indexOf(c.name) >= 0;
+                        html += '<label style="display:block;padding:4px 0;cursor:pointer;color:#ccc">' +
+                            '<input type="checkbox" class="tle-const-check" data-name="' + c.name + '"' +
+                            (preselected ? ' checked' : '') + '> ' +
+                            '<span style="color:' + (preselected ? '#44cc88' : '#999') + '">' +
+                            c.name + '</span> <span style="color:#666">(' + c.count + ')</span></label>';
+                    }
+                    list.innerHTML = html;
+
+                    // Wire select all / clear
+                    document.getElementById('tlePickAll').onclick = function() {
+                        list.querySelectorAll('.tle-const-check').forEach(function(cb) { cb.checked = true; });
+                    };
+                    document.getElementById('tlePickNone').onclick = function() {
+                        list.querySelectorAll('.tle-const-check').forEach(function(cb) { cb.checked = false; });
+                    };
+                })
+                .catch(function(err) {
+                    document.getElementById('tleConstellationList').innerHTML =
+                        '<span style="color:#f44">Failed to load catalog: ' + err.message + '</span>';
+                });
+
+            // Cancel
+            document.getElementById('tlePickCancel').onclick = function() {
+                document.body.removeChild(modal);
+            };
+
+            // Load selected constellations
+            document.getElementById('tlePickLoad').onclick = function() {
+                var checks = document.querySelectorAll('.tle-const-check:checked');
+                var names = [];
+                checks.forEach(function(cb) { names.push(cb.getAttribute('data-name')); });
+                if (names.length === 0) return;
+                document.body.removeChild(modal);
+                loadTLEConstellations(names);
+            };
+        }
+
+        function loadTLEConstellations(names) {
+            var statusEl = document.getElementById('simFileStatus');
+            statusEl.textContent = 'Loading ' + names.length + ' constellation(s)...';
+
+            // Fetch all selected constellations in parallel
+            var promises = names.map(function(name) {
+                return fetch('/api/tle/constellation/' + encodeURIComponent(name))
+                    .then(function(r) { return r.json(); });
+            });
+
+            Promise.all(promises).then(function(results) {
+                // Build scenario JSON from TLE data
+                var entities = [];
+                for (var i = 0; i < results.length; i++) {
+                    var constData = results[i];
+                    var sats = constData.satellites || [];
+                    for (var j = 0; j < sats.length; j++) {
+                        var sat = sats[j];
+                        entities.push({
+                            id: 'tle_' + sat.norad,
+                            name: sat.name,
+                            type: 'satellite',
+                            team: 'neutral',
+                            vizCategory: constData.name,
+                            initialState: {},
+                            components: {
+                                physics: {
+                                    type: 'orbital_2body',
+                                    source: 'tle',
+                                    tle_line1: sat.line1,
+                                    tle_line2: sat.line2
+                                },
+                                visual: { type: 'satellite', pixelSize: 4, orbitPath: false, groundTrack: false, apPeMarkers: false }
+                            }
+                        });
+                    }
+                }
+
+                var scenario = {
+                    metadata: { name: 'TLE Catalog: ' + names.join(', '), version: '2.0' },
+                    environment: { maxTimeWarp: 10000 },
+                    entities: entities,
+                    camera: { mode: 'earth', range: 25000000 }
+                };
+
+                // Write to temp sim file via API
+                var blob = new Blob([JSON.stringify(scenario)], { type: 'application/json' });
+                fetch('/api/sim/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: '_tle_catalog', scenario: scenario })
+                }).then(function(resp) {
+                    return resp.json();
+                }).then(function(result) {
+                    if (result.error) throw new Error(result.error);
+                    statusEl.textContent = entities.length + ' satellites loaded from ' + names.length + ' constellation(s)';
+                    _selectedSimPath = result.path || 'sims/tle_catalog.sim';
+                    // Go to entity picker (which will show OBSERVE as primary option)
+                    loadScenarioForEntityPick(_selectedSimPath);
+                }).catch(function(err) {
+                    // Fallback: create in-memory scenario URL
+                    var url = URL.createObjectURL(blob);
+                    _selectedSimPath = url;
+                    statusEl.textContent = entities.length + ' satellites loaded';
+                    loadScenarioForEntityPick(_selectedSimPath);
+                });
+            }).catch(function(err) {
+                statusEl.innerHTML = '<span class="splash-error">Failed: ' + err.message + '</span>';
+            });
+        }
+
         // =====================================================================
         // Splash Step 2: Load scenario and show entity picker
         // =====================================================================
@@ -1311,9 +1648,13 @@
             var statusEl = document.getElementById('entityPickStatus');
             var listEl = document.getElementById('entityPickList');
             var launchBtn = document.getElementById('btnLaunchCockpit');
+            var toggleEl = document.getElementById('entityPickToggle');
+            var countEl = document.getElementById('entityPickCount');
 
             statusEl.textContent = 'Loading scenario...';
             listEl.innerHTML = '';
+            listEl.style.display = 'none';
+            toggleEl.style.display = 'none';
             launchBtn.disabled = true;
             _selectedPlayerId = null;
 
@@ -1345,13 +1686,36 @@
                         }
                     }
 
+                    // Enable observe button always when scenario loaded
+                    var observeBtn = document.getElementById('btnObserve');
+                    if (observeBtn) observeBtn.disabled = false;
+
+                    statusEl.textContent = entities.length + ' entities (' + controllable.length + ' controllable)';
+
                     if (controllable.length === 0) {
-                        statusEl.innerHTML = '<span class="splash-error">No controllable entities found (need flight3dof or orbital_2body physics)</span>';
                         return;
                     }
 
-                    statusEl.textContent = controllable.length + ' controllable, ' + others.length + ' AI/static';
+                    // Show the collapsible toggle for entity selection
+                    countEl.textContent = '(' + controllable.length + ')';
+                    toggleEl.style.display = 'block';
+
+                    // Render entities into the hidden list
                     renderEntityPicker(controllable, listEl, launchBtn);
+
+                    // Wire toggle click to expand/collapse
+                    toggleEl.onclick = function() {
+                        var open = listEl.style.display !== 'none';
+                        listEl.style.display = open ? 'none' : 'block';
+                        toggleEl.innerHTML = (open ? '&#9654;' : '&#9660;') +
+                            ' Select entity to control <span style="color:#888">' + countEl.textContent + '</span>';
+                    };
+
+                    // Auto-select and auto-expand if only one controllable
+                    if (controllable.length === 1) {
+                        listEl.style.display = 'block';
+                        toggleEl.innerHTML = '&#9660; Select entity to control <span style="color:#888">' + countEl.textContent + '</span>';
+                    }
                 })
                 .catch(function(err) {
                     statusEl.innerHTML = '<span class="splash-error">Failed to load: ' + err.message + '</span>';
@@ -1467,10 +1831,11 @@
 
             LiveSimEngine.init(_selectedSimPath, _selectedPlayerId, _viewer)
                 .then(function(info) {
-                    document.title = info.playerName + ' - Live Sim';
-                    document.getElementById('playerNameDisplay').textContent = info.playerName;
+                    var title = info.observerMode ? 'OBSERVER' : info.playerName;
+                    document.title = title + ' - Live Sim';
+                    document.getElementById('playerNameDisplay').textContent = title;
                     document.getElementById('loadingStatus').textContent =
-                        'Ready: ' + info.playerName + ' (' + info.entityCount + ' entities)';
+                        'Ready: ' + title + ' (' + info.entityCount + ' entities)';
 
                     return new Promise(function(r) { setTimeout(r, 400); });
                 })
@@ -1518,6 +1883,13 @@
             launchSim();
         });
 
+        // Observe button (no player)
+        document.getElementById('btnObserve').addEventListener('click', function() {
+            if (!_selectedSimPath) return;
+            _selectedPlayerId = '__observer__';
+            launchSim();
+        });
+
         // =====================================================================
         // Helpers
         // =====================================================================
@@ -1526,6 +1898,89 @@
             d.textContent = s;
             return d.innerHTML;
         }
+
+        // =====================================================================
+        // HUD Brightness Slider
+        // =====================================================================
+        (function initHudBrightness() {
+            var slider = document.getElementById('hudBrightness');
+            var valDisplay = document.getElementById('hudBrightnessVal');
+            var hudCanvas = document.getElementById('hudCanvas');
+            if (!slider || !hudCanvas) return;
+
+            // Restore from localStorage
+            var savedBrightness = localStorage.getItem('liveSimHudBrightness');
+            if (savedBrightness !== null) {
+                var val = parseInt(savedBrightness, 10);
+                if (val >= 30 && val <= 200) {
+                    slider.value = val;
+                    hudCanvas.style.opacity = val / 100;
+                    if (valDisplay) valDisplay.textContent = val + '%';
+                }
+            }
+
+            slider.addEventListener('input', function() {
+                var val = parseInt(slider.value, 10);
+                hudCanvas.style.opacity = val / 100;
+                if (valDisplay) valDisplay.textContent = val + '%';
+                localStorage.setItem('liveSimHudBrightness', String(val));
+            });
+        })();
+
+        // =====================================================================
+        // HUD All On / All Off Buttons
+        // =====================================================================
+        (function initHudToggleAll() {
+            var btnOn = document.getElementById('hudAllOn');
+            var btnOff = document.getElementById('hudAllOff');
+            if (!btnOn || !btnOff) return;
+
+            function setAllHud(state) {
+                var dropdown = document.getElementById('settingsDropdown');
+                if (!dropdown) return;
+                var items = dropdown.querySelectorAll('.settings-item[data-hud]');
+                for (var i = 0; i < items.length; i++) {
+                    var key = items[i].getAttribute('data-hud');
+                    if (!key) continue;
+                    // Update FighterHUD toggles
+                    if (typeof FighterHUD !== 'undefined' && FighterHUD.setToggle) {
+                        FighterHUD.setToggle(key, state);
+                    }
+                    // Update visual checkbox state
+                    if (state) {
+                        items[i].classList.add('active');
+                    } else {
+                        items[i].classList.remove('active');
+                    }
+                    var check = items[i].querySelector('.settings-check');
+                    if (check) check.innerHTML = state ? '&#10003;' : '';
+                }
+                // Save preferences via LiveSimEngine if available
+                if (typeof LiveSimEngine !== 'undefined' && LiveSimEngine._savePanelPrefs) {
+                    LiveSimEngine._savePanelPrefs();
+                }
+                // Fallback: save HUD toggles directly
+                try {
+                    var saved = localStorage.getItem('livesim_panels');
+                    if (saved) {
+                        var prefs = JSON.parse(saved);
+                        if (typeof FighterHUD !== 'undefined' && FighterHUD.getToggles) {
+                            prefs.hudToggles = FighterHUD.getToggles();
+                        }
+                        localStorage.setItem('livesim_panels', JSON.stringify(prefs));
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            btnOn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setAllHud(true);
+            });
+            btnOff.addEventListener('click', function(e) {
+                e.stopPropagation();
+                setAllHud(false);
+            });
+        })();
 
         // =====================================================================
         // Start

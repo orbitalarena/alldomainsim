@@ -121,6 +121,7 @@
             }
 
             this._pointEntity = viewer.entities.add(pointEntityOpts);
+            this._pointEntity._ecsEntityId = entity.id;
 
             // 2. Orbit path polyline
             if (cfg.orbitPath !== false) {
@@ -215,6 +216,12 @@
 
         update(dt, world) {
             this._frameCounter++;
+
+            // Per-entity visibility controls
+            var vizShow = this.entity.state._vizShow !== false;
+            if (this._pointEntity) this._pointEntity.show = vizShow;
+            if (this._orbitPathEntity) this._orbitPathEntity.show = vizShow && this.entity.state._vizOrbits !== false;
+            if (this._groundTrackEntity) this._groundTrackEntity.show = vizShow && this.entity.state._vizOrbits !== false;
 
             // Update model orientation from ECI velocity (every frame for smooth rotation)
             if (this.config.model) {

@@ -435,9 +435,17 @@ var MCPanel = (function() {
                 if (_cppEngineAvailable && _selectEngine) {
                     _selectEngine.value = 'cpp';  // Auto-select C++ if available
                 }
+                if (!_cppEngineAvailable && _statusText) {
+                    _statusText.textContent = 'C++ engine not found. Build with: cd build && cmake .. && ninja mc_engine';
+                    _statusText.style.color = '#ff8800';
+                }
             })
             .catch(function() {
                 _cppEngineAvailable = false;
+                if (_statusText) {
+                    _statusText.textContent = 'MC server not running. Start with: node mc_server.js';
+                    _statusText.style.color = '#ff4444';
+                }
             });
     }
 
@@ -467,7 +475,9 @@ var MCPanel = (function() {
         })
         .then(function(resp) {
             if (!resp.ok) {
-                return resp.json().then(function(d) {
+                return resp.json().catch(function() {
+                    throw new Error(resp.statusText || ('HTTP ' + resp.status));
+                }).then(function(d) {
                     throw new Error(d.error || ('HTTP ' + resp.status));
                 });
             }
@@ -618,6 +628,14 @@ var MCPanel = (function() {
     }
 
     function _onStart() {
+        // Check server availability for C++ engine
+        var engine = _selectEngine ? _selectEngine.value : 'js';
+        if (engine === 'cpp' && !_cppEngineAvailable) {
+            _statusText.textContent = 'MC server not running. Start it with: node mc_server.js';
+            _statusText.style.color = '#ff4444';
+            return;
+        }
+
         var numRuns = parseInt(_inputNumRuns.value, 10);
         var baseSeed = parseInt(_inputBaseSeed.value, 10);
         var maxSimTime = parseInt(_inputMaxTime.value, 10);

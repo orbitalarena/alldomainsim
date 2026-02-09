@@ -41,7 +41,7 @@ const TMP_DIR = os.tmpdir();
 const jobs = new Map();
 let jobCounter = 0;
 
-const JOB_CLEANUP_MS = 5 * 60 * 1000; // 5 minutes
+const JOB_CLEANUP_MS = 30 * 60 * 1000; // 30 minutes
 
 // ── Utility ──
 

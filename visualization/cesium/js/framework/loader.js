@@ -124,6 +124,7 @@ const ScenarioLoader = (function() {
 
         // Preserve original definition for runtime access (propulsion modes, _custom, etc.)
         entity.def = def;
+        entity.vizCategory = def.vizCategory || null;
 
         // Attach components from JSON
         const comps = def.components || {};
@@ -150,6 +151,25 @@ const ScenarioLoader = (function() {
             entity.addComponent(category, component);
         }
 
+
+        // Auto-add sensor footprint visual if entity has sensors defined in _custom
+        if (def._custom && def._custom.sensors) {
+            var hasSensors = false;
+            for (var sType in def._custom.sensors) {
+                if (def._custom.sensors[sType] && def._custom.sensors[sType].enabled) {
+                    hasSensors = true;
+                    break;
+                }
+            }
+            if (hasSensors && typeof ComponentRegistry !== 'undefined') {
+                try {
+                    var footprintComp = ComponentRegistry.create('visual', 'sensor_footprint', {
+                        sensors: def._custom.sensors
+                    });
+                    if (footprintComp) entity.addComponent('visual_sensor', footprintComp);
+                } catch (e) { /* sensor_footprint component may not be loaded */ }
+            }
+        }
         return entity;
     }
 

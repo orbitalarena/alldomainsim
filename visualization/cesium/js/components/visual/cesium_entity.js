@@ -142,6 +142,7 @@
             }
 
             this._cesiumEntity = viewer.entities.add(entityOpts);
+            this._cesiumEntity._ecsEntityId = entity.id;
 
             // Trail
             if (cfg.trail) {
@@ -212,6 +213,11 @@
 
         update(dt, world) {
             const state = this.entity.state;
+
+            // Per-entity visibility controls
+            var vizShow = this.entity.state._vizShow !== false;
+            if (this._cesiumEntity) this._cesiumEntity.show = vizShow;
+            if (this._trailEntity) this._trailEntity.show = vizShow && this.entity.state._vizTrails !== false;
 
             // Update cached position (avoids allocation in CallbackProperty)
             this._cachedPosition = Cesium.Cartesian3.fromRadians(

@@ -94,6 +94,106 @@ def sanitize_filename(name):
 
 MC_SERVER_PORT = 8001  # Port where mc_server.js runs
 
+# ──────────────────────────────────────────────────────────────────────
+# TLE Catalog — parse fullsatcat.txt once, group by constellation
+# ──────────────────────────────────────────────────────────────────────
+
+TLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'tles')
+
+CONSTELLATION_PREFIXES = [
+    ('STARLINK', 'STARLINK'),
+    ('ONEWEB', 'ONEWEB'),
+    ('IRIDIUM', 'IRIDIUM'),
+    ('NAVSTAR', 'GPS'),
+    ('GPS ', 'GPS'),
+    ('BEIDOU', 'BEIDOU'),
+    ('COSMOS', 'COSMOS'),
+    ('GLOBALSTAR', 'GLOBALSTAR'),
+    ('FLOCK', 'FLOCK'),
+    ('ORBCOMM', 'ORBCOMM'),
+    ('INTELSAT', 'INTELSAT'),
+    ('SES-', 'SES'),
+    ('GOES', 'GOES'),
+    ('GALILEO', 'GALILEO'),
+    ('O3B', 'O3B'),
+    ('HULIANWANG', 'HULIANWANG'),
+    ('LEMUR', 'LEMUR'),
+    ('SPACEBEE', 'SPACEBEE'),
+    ('YAOGAN', 'YAOGAN'),
+    ('JILIN', 'JILIN'),
+]
+
+_tle_cache = None  # { 'constellations': { name: [sat,...] }, 'summary': [...] }
+
+
+def _parse_tle_catalog():
+    """Parse fullsatcat.txt and group by constellation. Cached after first call."""
+    global _tle_cache
+    if _tle_cache is not None:
+        return _tle_cache
+
+    fullsat_path = os.path.join(TLES_DIR, 'fullsatcat.txt')
+    if not os.path.exists(fullsat_path):
+        _tle_cache = {'constellations': {}, 'summary': [], 'total': 0}
+        return _tle_cache
+
+    constellations = {}  # name -> [{ name, line1, line2, norad }]
+
+    with open(fullsat_path, 'r') as f:
+        lines = f.readlines()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+        # Look for 3-line format: name, line1 (starts with '1 '), line2 (starts with '2 ')
+        if (i + 2 < len(lines)
+                and lines[i + 1].startswith('1 ')
+                and lines[i + 2].startswith('2 ')):
+            sat_name = line.strip()
+            line1 = lines[i + 1].rstrip()
+            line2 = lines[i + 2].rstrip()
+
+            # Extract NORAD catalog number from line 1 (cols 2-7)
+            try:
+                norad = int(line1[2:7].strip())
+            except (ValueError, IndexError):
+                norad = 0
+
+            # Determine constellation
+            group = 'OTHER'
+            upper_name = sat_name.upper()
+            for prefix, group_name in CONSTELLATION_PREFIXES:
+                if upper_name.startswith(prefix):
+                    group = group_name
+                    break
+
+            if group not in constellations:
+                constellations[group] = []
+            constellations[group].append({
+                'name': sat_name,
+                'line1': line1,
+                'line2': line2,
+                'norad': norad,
+            })
+            i += 3
+        else:
+            i += 1
+
+    # Build summary sorted by count descending
+    total = sum(len(v) for v in constellations.values())
+    summary = sorted(
+        [{'name': k, 'count': len(v)} for k, v in constellations.items()],
+        key=lambda x: -x['count']
+    )
+
+    _tle_cache = {
+        'constellations': constellations,
+        'summary': summary,
+        'total': total,
+    }
+    print(f'  TLE catalog parsed: {total} satellites in {len(constellations)} groups')
+    return _tle_cache
+
 
 class BuilderHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
@@ -119,6 +219,10 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
             self._handle_sim_list()
         elif self.path == '/api/models/list':
             self._handle_models_list()
+        elif self.path == '/api/tle/catalog':
+            self._handle_tle_catalog()
+        elif self.path.startswith('/api/tle/constellation/'):
+            self._handle_tle_constellation()
         elif self.path.startswith('/api/mc/'):
             self._proxy_mc_get(self.path)
         else:
@@ -445,6 +549,41 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             self._json_response(500, {'error': str(e)})
 
+    def _handle_tle_catalog(self):
+        """Return TLE catalog summary (constellation names + counts)."""
+        try:
+            catalog = _parse_tle_catalog()
+            self._json_response(200, {
+                'totalSatellites': catalog['total'],
+                'constellations': catalog['summary'],
+            })
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
+    def _handle_tle_constellation(self):
+        """Return full TLE data for a single constellation."""
+        try:
+            # Extract constellation name from path: /api/tle/constellation/{name}
+            parts = self.path.split('/')
+            if len(parts) < 5:
+                self._json_response(400, {'error': 'Missing constellation name'})
+                return
+            name = urllib.request.unquote(parts[4]).upper()
+
+            catalog = _parse_tle_catalog()
+            sats = catalog['constellations'].get(name)
+            if sats is None:
+                self._json_response(404, {'error': f'Constellation not found: {name}'})
+                return
+
+            self._json_response(200, {
+                'name': name,
+                'count': len(sats),
+                'satellites': sats,
+            })
+        except Exception as e:
+            self._json_response(500, {'error': str(e)})
+
     def _json_response(self, code, data):
         body = json.dumps(data).encode('utf-8')
         self.send_response(code)
@@ -472,6 +611,7 @@ if __name__ == '__main__':
         print(f'  DIS Config:  GET/PUT /api/dis_config')
         print(f'  DIS Relay:   POST /api/dis_poll → UDP {DIS_CONFIG["multicastGroup"]}:{DIS_CONFIG["multicastPort"]}')
         print(f'  Sim Files:   POST /api/sim/save | GET /api/sim/list | DELETE /api/sim/delete/{{name}}')
+        print(f'  TLE Catalog: GET /api/tle/catalog | GET /api/tle/constellation/{{name}}')
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

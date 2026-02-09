@@ -689,6 +689,71 @@
             font-style: italic;
         }
 
+        /* Entity Tree Filter Bar */
+        .entity-tree-filter-bar {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            background: #0e1320;
+            border-bottom: 1px solid #1a2a44;
+            flex-shrink: 0;
+        }
+        .entity-tree-filter-bar .filter-input-wrap {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .entity-tree-filter-bar input {
+            width: 100%;
+            height: 26px;
+            padding: 2px 26px 2px 8px;
+            background: #141824;
+            border: 1px solid #2a3a5c;
+            border-radius: 3px;
+            color: #a0b4d8;
+            font-size: 11px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s ease;
+        }
+        .entity-tree-filter-bar input:focus {
+            border-color: #4a9eff;
+        }
+        .entity-tree-filter-bar input::placeholder {
+            color: #3a5070;
+        }
+        .entity-tree-filter-bar .filter-clear-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            border: none;
+            background: transparent;
+            color: #506880;
+            font-size: 13px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            line-height: 1;
+            padding: 0;
+        }
+        .entity-tree-filter-bar .filter-clear-btn:hover {
+            color: #a0b4d8;
+            background: rgba(74, 158, 255, 0.12);
+        }
+        .entity-tree-filter-bar .filter-match-count {
+            margin-left: 8px;
+            font-size: 10px;
+            color: #506880;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         /* Timeline (right half) */
         #timelineContainer {
             flex: 1;
@@ -1107,6 +1172,243 @@
         .sat-dialog-btn-confirm:hover {
             background: #0a5a0a;
         }
+        .sat-dialog-btn-confirm:disabled {
+            background: #1a1a1a;
+            color: #555;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+        .sat-dialog-validation {
+            margin-top: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            line-height: 1.5;
+            min-height: 18px;
+            border-radius: 4px;
+            background: transparent;
+        }
+        .sd-warning {
+            color: #ffaa44;
+        }
+        .sd-error {
+            color: #ff4444;
+        }
+
+        /* ================================================================
+           STYLED MODAL (replaces browser prompt/confirm)
+           ================================================================ */
+        .sb-modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 550;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .sb-modal {
+            background: #0d1a0d;
+            border: 1px solid #00aa00;
+            border-radius: 8px;
+            padding: 20px 24px;
+            min-width: 320px;
+            max-width: 420px;
+            color: #00ff00;
+            font-family: monospace;
+            box-shadow: 0 8px 32px rgba(0, 170, 0, 0.2);
+        }
+        .sb-modal-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 14px;
+            text-align: center;
+            color: #00ff00;
+            letter-spacing: 1px;
+        }
+        .sb-modal-body {
+            font-size: 13px;
+            color: #88cc88;
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+        .sb-modal-input {
+            width: 100%;
+            background: #1a2a1a;
+            border: 1px solid #334433;
+            border-radius: 3px;
+            color: #00ff00;
+            font-family: monospace;
+            font-size: 13px;
+            padding: 7px 10px;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        .sb-modal-input:focus {
+            border-color: #00ff00;
+        }
+        .sb-modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            justify-content: flex-end;
+        }
+        .sb-modal-btn {
+            padding: 7px 18px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #334433;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sb-modal-btn-cancel {
+            background: #1a1a1a;
+            color: #888;
+        }
+        .sb-modal-btn-cancel:hover {
+            background: #2a2a2a;
+            color: #aaa;
+        }
+        .sb-modal-btn-ok {
+            background: #0a3a0a;
+            color: #00ff00;
+            border-color: #00aa00;
+        }
+        .sb-modal-btn-ok:hover {
+            background: #0a5a0a;
+        }
+        .sb-modal-btn-danger {
+            background: #3a0a0a;
+            color: #ff4444;
+            border-color: #aa3333;
+        }
+        .sb-modal-btn-danger:hover {
+            background: #5a0a0a;
+        }
+        .sb-modal-warning {
+            color: #ffaa44;
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        /* ================================================================
+           AUTOSAVE RECOVERY BANNER
+           ================================================================ */
+        #autosaveBanner {
+            position: fixed;
+            top: 52px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 20, 0, 0.95);
+            border: 1px solid #00aa00;
+            border-radius: 6px;
+            padding: 12px 20px;
+            color: #00ff00;
+            font-family: monospace;
+            font-size: 13px;
+            z-index: 500;
+            display: none;
+            align-items: center;
+            gap: 14px;
+            box-shadow: 0 4px 20px rgba(0, 170, 0, 0.3);
+        }
+        #autosaveBanner .ab-text {
+            flex: 1;
+        }
+        #autosaveBanner .ab-time {
+            color: #88aa88;
+            font-size: 11px;
+        }
+        #autosaveBanner button {
+            padding: 5px 14px;
+            font-family: monospace;
+            font-size: 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 1px solid #334433;
+        }
+        #autosaveBanner .ab-restore {
+            background: #0a3a0a;
+            color: #00ff00;
+            border-color: #00aa00;
+        }
+        #autosaveBanner .ab-dismiss {
+            background: #1a1a1a;
+            color: #888;
+        }
+
+        /* ================================================================
+           EXPORT PROGRESS OVERLAY
+           ================================================================ */
+        #exportProgressOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 540;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .export-progress-box {
+            background: #0d1a0d;
+            border: 1px solid #00aa00;
+            border-radius: 8px;
+            padding: 24px 32px;
+            min-width: 300px;
+            text-align: center;
+            color: #00ff00;
+            font-family: monospace;
+        }
+        .export-progress-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+        .export-progress-bar-bg {
+            width: 100%;
+            height: 16px;
+            background: #1a2a1a;
+            border: 1px solid #334433;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .export-progress-bar {
+            height: 100%;
+            background: #00aa00;
+            width: 0%;
+            transition: width 0.1s;
+        }
+        .export-progress-label {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #88aa88;
+        }
+
+        /* ================================================================
+           VALIDATION REPORT (pre-flight)
+           ================================================================ */
+        .sb-validation-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 8px 0;
+            padding: 8px;
+            background: #0a140a;
+            border: 1px solid #223322;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .sb-val-error {
+            color: #ff4444;
+        }
+        .sb-val-warning {
+            color: #ffaa44;
+        }
+        .sb-val-ok {
+            color: #00cc00;
+        }
 
         /* ================================================================
            CURSOR COORDINATE READOUT
@@ -1292,6 +1594,31 @@
 <div id="messageOverlay"></div>
 
 <!-- ================================================================
+     AUTOSAVE RECOVERY BANNER
+     ================================================================ -->
+<div id="autosaveBanner">
+    <div>
+        <div class="ab-text">Unsaved scenario recovered</div>
+        <div class="ab-time" id="autosaveTime"></div>
+    </div>
+    <button class="ab-restore" id="autosaveRestore">Restore</button>
+    <button class="ab-dismiss" id="autosaveDismiss">Dismiss</button>
+</div>
+
+<!-- ================================================================
+     EXPORT PROGRESS OVERLAY
+     ================================================================ -->
+<div id="exportProgressOverlay">
+    <div class="export-progress-box">
+        <div class="export-progress-title" id="exportProgressTitle">EXPORTING MODEL</div>
+        <div class="export-progress-bar-bg">
+            <div class="export-progress-bar" id="exportProgressBar"></div>
+        </div>
+        <div class="export-progress-label" id="exportProgressLabel">Preparing...</div>
+    </div>
+</div>
+
+<!-- ================================================================
      HIDDEN FILE INPUTS
      ================================================================ -->
 <input type="file" id="fileInput" accept=".json">
@@ -1341,6 +1668,7 @@
             </div>
             <div class="toolbar-separator"></div>
             <button class="toolbar-btn" id="btnImportTLE" title="Import satellites from TLE file">Import TLE</button>
+            <button class="toolbar-btn" id="btnTLECatalog" title="Import from full satellite catalog">TLE Catalog</button>
             <button class="toolbar-btn" id="btnEvents" title="Edit scenario events (V)">Events</button>
             <button class="toolbar-btn primary" id="btnAddPlatform" title="Create custom platform template">+ Platform</button>
             <button class="toolbar-btn" id="btnEnvironment" title="Scenario environment settings">Environment</button>
@@ -1970,6 +2298,13 @@
                 <span>Type</span>
                 <span>Position</span>
             </div>
+            <div class="entity-tree-filter-bar" id="entityFilterBar">
+                <div class="filter-input-wrap">
+                    <input type="text" id="entityFilterInput" placeholder="Filter entities..." spellcheck="false" autocomplete="off">
+                    <button class="filter-clear-btn" id="entityFilterClear" title="Clear filter">&times;</button>
+                </div>
+                <span class="filter-match-count" id="entityFilterCount"></span>
+            </div>
             <div id="entityTreeTable">
                 <div class="tree-empty-msg" id="treeEmptyMsg">
                     No entities in scenario. Use the Object Palette to add entities.
@@ -2106,6 +2441,7 @@
 <script src="js/components/visual/satellite_visual.js"></script>
 <script src="js/components/visual/ground_station.js"></script>
 <script src="js/components/visual/radar_coverage.js"></script>
+<script src="js/components/visual/sensor_footprint.js"></script>
 
 <!-- Builder modules -->
 <script src="js/builder/orbital_arena.js"></script>

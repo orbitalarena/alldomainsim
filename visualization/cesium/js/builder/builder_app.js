@@ -29,6 +29,9 @@ const BuilderApp = (function() {
     var _scenarioName = 'Untitled Scenario';
     var _fpsFrames = [];             // rolling FPS tracker
     var _runHudInterval = null;      // run-mode HUD update interval
+    var _autosaveTimer = null;       // autosave interval handle
+    var _AUTOSAVE_KEY = 'scenarioBuilder_autosave';
+    var _AUTOSAVE_INTERVAL = 60000;  // 60 seconds
 
     // Team colors for build-mode point markers
     var _teamColors = {
@@ -160,6 +163,15 @@ const BuilderApp = (function() {
         _updateModeUI();
         _updateInspectorUI();
         _updateEntityListUI();
+
+        // Initialize entity tree filter bar
+        if (typeof EntityTree !== 'undefined') {
+            EntityTree.initFilter();
+        }
+
+        // Check for autosaved scenario and start autosave timer
+        _checkAutosave();
+        _startAutosave();
 
         // Dismiss loading overlay
         _dismissLoadingOverlay();
@@ -861,19 +873,21 @@ const BuilderApp = (function() {
      * On success, saves replay JSON and opens replay_viewer.html.
      */
     function _promptAndRunCppReplay(scenarioData) {
-        var durationStr = prompt('Simulation duration (seconds):', '600');
-        if (!durationStr) return;
-        var duration = parseFloat(durationStr);
-        if (isNaN(duration) || duration <= 0) {
-            showMessage('Invalid duration');
-            return;
-        }
+        _showPrompt('C++ Replay', 'Simulation duration (seconds):', '600').then(function(durationStr) {
+            var duration = parseFloat(durationStr);
+            if (isNaN(duration) || duration <= 0) {
+                showMessage('Invalid duration');
+                return;
+            }
+            return _showPrompt('C++ Replay', 'Random seed:', '42').then(function(seedStr) {
+                var seed = parseInt(seedStr, 10);
+                if (isNaN(seed) || seed < 0) seed = 42;
+                _runCppReplay(scenarioData, duration, seed);
+            });
+        }).catch(function() { /* cancelled */ });
+    }
 
-        var seedStr = prompt('Random seed:', '42');
-        if (seedStr === null) return;
-        var seed = parseInt(seedStr, 10);
-        if (isNaN(seed) || seed < 0) seed = 42;
-
+    function _runCppReplay(scenarioData, duration, seed) {
         showMessage('Starting C++ engine (' + duration + 's, seed ' + seed + ')...', 2000);
 
         var payload = {
@@ -1201,9 +1215,9 @@ const BuilderApp = (function() {
                 if (!_selectedEntityId) return;
                 var def = _findEntityDef(_selectedEntityId);
                 var name = def ? (def.name || def.id) : _selectedEntityId;
-                if (confirm('Delete entity "' + name + '"?')) {
-                    removeEntity(_selectedEntityId);
-                }
+                _showConfirm('Delete Entity', 'Delete entity "' + name + '"?', 'Delete', true).then(function(ok) {
+                    if (ok) removeEntity(_selectedEntityId);
+                });
             });
         }
     }
@@ -1299,49 +1313,77 @@ const BuilderApp = (function() {
             var menu = document.getElementById('exportDropdownMenu');
             if (menu) menu.classList.remove('open');
 
+            // Pre-flight validation
+            var valResult = _validateForRun(getScenarioData());
+            if (!valResult.ok || valResult.warnings.length > 0) {
+                _showValidationReport(valResult, 'Export Sim').then(function(proceed) {
+                    if (proceed) _doExportSim();
+                });
+            } else {
+                _doExportSim();
+            }
+        });
+
+        function _doExportSim() {
             ScenarioIO.exportToViewer(getScenarioData())
                 .then(function(result) {
                     showMessage('Exported Sim: ' + result.filename, 3000);
                     window.open(result.viewerUrl, '_blank');
                 })
                 .catch(function(err) {
-                    if (err.message !== 'Export cancelled') {
+                    if (err.message !== 'cancelled') {
                         showMessage('Export failed: ' + err.message);
                     }
                 });
-        });
+        }
 
         // Export Model — headless run → CZML rapid playback
         _bindButton('btnExportModel', function() {
             var menu = document.getElementById('exportDropdownMenu');
             if (menu) menu.classList.remove('open');
 
-            var durationStr = prompt('Simulation duration (seconds):', '600');
-            if (!durationStr) return;
-            var duration = parseFloat(durationStr);
-            if (isNaN(duration) || duration <= 0) {
-                showMessage('Invalid duration');
-                return;
+            // Pre-flight validation
+            var valResult = _validateForRun(getScenarioData());
+            if (!valResult.ok || valResult.warnings.length > 0) {
+                _showValidationReport(valResult, 'Export Model').then(function(proceed) {
+                    if (proceed) _doExportModel();
+                });
+            } else {
+                _doExportModel();
             }
-
-            showMessage('Running headless sim for ' + duration + 's...', 5000);
-
-            // Use setTimeout to allow message to display before blocking run
-            setTimeout(function() {
-                ScenarioIO.exportModel(getScenarioData(), _viewer, duration, 2)
-                    .then(function(result) {
-                        showMessage('Model exported: ' + result.entityCount + ' entities, ' +
-                                    result.duration + 's → ' + result.steps + ' samples', 4000);
-                        window.open(result.viewerUrl, '_blank');
-                    })
-                    .catch(function(err) {
-                        if (err.message !== 'Export cancelled') {
-                            showMessage('Model export failed: ' + err.message);
-                            console.error('Model export error:', err);
-                        }
-                    });
-            }, 100);
         });
+
+        function _doExportModel() {
+            _showPrompt('Export Model', 'Simulation duration (seconds):', '600').then(function(durationStr) {
+                var duration = parseFloat(durationStr);
+                if (isNaN(duration) || duration <= 0) {
+                    showMessage('Invalid duration');
+                    return;
+                }
+
+                _showExportProgress('EXPORTING MODEL');
+
+                // Use setTimeout to let progress overlay render
+                setTimeout(function() {
+                    ScenarioIO.exportModel(getScenarioData(), _viewer, duration, 2, function(pct, label) {
+                        _updateExportProgress(pct, label);
+                    })
+                        .then(function(result) {
+                            _hideExportProgress();
+                            showMessage('Model exported: ' + result.entityCount + ' entities, ' +
+                                        result.duration + 's → ' + result.steps + ' samples', 4000);
+                            window.open(result.viewerUrl, '_blank');
+                        })
+                        .catch(function(err) {
+                            _hideExportProgress();
+                            if (err.message !== 'cancelled') {
+                                showMessage('Model export failed: ' + err.message);
+                                console.error('Model export error:', err);
+                            }
+                        });
+                }, 50);
+            }).catch(function() { /* cancelled */ });
+        }
 
         // Export C++ Replay — run scenario in C++ engine and open replay viewer
         _bindButton('btnExportCppReplay', function() {
@@ -1349,8 +1391,11 @@ const BuilderApp = (function() {
             if (menu) menu.classList.remove('open');
 
             var scenarioData = getScenarioData();
-            if (!scenarioData || !scenarioData.entities || scenarioData.entities.length === 0) {
-                showMessage('No entities in scenario');
+
+            // Pre-flight validation
+            var valResult = _validateForRun(scenarioData);
+            if (!valResult.ok) {
+                _showValidationReport(valResult, 'C++ Replay');
                 return;
             }
 
@@ -1381,29 +1426,29 @@ const BuilderApp = (function() {
                 return;
             }
 
-            var durationStr = prompt('Simulation duration (seconds):', '600');
-            if (!durationStr) return;
-            var duration = parseFloat(durationStr);
-            if (isNaN(duration) || duration <= 0) {
-                showMessage('Invalid duration');
-                return;
-            }
+            _showPrompt('DIS Export', 'Simulation duration (seconds):', '600').then(function(durationStr) {
+                var duration = parseFloat(durationStr);
+                if (isNaN(duration) || duration <= 0) {
+                    showMessage('Invalid duration');
+                    return;
+                }
 
-            showMessage('Running headless DIS export for ' + duration + 's...', 5000);
+                showMessage('Running headless DIS export for ' + duration + 's...', 5000);
 
-            setTimeout(function() {
-                DISManager.exportBatch(getScenarioData(), _viewer, duration)
-                    .then(function(result) {
-                        showMessage('DIS exported: ' + result.pduCount + ' PDUs, ' +
-                                    (result.bytesTotal / 1024).toFixed(1) + ' KB → ' + result.filename, 4000);
-                    })
-                    .catch(function(err) {
-                        if (err.message !== 'Export cancelled') {
-                            showMessage('DIS export failed: ' + err.message);
-                            console.error('DIS export error:', err);
-                        }
-                    });
-            }, 100);
+                setTimeout(function() {
+                    DISManager.exportBatch(getScenarioData(), _viewer, duration)
+                        .then(function(result) {
+                            showMessage('DIS exported: ' + result.pduCount + ' PDUs, ' +
+                                        (result.bytesTotal / 1024).toFixed(1) + ' KB → ' + result.filename, 4000);
+                        })
+                        .catch(function(err) {
+                            if (err.message !== 'Export cancelled') {
+                                showMessage('DIS export failed: ' + err.message);
+                                console.error('DIS export error:', err);
+                            }
+                        });
+                }, 100);
+            }).catch(function() { /* cancelled */ });
         });
 
         // DIS streaming toggle
@@ -1469,6 +1514,12 @@ const BuilderApp = (function() {
                 if (err.message !== 'No file selected') {
                     showMessage('TLE import: ' + err.message);
                 }
+            });
+        });
+
+        _bindButton('btnTLECatalog', function() {
+            ScenarioIO.importTLECatalog().catch(function(err) {
+                showMessage('TLE catalog: ' + err.message);
             });
         });
 
@@ -1583,6 +1634,7 @@ const BuilderApp = (function() {
         _setButtonEnabled('btnSave', _mode === 'BUILD');
         _setButtonEnabled('btnExport', _mode === 'BUILD');
         _setButtonEnabled('btnImportTLE', _mode === 'BUILD');
+        _setButtonEnabled('btnTLECatalog', _mode === 'BUILD');
         _setButtonEnabled('btnEvents', _mode === 'BUILD');
         _setButtonEnabled('btnMonteCarlo', _mode === 'BUILD');
         _setButtonEnabled('btnDOE', _mode === 'BUILD');
@@ -1895,6 +1947,11 @@ const BuilderApp = (function() {
             var row = _createEntityRow(def);
             tableEl.appendChild(row);
         }
+
+        // Re-apply entity tree filter (preserves filter across rebuilds)
+        if (typeof EntityTree !== 'undefined' && EntityTree.applyFilter) {
+            EntityTree.applyFilter();
+        }
     }
 
     /**
@@ -2002,10 +2059,11 @@ const BuilderApp = (function() {
             if (_mode === 'BUILD' && (e.key === 'Delete' || e.key === 'Backspace')) {
                 if (_selectedEntityId) {
                     var def = _findEntityDef(_selectedEntityId);
-                    var name = def ? (def.name || def.id) : _selectedEntityId;
-                    if (confirm('Delete entity "' + name + '"?')) {
-                        removeEntity(_selectedEntityId);
-                    }
+                    var eName = def ? (def.name || def.id) : _selectedEntityId;
+                    var eid = _selectedEntityId;
+                    _showConfirm('Delete Entity', 'Delete entity "' + eName + '"?', 'Delete', true).then(function(ok) {
+                        if (ok) removeEntity(eid);
+                    });
                 }
                 return;
             }
@@ -2285,6 +2343,344 @@ const BuilderApp = (function() {
     }
 
     // -------------------------------------------------------------------
+    // Styled Modal (replaces browser prompt/confirm)
+    // -------------------------------------------------------------------
+
+    /**
+     * Show a styled prompt modal. Returns a Promise that resolves with
+     * the user's input string, or rejects if cancelled.
+     * @param {string} title     Modal title
+     * @param {string} label     Body text / label for the input
+     * @param {string} defaultVal Default value for the input field
+     * @returns {Promise<string>}
+     */
+    function _showPrompt(title, label, defaultVal) {
+        return new Promise(function(resolve, reject) {
+            var overlay = document.createElement('div');
+            overlay.className = 'sb-modal-overlay';
+
+            var html = '<div class="sb-modal">' +
+                '<div class="sb-modal-title">' + _escHtml(title) + '</div>' +
+                '<div class="sb-modal-body">' + _escHtml(label) + '</div>' +
+                '<input class="sb-modal-input" type="text" value="' + _escAttr(defaultVal || '') + '">' +
+                '<div class="sb-modal-buttons">' +
+                '<button class="sb-modal-btn sb-modal-btn-cancel">Cancel</button>' +
+                '<button class="sb-modal-btn sb-modal-btn-ok">OK</button>' +
+                '</div></div>';
+            overlay.innerHTML = html;
+            document.body.appendChild(overlay);
+
+            var input = overlay.querySelector('.sb-modal-input');
+            var btnOk = overlay.querySelector('.sb-modal-btn-ok');
+            var btnCancel = overlay.querySelector('.sb-modal-btn-cancel');
+
+            function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+            function doOk() { var v = input.value; cleanup(); resolve(v); }
+            function doCancel() { cleanup(); reject(new Error('cancelled')); }
+
+            btnOk.addEventListener('click', doOk);
+            btnCancel.addEventListener('click', doCancel);
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) doCancel(); });
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); doOk(); }
+                if (e.key === 'Escape') { e.preventDefault(); doCancel(); }
+            });
+
+            input.focus();
+            input.select();
+        });
+    }
+
+    /**
+     * Show a styled confirm modal. Returns a Promise that resolves to true
+     * (confirmed) or false (cancelled).
+     * @param {string} title   Modal title
+     * @param {string} message Body message
+     * @param {string} [okLabel]  Label for OK button (default "Delete")
+     * @param {boolean} [danger]  If true, OK button is red
+     * @returns {Promise<boolean>}
+     */
+    function _showConfirm(title, message, okLabel, danger) {
+        return new Promise(function(resolve) {
+            var overlay = document.createElement('div');
+            overlay.className = 'sb-modal-overlay';
+
+            var btnClass = danger ? 'sb-modal-btn-danger' : 'sb-modal-btn-ok';
+            var html = '<div class="sb-modal">' +
+                '<div class="sb-modal-title">' + _escHtml(title) + '</div>' +
+                '<div class="sb-modal-body">' + _escHtml(message) + '</div>' +
+                '<div class="sb-modal-buttons">' +
+                '<button class="sb-modal-btn sb-modal-btn-cancel">Cancel</button>' +
+                '<button class="sb-modal-btn ' + btnClass + '">' + _escHtml(okLabel || 'Delete') + '</button>' +
+                '</div></div>';
+            overlay.innerHTML = html;
+            document.body.appendChild(overlay);
+
+            var btnOk = overlay.querySelector('.' + btnClass);
+            var btnCancel = overlay.querySelector('.sb-modal-btn-cancel');
+
+            function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+
+            btnOk.addEventListener('click', function() { cleanup(); resolve(true); });
+            btnCancel.addEventListener('click', function() { cleanup(); resolve(false); });
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) { cleanup(); resolve(false); } });
+            document.addEventListener('keydown', function onKey(e) {
+                if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); cleanup(); resolve(false); }
+                if (e.key === 'Enter') { document.removeEventListener('keydown', onKey); cleanup(); resolve(true); }
+            });
+        });
+    }
+
+    function _escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function _escAttr(s) { return s.replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+    // -------------------------------------------------------------------
+    // Autosave System
+    // -------------------------------------------------------------------
+
+    function _startAutosave() {
+        if (_autosaveTimer) clearInterval(_autosaveTimer);
+        _autosaveTimer = setInterval(function() {
+            if (_mode !== 'BUILD') return;
+            if (!_scenarioData || !_scenarioData.entities || _scenarioData.entities.length === 0) return;
+            try {
+                var payload = JSON.stringify({
+                    timestamp: Date.now(),
+                    scenario: _scenarioData
+                });
+                localStorage.setItem(_AUTOSAVE_KEY, payload);
+            } catch (e) {
+                // localStorage full or unavailable — ignore
+            }
+        }, _AUTOSAVE_INTERVAL);
+    }
+
+    function _checkAutosave() {
+        try {
+            var raw = localStorage.getItem(_AUTOSAVE_KEY);
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            if (!data.scenario || !data.scenario.entities || data.scenario.entities.length === 0) return;
+
+            var banner = document.getElementById('autosaveBanner');
+            var timeEl = document.getElementById('autosaveTime');
+            var restoreBtn = document.getElementById('autosaveRestore');
+            var dismissBtn = document.getElementById('autosaveDismiss');
+            if (!banner) return;
+
+            // Show time
+            var age = Date.now() - data.timestamp;
+            var ageMin = Math.floor(age / 60000);
+            var ageStr;
+            if (ageMin < 1) ageStr = 'Just now';
+            else if (ageMin < 60) ageStr = ageMin + ' min ago';
+            else if (ageMin < 1440) ageStr = Math.floor(ageMin / 60) + 'h ago';
+            else ageStr = Math.floor(ageMin / 1440) + 'd ago';
+
+            var entCount = data.scenario.entities.length;
+            var scenName = (data.scenario.metadata && data.scenario.metadata.name) || 'Untitled';
+            if (timeEl) timeEl.textContent = '"' + scenName + '" — ' + entCount + ' entities — ' + ageStr;
+
+            banner.style.display = 'flex';
+
+            restoreBtn.addEventListener('click', function() {
+                banner.style.display = 'none';
+                setScenarioData(data.scenario);
+                showMessage('Scenario restored from autosave', 3000);
+                localStorage.removeItem(_AUTOSAVE_KEY);
+            });
+
+            dismissBtn.addEventListener('click', function() {
+                banner.style.display = 'none';
+                localStorage.removeItem(_AUTOSAVE_KEY);
+            });
+
+            // Auto-dismiss after 30 seconds
+            setTimeout(function() {
+                banner.style.display = 'none';
+            }, 30000);
+        } catch (e) {
+            // Corrupted autosave — remove it
+            localStorage.removeItem(_AUTOSAVE_KEY);
+        }
+    }
+
+    function _clearAutosave() {
+        try { localStorage.removeItem(_AUTOSAVE_KEY); } catch (e) { /* ignore */ }
+    }
+
+    // -------------------------------------------------------------------
+    // Pre-flight Validation
+    // -------------------------------------------------------------------
+
+    /**
+     * Validate scenario for simulation/export readiness.
+     * Returns { ok, errors[], warnings[] }.
+     */
+    function _validateForRun(scenarioData) {
+        var errors = [];
+        var warnings = [];
+
+        if (!scenarioData) {
+            errors.push('No scenario data');
+            return { ok: false, errors: errors, warnings: warnings };
+        }
+
+        var entities = scenarioData.entities || [];
+        if (entities.length === 0) {
+            errors.push('No entities in scenario');
+            return { ok: false, errors: errors, warnings: warnings };
+        }
+
+        var hasPhysics = false;
+        var teamCounts = {};
+
+        for (var i = 0; i < entities.length; i++) {
+            var ent = entities[i];
+            var label = ent.name || ent.id || ('index ' + i);
+
+            // Check required fields
+            if (!ent.id) errors.push('"' + label + '": missing entity id');
+            if (!ent.type) errors.push('"' + label + '": missing entity type');
+
+            // Check initialState
+            if (!ent.initialState || typeof ent.initialState !== 'object') {
+                errors.push('"' + label + '": missing initialState');
+            } else {
+                var s = ent.initialState;
+                if (s.lat === undefined && s.lon === undefined && s.alt === undefined) {
+                    errors.push('"' + label + '": no position (lat/lon/alt) set');
+                }
+                if (typeof s.lat === 'number' && (s.lat < -90 || s.lat > 90)) {
+                    errors.push('"' + label + '": latitude out of range [-90, 90]');
+                }
+                if (typeof s.alt === 'number' && s.alt < 0) {
+                    warnings.push('"' + label + '": negative altitude (' + s.alt.toFixed(0) + 'm)');
+                }
+            }
+
+            // Check physics component
+            if (ent.components && ent.components.physics) {
+                hasPhysics = true;
+                var phys = ent.components.physics;
+                if (phys.type === 'orbital_2body' && phys.source === 'tle') {
+                    if (!phys.tle_line1 || !phys.tle_line2) {
+                        errors.push('"' + label + '": TLE orbital entity missing TLE lines');
+                    }
+                }
+                if (phys.type === 'orbital_2body' && phys.source === 'coe') {
+                    if (phys.sma_km !== undefined && phys.sma_km < 6371) {
+                        errors.push('"' + label + '": SMA below Earth surface');
+                    }
+                }
+            }
+
+            // Team counts
+            var team = ent.team || 'neutral';
+            teamCounts[team] = (teamCounts[team] || 0) + 1;
+        }
+
+        if (!hasPhysics) {
+            warnings.push('No entities have physics components — nothing will move');
+        }
+
+        // Combat warnings
+        if (teamCounts.blue && teamCounts.red) {
+            // good — opposing teams
+        } else if (teamCounts.blue && !teamCounts.red) {
+            warnings.push('No red team entities — no combat will occur');
+        } else if (!teamCounts.blue && teamCounts.red) {
+            warnings.push('No blue team entities — no combat will occur');
+        }
+
+        return {
+            ok: errors.length === 0,
+            errors: errors,
+            warnings: warnings
+        };
+    }
+
+    /**
+     * Show validation results in a styled modal. Returns Promise<boolean>
+     * (true = user proceeds, false = user cancelled).
+     * If only warnings (no errors), user can proceed. If errors, blocks.
+     */
+    function _showValidationReport(result, actionLabel) {
+        return new Promise(function(resolve) {
+            var overlay = document.createElement('div');
+            overlay.className = 'sb-modal-overlay';
+
+            var title = result.ok ? 'VALIDATION PASSED' : 'VALIDATION ISSUES';
+            var bodyLines = '';
+
+            if (result.errors.length > 0) {
+                for (var i = 0; i < result.errors.length; i++) {
+                    bodyLines += '<div class="sb-val-error">&#x2716; ' + _escHtml(result.errors[i]) + '</div>';
+                }
+            }
+            if (result.warnings.length > 0) {
+                for (var j = 0; j < result.warnings.length; j++) {
+                    bodyLines += '<div class="sb-val-warning">&#x26A0; ' + _escHtml(result.warnings[j]) + '</div>';
+                }
+            }
+            if (result.errors.length === 0 && result.warnings.length === 0) {
+                bodyLines = '<div class="sb-val-ok">&#x2714; All checks passed</div>';
+            }
+
+            var canProceed = result.errors.length === 0;
+            var btnHtml = '<button class="sb-modal-btn sb-modal-btn-cancel">Cancel</button>';
+            if (canProceed) {
+                btnHtml += '<button class="sb-modal-btn sb-modal-btn-ok">' + _escHtml(actionLabel || 'Proceed') + '</button>';
+            }
+
+            var html = '<div class="sb-modal">' +
+                '<div class="sb-modal-title">' + title + '</div>' +
+                '<div class="sb-validation-list">' + bodyLines + '</div>' +
+                '<div class="sb-modal-buttons">' + btnHtml + '</div></div>';
+            overlay.innerHTML = html;
+            document.body.appendChild(overlay);
+
+            var btnOk = overlay.querySelector('.sb-modal-btn-ok');
+            var btnCancel = overlay.querySelector('.sb-modal-btn-cancel');
+
+            function cleanup() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+
+            if (btnOk) btnOk.addEventListener('click', function() { cleanup(); resolve(true); });
+            btnCancel.addEventListener('click', function() { cleanup(); resolve(false); });
+            overlay.addEventListener('click', function(e) { if (e.target === overlay) { cleanup(); resolve(false); } });
+        });
+    }
+
+    // -------------------------------------------------------------------
+    // Export Progress Indicator
+    // -------------------------------------------------------------------
+
+    function _showExportProgress(title) {
+        var overlay = document.getElementById('exportProgressOverlay');
+        if (overlay) {
+            overlay.style.display = 'flex';
+            var titleEl = document.getElementById('exportProgressTitle');
+            var bar = document.getElementById('exportProgressBar');
+            var label = document.getElementById('exportProgressLabel');
+            if (titleEl) titleEl.textContent = title || 'EXPORTING';
+            if (bar) bar.style.width = '0%';
+            if (label) label.textContent = 'Preparing...';
+        }
+    }
+
+    function _updateExportProgress(pct, labelText) {
+        var bar = document.getElementById('exportProgressBar');
+        var label = document.getElementById('exportProgressLabel');
+        if (bar) bar.style.width = Math.min(100, pct).toFixed(0) + '%';
+        if (label) label.textContent = labelText || (pct.toFixed(0) + '%');
+    }
+
+    function _hideExportProgress() {
+        var overlay = document.getElementById('exportProgressOverlay');
+        if (overlay) overlay.style.display = 'none';
+    }
+
+    // -------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------
     return {
@@ -2305,6 +2701,9 @@ const BuilderApp = (function() {
         switchMode: switchMode,
         newScenario: newScenario,
         showMessage: showMessage,
-        getScenarioName: getScenarioName
+        getScenarioName: getScenarioName,
+        showPrompt: _showPrompt,
+        showConfirm: _showConfirm,
+        validateForRun: _validateForRun
     };
 })();

@@ -18,6 +18,8 @@ const SatelliteDialog = (function() {
     var _dialog = null;
     var _fields = {};       // key -> input element
     var _displays = {};     // key -> span element
+    var _validationArea = null;  // validation message element
+    var _btnConfirm = null;      // confirm button reference
     var _resolvePromise = null;
     var _rejectPromise = null;
 
@@ -144,6 +146,11 @@ const SatelliteDialog = (function() {
 
         _dialog.appendChild(computed);
 
+        // Validation message area
+        _validationArea = document.createElement('div');
+        _validationArea.className = 'sat-dialog-validation';
+        _dialog.appendChild(_validationArea);
+
         // Buttons
         var btns = document.createElement('div');
         btns.className = 'sat-dialog-buttons';
@@ -154,11 +161,11 @@ const SatelliteDialog = (function() {
         btnCancel.addEventListener('click', _cancel);
         btns.appendChild(btnCancel);
 
-        var btnConfirm = document.createElement('button');
-        btnConfirm.className = 'sat-dialog-btn sat-dialog-btn-confirm';
-        btnConfirm.textContent = 'Place Satellite';
-        btnConfirm.addEventListener('click', _confirm);
-        btns.appendChild(btnConfirm);
+        _btnConfirm = document.createElement('button');
+        _btnConfirm.className = 'sat-dialog-btn sat-dialog-btn-confirm';
+        _btnConfirm.textContent = 'Place Satellite';
+        _btnConfirm.addEventListener('click', _confirm);
+        btns.appendChild(_btnConfirm);
 
         _dialog.appendChild(btns);
 
@@ -216,7 +223,125 @@ const SatelliteDialog = (function() {
     }
 
     /**
+     * Normalize an angle value to [0, 360) degrees.
+     * @param {HTMLInputElement} field  The input element to normalize
+     */
+    function _normalizeAngle(field) {
+        var val = parseFloat(field.value);
+        if (isNaN(val)) return;
+        var normalized = ((val % 360) + 360) % 360;
+        if (normalized !== val) {
+            field.value = normalized;
+        }
+    }
+
+    /**
+     * Validate all COE fields.
+     * @returns {{ errors: string[], warnings: string[] }}
+     */
+    function _validateFields() {
+        var errors = [];
+        var warnings = [];
+
+        var sma_km   = parseFloat(_fields.sma_km.value);
+        var ecc      = parseFloat(_fields.ecc.value);
+        var inc_deg  = parseFloat(_fields.inc_deg.value);
+        var raan_deg = parseFloat(_fields.raan_deg.value);
+        var argPe_deg = parseFloat(_fields.argPe_deg.value);
+        var ma_deg   = parseFloat(_fields.meanAnom_deg.value);
+
+        // NaN checks
+        if (isNaN(sma_km))   { errors.push('SMA: Invalid number'); }
+        if (isNaN(ecc))      { errors.push('Eccentricity: Invalid number'); }
+        if (isNaN(inc_deg))  { errors.push('Inclination: Invalid number'); }
+        if (isNaN(raan_deg)) { errors.push('RAAN: Invalid number'); }
+        if (isNaN(argPe_deg)){ errors.push('Arg of Perigee: Invalid number'); }
+        if (isNaN(ma_deg))   { errors.push('Mean Anomaly: Invalid number'); }
+
+        // SMA validation
+        if (!isNaN(sma_km)) {
+            if (sma_km <= R_EARTH_KM) {
+                errors.push('SMA must be > ' + R_EARTH_KM + ' km (Earth radius)');
+            }
+        }
+
+        // Eccentricity validation
+        if (!isNaN(ecc)) {
+            if (ecc < 0) {
+                errors.push('Eccentricity must be >= 0');
+            } else if (ecc >= 1.0) {
+                errors.push('Eccentricity >= 1.0 (hyperbolic/parabolic, not a closed orbit)');
+            } else if (ecc >= 0.99) {
+                warnings.push('Eccentricity >= 0.99 (near-escape, may cause instability)');
+            } else if (ecc > 0.95) {
+                warnings.push('Eccentricity > 0.95 (highly eccentric, near-escape regime)');
+            }
+        }
+
+        // Inclination validation
+        if (!isNaN(inc_deg)) {
+            if (inc_deg < 0 || inc_deg > 180) {
+                errors.push('Inclination must be 0-180\u00B0');
+            }
+        }
+
+        // Periapsis below surface check (warning, not error)
+        if (!isNaN(sma_km) && !isNaN(ecc) && sma_km > R_EARTH_KM && ecc >= 0 && ecc < 1.0) {
+            var periapsis_km = sma_km * (1 - ecc);
+            if (periapsis_km < R_EARTH_KM) {
+                warnings.push('Periapsis below surface (' + (periapsis_km - R_EARTH_KM).toFixed(1) + ' km alt)');
+            }
+        }
+
+        // Normalize angle fields (auto-wrap, not errors)
+        _normalizeAngle(_fields.raan_deg);
+        _normalizeAngle(_fields.argPe_deg);
+        _normalizeAngle(_fields.meanAnom_deg);
+
+        return { errors: errors, warnings: warnings };
+    }
+
+    /**
+     * Display validation messages and enable/disable confirm button.
+     * @param {{ errors: string[], warnings: string[] }} result
+     */
+    function _showValidation(result) {
+        var html = '';
+        for (var i = 0; i < result.errors.length; i++) {
+            html += '<div class="sd-error">\u2716 ' + result.errors[i] + '</div>';
+        }
+        for (var j = 0; j < result.warnings.length; j++) {
+            html += '<div class="sd-warning">\u26A0 ' + result.warnings[j] + '</div>';
+        }
+        _validationArea.innerHTML = html;
+
+        // Disable confirm on errors only (warnings still allow confirm)
+        if (_btnConfirm) {
+            _btnConfirm.disabled = result.errors.length > 0;
+        }
+
+        // Reset all field borders, then highlight fields with errors
+        _fields.sma_km.style.borderColor = '';
+        _fields.ecc.style.borderColor = '';
+        _fields.inc_deg.style.borderColor = '';
+        _fields.raan_deg.style.borderColor = '';
+        _fields.argPe_deg.style.borderColor = '';
+        _fields.meanAnom_deg.style.borderColor = '';
+
+        for (var k = 0; k < result.errors.length; k++) {
+            var msg = result.errors[k];
+            if (msg.indexOf('SMA') !== -1) _fields.sma_km.style.borderColor = '#ff4444';
+            if (msg.indexOf('Eccentricity') !== -1) _fields.ecc.style.borderColor = '#ff4444';
+            if (msg.indexOf('Inclination') !== -1) _fields.inc_deg.style.borderColor = '#ff4444';
+            if (msg.indexOf('RAAN') !== -1) _fields.raan_deg.style.borderColor = '#ff4444';
+            if (msg.indexOf('Arg of Perigee') !== -1) _fields.argPe_deg.style.borderColor = '#ff4444';
+            if (msg.indexOf('Mean Anomaly') !== -1) _fields.meanAnom_deg.style.borderColor = '#ff4444';
+        }
+    }
+
+    /**
      * Update computed periapsis, apoapsis, and period display.
+     * Also runs validation.
      */
     function _updateComputed() {
         var sma_km = parseFloat(_fields.sma_km.value) || 0;
@@ -226,6 +351,9 @@ const SatelliteDialog = (function() {
             _displays.periapsis.textContent = '--';
             _displays.apoapsis.textContent = '--';
             _displays.period.textContent = '--';
+            // Still run validation to show error messages
+            var result = _validateFields();
+            _showValidation(result);
             return;
         }
 
@@ -235,7 +363,10 @@ const SatelliteDialog = (function() {
         _displays.periapsis.textContent = periapsis_km.toFixed(1) + ' km';
         _displays.apoapsis.textContent = apoapsis_km.toFixed(1) + ' km';
 
-        // Period: T = 2π √(a³/μ)
+        // Color periapsis red if below surface
+        _displays.periapsis.style.color = periapsis_km < 0 ? '#ff4444' : '#00cc00';
+
+        // Period: T = 2pi sqrt(a^3/mu)
         var sma_m = sma_km * 1000;
         var period_s = 2 * Math.PI * Math.sqrt(sma_m * sma_m * sma_m / MU_EARTH);
         var period_min = period_s / 60;
@@ -246,21 +377,26 @@ const SatelliteDialog = (function() {
             var hours = period_min / 60;
             _displays.period.textContent = hours.toFixed(2) + ' hr';
         }
+
+        // Run validation
+        var result = _validateFields();
+        _showValidation(result);
     }
 
     function _confirm() {
+        // Run validation one final time
+        var validation = _validateFields();
+        if (validation.errors.length > 0) {
+            _showValidation(validation);
+            return;
+        }
+
         var sma_km = parseFloat(_fields.sma_km.value);
         var ecc    = parseFloat(_fields.ecc.value);
         var inc    = parseFloat(_fields.inc_deg.value);
         var raan   = parseFloat(_fields.raan_deg.value);
         var argPe  = parseFloat(_fields.argPe_deg.value);
         var ma     = parseFloat(_fields.meanAnom_deg.value);
-
-        if (isNaN(sma_km) || sma_km <= R_EARTH_KM) {
-            _fields.sma_km.style.borderColor = '#ff4444';
-            return;
-        }
-        _fields.sma_km.style.borderColor = '';
 
         var result = {
             sma: sma_km * 1000,    // convert to meters

@@ -672,6 +672,34 @@ var DOEPanel = (function() {
     }
 
     // -------------------------------------------------------------------
+    // Server Connectivity Check
+    // -------------------------------------------------------------------
+
+    var _serverAvailable = false;
+
+    /**
+     * Ping the MC server and update status display if unavailable.
+     */
+    function _checkServerAvailability() {
+        fetch('/api/mc/status')
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                _serverAvailable = data.ready === true;
+                if (!_serverAvailable && _statusText) {
+                    _statusText.textContent = 'C++ engine not found. Build with: cd build && cmake .. && ninja mc_engine';
+                    _statusText.style.color = '#ffcc00';
+                }
+            })
+            .catch(function() {
+                _serverAvailable = false;
+                if (_statusText) {
+                    _statusText.textContent = 'MC server not running. Start with: node mc_server.js';
+                    _statusText.style.color = '#ff4444';
+                }
+            });
+    }
+
+    // -------------------------------------------------------------------
     // Execution
     // -------------------------------------------------------------------
 
@@ -700,6 +728,15 @@ var DOEPanel = (function() {
      * Start the DOE sweep.
      */
     function _startDOE() {
+        // Check server availability before starting
+        if (!_serverAvailable) {
+            if (_statusText) {
+                _statusText.textContent = 'MC server not running. Start it with: node mc_server.js';
+                _statusText.style.color = '#ff4444';
+            }
+            return;
+        }
+
         var seed    = parseInt(_inputSeed.value, 10);
         var maxTime = parseInt(_inputMaxTime.value, 10);
 
@@ -760,7 +797,9 @@ var DOEPanel = (function() {
         })
         .then(function(resp) {
             if (!resp.ok) {
-                return resp.json().then(function(d) {
+                return resp.json().catch(function() {
+                    throw new Error(resp.statusText || ('HTTP ' + resp.status));
+                }).then(function(d) {
                     throw new Error(d.error || ('HTTP ' + resp.status));
                 });
             }
@@ -915,6 +954,9 @@ var DOEPanel = (function() {
 
         // Refresh permutation count
         _updatePermutationCount();
+
+        // Check MC server connectivity
+        _checkServerAvailability();
 
         _overlay.style.display = 'block';
         _modal.style.display = 'block';
