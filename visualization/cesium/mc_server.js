@@ -242,13 +242,18 @@ function generateArenaScenario(config) {
         return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     }
 
+    // Support smaKm (km from DOE panel) or sma (meters from direct config)
+    const smaFromKm = config.smaKm ? config.smaKm * 1000 : null;
     const c = {
         hvaPerSide: config.hvaPerSide || 0,
         defendersPerSide: config.defendersPerSide || 0,
         attackersPerSide: config.attackersPerSide || 0,
         escortsPerSide: config.escortsPerSide || 0,
         sweepsPerSide: config.sweepsPerSide || 0,
-        sma: config.sma || GEO_SMA,
+        sma: smaFromKm || config.sma || GEO_SMA,
+        inc: config.incDeg !== undefined ? config.incDeg : (config.inc || 0.001),
+        engRangeKm: config.engRangeKm || 0,
+        weaponType: config.weaponType || 'kkv',
         Pk: config.Pk !== undefined ? config.Pk : 0.7,
         maxAccel: config.maxAccel || 50.0,
         sensorRange: config.sensorRange || 1000000,
@@ -264,20 +269,29 @@ function generateArenaScenario(config) {
         return '' + n;
     }
 
+    // Compute altitude and speed from SMA
+    const actualAlt = c.sma - 6378000;  // altitude above surface
+    const actualSpeed = Math.sqrt(3.986004418e14 / c.sma); // circular orbit speed
+    const incRad = c.inc * Math.PI / 180;  // inclination in radians (for entity state)
+
     function makeEntity(id, name, team, role, ma, assignedHvaId) {
         ma = ((ma % 360) + 360) % 360;
         let lon = ma > 180 ? ma - 360 : ma;
+
+        // If engRangeKm > 0, offset red team by that angular distance from blue team
+        // This is handled at the caller level by shifting mean anomalies
+
         const ent = {
             id, name, type: 'satellite', team,
             initialState: {
-                lat: 0, lon, alt: GEO_ALT, speed: GEO_SPEED,
+                lat: 0, lon, alt: actualAlt, speed: actualSpeed,
                 heading: 90, gamma: 0, throttle: 0, engineOn: false,
                 gearDown: false, infiniteFuel: true
             },
             components: {
                 physics: {
                     type: 'orbital_2body', source: 'elements',
-                    sma: c.sma, ecc: 0.0001, inc: 0.001,
+                    sma: c.sma, ecc: 0.0001, inc: c.inc,
                     raan: 0, argPerigee: 0, meanAnomaly: ma
                 },
                 ai: {
@@ -290,9 +304,23 @@ function generateArenaScenario(config) {
         };
         if (assignedHvaId) ent.components.ai.assignedHvaId = assignedHvaId;
         if (role !== 'hva') {
-            ent.components.weapons = {
-                type: 'kinetic_kill', Pk: c.Pk, killRange: c.killRange, cooldown: 5.0
-            };
+            // Weapon type selection from DOE parameter
+            if (c.weaponType === 'a2a') {
+                ent.components.weapons = {
+                    type: 'a2a_missile', Pk: c.Pk, maxRange: c.killRange, cooldown: 5.0,
+                    inventory: 4
+                };
+            } else if (c.weaponType === 'sam') {
+                ent.components.weapons = {
+                    type: 'sam_battery', Pk: c.Pk, maxRange: c.killRange, cooldown: 5.0,
+                    salvoSize: 2
+                };
+            } else {
+                // Default: KKV
+                ent.components.weapons = {
+                    type: 'kinetic_kill', Pk: c.Pk, killRange: c.killRange, cooldown: 5.0
+                };
+            }
         }
         return ent;
     }
@@ -300,14 +328,25 @@ function generateArenaScenario(config) {
     const entities = [];
     const hvaIds = { blue: [], red: [] };
 
+    // Engagement range: angular separation (degrees) between blue and red clusters
+    // engRangeKm is the separation distance in km. Convert to angular separation at SMA altitude.
+    // arc length = angle(rad) * sma => angle(deg) = (dist_m / sma) * (180/PI)
+    let engOffsetDeg = 0;
+    if (c.engRangeKm > 0) {
+        engOffsetDeg = (c.engRangeKm * 1000 / c.sma) * (180 / Math.PI);
+    }
+
+    // Blue entities are centered around 0-180 deg, red entities offset by engOffsetDeg
     // HVAs
     for (let i = 0; i < c.hvaPerSide; i++) {
         const bid = 'blue-hva-' + pad(i + 1);
         const rid = 'red-hva-' + pad(i + 1);
         hvaIds.blue.push(bid);
         hvaIds.red.push(rid);
-        entities.push(makeEntity(bid, 'Blue-HVA-' + pad(i + 1), 'blue', 'hva', rand() * 360, null));
-        entities.push(makeEntity(rid, 'Red-HVA-' + pad(i + 1), 'red', 'hva', rand() * 360, null));
+        const blueMa = rand() * 180;  // blue in 0-180 range
+        const redMa = blueMa + 180 + engOffsetDeg + (rand() - 0.5) * 20;  // red opposite + offset
+        entities.push(makeEntity(bid, 'Blue-HVA-' + pad(i + 1), 'blue', 'hva', blueMa, null));
+        entities.push(makeEntity(rid, 'Red-HVA-' + pad(i + 1), 'red', 'hva', redMa, null));
     }
 
     // Defenders (near assigned HVA)
@@ -316,28 +355,35 @@ function generateArenaScenario(config) {
         const rHva = hvaIds.red.length > 0 ? hvaIds.red[d % hvaIds.red.length] : null;
         const bHvEnt = bHva ? entities.find(e => e.id === bHva) : null;
         const rHvEnt = rHva ? entities.find(e => e.id === rHva) : null;
-        const bma = bHvEnt ? bHvEnt.components.physics.meanAnomaly + (rand() - 0.5) * 10 : rand() * 360;
-        const rma = rHvEnt ? rHvEnt.components.physics.meanAnomaly + (rand() - 0.5) * 10 : rand() * 360;
+        const bma = bHvEnt ? bHvEnt.components.physics.meanAnomaly + (rand() - 0.5) * 10 : rand() * 180;
+        const rma = rHvEnt ? rHvEnt.components.physics.meanAnomaly + (rand() - 0.5) * 10 :
+            rand() * 180 + 180 + engOffsetDeg;
         entities.push(makeEntity('blue-def-' + pad(d + 1), 'Blue-DEF-' + pad(d + 1), 'blue', 'defender', bma, bHva));
         entities.push(makeEntity('red-def-' + pad(d + 1), 'Red-DEF-' + pad(d + 1), 'red', 'defender', rma, rHva));
     }
 
     // Attackers
     for (let a = 0; a < c.attackersPerSide; a++) {
-        entities.push(makeEntity('blue-atk-' + pad(a + 1), 'Blue-ATK-' + pad(a + 1), 'blue', 'attacker', rand() * 360, null));
-        entities.push(makeEntity('red-atk-' + pad(a + 1), 'Red-ATK-' + pad(a + 1), 'red', 'attacker', rand() * 360, null));
+        const blueMa = rand() * 180;
+        const redMa = blueMa + 180 + engOffsetDeg + (rand() - 0.5) * 20;
+        entities.push(makeEntity('blue-atk-' + pad(a + 1), 'Blue-ATK-' + pad(a + 1), 'blue', 'attacker', blueMa, null));
+        entities.push(makeEntity('red-atk-' + pad(a + 1), 'Red-ATK-' + pad(a + 1), 'red', 'attacker', redMa, null));
     }
 
     // Escorts
     for (let e = 0; e < c.escortsPerSide; e++) {
-        entities.push(makeEntity('blue-esc-' + pad(e + 1), 'Blue-ESC-' + pad(e + 1), 'blue', 'escort', rand() * 360, null));
-        entities.push(makeEntity('red-esc-' + pad(e + 1), 'Red-ESC-' + pad(e + 1), 'red', 'escort', rand() * 360, null));
+        const blueMa = rand() * 180;
+        const redMa = blueMa + 180 + engOffsetDeg + (rand() - 0.5) * 20;
+        entities.push(makeEntity('blue-esc-' + pad(e + 1), 'Blue-ESC-' + pad(e + 1), 'blue', 'escort', blueMa, null));
+        entities.push(makeEntity('red-esc-' + pad(e + 1), 'Red-ESC-' + pad(e + 1), 'red', 'escort', redMa, null));
     }
 
     // Sweeps
     for (let s = 0; s < c.sweepsPerSide; s++) {
-        entities.push(makeEntity('blue-swp-' + pad(s + 1), 'Blue-SWP-' + pad(s + 1), 'blue', 'sweep', rand() * 360, null));
-        entities.push(makeEntity('red-swp-' + pad(s + 1), 'Red-SWP-' + pad(s + 1), 'red', 'sweep', rand() * 360, null));
+        const blueMa = rand() * 180;
+        const redMa = blueMa + 180 + engOffsetDeg + (rand() - 0.5) * 20;
+        entities.push(makeEntity('blue-swp-' + pad(s + 1), 'Blue-SWP-' + pad(s + 1), 'blue', 'sweep', blueMa, null));
+        entities.push(makeEntity('red-swp-' + pad(s + 1), 'Red-SWP-' + pad(s + 1), 'red', 'sweep', redMa, null));
     }
 
     return {
@@ -436,15 +482,22 @@ function startDOEJob(permutations, seed, maxTime, arenaConfig) {
                 try { fs.unlinkSync(outputFile); } catch {}
             }
 
-            permResults.push({
-                permId: index,
-                config: {
+            var permConfig = {
                     hvaPerSide: perm.hvaPerSide,
                     defendersPerSide: perm.defendersPerSide,
                     attackersPerSide: perm.attackersPerSide,
                     escortsPerSide: perm.escortsPerSide,
                     sweepsPerSide: perm.sweepsPerSide
-                },
+                };
+            // Include advanced DOE parameters if present
+            if (perm.smaKm !== undefined) permConfig.smaKm = perm.smaKm;
+            if (perm.incDeg !== undefined) permConfig.incDeg = perm.incDeg;
+            if (perm.engRangeKm !== undefined) permConfig.engRangeKm = perm.engRangeKm;
+            if (perm.weaponType !== undefined) permConfig.weaponType = perm.weaponType;
+
+            permResults.push({
+                permId: index,
+                config: permConfig,
                 results: result
             });
 

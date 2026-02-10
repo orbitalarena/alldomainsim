@@ -142,6 +142,8 @@ const LiveSimEngine = (function() {
     let _orbitPolyline = null;
     let _eciOrbitPolyline = null;
     let _predictedOrbitPolyline = null;
+    let _predictedGroundTrackEntity = null;
+    let _predictedGroundTrackPositions = [];
     let _apMarker = null;
     let _peMarker = null;
     let _anMarker = null;
@@ -150,6 +152,7 @@ const LiveSimEngine = (function() {
     // Display toggles (persisted in localStorage)
     let _showEciOrbit = false;
     let _showEcefOrbit = true;
+    let _showPredictedGroundTrack = true;
     let _orbitRevs = 1;
     let _showTrail = true;
     let _trailDurationSec = 0;  // 0 = infinite
@@ -241,6 +244,7 @@ const LiveSimEngine = (function() {
             }
             _playerTrail.length = 0;
             _playerGroundTrack.length = 0;
+            _predictedGroundTrackPositions.length = 0;
             // Restart render loop
             _viewer.useDefaultRenderLoop = false;
             setTimeout(function() {
@@ -290,6 +294,9 @@ const LiveSimEngine = (function() {
             _initAnalyticsPanel();
             _setupEntityPicker();
             _buildVizGroups();
+
+            // Init entity hover tooltip
+            if (typeof EntityTooltip !== 'undefined') EntityTooltip.init(_viewer, _world);
 
             // Start in earth camera mode
             _cameraMode = 'earth';
@@ -346,6 +353,9 @@ const LiveSimEngine = (function() {
             _setupEntityPicker();
             _buildVizGroups();
 
+            // Init entity hover tooltip
+            if (typeof EntityTooltip !== 'undefined') EntityTooltip.init(_viewer, _world);
+
             // 10. Position camera on player
             _positionInitialCamera();
 
@@ -382,6 +392,7 @@ const LiveSimEngine = (function() {
         }
         if (typeof EWSystem !== 'undefined') EWSystem.init();
         if (typeof Minimap !== 'undefined') Minimap.init(document.getElementById('minimapCanvas'));
+        if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.init(_world, viewer);
 
         _started = true;
         _lastTickTime = null;
@@ -1298,6 +1309,21 @@ const LiveSimEngine = (function() {
                 width: 1,
                 material: Cesium.Color.CYAN.withAlpha(0.25),
                 clampToGround: true,
+            },
+        });
+
+        // Predicted ground track polyline (projected future orbit onto surface)
+        _predictedGroundTrackEntity = _viewer.entities.add({
+            name: 'Predicted Ground Track',
+            polyline: {
+                positions: new Cesium.CallbackProperty(function() {
+                    return _showPredictedGroundTrack ? _predictedGroundTrackPositions : [];
+                }, false),
+                width: 1.5,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.YELLOW.withAlpha(0.4),
+                    dashLength: 16,
+                }),
             },
         });
 
@@ -4001,6 +4027,7 @@ const LiveSimEngine = (function() {
             // Update UI
             _updateTimeDisplay();
             _updateEntityListPanel();
+            if (typeof EntityTooltip !== 'undefined') EntityTooltip.update();
 
             // Analytics
             _recordAnalyticsSnapshot();
@@ -4012,6 +4039,7 @@ const LiveSimEngine = (function() {
 
             // Minimap (observer mode)
             if (typeof Minimap !== 'undefined' && Minimap.isVisible()) Minimap.update(null, _world, _simElapsed);
+            if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.update(_world, _simElapsed);
             return;
         }
         if (!_playerState) return;
@@ -4138,6 +4166,29 @@ const LiveSimEngine = (function() {
                 if (SpaceplaneOrbital.eciOrbitPositions) {
                     SpaceplaneOrbital.eciOrbitPositions.length = 0;
                 }
+            }
+        }
+
+        // 5b. Update predicted ground track (throttled to every 120 frames ~ 2 seconds)
+        if (_trailCounter % 120 === 0 && _showPredictedGroundTrack && typeof SpaceplaneOrbital !== 'undefined') {
+            if (_playerState.alt > 80000 && SpaceplaneOrbital.currentOrbitPositions && SpaceplaneOrbital.currentOrbitPositions.length > 0) {
+                var orbitPts = SpaceplaneOrbital.currentOrbitPositions;
+                var groundPts = [];
+                for (var gi = 0; gi < orbitPts.length; gi++) {
+                    var cart = orbitPts[gi];
+                    if (!cart) continue;
+                    try {
+                        var carto = Cesium.Cartographic.fromCartesian(cart);
+                        if (carto && isFinite(carto.longitude) && isFinite(carto.latitude)) {
+                            groundPts.push(Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, 100));
+                        }
+                    } catch (e) {
+                        // Skip invalid points
+                    }
+                }
+                _predictedGroundTrackPositions = groundPts;
+            } else {
+                _predictedGroundTrackPositions = [];
             }
         }
 
@@ -4277,10 +4328,20 @@ const LiveSimEngine = (function() {
         _updateOrbitalPanel();
         _updateTimeDisplay();
         _updateEntityListPanel();
+        if (typeof EntityTooltip !== 'undefined') EntityTooltip.update();
 
         // Analytics
         _recordAnalyticsSnapshot();
         _refreshAnalyticsIfOpen();
+
+        // Minimap (player mode)
+        if (typeof Minimap !== 'undefined' && Minimap.isVisible()) {
+            // Tag player state with entity ID so minimap can skip player in entity list
+            if (_playerEntity) _playerState._entityId = _playerEntity.id;
+            Minimap.update(_playerState, _world, _simElapsed);
+        }
+        // Conjunction detection (player mode)
+        if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.update(_world, _simElapsed);
     }
 
     // -----------------------------------------------------------------------
@@ -4585,6 +4646,18 @@ const LiveSimEngine = (function() {
             case 'Digit3': case 'Numpad3': _togglePanel('entityList'); return true;
             case 'KeyO': _togglePanel('orbital'); return true;
             case 'Tab': _toggleAllPanels(); return true;
+            case 'Backquote': case 'Numpad0':
+                if (typeof Minimap !== 'undefined') {
+                    var mmVis = Minimap.toggle();
+                    _showMessage(mmVis ? 'TAC MAP ON' : 'TAC MAP OFF');
+                }
+                return true;
+            case 'KeyJ':
+                if (typeof ConjunctionSystem !== 'undefined') {
+                    var cjVis = ConjunctionSystem.toggle();
+                    _showMessage(cjVis ? 'CONJUNCTION ALERTS ON' : 'CONJUNCTION ALERTS OFF');
+                }
+                return true;
             default: return false;
         }
     }
@@ -4651,6 +4724,9 @@ const LiveSimEngine = (function() {
         } else if (key === 'eci') {
             _showEciOrbit = !_showEciOrbit;
             _showMessage('ECI ORBIT: ' + (_showEciOrbit ? 'ON' : 'OFF'));
+        } else if (key === 'groundtrack') {
+            _showPredictedGroundTrack = !_showPredictedGroundTrack;
+            _showMessage('PREDICTED GROUND TRACK: ' + (_showPredictedGroundTrack ? 'ON' : 'OFF'));
         } else if (key === 'trail') {
             _showTrail = !_showTrail;
             _showMessage('TRAIL: ' + (_showTrail ? 'ON' : 'OFF'));
@@ -4814,6 +4890,7 @@ const LiveSimEngine = (function() {
             } else if (traceKey) {
                 if (traceKey === 'ecef') isActive = _showEcefOrbit;
                 else if (traceKey === 'eci') isActive = _showEciOrbit;
+                else if (traceKey === 'groundtrack') isActive = _showPredictedGroundTrack;
                 else if (traceKey === 'trail') isActive = _showTrail;
             } else if (items[i].getAttribute('data-subsystem')) {
                 var subsysKey = items[i].getAttribute('data-subsystem');
@@ -4849,6 +4926,7 @@ const LiveSimEngine = (function() {
                 // Restore trace/orbit display settings
                 if (prefs.showEcefOrbit !== undefined) _showEcefOrbit = prefs.showEcefOrbit;
                 if (prefs.showEciOrbit !== undefined) _showEciOrbit = prefs.showEciOrbit;
+                if (prefs.showPredictedGroundTrack !== undefined) _showPredictedGroundTrack = prefs.showPredictedGroundTrack;
                 if (prefs.orbitRevs !== undefined) _orbitRevs = prefs.orbitRevs;
                 if (prefs.showTrail !== undefined) _showTrail = prefs.showTrail;
                 if (prefs.trailDurationSec !== undefined) _trailDurationSec = prefs.trailDurationSec;
@@ -4877,6 +4955,7 @@ const LiveSimEngine = (function() {
             // Include trace/orbit display settings
             data.showEcefOrbit = _showEcefOrbit;
             data.showEciOrbit = _showEciOrbit;
+            data.showPredictedGroundTrack = _showPredictedGroundTrack;
             data.orbitRevs = _orbitRevs;
             data.showTrail = _showTrail;
             data.trailDurationSec = _trailDurationSec;
@@ -5184,6 +5263,7 @@ const LiveSimEngine = (function() {
         if (_orbitPolyline) { _viewer.entities.remove(_orbitPolyline); _orbitPolyline = null; }
         if (_eciOrbitPolyline) { _viewer.entities.remove(_eciOrbitPolyline); _eciOrbitPolyline = null; }
         if (_predictedOrbitPolyline) { _viewer.entities.remove(_predictedOrbitPolyline); _predictedOrbitPolyline = null; }
+        if (_predictedGroundTrackEntity) { _viewer.entities.remove(_predictedGroundTrackEntity); _predictedGroundTrackEntity = null; }
         if (_apMarker) { _viewer.entities.remove(_apMarker); _apMarker = null; }
         if (_peMarker) { _viewer.entities.remove(_peMarker); _peMarker = null; }
         if (_anMarker) { _viewer.entities.remove(_anMarker); _anMarker = null; }
@@ -5191,6 +5271,7 @@ const LiveSimEngine = (function() {
         _playerTrail = [];
         _playerGroundTrack = [];
         _playerTrailTimes = [];
+        _predictedGroundTrackPositions = [];
     }
 
     function showUI() {

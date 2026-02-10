@@ -998,6 +998,10 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">ECI Orbit (inertial)</span>
         </div>
+        <div class="settings-item active" data-trace="groundtrack">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Predicted Ground Track</span>
+        </div>
         <div class="settings-row">
             <span class="settings-label">Revolutions</span>
             <select id="orbitRevSelect">
@@ -1392,6 +1396,9 @@
     <!-- Tactical Minimap Canvas -->
     <canvas id="minimapCanvas" width="256" height="256"></canvas>
 
+    <!-- Conjunction Alert Panel (populated by conjunction.js) -->
+    <div id="conjunctionPanel"></div>
+
     <!-- Scripts: Cesium config -->
     <script src="cesium_config.js"></script>
 
@@ -1438,6 +1445,7 @@
     <script src="js/components/visual/satellite_visual.js"></script>
     <script src="js/components/visual/ground_station.js"></script>
     <script src="js/components/visual/radar_coverage.js"></script>
+    <script src="js/components/visual/comm_link.js"></script>
     <script src="js/components/visual/sensor_footprint.js"></script>
 
     <!-- Scripts: Simulation subsystems -->
@@ -1453,6 +1461,12 @@
 
     <!-- Scripts: Tactical Minimap -->
     <script src="js/minimap.js"></script>
+
+    <!-- Scripts: Conjunction Detection -->
+    <script src="js/conjunction.js"></script>
+
+    <!-- Scripts: Entity Tooltip -->
+    <script src="js/entity_tooltip.js"></script>
 
     <!-- Scripts: Live Sim Engine -->
     <script src="js/live_sim_engine.js"></script>

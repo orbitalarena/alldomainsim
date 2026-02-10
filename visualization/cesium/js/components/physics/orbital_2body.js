@@ -1,10 +1,13 @@
 /**
  * Orbital2Body — Keplerian 2-body orbital propagation physics component
- * with optional J2 oblateness secular perturbations.
+ * with optional J2 oblateness secular perturbations and atmospheric drag.
  *
  * Propagates satellites using analytical Kepler equation solving.
  * When J2 is enabled (default), applies secular drift to RAAN and argument
  * of perigee per Brouwer theory, plus J2-corrected mean motion.
+ * When drag is enabled (default for LEO orbits below 1000km), applies
+ * atmospheric drag deceleration using an exponential scale-height density
+ * model, causing realistic orbital decay.
  *
  * Supports initialization from:
  *   - TLE data (source: 'tle', tle_line1, tle_line2)
@@ -13,11 +16,21 @@
  *
  * Config options:
  *   - j2: boolean (default true) — enable J2 secular perturbations on RAAN/argPe/M
+ *   - drag: boolean (default: auto — true for LEO, false for higher orbits)
+ *   - dragCdAOverM: number (default 0.01 m²/kg) — Cd*A/m ballistic coefficient inverse
+ *   - dragBstar: number — use TLE B* drag term instead of Cd*A/m model
  *
  * J2 secular effects:
  *   - RAAN regression: ~-7 deg/day for ISS-like orbit (400km, 51.6deg)
  *   - Arg of perigee advance: ~+3.5 deg/day for ISS-like orbit
  *   - Sun-synchronous orbits (inc ~98deg) maintain constant RAAN-to-Sun angle
+ *
+ * Atmospheric drag model (exponential scale-height):
+ *   - Below 150km: rho = 1.225 * exp(-h/8500)
+ *   - 150-300km:   rho = 2.07e-9 * exp(-(h-150000)/22500)
+ *   - 300-500km:   rho = 2.54e-11 * exp(-(h-300000)/37000)
+ *   - 500-1000km:  rho = 5.21e-13 * exp(-(h-500000)/65000)
+ *   - Above 1000km: no drag (negligible atmosphere)
  *
  * Updates entity state: lat, lon, alt (geodetic, radians), speed,
  * and stores ECI state in _eci_pos, _eci_vel, _orbital for visual component.
@@ -35,6 +48,13 @@
     var DEG = Math.PI / 180;
     var TWO_PI = 2 * Math.PI;
 
+    // Maximum drag acceleration cap (m/s²) to prevent instability
+    var DRAG_ACCEL_CAP = 0.01;
+    // Drag altitude ceiling — above this, atmosphere is negligible
+    var DRAG_ALT_CEILING = 1000000; // 1000 km
+    // LEO threshold for auto-enabling drag (SMA < R_EARTH + 1000km)
+    var LEO_SMA_THRESHOLD = R_EARTH + 1000000;
+
     class Orbital2Body extends ECS.Component {
         constructor(config) {
             super(config);
@@ -47,6 +67,16 @@
             this._useJ2 = (config.j2 !== false);
             // Osculating elements for J2 propagation (set during init)
             this._oscElements = null;
+            // Drag configuration: null = auto-detect based on SMA at init
+            this._dragExplicit = config.drag;  // undefined/true/false from config
+            this._useDrag = false;             // resolved after init
+            // Ballistic coefficient inverse: Cd*A/m in m²/kg
+            // Default 0.01 = typical LEO sat (Cd=2.2, A=10m², m=2200kg)
+            this._dragCdAOverM = config.dragCdAOverM != null ? config.dragCdAOverM : 0.01;
+            // TLE B* drag term (1/Earth radii) — overrides CdA/m if set
+            this._dragBstar = config.dragBstar != null ? config.dragBstar : null;
+            // B* reference density (kg/m³) — sea level for SGP4 B* model
+            this._bstarRho0 = 1.225;
         }
 
         init(world) {
@@ -74,6 +104,23 @@
             // Extract osculating elements for J2 propagation
             if (this._useJ2) {
                 this._oscElements = this._extractElements(this._eciPos, this._eciVel);
+            }
+
+            // Resolve drag: explicit config overrides, otherwise auto-detect from SMA
+            if (this._dragExplicit === true) {
+                this._useDrag = true;
+            } else if (this._dragExplicit === false) {
+                this._useDrag = false;
+            } else {
+                // Auto: enable for LEO orbits (SMA < R_EARTH + 1000km)
+                var smaCheck = this._orbitalElements ? this._orbitalElements.sma : null;
+                this._useDrag = (smaCheck != null && smaCheck > 0 && smaCheck < LEO_SMA_THRESHOLD);
+            }
+
+            if (this._useDrag) {
+                var dragType = this._dragBstar != null ? 'B*=' + this._dragBstar.toExponential(3) :
+                    'CdA/m=' + this._dragCdAOverM + ' m^2/kg';
+                console.log('[Orbital2Body] ' + entity.id + ': drag enabled (' + dragType + ')');
             }
 
             // Store in entity state for visual component
@@ -109,6 +156,11 @@
                 var result = TLEParser.propagateKepler(this._eciPos, this._eciVel, propagateDt);
                 this._eciPos = result.pos;
                 this._eciVel = result.vel;
+            }
+
+            // Apply atmospheric drag perturbation (velocity decrement + SMA decay)
+            if (this._useDrag) {
+                this._stepDrag(propagateDt);
             }
 
             // ECI → geodetic
@@ -335,6 +387,118 @@
         }
 
         // ---------------------------------------------------------------
+        // Atmospheric Drag Perturbation
+        // ---------------------------------------------------------------
+
+        /**
+         * Get atmospheric density using exponential scale-height model.
+         * Simplified US Standard Atmosphere 1976 suitable for drag computation
+         * on orbital timescales (no need for full layer-by-layer integration).
+         *
+         * @param {number} alt  Altitude above mean Earth radius in meters
+         * @returns {number} Atmospheric density in kg/m³ (0 if above 1000km)
+         */
+        _getDragDensity(alt) {
+            if (alt < 0) alt = 0;
+            if (alt >= DRAG_ALT_CEILING) return 0;
+
+            if (alt < 150000) {
+                // Sea level to 150km: single exponential with 8.5km scale height
+                return 1.225 * Math.exp(-alt / 8500);
+            } else if (alt < 300000) {
+                // 150-300km: thermosphere lower (scale height ~22.5km)
+                return 2.07e-9 * Math.exp(-(alt - 150000) / 22500);
+            } else if (alt < 500000) {
+                // 300-500km: thermosphere upper (scale height ~37km)
+                return 2.54e-11 * Math.exp(-(alt - 300000) / 37000);
+            } else {
+                // 500-1000km: exosphere transition (scale height ~65km)
+                return 5.21e-13 * Math.exp(-(alt - 500000) / 65000);
+            }
+        }
+
+        /**
+         * Apply atmospheric drag deceleration to the ECI velocity vector.
+         *
+         * Two drag models:
+         *   1. CdA/m model: a_drag = -0.5 * rho * v² * (Cd*A/m) * v_hat
+         *   2. B* model (from TLE): a_drag = -B* * (rho/rho0) * v² * v_hat
+         *      where B* is in 1/Earth_radii and rho0 is sea-level density.
+         *
+         * After applying the velocity decrement, updates the osculating elements
+         * (SMA, eccentricity) so that the J2 analytical propagation tracks the
+         * decayed orbit correctly.
+         *
+         * @param {number} dt  Timestep in seconds
+         */
+        _stepDrag(dt) {
+            var pos = this._eciPos;
+            var vel = this._eciVel;
+
+            // Position magnitude and altitude
+            var rMag = Math.sqrt(pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]);
+            var alt = rMag - R_EARTH;
+
+            // Skip if above drag ceiling
+            if (alt >= DRAG_ALT_CEILING) return;
+
+            // Atmospheric density at current altitude
+            var rho = this._getDragDensity(alt);
+            if (rho <= 0) return;
+
+            // Velocity magnitude
+            var vMag = Math.sqrt(vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]);
+            if (vMag < 1) return;  // Guard against near-zero velocity
+
+            // Compute drag acceleration magnitude
+            var aDragMag;
+            if (this._dragBstar != null) {
+                // B* model: a = B* * (rho / rho0) * v²
+                // B* from TLE is in units of 1/Earth_radii; SGP4 uses it as
+                // a modified ballistic coefficient. The effective formula is:
+                //   a_drag = B* * (rho / rho0) * v²
+                // where rho0 is the reference atmospheric density at epoch.
+                aDragMag = Math.abs(this._dragBstar) * (rho / this._bstarRho0) * vMag * vMag;
+            } else {
+                // CdA/m model: a = 0.5 * rho * v² * (Cd*A/m)
+                aDragMag = 0.5 * rho * vMag * vMag * this._dragCdAOverM;
+            }
+
+            // Cap drag acceleration to prevent instability
+            if (aDragMag > DRAG_ACCEL_CAP) {
+                aDragMag = DRAG_ACCEL_CAP;
+            }
+
+            // Guard against NaN
+            if (!isFinite(aDragMag) || aDragMag <= 0) return;
+
+            // Velocity decrement (drag opposes velocity direction)
+            var dV = aDragMag * dt;
+
+            // Don't remove more than 1% of speed in one step (stability guard)
+            if (dV > vMag * 0.01) {
+                dV = vMag * 0.01;
+            }
+
+            var factor = 1 - dV / vMag;
+
+            // Apply velocity decrement
+            vel[0] *= factor;
+            vel[1] *= factor;
+            vel[2] *= factor;
+
+            // Update osculating elements if J2 propagation is active
+            // Drag changes SMA and eccentricity — must re-extract to keep
+            // the analytical propagator tracking the decayed orbit
+            if (this._useJ2 && this._oscElements) {
+                var newElements = this._extractElements(pos, vel);
+                if (newElements) {
+                    this._oscElements = newElements;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------
         // Initialization methods
         // ---------------------------------------------------------------
 
@@ -344,6 +508,12 @@
                 console.warn('[Orbital2Body] Failed to parse TLE for ' + this.entity.id);
                 this._initFromState(state, simTime);
                 return;
+            }
+
+            // Capture B* drag term from TLE if available and no explicit override
+            if (sat.bstar != null && isFinite(sat.bstar) && sat.bstar !== 0 &&
+                this._dragBstar == null && cfg.dragCdAOverM == null) {
+                this._dragBstar = sat.bstar;
             }
 
             // Advance mean anomaly from TLE epoch to sim epoch

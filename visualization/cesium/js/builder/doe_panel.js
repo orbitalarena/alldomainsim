@@ -45,6 +45,10 @@ var DOEPanel = (function() {
     // Role input elements: { hva: { min, max, step }, ... }
     var _roleInputs = {};
 
+    // Advanced parameter inputs
+    var _advancedInputs = {};
+    var _weaponCheckboxes = {};
+
     // -------------------------------------------------------------------
     // CSS Injection
     // -------------------------------------------------------------------
@@ -225,6 +229,44 @@ var DOEPanel = (function() {
             '#doeBtnCancel:disabled {',
             '  color: #005566; border-color: #005566; cursor: default;',
             '  background: transparent;',
+            '}',
+            /* Advanced parameters section */
+            '#doeModal .doe-advanced-section {',
+            '  margin-top: 8px;',
+            '}',
+            '#doeModal .doe-advanced-grid {',
+            '  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;',
+            '  margin-top: 6px;',
+            '}',
+            '#doeModal .doe-advanced-field label {',
+            '  display: block; font-size: 10px; color: #888;',
+            '  margin-bottom: 2px; text-transform: uppercase;',
+            '}',
+            '#doeModal .doe-advanced-input {',
+            '  background: #0a0e17; border: 1px solid #334; color: #ffcc00;',
+            '  padding: 4px 6px; width: 100%; font-family: monospace; font-size: 12px;',
+            '  border-radius: 3px; box-sizing: border-box; text-align: center;',
+            '}',
+            '#doeModal .doe-advanced-input:focus {',
+            '  outline: none; border-color: #00ccff;',
+            '}',
+            '#doeModal .doe-weapon-checks {',
+            '  display: flex; gap: 16px; margin-top: 6px; flex-wrap: wrap;',
+            '}',
+            '#doeModal .doe-weapon-check {',
+            '  display: flex; align-items: center; gap: 4px;',
+            '  font-size: 11px; color: #aaa; cursor: pointer;',
+            '}',
+            '#doeModal .doe-weapon-check input[type="checkbox"] {',
+            '  accent-color: #00ccff; cursor: pointer;',
+            '}',
+            '#doeModal .doe-perm-warning {',
+            '  margin-top: 4px; font-size: 10px; color: #ffcc00;',
+            '  display: none;',
+            '}',
+            '#doeModal .doe-perm-warning.visible { display: block; }',
+            '#doeModal .doe-perm-est {',
+            '  font-size: 10px; color: #889; margin-top: 2px;',
             '}'
         ].join('\n');
 
@@ -271,6 +313,9 @@ var DOEPanel = (function() {
 
         // --- Section: Role Composition ---
         _modal.appendChild(_buildRoleSection());
+
+        // --- Section: Advanced Parameters (collapsible) ---
+        _modal.appendChild(_buildAdvancedParamsSection());
 
         // --- Section: Simulation Parameters ---
         _modal.appendChild(_buildSimParamsSection());
@@ -373,6 +418,187 @@ var DOEPanel = (function() {
         setTimeout(_updatePermutationCount, 0);
 
         return section;
+    }
+
+    function _buildAdvancedParamsSection() {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'doe-section doe-advanced-section';
+
+        var header = document.createElement('div');
+        header.className = 'doe-collapsible-header';
+
+        var arrow = document.createElement('span');
+        arrow.className = 'doe-arrow';
+        arrow.textContent = '\u25B6';
+        header.appendChild(arrow);
+
+        var headerText = document.createTextNode('Advanced Parameters');
+        header.appendChild(headerText);
+
+        var body = document.createElement('div');
+        body.className = 'doe-collapsible-body';
+
+        header.addEventListener('click', function() {
+            var isOpen = body.classList.contains('open');
+            if (isOpen) {
+                body.classList.remove('open');
+                header.classList.remove('open');
+            } else {
+                body.classList.add('open');
+                header.classList.add('open');
+            }
+        });
+
+        // --- Orbital Altitude Range ---
+        var altLabel = document.createElement('div');
+        altLabel.className = 'doe-section-label';
+        altLabel.textContent = 'ORBITAL ALTITUDE (SMA, km)';
+        altLabel.style.marginTop = '8px';
+        body.appendChild(altLabel);
+
+        var altGrid = document.createElement('div');
+        altGrid.className = 'doe-advanced-grid';
+
+        var altFields = [
+            { key: 'altMin',  label: 'Min (km)', value: '42164' },
+            { key: 'altMax',  label: 'Max (km)', value: '42164' },
+            { key: 'altStep', label: 'Step (km)', value: '100' }
+        ];
+        for (var ai = 0; ai < altFields.length; ai++) {
+            var af = altFields[ai];
+            var afDiv = document.createElement('div');
+            afDiv.className = 'doe-advanced-field';
+            var afLabel = document.createElement('label');
+            afLabel.textContent = af.label;
+            var afInput = document.createElement('input');
+            afInput.type = 'number';
+            afInput.className = 'doe-advanced-input';
+            afInput.min = '100';
+            if (af.key === 'altStep') afInput.min = '1';
+            afInput.value = af.value;
+            afInput.addEventListener('input', _updatePermutationCount);
+            _advancedInputs[af.key] = afInput;
+            afDiv.appendChild(afLabel);
+            afDiv.appendChild(afInput);
+            altGrid.appendChild(afDiv);
+        }
+        body.appendChild(altGrid);
+
+        // --- Inclination Range ---
+        var incLabel = document.createElement('div');
+        incLabel.className = 'doe-section-label';
+        incLabel.textContent = 'INCLINATION (degrees)';
+        incLabel.style.marginTop = '12px';
+        body.appendChild(incLabel);
+
+        var incGrid = document.createElement('div');
+        incGrid.className = 'doe-advanced-grid';
+
+        var incFields = [
+            { key: 'incMin',  label: 'Min (\u00B0)', value: '0' },
+            { key: 'incMax',  label: 'Max (\u00B0)', value: '0' },
+            { key: 'incStep', label: 'Step (\u00B0)', value: '15' }
+        ];
+        for (var ii = 0; ii < incFields.length; ii++) {
+            var inf = incFields[ii];
+            var inDiv = document.createElement('div');
+            inDiv.className = 'doe-advanced-field';
+            var inLabel = document.createElement('label');
+            inLabel.textContent = inf.label;
+            var inInput = document.createElement('input');
+            inInput.type = 'number';
+            inInput.className = 'doe-advanced-input';
+            inInput.min = '0';
+            inInput.max = '180';
+            if (inf.key === 'incStep') inInput.min = '1';
+            inInput.value = inf.value;
+            inInput.addEventListener('input', _updatePermutationCount);
+            _advancedInputs[inf.key] = inInput;
+            inDiv.appendChild(inLabel);
+            inDiv.appendChild(inInput);
+            incGrid.appendChild(inDiv);
+        }
+        body.appendChild(incGrid);
+
+        // --- Engagement Range ---
+        var engLabel = document.createElement('div');
+        engLabel.className = 'doe-section-label';
+        engLabel.textContent = 'ENGAGEMENT RANGE (initial separation, km)';
+        engLabel.style.marginTop = '12px';
+        body.appendChild(engLabel);
+
+        var engGrid = document.createElement('div');
+        engGrid.className = 'doe-advanced-grid';
+
+        var engFields = [
+            { key: 'engMin',  label: 'Min (km)', value: '0' },
+            { key: 'engMax',  label: 'Max (km)', value: '0' },
+            { key: 'engStep', label: 'Step (km)', value: '50' }
+        ];
+        for (var ei = 0; ei < engFields.length; ei++) {
+            var ef = engFields[ei];
+            var efDiv = document.createElement('div');
+            efDiv.className = 'doe-advanced-field';
+            var efLabel = document.createElement('label');
+            efLabel.textContent = ef.label;
+            var efInput = document.createElement('input');
+            efInput.type = 'number';
+            efInput.className = 'doe-advanced-input';
+            efInput.min = '0';
+            if (ef.key === 'engStep') efInput.min = '1';
+            efInput.value = ef.value;
+            efInput.addEventListener('input', _updatePermutationCount);
+            _advancedInputs[ef.key] = efInput;
+            efDiv.appendChild(efLabel);
+            efDiv.appendChild(efInput);
+            engGrid.appendChild(efDiv);
+        }
+        body.appendChild(engGrid);
+
+        // --- Weapon Loadout Variants ---
+        var wpnLabel = document.createElement('div');
+        wpnLabel.className = 'doe-section-label';
+        wpnLabel.textContent = 'WEAPON LOADOUT VARIANTS';
+        wpnLabel.style.marginTop = '12px';
+        body.appendChild(wpnLabel);
+
+        var wpnDesc = document.createElement('div');
+        wpnDesc.style.fontSize = '10px';
+        wpnDesc.style.color = '#667';
+        wpnDesc.style.marginBottom = '6px';
+        wpnDesc.textContent = 'Check types to include as separate variants (each creates a permutation axis)';
+        body.appendChild(wpnDesc);
+
+        var wpnRow = document.createElement('div');
+        wpnRow.className = 'doe-weapon-checks';
+
+        var weapons = [
+            { key: 'kkv', label: 'KKV (Kinetic Kill)', checked: true },
+            { key: 'a2a', label: 'A2A Missile', checked: false },
+            { key: 'sam', label: 'SAM Battery', checked: false }
+        ];
+        for (var wi = 0; wi < weapons.length; wi++) {
+            var wp = weapons[wi];
+            var wpLabel2 = document.createElement('label');
+            wpLabel2.className = 'doe-weapon-check';
+
+            var wpCheck = document.createElement('input');
+            wpCheck.type = 'checkbox';
+            wpCheck.checked = wp.checked;
+            wpCheck.addEventListener('change', _updatePermutationCount);
+            _weaponCheckboxes[wp.key] = wpCheck;
+
+            var wpText = document.createTextNode(wp.label);
+            wpLabel2.appendChild(wpCheck);
+            wpLabel2.appendChild(wpText);
+            wpnRow.appendChild(wpLabel2);
+        }
+        body.appendChild(wpnRow);
+
+        wrapper.appendChild(header);
+        wrapper.appendChild(body);
+
+        return wrapper;
     }
 
     function _buildSimParamsSection() {
@@ -585,7 +811,72 @@ var DOEPanel = (function() {
     }
 
     /**
+     * Read advanced parameter ranges from DOM inputs.
+     * Returns arrays of values for altitude, inclination, engagement range, and weapon types.
+     * Single-value ranges (min === max) produce one value and do not multiply permutation count.
+     */
+    function _getAdvancedRanges() {
+        var result = { altitudes: [], inclinations: [], engagementRanges: [], weaponTypes: [] };
+
+        // Altitude (SMA in km)
+        if (_advancedInputs.altMin && _advancedInputs.altMax && _advancedInputs.altStep) {
+            var altMin  = parseFloat(_advancedInputs.altMin.value) || 42164;
+            var altMax  = parseFloat(_advancedInputs.altMax.value) || 42164;
+            var altStep = parseFloat(_advancedInputs.altStep.value) || 100;
+            if (altStep < 1) altStep = 1;
+            if (altMax < altMin) altMax = altMin;
+            for (var a = altMin; a <= altMax; a += altStep) {
+                result.altitudes.push(a);
+            }
+            if (result.altitudes.length === 0) result.altitudes.push(altMin);
+        } else {
+            result.altitudes.push(42164);
+        }
+
+        // Inclination (degrees)
+        if (_advancedInputs.incMin && _advancedInputs.incMax && _advancedInputs.incStep) {
+            var incMin  = parseFloat(_advancedInputs.incMin.value) || 0;
+            var incMax  = parseFloat(_advancedInputs.incMax.value) || 0;
+            var incStep = parseFloat(_advancedInputs.incStep.value) || 15;
+            if (incStep < 1) incStep = 1;
+            if (incMax < incMin) incMax = incMin;
+            for (var b = incMin; b <= incMax; b += incStep) {
+                result.inclinations.push(b);
+            }
+            if (result.inclinations.length === 0) result.inclinations.push(incMin);
+        } else {
+            result.inclinations.push(0);
+        }
+
+        // Engagement range (km)
+        if (_advancedInputs.engMin && _advancedInputs.engMax && _advancedInputs.engStep) {
+            var engMin  = parseFloat(_advancedInputs.engMin.value) || 0;
+            var engMax  = parseFloat(_advancedInputs.engMax.value) || 0;
+            var engStep = parseFloat(_advancedInputs.engStep.value) || 50;
+            if (engStep < 1) engStep = 1;
+            if (engMax < engMin) engMax = engMin;
+            for (var c = engMin; c <= engMax; c += engStep) {
+                result.engagementRanges.push(c);
+            }
+            if (result.engagementRanges.length === 0) result.engagementRanges.push(engMin);
+        } else {
+            result.engagementRanges.push(0);
+        }
+
+        // Weapon loadout variants
+        if (_weaponCheckboxes.kkv || _weaponCheckboxes.a2a || _weaponCheckboxes.sam) {
+            if (_weaponCheckboxes.kkv && _weaponCheckboxes.kkv.checked) result.weaponTypes.push('kkv');
+            if (_weaponCheckboxes.a2a && _weaponCheckboxes.a2a.checked) result.weaponTypes.push('a2a');
+            if (_weaponCheckboxes.sam && _weaponCheckboxes.sam.checked) result.weaponTypes.push('sam');
+        }
+        if (result.weaponTypes.length === 0) result.weaponTypes.push('kkv');
+
+        return result;
+    }
+
+    /**
      * Count the number of permutations without generating them.
+     * Includes role ranges AND advanced parameters.
      * @returns {number}
      */
     function _countPermutations() {
@@ -600,11 +891,19 @@ var DOEPanel = (function() {
             if (vals === 0) vals = 1;
             count *= vals;
         }
+
+        // Multiply by advanced parameter dimensions
+        var adv = _getAdvancedRanges();
+        if (adv.altitudes.length > 1) count *= adv.altitudes.length;
+        if (adv.inclinations.length > 1) count *= adv.inclinations.length;
+        if (adv.engagementRanges.length > 1) count *= adv.engagementRanges.length;
+        if (adv.weaponTypes.length > 1) count *= adv.weaponTypes.length;
+
         return count;
     }
 
     /**
-     * Generate the Cartesian product of all role ranges.
+     * Generate the Cartesian product of all role ranges AND advanced parameters.
      * @returns {Array<Object>} Array of permutation objects
      */
     function _generatePermutations() {
@@ -618,7 +917,7 @@ var DOEPanel = (function() {
             return vals;
         });
 
-        // Cartesian product
+        // Cartesian product of role ranges
         var perms = [{}];
         for (var i = 0; i < roles.length; i++) {
             var next = [];
@@ -631,11 +930,85 @@ var DOEPanel = (function() {
             }
             perms = next;
         }
+
+        // Expand with advanced parameters (only if they have multiple values)
+        var adv = _getAdvancedRanges();
+
+        // Altitude (SMA km)
+        if (adv.altitudes.length > 1) {
+            var nextPerms = [];
+            for (var ai = 0; ai < perms.length; ai++) {
+                for (var aj = 0; aj < adv.altitudes.length; aj++) {
+                    var ap = Object.assign({}, perms[ai]);
+                    ap.smaKm = adv.altitudes[aj];
+                    nextPerms.push(ap);
+                }
+            }
+            perms = nextPerms;
+        } else {
+            // Single value -- attach it to every permutation
+            for (var a1 = 0; a1 < perms.length; a1++) {
+                perms[a1].smaKm = adv.altitudes[0];
+            }
+        }
+
+        // Inclination (degrees)
+        if (adv.inclinations.length > 1) {
+            var nextPerms2 = [];
+            for (var bi = 0; bi < perms.length; bi++) {
+                for (var bj = 0; bj < adv.inclinations.length; bj++) {
+                    var bp = Object.assign({}, perms[bi]);
+                    bp.incDeg = adv.inclinations[bj];
+                    nextPerms2.push(bp);
+                }
+            }
+            perms = nextPerms2;
+        } else {
+            for (var b1 = 0; b1 < perms.length; b1++) {
+                perms[b1].incDeg = adv.inclinations[0];
+            }
+        }
+
+        // Engagement range (km)
+        if (adv.engagementRanges.length > 1) {
+            var nextPerms3 = [];
+            for (var ci = 0; ci < perms.length; ci++) {
+                for (var cj = 0; cj < adv.engagementRanges.length; cj++) {
+                    var cp = Object.assign({}, perms[ci]);
+                    cp.engRangeKm = adv.engagementRanges[cj];
+                    nextPerms3.push(cp);
+                }
+            }
+            perms = nextPerms3;
+        } else {
+            for (var c1 = 0; c1 < perms.length; c1++) {
+                perms[c1].engRangeKm = adv.engagementRanges[0];
+            }
+        }
+
+        // Weapon types
+        if (adv.weaponTypes.length > 1) {
+            var nextPerms4 = [];
+            for (var di = 0; di < perms.length; di++) {
+                for (var dj = 0; dj < adv.weaponTypes.length; dj++) {
+                    var dp = Object.assign({}, perms[di]);
+                    dp.weaponType = adv.weaponTypes[dj];
+                    nextPerms4.push(dp);
+                }
+            }
+            perms = nextPerms4;
+        } else {
+            for (var d1 = 0; d1 < perms.length; d1++) {
+                perms[d1].weaponType = adv.weaponTypes[0];
+            }
+        }
+
         return perms;
     }
 
     /**
-     * Update the permutation count display. Called on every role input change.
+     * Update the permutation count display. Called on every role/advanced input change.
+     * Shows total count, estimated time (~2s per permutation), and warnings.
      */
     function _updatePermutationCount() {
         if (!_permCountDisplay) return;
@@ -643,14 +1016,30 @@ var DOEPanel = (function() {
         var count = _countPermutations();
         var text = count + ' permutation' + (count !== 1 ? 's' : '');
 
+        // Estimated time (~2 seconds per permutation)
+        var estSec = count * 2;
+        var estStr;
+        if (estSec < 60) {
+            estStr = estSec + 's';
+        } else if (estSec < 3600) {
+            estStr = (estSec / 60).toFixed(1) + 'm';
+        } else {
+            estStr = (estSec / 3600).toFixed(1) + 'h';
+        }
+
         _permCountDisplay.className = 'doe-perm-count';
 
         if (count > 2000) {
-            text += ' \u2014 May take hours';
+            text += ' \u2014 May take hours (~' + estStr + ')';
+            _permCountDisplay.className = 'doe-perm-count danger';
+        } else if (count > 1000) {
+            text += ' \u2014 This may take a long time (~' + estStr + ')';
             _permCountDisplay.className = 'doe-perm-count danger';
         } else if (count > 500) {
-            text += ' \u2014 Large sweep';
+            text += ' \u2014 Large sweep (~' + estStr + ')';
             _permCountDisplay.className = 'doe-perm-count warn';
+        } else if (count > 1) {
+            text += ' (~' + estStr + ')';
         }
 
         _permCountDisplay.textContent = text;
@@ -769,14 +1158,21 @@ var DOEPanel = (function() {
         _startTime = Date.now();
 
         // Build payload — map role names to the expected per-side keys
+        // and include advanced parameters
         var mappedPerms = permutations.map(function(p) {
-            return {
+            var mapped = {
                 hvaPerSide:       p.hva       !== undefined ? p.hva       : 0,
                 defendersPerSide: p.defender   !== undefined ? p.defender   : 0,
                 attackersPerSide: p.attacker   !== undefined ? p.attacker   : 0,
                 escortsPerSide:   p.escort     !== undefined ? p.escort     : 0,
                 sweepsPerSide:    p.sweep      !== undefined ? p.sweep      : 0
             };
+            // Advanced params — attach per-permutation overrides
+            if (p.smaKm !== undefined)      mapped.smaKm = p.smaKm;
+            if (p.incDeg !== undefined)      mapped.incDeg = p.incDeg;
+            if (p.engRangeKm !== undefined)  mapped.engRangeKm = p.engRangeKm;
+            if (p.weaponType !== undefined)  mapped.weaponType = p.weaponType;
+            return mapped;
         });
 
         var payload = {

@@ -20,8 +20,8 @@ var DOEResults = (function() {
     var PANEL_ID = 'doe-results-panel';
     var STYLES_ID = 'doe-results-styles';
 
-    var TAB_NAMES = ['datatable', 'heatmap', 'sensitivity', 'export'];
-    var TAB_LABELS = ['DATA TABLE', 'HEAT MAP', 'SENSITIVITY', 'EXPORT'];
+    var TAB_NAMES = ['datatable', 'heatmap', 'sensitivity', 'pareto', 'export'];
+    var TAB_LABELS = ['DATA TABLE', 'HEAT MAP', 'SENSITIVITY', 'PARETO', 'EXPORT'];
 
     var ROLE_FIELDS = [
         { key: 'hva', label: 'HVA' },
@@ -118,6 +118,26 @@ var DOEResults = (function() {
         return vals;
     }
 
+    /**
+     * Check which advanced parameters have variation across rows.
+     * Returns { sma: bool, inc: bool, eng: bool, wpn: bool }
+     */
+    function _hasVariation(rows) {
+        if (!rows || rows.length < 2) return { sma: false, inc: false, eng: false, wpn: false };
+        var firstSma = rows[0].smaKm;
+        var firstInc = rows[0].incDeg;
+        var firstEng = rows[0].engRangeKm;
+        var firstWpn = rows[0].weaponType;
+        var sma = false, inc = false, eng = false, wpn = false;
+        for (var i = 1; i < rows.length; i++) {
+            if (rows[i].smaKm !== firstSma) sma = true;
+            if (rows[i].incDeg !== firstInc) inc = true;
+            if (rows[i].engRangeKm !== firstEng) eng = true;
+            if (rows[i].weaponType !== firstWpn) wpn = true;
+        }
+        return { sma: sma, inc: inc, eng: eng, wpn: wpn };
+    }
+
     function _pearsonCorrelation(xs, ys) {
         var n = xs.length;
         if (n < 2) return 0;
@@ -181,6 +201,10 @@ var DOEResults = (function() {
                         swp: cfg.sweepsPerSide || 0,
                         totalPerSide: (cfg.hvaPerSide || 0) + (cfg.defendersPerSide || 0) +
                             (cfg.attackersPerSide || 0) + (cfg.escortsPerSide || 0) + (cfg.sweepsPerSide || 0),
+                        smaKm: cfg.smaKm !== undefined ? cfg.smaKm : 42164,
+                        incDeg: cfg.incDeg !== undefined ? cfg.incDeg : 0,
+                        engRangeKm: cfg.engRangeKm !== undefined ? cfg.engRangeKm : 0,
+                        weaponType: cfg.weaponType || 'kkv',
                         blueHvaPct: 0,
                         redHvaPct: 0,
                         blueAlive: 0,
@@ -230,6 +254,10 @@ var DOEResults = (function() {
                     swp: cfg.sweepsPerSide || 0,
                     totalPerSide: (cfg.hvaPerSide || 0) + (cfg.defendersPerSide || 0) +
                         (cfg.attackersPerSide || 0) + (cfg.escortsPerSide || 0) + (cfg.sweepsPerSide || 0),
+                    smaKm: cfg.smaKm !== undefined ? cfg.smaKm : 42164,
+                    incDeg: cfg.incDeg !== undefined ? cfg.incDeg : 0,
+                    engRangeKm: cfg.engRangeKm !== undefined ? cfg.engRangeKm : 0,
+                    weaponType: cfg.weaponType || 'kkv',
                     blueHvaPct: blueHvaTotal > 0 ? blueHvaAlive / blueHvaTotal : 0,
                     redHvaPct: redHvaTotal > 0 ? redHvaAlive / redHvaTotal : 0,
                     blueAlive: blueAlive,
@@ -252,6 +280,10 @@ var DOEResults = (function() {
                     esc: errCfg.escortsPerSide || 0,
                     swp: errCfg.sweepsPerSide || 0,
                     totalPerSide: 0,
+                    smaKm: errCfg.smaKm !== undefined ? errCfg.smaKm : 42164,
+                    incDeg: errCfg.incDeg !== undefined ? errCfg.incDeg : 0,
+                    engRangeKm: errCfg.engRangeKm !== undefined ? errCfg.engRangeKm : 0,
+                    weaponType: errCfg.weaponType || 'kkv',
                     blueHvaPct: 0,
                     redHvaPct: 0,
                     blueAlive: 0,
@@ -542,6 +574,83 @@ var DOEResults = (function() {
             '  color: #f86;',
             '}',
             '',
+            // Best config highlight box
+            P + ' .doe-best-config {',
+            '  background: rgba(0, 100, 50, 0.2);',
+            '  border: 1px solid #00cc66;',
+            '  border-radius: 4px;',
+            '  padding: 12px 16px;',
+            '  margin-bottom: 16px;',
+            '  line-height: 1.8;',
+            '}',
+            P + ' .doe-best-config .doe-best-title {',
+            '  color: #00cc66;',
+            '  font-size: 12px;',
+            '  font-weight: bold;',
+            '  letter-spacing: 1px;',
+            '  text-transform: uppercase;',
+            '  margin-bottom: 4px;',
+            '}',
+            P + ' .doe-best-config .doe-best-value {',
+            '  color: #00ff88;',
+            '  font-weight: bold;',
+            '}',
+            P + ' .doe-best-config .doe-best-label {',
+            '  color: #889;',
+            '}',
+            '',
+            // Pareto tab
+            P + ' .doe-pareto-controls {',
+            '  display: flex;',
+            '  gap: 16px;',
+            '  align-items: center;',
+            '  margin-bottom: 12px;',
+            '  flex-wrap: wrap;',
+            '}',
+            P + ' .doe-pareto-controls label {',
+            '  color: #889;',
+            '  font-size: 11px;',
+            '  letter-spacing: 1px;',
+            '}',
+            P + ' .doe-pareto-controls select {',
+            '  background: #0d1220;',
+            '  color: #e0e8f0;',
+            '  border: 1px solid #1a2a44;',
+            '  border-radius: 3px;',
+            '  padding: 4px 8px;',
+            '  font-family: "Courier New", monospace;',
+            '  font-size: 11px;',
+            '  cursor: pointer;',
+            '}',
+            P + ' .doe-pareto-wrap {',
+            '  display: flex;',
+            '  justify-content: center;',
+            '  position: relative;',
+            '}',
+            P + ' .doe-pareto-tooltip {',
+            '  position: absolute;',
+            '  background: rgba(0, 0, 0, 0.9);',
+            '  color: #00ccff;',
+            '  padding: 6px 10px;',
+            '  border: 1px solid #00ccff;',
+            '  border-radius: 3px;',
+            '  font-size: 11px;',
+            '  pointer-events: none;',
+            '  white-space: nowrap;',
+            '  z-index: 10;',
+            '  display: none;',
+            '}',
+            '',
+            // Export status message
+            P + ' .doe-export-status {',
+            '  font-size: 11px;',
+            '  color: #889;',
+            '  margin-top: 8px;',
+            '  min-height: 16px;',
+            '}',
+            P + ' .doe-export-status.success { color: #00cc66; }',
+            P + ' .doe-export-status.error { color: #ff4444; }',
+            '',
             // Scrollbar
             P + ' .doe-content::-webkit-scrollbar {',
             '  width: 6px;',
@@ -579,7 +688,40 @@ var DOEResults = (function() {
         var container = document.getElementById('doe-tab-datatable');
         if (!container) return;
 
-        var html = '<div class="doe-table-wrap" id="doe-table-wrap">';
+        // Best configuration summary box
+        var html = '';
+        var best = _findBestConfig(rows, 'blueHvaPct', true);
+        if (best && rows.length > 1) {
+            html += '<div class="doe-best-config">';
+            html += '<div class="doe-best-title">Best Configuration</div>';
+            html += '<div><span class="doe-best-label">Blue HVA Survival: </span>';
+            html += '<span class="doe-best-value">' + (best.blueHvaPct * 100).toFixed(1) + '%</span></div>';
+            html += '<div><span class="doe-best-label">Composition: </span>';
+            html += '<span class="doe-best-value">HVA=' + best.hva + ' DEF=' + best.def +
+                ' ATK=' + best.atk + ' ESC=' + best.esc + ' SWP=' + best.swp + '</span></div>';
+            html += '<div><span class="doe-best-label">Total per side: </span>';
+            html += '<span class="doe-best-value">' + best.totalPerSide + '</span>';
+            html += '<span class="doe-best-label"> | Kills: </span>';
+            html += '<span class="doe-best-value">' + best.totalKills + '</span>';
+            html += '<span class="doe-best-label"> | Sim time: </span>';
+            html += '<span class="doe-best-value">' + best.simTime.toFixed(1) + 's</span></div>';
+            // Show advanced params if present
+            if (best.smaKm !== undefined && best.smaKm !== 42164) {
+                html += '<div><span class="doe-best-label">SMA: </span>';
+                html += '<span class="doe-best-value">' + best.smaKm + ' km</span></div>';
+            }
+            if (best.incDeg !== undefined && best.incDeg !== 0) {
+                html += '<div><span class="doe-best-label">Inclination: </span>';
+                html += '<span class="doe-best-value">' + best.incDeg + '\u00B0</span></div>';
+            }
+            if (best.weaponType !== undefined && best.weaponType !== 'kkv') {
+                html += '<div><span class="doe-best-label">Weapon: </span>';
+                html += '<span class="doe-best-value">' + best.weaponType.toUpperCase() + '</span></div>';
+            }
+            html += '</div>';
+        }
+
+        html += '<div class="doe-table-wrap" id="doe-table-wrap">';
         html += _buildTableHTML(rows, _sortColumn, _sortAscending);
         html += '</div>';
 
@@ -612,6 +754,10 @@ var DOEResults = (function() {
             sorted.sort(function(a, b) {
                 var va = a[sortCol];
                 var vb = b[sortCol];
+                // Handle string comparison for weaponType
+                if (typeof va === 'string' && typeof vb === 'string') {
+                    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                }
                 if (va === vb) return 0;
                 var cmp = va < vb ? -1 : 1;
                 return asc ? cmp : -cmp;
@@ -627,14 +773,24 @@ var DOEResults = (function() {
             { key: 'atk', label: 'ATK' },
             { key: 'esc', label: 'ESC' },
             { key: 'swp', label: 'SWP' },
-            { key: 'totalPerSide', label: 'Total' },
+            { key: 'totalPerSide', label: 'Total' }
+        ];
+
+        // Conditionally add advanced parameter columns if they vary
+        var hasAdvanced = _hasVariation(rows);
+        if (hasAdvanced.sma) columns.push({ key: 'smaKm', label: 'SMA(km)' });
+        if (hasAdvanced.inc) columns.push({ key: 'incDeg', label: 'Inc(\u00B0)' });
+        if (hasAdvanced.eng) columns.push({ key: 'engRangeKm', label: 'Eng(km)' });
+        if (hasAdvanced.wpn) columns.push({ key: 'weaponType', label: 'Weapon' });
+
+        columns.push(
             { key: 'blueHvaPct', label: 'Blue HVA%' },
             { key: 'redHvaPct', label: 'Red HVA%' },
             { key: 'blueAlive', label: 'Blue Alive' },
             { key: 'redAlive', label: 'Red Alive' },
             { key: 'totalKills', label: 'Kills' },
             { key: 'simTime', label: 'Time' }
-        ];
+        );
 
         var html = '<table class="doe-table">';
 
@@ -649,6 +805,8 @@ var DOEResults = (function() {
         html += '</tr>';
 
         // Data rows
+        var advColCount = (hasAdvanced.sma ? 1 : 0) + (hasAdvanced.inc ? 1 : 0) +
+            (hasAdvanced.eng ? 1 : 0) + (hasAdvanced.wpn ? 1 : 0);
         for (var i = 0; i < sorted.length; i++) {
             var r = sorted[i];
             html += '<tr>';
@@ -659,6 +817,12 @@ var DOEResults = (function() {
             html += '<td>' + r.esc + '</td>';
             html += '<td>' + r.swp + '</td>';
             html += '<td>' + r.totalPerSide + '</td>';
+
+            // Advanced columns
+            if (hasAdvanced.sma) html += '<td>' + (r.smaKm || 42164) + '</td>';
+            if (hasAdvanced.inc) html += '<td>' + (r.incDeg || 0) + '</td>';
+            if (hasAdvanced.eng) html += '<td>' + (r.engRangeKm || 0) + '</td>';
+            if (hasAdvanced.wpn) html += '<td>' + _escapeHtml((r.weaponType || 'kkv').toUpperCase()) + '</td>';
 
             if (r.error) {
                 // Failed permutation — show ERROR across result columns
@@ -694,26 +858,33 @@ var DOEResults = (function() {
         var container = document.getElementById('doe-tab-heatmap');
         if (!container) return;
 
+        // Build axis fields: roles + any varying advanced numeric params
+        var hasAdv = _hasVariation(rows);
+        var axisFields = ROLE_FIELDS.slice();
+        if (hasAdv.sma) axisFields.push({ key: 'smaKm', label: 'SMA (km)' });
+        if (hasAdv.inc) axisFields.push({ key: 'incDeg', label: 'Inclination' });
+        if (hasAdv.eng) axisFields.push({ key: 'engRangeKm', label: 'Eng Range (km)' });
+
         // Build controls
         var html = '<div class="doe-heatmap-controls">';
 
         // X Axis dropdown
         html += '<label>X AXIS </label>';
         html += '<select id="doe-hm-x">';
-        for (var i = 0; i < ROLE_FIELDS.length; i++) {
-            var sel = (ROLE_FIELDS[i].key === 'atk') ? ' selected' : '';
-            html += '<option value="' + ROLE_FIELDS[i].key + '"' + sel + '>' +
-                ROLE_FIELDS[i].label + '</option>';
+        for (var i = 0; i < axisFields.length; i++) {
+            var sel = (axisFields[i].key === 'atk') ? ' selected' : '';
+            html += '<option value="' + axisFields[i].key + '"' + sel + '>' +
+                axisFields[i].label + '</option>';
         }
         html += '</select>';
 
         // Y Axis dropdown
         html += '<label>Y AXIS </label>';
         html += '<select id="doe-hm-y">';
-        for (var j = 0; j < ROLE_FIELDS.length; j++) {
-            var sel2 = (ROLE_FIELDS[j].key === 'def') ? ' selected' : '';
-            html += '<option value="' + ROLE_FIELDS[j].key + '"' + sel2 + '>' +
-                ROLE_FIELDS[j].label + '</option>';
+        for (var j = 0; j < axisFields.length; j++) {
+            var sel2 = (axisFields[j].key === 'def') ? ' selected' : '';
+            html += '<option value="' + axisFields[j].key + '"' + sel2 + '>' +
+                axisFields[j].label + '</option>';
         }
         html += '</select>';
 
@@ -766,11 +937,17 @@ var DOEResults = (function() {
             }
         }
 
+        // Resolve axis labels from both role fields and advanced fields
+        var allAxisFields = ROLE_FIELDS.slice();
+        allAxisFields.push({ key: 'smaKm', label: 'SMA (km)' });
+        allAxisFields.push({ key: 'incDeg', label: 'Inclination' });
+        allAxisFields.push({ key: 'engRangeKm', label: 'Eng Range (km)' });
+
         var xLabel = xField;
         var yLabel = yField;
-        for (var rf = 0; rf < ROLE_FIELDS.length; rf++) {
-            if (ROLE_FIELDS[rf].key === xField) xLabel = ROLE_FIELDS[rf].label;
-            if (ROLE_FIELDS[rf].key === yField) yLabel = ROLE_FIELDS[rf].label;
+        for (var rf = 0; rf < allAxisFields.length; rf++) {
+            if (allAxisFields[rf].key === xField) xLabel = allAxisFields[rf].label;
+            if (allAxisFields[rf].key === yField) yLabel = allAxisFields[rf].label;
         }
 
         var xVals = _uniqueSorted(rows, xField);
@@ -1041,16 +1218,24 @@ var DOEResults = (function() {
             metricVals.push(rows[i][metricKey]);
         }
 
+        // Build list of sensitivity factors: roles + any varying advanced params
+        var sensFields = ROLE_FIELDS.slice(); // copy base role fields
+        var hasAdv = _hasVariation(rows);
+        if (hasAdv.sma) sensFields.push({ key: 'smaKm', label: 'SMA (km)' });
+        if (hasAdv.inc) sensFields.push({ key: 'incDeg', label: 'Inclination' });
+        if (hasAdv.eng) sensFields.push({ key: 'engRangeKm', label: 'Eng Range' });
+        // Note: weaponType is categorical, not numeric -- skip Pearson for it
+
         var labels = [];
         var correlations = [];
         var bgColors = [];
-        for (var r = 0; r < ROLE_FIELDS.length; r++) {
+        for (var r = 0; r < sensFields.length; r++) {
             var roleVals = [];
             for (var j = 0; j < rows.length; j++) {
-                roleVals.push(rows[j][ROLE_FIELDS[r].key]);
+                roleVals.push(rows[j][sensFields[r].key]);
             }
             var corr = _pearsonCorrelation(roleVals, metricVals);
-            labels.push(ROLE_FIELDS[r].label);
+            labels.push(sensFields[r].label);
             correlations.push(parseFloat(corr.toFixed(4)));
             bgColors.push(corr >= 0 ? '#22cc44' : '#cc4422');
         }
@@ -1200,19 +1385,357 @@ var DOEResults = (function() {
     }
 
     // -------------------------------------------------------------------
-    // Tab 4: Export
+    // Tab 4: Pareto Front
+    // -------------------------------------------------------------------
+
+    var _paretoTooltipHandler = null;
+
+    var PARETO_OBJECTIVES = [
+        { key: 'blueHvaPct', label: 'Blue HVA Survival', higher: true },
+        { key: 'redHvaPct', label: 'Red HVA Survival', higher: true },
+        { key: 'totalKills', label: 'Total Kills', higher: false },
+        { key: 'totalPerSide', label: 'Entity Count (Cost)', higher: false },
+        { key: 'simTime', label: 'Sim Time', higher: false }
+    ];
+
+    function _renderPareto(rows) {
+        var container = document.getElementById('doe-tab-pareto');
+        if (!container) return;
+
+        var html = '<div class="doe-pareto-controls">';
+
+        // X axis objective
+        html += '<label>X AXIS </label>';
+        html += '<select id="doe-pareto-x">';
+        for (var i = 0; i < PARETO_OBJECTIVES.length; i++) {
+            var sel = (PARETO_OBJECTIVES[i].key === 'totalPerSide') ? ' selected' : '';
+            html += '<option value="' + PARETO_OBJECTIVES[i].key + '"' + sel + '>' +
+                PARETO_OBJECTIVES[i].label + '</option>';
+        }
+        html += '</select>';
+
+        // Y axis objective
+        html += '<label>Y AXIS </label>';
+        html += '<select id="doe-pareto-y">';
+        for (var j = 0; j < PARETO_OBJECTIVES.length; j++) {
+            var sel2 = (PARETO_OBJECTIVES[j].key === 'blueHvaPct') ? ' selected' : '';
+            html += '<option value="' + PARETO_OBJECTIVES[j].key + '"' + sel2 + '>' +
+                PARETO_OBJECTIVES[j].label + '</option>';
+        }
+        html += '</select>';
+
+        html += '</div>';
+
+        html += '<div class="doe-pareto-wrap" id="doe-pareto-wrap">';
+        html += '<canvas id="doe-pareto-canvas" width="700" height="500"></canvas>';
+        html += '<div class="doe-pareto-tooltip" id="doe-pareto-tooltip"></div>';
+        html += '</div>';
+
+        container.innerHTML = html;
+
+        _drawPareto(rows);
+
+        var xSel = document.getElementById('doe-pareto-x');
+        var ySel = document.getElementById('doe-pareto-y');
+        var onChange = function() { _drawPareto(_processedRows); };
+        if (xSel) xSel.addEventListener('change', onChange);
+        if (ySel) ySel.addEventListener('change', onChange);
+    }
+
+    /**
+     * Compute the Pareto front for two objectives.
+     * @param {Array} rows - data rows
+     * @param {string} xKey - x axis field
+     * @param {string} yKey - y axis field
+     * @param {boolean} xHigher - true if higher x is better
+     * @param {boolean} yHigher - true if higher y is better
+     * @returns {Array} indices of Pareto-optimal rows
+     */
+    function _computeParetoFront(rows, xKey, yKey, xHigher, yHigher) {
+        var dominated = new Array(rows.length);
+        for (var i = 0; i < rows.length; i++) dominated[i] = false;
+
+        for (var a = 0; a < rows.length; a++) {
+            if (dominated[a]) continue;
+            for (var b = 0; b < rows.length; b++) {
+                if (a === b || dominated[b]) continue;
+
+                // Check if a dominates b
+                var ax = rows[a][xKey], ay = rows[a][yKey];
+                var bx = rows[b][xKey], by = rows[b][yKey];
+
+                var aDomX = xHigher ? (ax >= bx) : (ax <= bx);
+                var aDomY = yHigher ? (ay >= by) : (ay <= by);
+                var aStrictX = xHigher ? (ax > bx) : (ax < bx);
+                var aStrictY = yHigher ? (ay > by) : (ay < by);
+
+                if (aDomX && aDomY && (aStrictX || aStrictY)) {
+                    dominated[b] = true;
+                }
+            }
+        }
+
+        var front = [];
+        for (var k = 0; k < rows.length; k++) {
+            if (!dominated[k]) front.push(k);
+        }
+        return front;
+    }
+
+    function _drawPareto(rows) {
+        var canvas = document.getElementById('doe-pareto-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+
+        var xKey = document.getElementById('doe-pareto-x').value;
+        var yKey = document.getElementById('doe-pareto-y').value;
+
+        // Find objective configs
+        var xObj = null, yObj = null;
+        for (var oi = 0; oi < PARETO_OBJECTIVES.length; oi++) {
+            if (PARETO_OBJECTIVES[oi].key === xKey) xObj = PARETO_OBJECTIVES[oi];
+            if (PARETO_OBJECTIVES[oi].key === yKey) yObj = PARETO_OBJECTIVES[oi];
+        }
+        if (!xObj || !yObj) return;
+
+        // Compute Pareto front
+        var frontIndices = _computeParetoFront(rows, xKey, yKey, xObj.higher, yObj.higher);
+        var frontSet = {};
+        for (var fi = 0; fi < frontIndices.length; fi++) {
+            frontSet[frontIndices[fi]] = true;
+        }
+
+        // Find data range
+        var xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+        for (var ri = 0; ri < rows.length; ri++) {
+            var xv = rows[ri][xKey];
+            var yv = rows[ri][yKey];
+            if (xv < xMin) xMin = xv;
+            if (xv > xMax) xMax = xv;
+            if (yv < yMin) yMin = yv;
+            if (yv > yMax) yMax = yv;
+        }
+
+        // Add 5% padding
+        var xRange = xMax - xMin || 1;
+        var yRange = yMax - yMin || 1;
+        xMin -= xRange * 0.05;
+        xMax += xRange * 0.05;
+        yMin -= yRange * 0.05;
+        yMax += yRange * 0.05;
+
+        // Layout
+        var mL = 70, mT = 40, mR = 30, mB = 50;
+        var pW = canvas.width - mL - mR;
+        var pH = canvas.height - mT - mB;
+
+        // Clear
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#080c14';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Title
+        ctx.fillStyle = '#00ccff';
+        ctx.font = 'bold 12px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('PARETO FRONT: ' + yObj.label.toUpperCase() + ' vs ' + xObj.label.toUpperCase(),
+            canvas.width / 2, 18);
+
+        // Grid
+        ctx.strokeStyle = '#1a2a44';
+        ctx.lineWidth = 0.5;
+        for (var gx = 0; gx <= 5; gx++) {
+            var gxp = mL + (gx / 5) * pW;
+            ctx.beginPath();
+            ctx.moveTo(gxp, mT);
+            ctx.lineTo(gxp, mT + pH);
+            ctx.stroke();
+        }
+        for (var gy = 0; gy <= 5; gy++) {
+            var gyp = mT + (gy / 5) * pH;
+            ctx.beginPath();
+            ctx.moveTo(mL, gyp);
+            ctx.lineTo(mL + pW, gyp);
+            ctx.stroke();
+        }
+
+        // Store point positions for tooltip
+        var pointRects = [];
+
+        // Draw non-Pareto points
+        for (var pi = 0; pi < rows.length; pi++) {
+            if (frontSet[pi]) continue;
+            var px = mL + ((rows[pi][xKey] - xMin) / (xMax - xMin)) * pW;
+            var py = mT + pH - ((rows[pi][yKey] - yMin) / (yMax - yMin)) * pH;
+
+            ctx.beginPath();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(100, 100, 150, 0.5)';
+            ctx.fill();
+
+            pointRects.push({ x: px, y: py, r: 6, idx: pi, pareto: false });
+        }
+
+        // Sort Pareto front points by x for line drawing
+        var frontPts = [];
+        for (var fpi = 0; fpi < frontIndices.length; fpi++) {
+            var idx = frontIndices[fpi];
+            var fpx = mL + ((rows[idx][xKey] - xMin) / (xMax - xMin)) * pW;
+            var fpy = mT + pH - ((rows[idx][yKey] - yMin) / (yMax - yMin)) * pH;
+            frontPts.push({ x: fpx, y: fpy, idx: idx });
+        }
+        frontPts.sort(function(a, b) { return a.x - b.x; });
+
+        // Draw Pareto front line
+        if (frontPts.length > 1) {
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 3]);
+            ctx.beginPath();
+            ctx.moveTo(frontPts[0].x, frontPts[0].y);
+            for (var li = 1; li < frontPts.length; li++) {
+                ctx.lineTo(frontPts[li].x, frontPts[li].y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Draw Pareto front points
+        for (var qi = 0; qi < frontPts.length; qi++) {
+            ctx.beginPath();
+            ctx.arc(frontPts[qi].x, frontPts[qi].y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#00ff88';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            pointRects.push({ x: frontPts[qi].x, y: frontPts[qi].y, r: 8, idx: frontPts[qi].idx, pareto: true });
+        }
+
+        // Axis labels
+        ctx.fillStyle = '#889';
+        ctx.font = '9px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (var xl = 0; xl <= 5; xl++) {
+            var xv2 = xMin + (xl / 5) * (xMax - xMin);
+            var xvStr = (xKey === 'blueHvaPct' || xKey === 'redHvaPct') ?
+                (xv2 * 100).toFixed(0) + '%' : xv2.toFixed(0);
+            ctx.fillText(xvStr, mL + (xl / 5) * pW, mT + pH + 6);
+        }
+
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (var yl = 0; yl <= 5; yl++) {
+            var yv2 = yMin + (yl / 5) * (yMax - yMin);
+            var yvStr = (yKey === 'blueHvaPct' || yKey === 'redHvaPct') ?
+                (yv2 * 100).toFixed(0) + '%' : yv2.toFixed(0);
+            ctx.fillText(yvStr, mL - 6, mT + pH - (yl / 5) * pH);
+        }
+
+        // Axis titles
+        ctx.fillStyle = '#00ccff';
+        ctx.font = '11px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(xObj.label, mL + pW / 2, canvas.height - 6);
+
+        ctx.save();
+        ctx.translate(12, mT + pH / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(yObj.label, 0, 0);
+        ctx.restore();
+
+        // Legend
+        ctx.fillStyle = '#00ff88';
+        ctx.beginPath();
+        ctx.arc(canvas.width - 120, mT + 10, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#889';
+        ctx.font = '10px "Courier New", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Pareto (' + frontIndices.length + ')', canvas.width - 110, mT + 13);
+
+        ctx.fillStyle = 'rgba(100, 100, 150, 0.7)';
+        ctx.beginPath();
+        ctx.arc(canvas.width - 120, mT + 28, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#889';
+        ctx.fillText('Dominated', canvas.width - 110, mT + 31);
+
+        // Tooltip
+        if (_paretoTooltipHandler) {
+            canvas.removeEventListener('mousemove', _paretoTooltipHandler);
+            canvas.removeEventListener('mouseleave', _paretoTooltipHandler);
+        }
+
+        var tooltip = document.getElementById('doe-pareto-tooltip');
+        _paretoTooltipHandler = function(e) {
+            if (e.type === 'mouseleave') {
+                if (tooltip) tooltip.style.display = 'none';
+                return;
+            }
+            var rect = canvas.getBoundingClientRect();
+            var mx = e.clientX - rect.left;
+            var my = e.clientY - rect.top;
+
+            var found = null;
+            for (var si = pointRects.length - 1; si >= 0; si--) {
+                var pt = pointRects[si];
+                var dx = mx - pt.x;
+                var dy = my - pt.y;
+                if (dx * dx + dy * dy <= pt.r * pt.r + 16) {
+                    found = pt;
+                    break;
+                }
+            }
+
+            if (found && tooltip) {
+                var row = rows[found.idx];
+                var xVal = (xKey === 'blueHvaPct' || xKey === 'redHvaPct') ?
+                    (row[xKey] * 100).toFixed(1) + '%' : row[xKey];
+                var yVal = (yKey === 'blueHvaPct' || yKey === 'redHvaPct') ?
+                    (row[yKey] * 100).toFixed(1) + '%' : row[yKey];
+                tooltip.textContent = (found.pareto ? '[PARETO] ' : '') +
+                    'H=' + row.hva + ' D=' + row.def + ' A=' + row.atk +
+                    ' E=' + row.esc + ' S=' + row.swp +
+                    ' | ' + xObj.label + '=' + xVal +
+                    ', ' + yObj.label + '=' + yVal;
+                var wrap = document.getElementById('doe-pareto-wrap');
+                var wrapRect = wrap.getBoundingClientRect();
+                tooltip.style.left = (e.clientX - wrapRect.left + 12) + 'px';
+                tooltip.style.top = (e.clientY - wrapRect.top - 30) + 'px';
+                tooltip.style.display = 'block';
+            } else if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        };
+
+        canvas.addEventListener('mousemove', _paretoTooltipHandler);
+        canvas.addEventListener('mouseleave', _paretoTooltipHandler);
+    }
+
+    // -------------------------------------------------------------------
+    // Tab 5: Export
     // -------------------------------------------------------------------
 
     function _renderExport(rows, data) {
         var container = document.getElementById('doe-tab-export');
         if (!container) return;
 
-        // Buttons
+        // Buttons — first row: data export
         var html = '<div class="doe-export-btns">';
         html += '<button class="doe-export-btn" id="doe-btn-csv">Download CSV</button>';
         html += '<button class="doe-export-btn" id="doe-btn-json">Download JSON</button>';
-        html += '<button class="doe-export-btn" id="doe-btn-copy">Copy Table</button>';
+        html += '<button class="doe-export-btn" id="doe-btn-copy">Copy Table (TSV)</button>';
         html += '</div>';
+
+        // Second row: scenario and report export
+        html += '<div class="doe-export-btns">';
+        html += '<button class="doe-export-btn" id="doe-btn-scenarios">Export Scenarios (.sim)</button>';
+        html += '<button class="doe-export-btn" id="doe-btn-report">Export HTML Report</button>';
+        html += '</div>';
+        html += '<div class="doe-export-status" id="doe-export-status"></div>';
 
         // Summary stats
         html += '<div class="doe-summary-box">';
@@ -1282,6 +1805,18 @@ var DOEResults = (function() {
                 _copyTableToClipboard(_processedRows);
             });
         }
+        var scenarioBtn = document.getElementById('doe-btn-scenarios');
+        if (scenarioBtn) {
+            scenarioBtn.addEventListener('click', function() {
+                _exportScenarios(_processedRows, _rawData);
+            });
+        }
+        var reportBtn = document.getElementById('doe-btn-report');
+        if (reportBtn) {
+            reportBtn.addEventListener('click', function() {
+                _exportHTMLReport(_processedRows, _rawData);
+            });
+        }
     }
 
     function _findBestConfig(rows, metric, best) {
@@ -1298,16 +1833,29 @@ var DOEResults = (function() {
     }
 
     function _copyTableToClipboard(rows) {
-        var header = 'Perm\tHVA\tDefender\tAttacker\tEscort\tSweep\tTotalPerSide\t' +
-            'BlueHVA%\tRedHVA%\tBlueAlive\tRedAlive\tKills\tSimTime';
+        var hasAdv = _hasVariation(rows);
+        var headerParts = ['Perm', 'HVA', 'Defender', 'Attacker', 'Escort', 'Sweep', 'TotalPerSide'];
+        if (hasAdv.sma) headerParts.push('SMA_km');
+        if (hasAdv.inc) headerParts.push('Inc_deg');
+        if (hasAdv.eng) headerParts.push('EngRange_km');
+        if (hasAdv.wpn) headerParts.push('WeaponType');
+        headerParts.push('BlueHVA%', 'RedHVA%', 'BlueAlive', 'RedAlive', 'Kills', 'SimTime');
+        var header = headerParts.join('\t');
         var lines = [header];
         for (var i = 0; i < rows.length; i++) {
             var r = rows[i];
-            lines.push([
-                r.permId, r.hva, r.def, r.atk, r.esc, r.swp, r.totalPerSide,
+            var parts = [
+                r.permId, r.hva, r.def, r.atk, r.esc, r.swp, r.totalPerSide
+            ];
+            if (hasAdv.sma) parts.push(r.smaKm || 42164);
+            if (hasAdv.inc) parts.push(r.incDeg || 0);
+            if (hasAdv.eng) parts.push(r.engRangeKm || 0);
+            if (hasAdv.wpn) parts.push((r.weaponType || 'kkv').toUpperCase());
+            parts.push(
                 (r.blueHvaPct * 100).toFixed(1), (r.redHvaPct * 100).toFixed(1),
                 r.blueAlive, r.redAlive, r.totalKills, r.simTime.toFixed(1)
-            ].join('\t'));
+            );
+            lines.push(parts.join('\t'));
         }
         var tsv = lines.join('\n');
 
@@ -1327,6 +1875,249 @@ var DOEResults = (function() {
             document.body.removeChild(ta);
             _flashButton('doe-btn-copy', 'Copied!');
         }
+    }
+
+    /**
+     * Export each DOE permutation as a separate .sim file.
+     * POSTs to /api/sim/save for each permutation.
+     */
+    function _exportScenarios(rows, data) {
+        if (!rows || rows.length === 0 || !data || !data.permutations) return;
+
+        var statusEl = document.getElementById('doe-export-status');
+        if (statusEl) {
+            statusEl.textContent = 'Exporting ' + rows.length + ' scenarios...';
+            statusEl.className = 'doe-export-status';
+        }
+
+        var completed = 0;
+        var failed = 0;
+        var total = data.permutations.length;
+
+        for (var i = 0; i < total; i++) {
+            (function(idx) {
+                var perm = data.permutations[idx];
+                if (!perm) {
+                    completed++;
+                    return;
+                }
+
+                // Build a scenario-like JSON from the permutation config
+                var cfg = perm.config || {};
+                var scenarioData = {
+                    metadata: {
+                        name: 'DOE Run ' + idx,
+                        description: 'DOE permutation ' + idx + ': HVA=' + (cfg.hvaPerSide || 0) +
+                            ' DEF=' + (cfg.defendersPerSide || 0) + ' ATK=' + (cfg.attackersPerSide || 0) +
+                            ' ESC=' + (cfg.escortsPerSide || 0) + ' SWP=' + (cfg.sweepsPerSide || 0),
+                        version: '2.0',
+                        doe: {
+                            permId: idx,
+                            config: cfg,
+                            seed: data.seed,
+                            maxTime: data.maxTime
+                        }
+                    },
+                    environment: { maxTimeWarp: 64 },
+                    entities: [],
+                    events: [],
+                    camera: { range: 500000 }
+                };
+
+                // If the permutation has results with entity survival, embed summary
+                if (perm.results && perm.results.runs && perm.results.runs[0]) {
+                    scenarioData.metadata.doe.results = {
+                        simTimeFinal: perm.results.runs[0].simTimeFinal,
+                        entitySurvival: perm.results.runs[0].entitySurvival
+                    };
+                }
+
+                var filename = 'doe_run_' + idx + '.sim';
+
+                fetch('/api/sim/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: filename, data: scenarioData })
+                })
+                .then(function(resp) {
+                    if (!resp.ok) failed++;
+                    completed++;
+                    _updateExportStatus(completed, failed, total);
+                })
+                .catch(function() {
+                    failed++;
+                    completed++;
+                    _updateExportStatus(completed, failed, total);
+                });
+            })(i);
+        }
+    }
+
+    function _updateExportStatus(completed, failed, total) {
+        var statusEl = document.getElementById('doe-export-status');
+        if (!statusEl) return;
+        if (completed >= total) {
+            if (failed > 0) {
+                statusEl.textContent = 'Exported ' + (total - failed) + '/' + total +
+                    ' scenarios (' + failed + ' failed)';
+                statusEl.className = 'doe-export-status error';
+            } else {
+                statusEl.textContent = 'Exported ' + total + ' scenarios to sims/ directory';
+                statusEl.className = 'doe-export-status success';
+            }
+            _flashButton('doe-btn-scenarios', 'Exported!');
+        } else {
+            statusEl.textContent = 'Exporting... ' + completed + '/' + total;
+        }
+    }
+
+    /**
+     * Generate a self-contained HTML report with embedded chart images and data tables.
+     * Uses canvas.toDataURL() for each chart.
+     */
+    function _exportHTMLReport(rows, data) {
+        if (!rows || rows.length === 0) return;
+
+        var statusEl = document.getElementById('doe-export-status');
+        if (statusEl) {
+            statusEl.textContent = 'Generating report...';
+            statusEl.className = 'doe-export-status';
+        }
+
+        // Collect chart images from existing canvases
+        var chartImages = {};
+
+        // Heat map canvas
+        var hmCanvas = document.getElementById('doe-hm-canvas');
+        if (hmCanvas) {
+            try { chartImages.heatmap = hmCanvas.toDataURL('image/png'); } catch (e) { /* ignore */ }
+        }
+
+        // Sensitivity canvas
+        var sensCanvas = document.getElementById('doe-sens-canvas');
+        if (sensCanvas) {
+            try { chartImages.sensitivity = sensCanvas.toDataURL('image/png'); } catch (e) { /* ignore */ }
+        }
+
+        // Pareto canvas
+        var paretoCanvas = document.getElementById('doe-pareto-canvas');
+        if (paretoCanvas) {
+            try { chartImages.pareto = paretoCanvas.toDataURL('image/png'); } catch (e) { /* ignore */ }
+        }
+
+        // Build HTML
+        var ts = _timestamp();
+        var html = '<!DOCTYPE html>\n<html>\n<head>\n';
+        html += '<meta charset="UTF-8">\n';
+        html += '<title>DOE Report - ' + ts + '</title>\n';
+        html += '<style>\n';
+        html += 'body { font-family: "Courier New", monospace; background: #0a0e17; color: #e0e8f0; padding: 20px; }\n';
+        html += 'h1 { color: #00ccff; border-bottom: 1px solid #1a2a44; padding-bottom: 8px; }\n';
+        html += 'h2 { color: #00ccff; margin-top: 30px; }\n';
+        html += 'table { border-collapse: collapse; width: 100%; margin: 10px 0; }\n';
+        html += 'th { background: #0d1220; color: #00ccff; padding: 6px 10px; text-align: right; border-bottom: 2px solid #1a2a44; font-size: 11px; }\n';
+        html += 'td { padding: 5px 10px; text-align: right; border-bottom: 1px solid #0f1525; font-size: 12px; }\n';
+        html += 'tr:nth-child(even) td { background: #0a0e17; }\n';
+        html += 'tr:nth-child(odd) td { background: #0d1220; }\n';
+        html += '.summary { background: rgba(0,0,0,0.3); border: 1px solid #1a2a44; border-radius: 4px; padding: 16px; line-height: 1.8; margin: 10px 0; }\n';
+        html += '.best { background: rgba(0,100,50,0.2); border-color: #00cc66; }\n';
+        html += '.label { color: #889; }\n';
+        html += '.value { color: #00ccff; font-weight: bold; }\n';
+        html += '.good { color: #00ff88; font-weight: bold; }\n';
+        html += '.bad { color: #f86; }\n';
+        html += 'img { max-width: 100%; margin: 10px 0; border: 1px solid #1a2a44; border-radius: 4px; }\n';
+        html += '.generated { color: #556; font-size: 10px; margin-top: 30px; border-top: 1px solid #1a2a44; padding-top: 8px; }\n';
+        html += '</style>\n</head>\n<body>\n';
+
+        html += '<h1>DOE RESULTS REPORT</h1>\n';
+        html += '<div class="summary">\n';
+        html += '<div><span class="label">Generated: </span><span class="value">' + new Date().toISOString() + '</span></div>\n';
+        html += '<div><span class="label">Total permutations: </span><span class="value">' + rows.length + '</span></div>\n';
+        html += '<div><span class="label">Seed: </span><span class="value">' + (data.seed || '---') + '</span></div>\n';
+        html += '<div><span class="label">Max sim time: </span><span class="value">' + (data.maxTime || 600) + 's</span></div>\n';
+        html += '<div><span class="label">Total elapsed: </span><span class="value">' + (data.totalElapsed || 0).toFixed(1) + 's</span></div>\n';
+        html += '</div>\n';
+
+        // Best configuration
+        var best = _findBestConfig(rows, 'blueHvaPct', true);
+        if (best) {
+            html += '<div class="summary best">\n';
+            html += '<div><strong style="color:#00cc66;">BEST CONFIGURATION (Blue HVA Survival)</strong></div>\n';
+            html += '<div><span class="label">Survival: </span><span class="good">' + (best.blueHvaPct * 100).toFixed(1) + '%</span></div>\n';
+            html += '<div><span class="label">Composition: </span><span class="good">HVA=' + best.hva + ' DEF=' + best.def +
+                ' ATK=' + best.atk + ' ESC=' + best.esc + ' SWP=' + best.swp + '</span></div>\n';
+            html += '</div>\n';
+        }
+
+        // Chart images
+        if (chartImages.heatmap) {
+            html += '<h2>HEAT MAP</h2>\n';
+            html += '<img src="' + chartImages.heatmap + '" alt="Heat Map">\n';
+        }
+        if (chartImages.sensitivity) {
+            html += '<h2>SENSITIVITY ANALYSIS</h2>\n';
+            html += '<img src="' + chartImages.sensitivity + '" alt="Sensitivity">\n';
+        }
+        if (chartImages.pareto) {
+            html += '<h2>PARETO FRONT</h2>\n';
+            html += '<img src="' + chartImages.pareto + '" alt="Pareto Front">\n';
+        }
+
+        // Data table
+        html += '<h2>DATA TABLE</h2>\n';
+        html += '<table>\n<tr>';
+
+        var hasAdv = _hasVariation(rows);
+        var cols = ['#', 'HVA', 'DEF', 'ATK', 'ESC', 'SWP', 'Total'];
+        if (hasAdv.sma) cols.push('SMA(km)');
+        if (hasAdv.inc) cols.push('Inc(\u00B0)');
+        if (hasAdv.eng) cols.push('Eng(km)');
+        if (hasAdv.wpn) cols.push('Weapon');
+        cols.push('Blue HVA%', 'Red HVA%', 'Blue Alive', 'Red Alive', 'Kills', 'Time');
+
+        for (var ci = 0; ci < cols.length; ci++) {
+            html += '<th>' + cols[ci] + '</th>';
+        }
+        html += '</tr>\n';
+
+        for (var ri = 0; ri < rows.length; ri++) {
+            var r = rows[ri];
+            html += '<tr>';
+            html += '<td>' + r.permId + '</td>';
+            html += '<td>' + r.hva + '</td>';
+            html += '<td>' + r.def + '</td>';
+            html += '<td>' + r.atk + '</td>';
+            html += '<td>' + r.esc + '</td>';
+            html += '<td>' + r.swp + '</td>';
+            html += '<td>' + r.totalPerSide + '</td>';
+            if (hasAdv.sma) html += '<td>' + (r.smaKm || 42164) + '</td>';
+            if (hasAdv.inc) html += '<td>' + (r.incDeg || 0) + '</td>';
+            if (hasAdv.eng) html += '<td>' + (r.engRangeKm || 0) + '</td>';
+            if (hasAdv.wpn) html += '<td>' + _escapeHtml((r.weaponType || 'kkv').toUpperCase()) + '</td>';
+            if (r.error) {
+                html += '<td colspan="6" style="color:#ff4444;">ERROR</td>';
+            } else {
+                html += '<td>' + (r.blueHvaPct * 100).toFixed(1) + '%</td>';
+                html += '<td>' + (r.redHvaPct * 100).toFixed(1) + '%</td>';
+                html += '<td>' + r.blueAlive + '/' + r.blueTotal + '</td>';
+                html += '<td>' + r.redAlive + '/' + r.redTotal + '</td>';
+                html += '<td>' + r.totalKills + '</td>';
+                html += '<td>' + r.simTime.toFixed(1) + 's</td>';
+            }
+            html += '</tr>\n';
+        }
+
+        html += '</table>\n';
+        html += '<div class="generated">Generated by DOE Analysis System</div>\n';
+        html += '</body>\n</html>';
+
+        _downloadBlob(html, 'text/html', 'doe_report_' + ts + '.html');
+
+        if (statusEl) {
+            statusEl.textContent = 'Report downloaded';
+            statusEl.className = 'doe-export-status success';
+        }
+        _flashButton('doe-btn-report', 'Downloaded!');
     }
 
     function _flashButton(id, text) {
@@ -1438,6 +2229,7 @@ var DOEResults = (function() {
                     _renderedTabs[tabName] = true;
                     if (tabName === 'heatmap') _renderHeatMap(_processedRows);
                     else if (tabName === 'sensitivity') _renderSensitivity(_processedRows);
+                    else if (tabName === 'pareto') _renderPareto(_processedRows);
                     else if (tabName === 'export') _renderExport(_processedRows, _rawData);
                 }
             });
@@ -1469,6 +2261,7 @@ var DOEResults = (function() {
         }
 
         _heatMapTooltipHandler = null;
+        _paretoTooltipHandler = null;
 
         var existing = document.getElementById(PANEL_ID);
         if (existing) {
@@ -1487,16 +2280,29 @@ var DOEResults = (function() {
         if (!rows) rows = _processedRows;
         if (!rows || rows.length === 0) return;
 
-        var header = 'Perm,HVA,Defender,Attacker,Escort,Sweep,TotalPerSide,' +
-            'BlueHVA%,RedHVA%,BlueAlive,RedAlive,Kills,SimTime';
+        var hasAdv = _hasVariation(rows);
+        var headerParts = ['Perm', 'HVA', 'Defender', 'Attacker', 'Escort', 'Sweep', 'TotalPerSide'];
+        if (hasAdv.sma) headerParts.push('SMA_km');
+        if (hasAdv.inc) headerParts.push('Inc_deg');
+        if (hasAdv.eng) headerParts.push('EngRange_km');
+        if (hasAdv.wpn) headerParts.push('WeaponType');
+        headerParts.push('BlueHVA%', 'RedHVA%', 'BlueAlive', 'RedAlive', 'Kills', 'SimTime');
+        var header = headerParts.join(',');
         var lines = [header];
         for (var i = 0; i < rows.length; i++) {
             var r = rows[i];
-            lines.push([
-                r.permId, r.hva, r.def, r.atk, r.esc, r.swp, r.totalPerSide,
+            var parts = [
+                r.permId, r.hva, r.def, r.atk, r.esc, r.swp, r.totalPerSide
+            ];
+            if (hasAdv.sma) parts.push(r.smaKm || 42164);
+            if (hasAdv.inc) parts.push(r.incDeg || 0);
+            if (hasAdv.eng) parts.push(r.engRangeKm || 0);
+            if (hasAdv.wpn) parts.push((r.weaponType || 'kkv').toUpperCase());
+            parts.push(
                 (r.blueHvaPct * 100).toFixed(1), (r.redHvaPct * 100).toFixed(1),
                 r.blueAlive, r.redAlive, r.totalKills, r.simTime.toFixed(1)
-            ].join(','));
+            );
+            lines.push(parts.join(','));
         }
         var csv = lines.join('\n');
         _downloadBlob(csv, 'text/csv', 'doe_results_' + _timestamp() + '.csv');

@@ -19,7 +19,7 @@
         #app { display: flex; width: 100%; height: 100%; }
 
         #leftPanel {
-            width: 420px; min-width: 420px; height: 100%;
+            width: 440px; min-width: 440px; height: 100%;
             background: #0d1320;
             border-right: 1px solid #1e2a42;
             overflow-y: auto; overflow-x: hidden;
@@ -82,6 +82,10 @@
         .section-title.orange .dot { background: #f97316; }
         .section-title.cyan { color: #4af0ff; }
         .section-title.cyan .dot { background: #4af0ff; }
+        .section-title.purple { color: #a78bfa; }
+        .section-title.purple .dot { background: #a78bfa; }
+        .section-title.magenta { color: #f472b6; }
+        .section-title.magenta .dot { background: #f472b6; }
 
         /* ---- Field grid ---- */
         .field-grid {
@@ -92,6 +96,9 @@
         .field-grid.two-col {
             grid-template-columns: 1fr 1fr;
         }
+        .field-grid.four-col {
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+        }
         .field {
             display: flex; flex-direction: column; gap: 2px;
         }
@@ -99,7 +106,7 @@
             font-size: 9px; color: #6b7a90;
             text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .field input {
+        .field input, .field select {
             background: #0a0e17;
             border: 1px solid #1e2a42;
             border-radius: 3px;
@@ -110,7 +117,8 @@
             -moz-appearance: textfield;
         }
         .field input::-webkit-inner-spin-button { -webkit-appearance: none; }
-        .field input:focus { border-color: #4a9eff; }
+        .field input:focus, .field select:focus { border-color: #4a9eff; }
+        .field input[readonly] { color: #6b7a90; }
 
         /* ---- Preset buttons ---- */
         .preset-row {
@@ -237,6 +245,47 @@
         .fuel-info .fi-left { color: #6b7a90; }
         .fuel-info .fi-right { font-weight: 600; }
 
+        /* ---- Comparison table ---- */
+        .compare-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 11px; margin-top: 8px;
+        }
+        .compare-table th {
+            text-align: left; padding: 4px 8px;
+            border-bottom: 1px solid #1e2a42;
+            color: #6b7a90; font-weight: 600;
+            font-size: 10px; text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .compare-table td {
+            padding: 4px 8px; border-bottom: 1px solid #131a2a;
+        }
+        .compare-table tr.winner td { color: #10b981; font-weight: 700; }
+        .compare-table tr.loser td { color: #6b7a90; }
+
+        /* ---- Warning box ---- */
+        .warning-box {
+            margin-top: 8px; padding: 6px 10px;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 4px; font-size: 10px;
+            color: #ef4444;
+        }
+
+        /* ---- Phase angle output ---- */
+        .phase-output {
+            margin-top: 8px; padding: 8px 10px;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid #131a2a;
+            border-radius: 4px;
+        }
+        .phase-row {
+            display: flex; justify-content: space-between;
+            font-size: 11px; padding: 2px 0;
+        }
+        .phase-row .pl { color: #6b7a90; }
+        .phase-row .pv { color: #c8cdd5; font-weight: 600; }
+
         /* ---- Chart ---- */
         #chartSection { padding: 12px 16px; }
         #dvChart {
@@ -249,6 +298,14 @@
         .no-results {
             text-align: center; color: #3a4a60;
             font-size: 12px; padding: 24px 16px;
+        }
+
+        /* ---- Transfer diagram ---- */
+        #transferDiagram {
+            width: 100%; height: 200px;
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 4px;
         }
 
         /* ---- Orbit info overlay ---- */
@@ -289,6 +346,18 @@
         /* ---- Cesium overrides ---- */
         .cesium-viewer-bottom { display: none !important; }
 
+        /* ---- Collapsible sections ---- */
+        .section-toggle {
+            cursor: pointer; user-select: none;
+        }
+        .section-toggle::after {
+            content: ' [-]'; font-size: 10px; color: #3a4a60;
+        }
+        .section-toggle.collapsed::after {
+            content: ' [+]';
+        }
+        .section-body.collapsed { display: none; }
+
         /* ---- Responsive ---- */
         @media (max-width: 900px) {
             #app { flex-direction: column; }
@@ -314,131 +383,217 @@
 
         <!-- Source Orbit -->
         <div class="section" id="sectionSource">
-            <div class="section-title blue"><span class="dot"></span> Source Orbit</div>
-            <div class="field-grid">
-                <div class="field">
-                    <label>SMA (km)</label>
-                    <input type="number" id="srcSMA" value="6771" step="1">
+            <div class="section-title blue section-toggle" data-target="srcBody"><span class="dot"></span> Source Orbit</div>
+            <div id="srcBody" class="section-body">
+                <div class="field-grid">
+                    <div class="field">
+                        <label>SMA (km)</label>
+                        <input type="number" id="srcSMA" value="6771" step="1">
+                    </div>
+                    <div class="field">
+                        <label>Eccentricity</label>
+                        <input type="number" id="srcEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                    </div>
+                    <div class="field">
+                        <label>Inc (deg)</label>
+                        <input type="number" id="srcInc" value="51.6" step="0.1">
+                    </div>
+                    <div class="field">
+                        <label>RAAN (deg)</label>
+                        <input type="number" id="srcRAAN" value="0" step="1">
+                    </div>
+                    <div class="field">
+                        <label>Arg Pe (deg)</label>
+                        <input type="number" id="srcArgPe" value="0" step="1">
+                    </div>
+                    <div class="field">
+                        <label>True Anom (deg)</label>
+                        <input type="number" id="srcTA" value="0" step="1">
+                    </div>
                 </div>
-                <div class="field">
-                    <label>Eccentricity</label>
-                    <input type="number" id="srcEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                <div class="computed-grid" id="srcComputed">
+                    <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="srcPeDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="srcApDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="srcPeriodDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="srcVcircDisp">--</span></div>
                 </div>
-                <div class="field">
-                    <label>Inc (deg)</label>
-                    <input type="number" id="srcInc" value="51.6" step="0.1">
+                <div class="preset-row" id="srcPresets">
+                    <button class="preset-btn" data-preset="leo">LEO 400km</button>
+                    <button class="preset-btn" data-preset="sunsync">Sun-Sync</button>
+                    <button class="preset-btn" data-preset="gto">GTO</button>
+                    <button class="preset-btn" data-preset="geo">GEO</button>
                 </div>
-                <div class="field">
-                    <label>RAAN (deg)</label>
-                    <input type="number" id="srcRAAN" value="0" step="1">
-                </div>
-                <div class="field">
-                    <label>Arg Pe (deg)</label>
-                    <input type="number" id="srcArgPe" value="0" step="1">
-                </div>
-                <div class="field">
-                    <label>True Anom (deg)</label>
-                    <input type="number" id="srcTA" value="0" step="1">
-                </div>
-            </div>
-            <div class="computed-grid" id="srcComputed">
-                <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="srcPeDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="srcApDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="srcPeriodDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="srcVcircDisp">--</span></div>
-            </div>
-            <div class="preset-row" id="srcPresets">
-                <button class="preset-btn" data-preset="leo">LEO 400km</button>
-                <button class="preset-btn" data-preset="sunsync">Sun-Sync</button>
-                <button class="preset-btn" data-preset="gto">GTO</button>
-                <button class="preset-btn" data-preset="geo">GEO</button>
             </div>
         </div>
 
         <!-- Target Orbit -->
         <div class="section" id="sectionTarget">
-            <div class="section-title green"><span class="dot"></span> Target Orbit</div>
-            <div class="field-grid">
-                <div class="field">
-                    <label>SMA (km)</label>
-                    <input type="number" id="tgtSMA" value="42164" step="1">
+            <div class="section-title green section-toggle" data-target="tgtBody"><span class="dot"></span> Target Orbit</div>
+            <div id="tgtBody" class="section-body">
+                <div class="field-grid">
+                    <div class="field">
+                        <label>SMA (km)</label>
+                        <input type="number" id="tgtSMA" value="42164" step="1">
+                    </div>
+                    <div class="field">
+                        <label>Eccentricity</label>
+                        <input type="number" id="tgtEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                    </div>
+                    <div class="field">
+                        <label>Inc (deg)</label>
+                        <input type="number" id="tgtInc" value="0" step="0.1">
+                    </div>
+                    <div class="field">
+                        <label>RAAN (deg)</label>
+                        <input type="number" id="tgtRAAN" value="0" step="1">
+                    </div>
+                    <div class="field">
+                        <label>Arg Pe (deg)</label>
+                        <input type="number" id="tgtArgPe" value="0" step="1">
+                    </div>
+                    <div class="field">
+                        <label>True Anom (deg)</label>
+                        <input type="number" id="tgtTA" value="0" step="1">
+                    </div>
                 </div>
-                <div class="field">
-                    <label>Eccentricity</label>
-                    <input type="number" id="tgtEcc" value="0.0001" step="0.001" min="0" max="0.99">
+                <div class="computed-grid" id="tgtComputed">
+                    <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="tgtPeDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="tgtApDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="tgtPeriodDisp">--</span></div>
+                    <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="tgtVcircDisp">--</span></div>
                 </div>
-                <div class="field">
-                    <label>Inc (deg)</label>
-                    <input type="number" id="tgtInc" value="0" step="0.1">
+                <div class="preset-row" id="tgtPresets">
+                    <button class="preset-btn" data-preset="iss">ISS</button>
+                    <button class="preset-btn" data-preset="gps">GPS</button>
+                    <button class="preset-btn" data-preset="geo">GEO</button>
+                    <button class="preset-btn" data-preset="molniya">Molniya</button>
+                    <button class="preset-btn" data-preset="lunar">Lunar</button>
                 </div>
-                <div class="field">
-                    <label>RAAN (deg)</label>
-                    <input type="number" id="tgtRAAN" value="0" step="1">
-                </div>
-                <div class="field">
-                    <label>Arg Pe (deg)</label>
-                    <input type="number" id="tgtArgPe" value="0" step="1">
-                </div>
-                <div class="field">
-                    <label>True Anom (deg)</label>
-                    <input type="number" id="tgtTA" value="0" step="1">
-                </div>
-            </div>
-            <div class="computed-grid" id="tgtComputed">
-                <div class="computed-item"><span class="clabel">Periapsis</span><span class="cvalue" id="tgtPeDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">Apoapsis</span><span class="cvalue" id="tgtApDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">Period</span><span class="cvalue" id="tgtPeriodDisp">--</span></div>
-                <div class="computed-item"><span class="clabel">V circ</span><span class="cvalue" id="tgtVcircDisp">--</span></div>
-            </div>
-            <div class="preset-row" id="tgtPresets">
-                <button class="preset-btn" data-preset="iss">ISS</button>
-                <button class="preset-btn" data-preset="gps">GPS</button>
-                <button class="preset-btn" data-preset="geo">GEO</button>
-                <button class="preset-btn" data-preset="molniya">Molniya</button>
-                <button class="preset-btn" data-preset="lunar">Lunar</button>
             </div>
         </div>
 
         <!-- Spacecraft Parameters -->
         <div class="section" id="sectionSpacecraft">
-            <div class="section-title gold"><span class="dot"></span> Spacecraft</div>
-            <div class="field-grid two-col">
-                <div class="field">
-                    <label>Dry Mass (kg)</label>
-                    <input type="number" id="scDryMass" value="1000" step="10" min="1">
+            <div class="section-title gold section-toggle" data-target="scBody"><span class="dot"></span> Spacecraft</div>
+            <div id="scBody" class="section-body">
+                <div class="field-grid two-col">
+                    <div class="field">
+                        <label>Dry Mass (kg)</label>
+                        <input type="number" id="scDryMass" value="1000" step="10" min="1">
+                    </div>
+                    <div class="field">
+                        <label>Fuel Mass (kg)</label>
+                        <input type="number" id="scFuelMass" value="500" step="10" min="0">
+                    </div>
+                    <div class="field">
+                        <label>Isp (s)</label>
+                        <input type="number" id="scIsp" value="320" step="1" min="1">
+                    </div>
+                    <div class="field">
+                        <label>Thrust (N)</label>
+                        <input type="number" id="scThrust" value="50000" step="100" min="0">
+                    </div>
                 </div>
-                <div class="field">
-                    <label>Fuel Mass (kg)</label>
-                    <input type="number" id="scFuelMass" value="500" step="10" min="0">
+                <div class="preset-row" id="scPresets">
+                    <button class="preset-btn" data-preset="smallsat">Small Sat</button>
+                    <button class="preset-btn" data-preset="leobus">LEO Bus</button>
+                    <button class="preset-btn" data-preset="geoplatform">GEO Platform</button>
+                    <button class="preset-btn" data-preset="ion">Ion Thruster</button>
                 </div>
-                <div class="field">
-                    <label>Isp (s)</label>
-                    <input type="number" id="scIsp" value="320" step="1" min="1">
-                </div>
-                <div class="field">
-                    <label>Thrust (N)</label>
-                    <input type="number" id="scThrust" value="50000" step="100" min="0">
-                </div>
-            </div>
-            <div class="preset-row" id="scPresets">
-                <button class="preset-btn" data-preset="smallsat">Small Sat</button>
-                <button class="preset-btn" data-preset="leobus">LEO Bus</button>
-                <button class="preset-btn" data-preset="geoplatform">GEO Platform</button>
-                <button class="preset-btn" data-preset="ion">Ion Thruster</button>
             </div>
         </div>
 
         <!-- Bielliptic Options -->
         <div class="section">
-            <div class="section-title orange"><span class="dot"></span> Bielliptic Options</div>
-            <div class="field-grid two-col">
-                <div class="field">
-                    <label>Intermediate R Mult</label>
-                    <input type="number" id="biellipticMult" value="2.0" step="0.1" min="1.01">
+            <div class="section-title orange section-toggle" data-target="biBody"><span class="dot"></span> Bielliptic Options</div>
+            <div id="biBody" class="section-body">
+                <div class="field-grid two-col">
+                    <div class="field">
+                        <label>Intermediate R Mult</label>
+                        <input type="number" id="biellipticMult" value="2.0" step="0.1" min="1.01">
+                    </div>
+                    <div class="field">
+                        <label>Intermediate Alt (km)</label>
+                        <input type="number" id="biellipticAlt" value="0" readonly>
+                    </div>
                 </div>
-                <div class="field">
-                    <label>Intermediate Alt (km)</label>
-                    <input type="number" id="biellipticAlt" value="0" readonly style="color:#6b7a90;">
+            </div>
+        </div>
+
+        <!-- Plane Change Calculator -->
+        <div class="section" id="sectionPlaneChange">
+            <div class="section-title purple section-toggle" data-target="pcBody"><span class="dot"></span> Plane Change Calculator</div>
+            <div id="pcBody" class="section-body">
+                <div class="field-grid two-col">
+                    <div class="field">
+                        <label>Current Inc (deg)</label>
+                        <input type="number" id="pcCurInc" value="51.6" step="0.1">
+                    </div>
+                    <div class="field">
+                        <label>Target Inc (deg)</label>
+                        <input type="number" id="pcTgtInc" value="0" step="0.1">
+                    </div>
+                    <div class="field">
+                        <label>Current Alt (km)</label>
+                        <input type="number" id="pcAlt" value="400" step="1">
+                    </div>
+                    <div class="field">
+                        <label>V circ (m/s)</label>
+                        <input type="number" id="pcVcirc" value="7672" readonly>
+                    </div>
+                </div>
+                <div class="preset-row">
+                    <button class="preset-btn" onclick="setPCPreset(51.6,0,400)">ISS to Equatorial</button>
+                    <button class="preset-btn" onclick="setPCPreset(28.5,0,35786)">Cape to GEO</button>
+                    <button class="preset-btn" onclick="setPCPreset(98.2,51.6,700)">SSO to ISS</button>
+                </div>
+                <div id="pcResults" class="computed-grid" style="display:none;">
+                    <div class="computed-item" style="grid-column:span 2;">
+                        <span class="clabel">Plane Change Angle</span>
+                        <span class="cvalue" id="pcAngle">--</span>
+                    </div>
+                    <div class="computed-item">
+                        <span class="clabel">Pure dV (at alt)</span>
+                        <span class="cvalue" id="pcDvPure">--</span>
+                    </div>
+                    <div class="computed-item">
+                        <span class="clabel">Optimal Combined</span>
+                        <span class="cvalue" id="pcDvOptimal">--</span>
+                    </div>
+                    <div class="computed-item" style="grid-column:span 2;">
+                        <span class="clabel">Optimal Strategy</span>
+                        <span class="cvalue" id="pcStrategy" style="font-size:9px;">--</span>
+                    </div>
+                </div>
+                <div id="pcWarning" class="warning-box" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- Phase Angle Calculator -->
+        <div class="section" id="sectionPhase">
+            <div class="section-title magenta section-toggle" data-target="phBody"><span class="dot"></span> Phase Angle (Rendezvous)</div>
+            <div id="phBody" class="section-body">
+                <div class="field-grid two-col">
+                    <div class="field">
+                        <label>Chaser Alt (km)</label>
+                        <input type="number" id="phChaserAlt" value="400" step="1">
+                    </div>
+                    <div class="field">
+                        <label>Target Alt (km)</label>
+                        <input type="number" id="phTargetAlt" value="35786" step="1">
+                    </div>
+                </div>
+                <div class="preset-row">
+                    <button class="preset-btn" onclick="setPhasePreset(400,35786)">LEO to GEO</button>
+                    <button class="preset-btn" onclick="setPhasePreset(400,20200)">LEO to GPS</button>
+                    <button class="preset-btn" onclick="setPhasePreset(300,400)">LEO to ISS</button>
+                </div>
+                <div id="phResults" class="phase-output" style="display:none;">
+                    <div class="phase-row"><span class="pl">Hohmann Phase Angle</span><span class="pv" id="phAngle">--</span></div>
+                    <div class="phase-row"><span class="pl">Chaser Angular Rate</span><span class="pv" id="phOmegaC">--</span></div>
+                    <div class="phase-row"><span class="pl">Target Angular Rate</span><span class="pv" id="phOmegaT">--</span></div>
+                    <div class="phase-row"><span class="pl">Transfer Time</span><span class="pv" id="phTOF">--</span></div>
+                    <div class="phase-row"><span class="pl">Wait (if 0 offset)</span><span class="pv" id="phWait">--</span></div>
                 </div>
             </div>
         </div>
@@ -452,6 +607,18 @@
         <div class="section" id="resultsSection" style="display:none;">
             <div class="section-title cyan"><span class="dot"></span> Transfer Results</div>
             <div id="resultsContainer"></div>
+        </div>
+
+        <!-- Hohmann vs Bielliptic Comparison -->
+        <div class="section" id="comparisonSection" style="display:none;">
+            <div class="section-title orange"><span class="dot"></span> Hohmann vs Bielliptic</div>
+            <div id="comparisonContainer"></div>
+        </div>
+
+        <!-- Transfer Diagram -->
+        <div class="section" id="diagramSection" style="display:none;">
+            <div class="section-title blue"><span class="dot"></span> Transfer Geometry</div>
+            <canvas id="transferDiagram"></canvas>
         </div>
 
         <!-- Delta-V Chart -->
@@ -476,6 +643,7 @@
             <div class="oi-row"><span class="oi-label">Target Pe</span><span class="oi-value" id="oiTgtPe">--</span></div>
             <div class="oi-row"><span class="oi-label">Target Ap</span><span class="oi-value" id="oiTgtAp">--</span></div>
             <div class="oi-row"><span class="oi-label">Plane Change</span><span class="oi-value" id="oiPlaneChange">--</span></div>
+            <div class="oi-row"><span class="oi-label">Altitude Ratio</span><span class="oi-value" id="oiAltRatio">--</span></div>
         </div>
 
         <div id="legend">
@@ -490,6 +658,10 @@
             <div class="legend-item">
                 <span class="legend-swatch" style="background:#f59e0b;"></span>
                 <span>Transfer Orbit</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-swatch" style="background:#f97316;"></span>
+                <span>Bielliptic 2nd Arc</span>
             </div>
             <div class="legend-item">
                 <span class="legend-swatch" style="background:#ef4444;"></span>
@@ -509,6 +681,7 @@ var g0 = 9.80665;           // m/s^2
 var DEG = Math.PI / 180;
 var RAD = 180 / Math.PI;
 var TWO_PI = 2 * Math.PI;
+var V_ESCAPE_EARTH = 11186; // m/s (at surface)
 
 // =========================================================================
 // PRESETS
@@ -634,9 +807,20 @@ function formatTime(seconds) {
     var d = Math.floor(seconds / 86400);
     var h = Math.floor((seconds % 86400) / 3600);
     var m = Math.floor((seconds % 3600) / 60);
-    if (d > 0) return d + 'd ' + h + 'h';
-    if (h > 0) return h + 'h ' + m + 'm';
-    return m + 'm ' + Math.floor(seconds % 60) + 's';
+    var s = Math.floor(seconds % 60);
+    if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+    if (h > 0) return h + 'h ' + m + 'm ' + s + 's';
+    return m + 'm ' + s + 's';
+}
+
+function formatTimeHMS(seconds) {
+    if (!isFinite(seconds) || seconds < 0) return '--';
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = Math.floor(seconds % 60);
+    return String(h).padStart(2, '0') + ':' +
+           String(m).padStart(2, '0') + ':' +
+           String(s).padStart(2, '0');
 }
 
 function formatDV(dv) {
@@ -647,6 +831,155 @@ function formatDV(dv) {
 
 function formatAltKm(r_m) {
     return ((r_m - R_EARTH) / 1000).toFixed(1) + ' km';
+}
+
+// =========================================================================
+// PLANE CHANGE CALCULATOR
+// =========================================================================
+function updatePCVcirc() {
+    var alt = parseFloat(document.getElementById('pcAlt').value) || 400;
+    var r = R_EARTH + alt * 1000;
+    var v = Math.sqrt(MU / r);
+    document.getElementById('pcVcirc').value = v.toFixed(0);
+}
+
+function setPCPreset(curInc, tgtInc, alt) {
+    document.getElementById('pcCurInc').value = curInc;
+    document.getElementById('pcTgtInc').value = tgtInc;
+    document.getElementById('pcAlt').value = alt;
+    updatePCVcirc();
+    computePlaneChange();
+}
+
+function computePlaneChange() {
+    var curInc = parseFloat(document.getElementById('pcCurInc').value) || 0;
+    var tgtInc = parseFloat(document.getElementById('pcTgtInc').value) || 0;
+    var alt = parseFloat(document.getElementById('pcAlt').value) || 400;
+    var r = R_EARTH + alt * 1000;
+    var v = Math.sqrt(MU / r);
+
+    var dInc = Math.abs(curInc - tgtInc) * DEG;
+    var dvPure = 2 * v * Math.sin(dInc / 2);
+
+    // Optimal: do plane change at highest possible altitude (apoapsis)
+    // For circular orbit, current altitude is the only option
+    // For a raise-and-change strategy: raise apoapsis, change plane there, lower back
+    // The optimal combined is to raise to a higher orbit, do the plane change at apoapsis (lower V), then circularize back
+    // We compute the break-even: for a given target orbit altitude vs doing it at current alt
+
+    // Strategy: raise apoapsis to a high point, do plane change there, lower back
+    // Total dV = dv_raise + dv_plane_change_at_apo + dv_lower
+    // dv_raise = v_transfer_at_pe - v_circ  (at current alt)
+    // dv_plane = 2 * v_transfer_at_apo * sin(di/2)
+    // dv_lower = v_transfer_at_apo - v_circ (this is the same as dv_raise for symmetric raise/lower if r_pe = r_final)
+
+    // For symmetric: aT = (r + r_high)/2
+    // dv_raise = visViva(r, aT) - v
+    // dv_at_high = 2 * visViva(r_high, aT) * sin(di/2)
+    // dv_lower = visViva(r, aT) - v  (same as raise)
+    // total = 2*(visViva(r, aT) - v) + 2*visViva(r_high, aT)*sin(di/2)
+
+    // Optimize r_high to minimize total. Search from r to 10*r
+    var bestDv = dvPure;
+    var bestRhigh = r;
+    var bestStrategy = 'Pure plane change at current altitude';
+
+    if (dInc > 0.001) {
+        // Search for optimal r_high
+        for (var mult = 1.0; mult <= 50.0; mult += 0.1) {
+            var rHigh = r * mult;
+            var aT = (r + rHigh) / 2;
+            var vPeT = visViva(r, aT);
+            var vApoT = visViva(rHigh, aT);
+            var dvRaise = Math.abs(vPeT - v);
+            var dvPlane = 2 * vApoT * Math.sin(dInc / 2);
+            var dvLower = dvRaise; // symmetric
+            var dvTotal = dvRaise + dvPlane + dvLower;
+            if (dvTotal < bestDv) {
+                bestDv = dvTotal;
+                bestRhigh = rHigh;
+                bestStrategy = 'Raise to ' + ((rHigh - R_EARTH)/1000).toFixed(0) + ' km, plane change there, lower back';
+            }
+        }
+    }
+
+    var resultsEl = document.getElementById('pcResults');
+    resultsEl.style.display = '';
+    document.getElementById('pcAngle').textContent = (dInc * RAD).toFixed(2) + ' deg';
+    document.getElementById('pcDvPure').textContent = formatDV(dvPure);
+    document.getElementById('pcDvOptimal').textContent = formatDV(bestDv);
+    document.getElementById('pcStrategy').textContent = bestStrategy;
+
+    // Warning check
+    var warnEl = document.getElementById('pcWarning');
+    var vEscape = Math.sqrt(2 * MU / r);
+    if (dvPure > vEscape) {
+        warnEl.style.display = '';
+        warnEl.textContent = 'WARNING: Delta-V (' + formatDV(dvPure) + ') exceeds escape velocity at this altitude (' + formatDV(vEscape) + '). This maneuver would put the spacecraft on a hyperbolic trajectory.';
+    } else if (dvPure > vEscape * 0.8) {
+        warnEl.style.display = '';
+        warnEl.textContent = 'CAUTION: Delta-V is ' + ((dvPure/vEscape)*100).toFixed(1) + '% of escape velocity at this altitude. Consider a multi-burn strategy.';
+    } else {
+        warnEl.style.display = 'none';
+    }
+}
+
+// =========================================================================
+// PHASE ANGLE CALCULATOR
+// =========================================================================
+function setPhasePreset(chaserAlt, targetAlt) {
+    document.getElementById('phChaserAlt').value = chaserAlt;
+    document.getElementById('phTargetAlt').value = targetAlt;
+    computePhaseAngle();
+}
+
+function computePhaseAngle() {
+    var chaserAlt = parseFloat(document.getElementById('phChaserAlt').value) || 400;
+    var targetAlt = parseFloat(document.getElementById('phTargetAlt').value) || 35786;
+
+    var r1 = R_EARTH + chaserAlt * 1000;
+    var r2 = R_EARTH + targetAlt * 1000;
+
+    // Hohmann transfer semi-major axis
+    var aT = (r1 + r2) / 2;
+    var tof = Math.PI * Math.sqrt(aT * aT * aT / MU);
+
+    // Angular rates
+    var omega1 = Math.sqrt(MU / (r1 * r1 * r1));  // rad/s
+    var omega2 = Math.sqrt(MU / (r2 * r2 * r2));  // rad/s
+
+    // Phase angle for Hohmann: angle target needs to be ahead of chaser at departure
+    // During TOF, target moves omega2 * tof radians
+    // We need target to be at arrival point when chaser arrives
+    // Phase angle = pi - omega2 * tof  (for prograde transfer, r2 > r1)
+    var phaseAngle;
+    if (r2 >= r1) {
+        phaseAngle = Math.PI - omega2 * tof;
+    } else {
+        phaseAngle = Math.PI - omega1 * tof;
+    }
+
+    // Normalize to [-180, 180]
+    while (phaseAngle > Math.PI) phaseAngle -= TWO_PI;
+    while (phaseAngle < -Math.PI) phaseAngle += TWO_PI;
+
+    // Wait time: how long until the required phase angle is achieved from 0 offset
+    var dOmega = omega2 - omega1;  // relative angular rate (negative if target is slower)
+    var waitTime = 0;
+    if (Math.abs(dOmega) > 1e-15) {
+        waitTime = phaseAngle / dOmega;
+        // If negative, add one synodic period
+        var synodicPeriod = TWO_PI / Math.abs(dOmega);
+        while (waitTime < 0) waitTime += synodicPeriod;
+    }
+
+    var resultsEl = document.getElementById('phResults');
+    resultsEl.style.display = '';
+    document.getElementById('phAngle').textContent = (phaseAngle * RAD).toFixed(2) + ' deg';
+    document.getElementById('phOmegaC').textContent = (omega1 * RAD * 3600).toFixed(4) + ' deg/h';
+    document.getElementById('phOmegaT').textContent = (omega2 * RAD * 3600).toFixed(4) + ' deg/h';
+    document.getElementById('phTOF').textContent = formatTimeHMS(tof) + ' (' + formatTime(tof) + ')';
+    document.getElementById('phWait').textContent = formatTime(waitTime);
 }
 
 // =========================================================================
@@ -725,7 +1058,7 @@ function biellipticTransfer(src, tgt) {
     var ratio = Math.max(r2, r1) / Math.min(r2, r1);
     var note = ratio > 11.94
         ? 'More efficient than Hohmann (r2/r1 > 11.94)'
-        : 'Less efficient than Hohmann for this ratio';
+        : 'Less efficient than Hohmann for this ratio (' + ratio.toFixed(2) + ')';
 
     return {
         name: 'Bielliptic Transfer',
@@ -736,6 +1069,8 @@ function biellipticTransfer(src, tgt) {
         ],
         dvTotal: dv1 + dv2 + dv3,
         tof: tof1 + tof2,
+        tof1: tof1,
+        tof2: tof2,
         transferSMA: aT1,
         transferEcc: (rI - r1) / (rI + r1),
         transferSMA2: aT2,
@@ -776,7 +1111,7 @@ function simplePlaneChange(src, tgt) {
         dvTotal: dvApo,
         tof: orbitalPeriod(src.sma) / 2,
         applicable: true,
-        note: 'Angle: ' + (theta * RAD).toFixed(2) + ' deg. At periapsis: ' + dvPe.toFixed(1) + ' m/s',
+        note: 'Angle: ' + (theta * RAD).toFixed(2) + ' deg. At periapsis would cost: ' + formatDV(dvPe),
         planeAngle: theta
     };
 }
@@ -878,6 +1213,8 @@ function generalTwoImpulse(src, tgt) {
 // =========================================================================
 var lastResults = [];
 var selectedIdx = -1;
+var lastSrc = null;
+var lastTgt = null;
 
 function computeTransfers() {
     var src = readOrbit('src');
@@ -888,6 +1225,9 @@ function computeTransfers() {
         alert('SMA must be greater than Earth radius (6371 km)');
         return;
     }
+
+    lastSrc = src;
+    lastTgt = tgt;
 
     var results = [];
 
@@ -930,9 +1270,15 @@ function computeTransfers() {
     selectedIdx = bestIdx;
 
     renderResults(results, bestIdx, sc);
+    renderComparison(results);
     drawDeltaVChart(results);
+    drawTransferDiagram(src, tgt, results, bestIdx);
     updateVisualization(src, tgt, results, bestIdx);
     updateOrbitInfoOverlay(src, tgt);
+
+    // Also compute plane change and phase angle sections
+    computePlaneChange();
+    computePhaseAngle();
 }
 
 // =========================================================================
@@ -964,7 +1310,7 @@ function renderResults(results, bestIdx, sc) {
         html += '</div>';
 
         html += '<div class="rc-row"><span class="rc-label">Total Delta-V</span><span class="rc-value ' + dvClass + '">' + formatDV(r.dvTotal) + '</span></div>';
-        html += '<div class="rc-row"><span class="rc-label">Transfer Time</span><span class="rc-value">' + formatTime(r.tof) + '</span></div>';
+        html += '<div class="rc-row"><span class="rc-label">Transfer Time</span><span class="rc-value">' + formatTimeHMS(r.tof) + ' (' + formatTime(r.tof) + ')</span></div>';
 
         if (r.note) {
             html += '<div class="rc-note">' + r.note + '</div>';
@@ -1007,6 +1353,265 @@ function selectTransfer(idx) {
     var src = readOrbit('src');
     var tgt = readOrbit('tgt');
     updateVisualization(src, tgt, lastResults, idx);
+    drawTransferDiagram(src, tgt, lastResults, idx);
+}
+
+// =========================================================================
+// HOHMANN vs BIELLIPTIC COMPARISON TABLE
+// =========================================================================
+function renderComparison(results) {
+    var section = document.getElementById('comparisonSection');
+    var container = document.getElementById('comparisonContainer');
+
+    // Find Hohmann and Bielliptic results
+    var hohmann = null, bielliptic = null;
+    for (var i = 0; i < results.length; i++) {
+        if (results[i].name === 'Hohmann Transfer') hohmann = results[i];
+        if (results[i].name === 'Bielliptic Transfer') bielliptic = results[i];
+    }
+
+    if (!hohmann || !bielliptic) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    var hWins = hohmann.dvTotal <= bielliptic.dvTotal;
+
+    var src = readOrbit('src');
+    var tgt = readOrbit('tgt');
+    var ratio = Math.max(tgt.sma, src.sma) / Math.min(tgt.sma, src.sma);
+
+    var html = '<div style="font-size:10px; color:#6b7a90; margin-bottom:6px;">Altitude ratio r2/r1 = ' + ratio.toFixed(2);
+    if (ratio > 11.94) {
+        html += ' <span style="color:#10b981;">(bi-elliptic advantageous above 11.94)</span>';
+    } else {
+        html += ' <span style="color:#f59e0b;">(Hohmann optimal below 11.94)</span>';
+    }
+    html += '</div>';
+
+    html += '<table class="compare-table">';
+    html += '<tr><th>Metric</th><th>Hohmann</th><th>Bielliptic</th></tr>';
+
+    // Total dV row
+    html += '<tr class="' + (hWins ? 'winner' : 'loser') + '">';
+    html += '<td>Total dV</td><td>' + formatDV(hohmann.dvTotal);
+    if (hWins) html += ' *';
+    html += '</td>';
+    html += '<td class="' + (!hWins ? 'dv-green' : '') + '">' + formatDV(bielliptic.dvTotal);
+    if (!hWins) html += ' *';
+    html += '</td></tr>';
+
+    // Transfer time
+    var hTimeWins = hohmann.tof <= bielliptic.tof;
+    html += '<tr><td>Transfer Time</td>';
+    html += '<td style="color:' + (hTimeWins ? '#10b981' : '#6b7a90') + ';">' + formatTimeHMS(hohmann.tof) + '</td>';
+    html += '<td style="color:' + (!hTimeWins ? '#10b981' : '#6b7a90') + ';">' + formatTimeHMS(bielliptic.tof) + '</td></tr>';
+
+    // Number of burns
+    html += '<tr><td>Burns</td><td>2</td><td>3</td></tr>';
+
+    // Individual burns
+    html += '<tr><td>Burn 1</td><td>' + hohmann.burns[0].dv.toFixed(1) + ' m/s</td><td>' + bielliptic.burns[0].dv.toFixed(1) + ' m/s</td></tr>';
+    html += '<tr><td>Burn 2</td><td>' + hohmann.burns[1].dv.toFixed(1) + ' m/s</td><td>' + bielliptic.burns[1].dv.toFixed(1) + ' m/s</td></tr>';
+    if (bielliptic.burns.length > 2) {
+        html += '<tr><td>Burn 3</td><td>--</td><td>' + bielliptic.burns[2].dv.toFixed(1) + ' m/s</td></tr>';
+    }
+
+    // dV difference
+    var dvDiff = Math.abs(hohmann.dvTotal - bielliptic.dvTotal);
+    var pctSavings = (dvDiff / Math.max(hohmann.dvTotal, bielliptic.dvTotal) * 100);
+    html += '<tr><td>dV Savings</td>';
+    if (hWins) {
+        html += '<td style="color:#10b981;">' + formatDV(dvDiff) + ' (' + pctSavings.toFixed(1) + '%)</td><td></td>';
+    } else {
+        html += '<td></td><td style="color:#10b981;">' + formatDV(dvDiff) + ' (' + pctSavings.toFixed(1) + '%)</td>';
+    }
+    html += '</tr>';
+
+    html += '</table>';
+
+    // Winner banner
+    var winner = hWins ? 'Hohmann' : 'Bielliptic';
+    html += '<div style="margin-top:8px; padding:6px 10px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:4px; font-size:11px; color:#10b981; text-align:center;">';
+    html += winner + ' wins by ' + formatDV(dvDiff) + ' (' + pctSavings.toFixed(1) + '% savings)';
+    html += '</div>';
+
+    container.innerHTML = html;
+}
+
+// =========================================================================
+// TRANSFER GEOMETRY DIAGRAM (Canvas)
+// =========================================================================
+function drawTransferDiagram(src, tgt, results, selIdx) {
+    var section = document.getElementById('diagramSection');
+    section.style.display = '';
+
+    var canvas = document.getElementById('transferDiagram');
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var W = rect.width;
+    var H = rect.height;
+    ctx.clearRect(0, 0, W, H);
+
+    var cx = W / 2;
+    var cy = H / 2;
+
+    // Determine scale from orbits
+    var maxR = Math.max(src.sma * (1 + src.ecc), tgt.sma * (1 + tgt.ecc));
+    if (selIdx >= 0 && results[selIdx] && results[selIdx].intermediateR) {
+        maxR = Math.max(maxR, results[selIdx].intermediateR);
+    }
+    var scale = (Math.min(W, H) * 0.42) / maxR;
+    var earthR = R_EARTH * scale;
+
+    // Draw Earth
+    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, earthR);
+    grad.addColorStop(0, '#1a3a5c');
+    grad.addColorStop(1, '#0d2240');
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(earthR, 3), 0, TWO_PI);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = '#2a4a6a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Draw orbits as ellipses
+    function drawOrbitEllipse(sma, ecc, color, dashed, lineWidth) {
+        var a = sma * scale;
+        var c = sma * ecc * scale;
+        var b = a * Math.sqrt(1 - ecc * ecc);
+        ctx.beginPath();
+        ctx.ellipse(cx + c, cy, a, b, 0, 0, TWO_PI);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth || 1.5;
+        if (dashed) {
+            ctx.setLineDash([6, 4]);
+        } else {
+            ctx.setLineDash([]);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Source orbit (cyan)
+    drawOrbitEllipse(src.sma, src.ecc, '#4a9eff', true, 1.5);
+
+    // Target orbit (green)
+    drawOrbitEllipse(tgt.sma, tgt.ecc, '#10b981', true, 1.5);
+
+    // Transfer orbit
+    if (selIdx >= 0 && selIdx < results.length) {
+        var r = results[selIdx];
+        if (r.applicable && r.transferSMA) {
+            if (r.name === 'Bielliptic Transfer') {
+                // First transfer ellipse (half)
+                var a1 = r.transferSMA * scale;
+                var c1 = r.transferSMA * r.transferEcc * scale;
+                var b1 = a1 * Math.sqrt(1 - r.transferEcc * r.transferEcc);
+                ctx.beginPath();
+                ctx.ellipse(cx + c1, cy, a1, b1, 0, Math.PI, TWO_PI); // top half
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Second transfer ellipse (half)
+                if (r.transferSMA2 !== undefined) {
+                    var a2 = r.transferSMA2 * scale;
+                    var c2 = r.transferSMA2 * r.transferEcc2 * scale;
+                    var b2 = a2 * Math.sqrt(1 - r.transferEcc2 * r.transferEcc2);
+                    ctx.beginPath();
+                    // Draw the bottom half (from apoapsis back)
+                    ctx.ellipse(cx - c2, cy, a2, b2, 0, 0, Math.PI); // bottom half
+                    ctx.strokeStyle = '#f97316';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            } else {
+                // Single transfer ellipse (half)
+                var aT = r.transferSMA * scale;
+                var cT = r.transferSMA * r.transferEcc * scale;
+                var bT = aT * Math.sqrt(1 - r.transferEcc * r.transferEcc);
+                ctx.beginPath();
+                ctx.ellipse(cx + cT, cy, aT, bT, 0, Math.PI, TWO_PI); // top half
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
+        }
+    }
+
+    // Burn point markers
+    function drawBurnMarker(x, y, label, color) {
+        // Arrow-like marker
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, TWO_PI);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        if (label) {
+            ctx.font = '9px Consolas, Courier New, monospace';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.fillText(label, x, y - 9);
+        }
+    }
+
+    // Burn 1: at source orbit periapsis (right side)
+    var burn1X = cx + src.sma * (1 - src.ecc) * scale;
+    var burn1Y = cy;
+    drawBurnMarker(burn1X, burn1Y, 'B1', '#ef4444');
+
+    if (selIdx >= 0 && selIdx < results.length) {
+        var r = results[selIdx];
+        if (r.applicable && r.burns.length >= 2) {
+            if (r.name === 'Bielliptic Transfer') {
+                // B2 at top (intermediate apoapsis)
+                var intR = r.intermediateR || r.transferSMA * (1 + r.transferEcc);
+                drawBurnMarker(cx - intR * scale, cy, 'B2', '#10b981');
+                // B3 at target
+                drawBurnMarker(cx + tgt.sma * (1 - tgt.ecc) * scale, cy, 'B3', '#f59e0b');
+            } else if (r.burns.length >= 2) {
+                // B2 at opposite side (apoapsis of transfer)
+                var xferApo = r.transferSMA * (1 + r.transferEcc);
+                drawBurnMarker(cx - xferApo * scale, cy, 'B2', '#10b981');
+            }
+        }
+    }
+
+    // Labels
+    ctx.font = '10px Consolas, Courier New, monospace';
+    ctx.textAlign = 'left';
+
+    // Source label
+    ctx.fillStyle = '#4a9eff';
+    var srcLabelR = src.sma * (1 + src.ecc) * scale;
+    ctx.fillText('Source', cx - srcLabelR - 4, cy - 8);
+
+    // Target label
+    ctx.fillStyle = '#10b981';
+    var tgtLabelR = tgt.sma * (1 + tgt.ecc) * scale;
+    if (tgtLabelR > srcLabelR + 20) {
+        ctx.fillText('Target', cx - tgtLabelR - 4, cy + 14);
+    } else {
+        ctx.fillText('Target', cx + tgtLabelR + 4, cy - 8);
+    }
+
+    // Transfer label
+    if (selIdx >= 0 && selIdx < results.length && results[selIdx].transferSMA) {
+        ctx.fillStyle = '#f59e0b';
+        ctx.textAlign = 'center';
+        var xferR = results[selIdx].transferSMA * scale;
+        ctx.fillText('Transfer', cx, cy - xferR * Math.sqrt(1 - (results[selIdx].transferEcc || 0) * (results[selIdx].transferEcc || 0)) - 6);
+    }
 }
 
 // =========================================================================
@@ -1120,12 +1725,14 @@ function updateOrbitInfoOverlay(src, tgt) {
     var tgtPe = periapsis(tgt.sma, tgt.ecc);
     var tgtAp = apoapsis(tgt.sma, tgt.ecc);
     var theta = planeChangeAngle(src, tgt);
+    var ratio = Math.max(tgt.sma, src.sma) / Math.min(tgt.sma, src.sma);
 
     document.getElementById('oiSrcPe').textContent = formatAltKm(srcPe);
     document.getElementById('oiSrcAp').textContent = formatAltKm(srcAp);
     document.getElementById('oiTgtPe').textContent = formatAltKm(tgtPe);
     document.getElementById('oiTgtAp').textContent = formatAltKm(tgtAp);
     document.getElementById('oiPlaneChange').textContent = (theta * RAD).toFixed(2) + ' deg';
+    document.getElementById('oiAltRatio').textContent = ratio.toFixed(2) + (ratio > 11.94 ? ' (bi-elliptic zone)' : '');
 }
 
 // =========================================================================
@@ -1397,13 +2004,32 @@ function updateVisualization(src, tgt, results, selIdx) {
 }
 
 // =========================================================================
+// SECTION TOGGLE (collapse/expand)
+// =========================================================================
+function setupSectionToggles() {
+    var toggles = document.querySelectorAll('.section-toggle');
+    for (var i = 0; i < toggles.length; i++) {
+        toggles[i].addEventListener('click', function() {
+            var targetId = this.getAttribute('data-target');
+            if (!targetId) return;
+            var body = document.getElementById(targetId);
+            if (!body) return;
+            this.classList.toggle('collapsed');
+            body.classList.toggle('collapsed');
+        });
+    }
+}
+
+// =========================================================================
 // EVENT WIRING
 // =========================================================================
 function init() {
     initCesium();
+    setupSectionToggles();
     updateBiellipticAlt();
     updateComputedDisplay('src');
     updateComputedDisplay('tgt');
+    updatePCVcirc();
 
     // Source presets
     document.getElementById('srcPresets').addEventListener('click', function(e) {
@@ -1433,6 +2059,9 @@ function init() {
     document.getElementById('biellipticMult').addEventListener('input', updateBiellipticAlt);
     document.getElementById('tgtSMA').addEventListener('input', updateBiellipticAlt);
 
+    // Plane change altitude updates V_circ
+    document.getElementById('pcAlt').addEventListener('input', updatePCVcirc);
+
     // Compute button
     document.getElementById('btnCompute').addEventListener('click', computeTransfers);
 
@@ -1457,9 +2086,14 @@ function init() {
         }
     });
 
-    // Window resize => redraw chart
+    // Window resize => redraw chart + diagram
     window.addEventListener('resize', function() {
-        if (lastResults.length > 0) drawDeltaVChart(lastResults);
+        if (lastResults.length > 0) {
+            drawDeltaVChart(lastResults);
+            if (lastSrc && lastTgt) {
+                drawTransferDiagram(lastSrc, lastTgt, lastResults, selectedIdx);
+            }
+        }
     });
 
     // Draw initial orbits

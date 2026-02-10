@@ -18,7 +18,7 @@
             padding: 14px 18px; color: #fff; font-size: 13px; min-width: 220px;
             pointer-events: none;
         }
-        #statsPanel h3 { font-size: 13px; color: #888; margin-bottom: 8px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+        /* #statsPanel h3 styled below with gradient */
         .stat-row { display: flex; justify-content: space-between; margin: 3px 0; }
         .stat-label { color: #666; }
         .stat-value { font-weight: 600; }
@@ -50,14 +50,8 @@
             max-height: calc(100vh - 360px); overflow-y: auto; pointer-events: auto;
         }
         #entityList h3 { font-size: 11px; color: #888; margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
-        .entity-item {
-            padding: 3px 6px; cursor: pointer; border-radius: 4px; white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;
-        }
-        .entity-item:hover { background: rgba(255,255,255,0.08); }
-        .entity-item.tracked { background: rgba(74,158,255,0.15); border: 1px solid rgba(74,158,255,0.3); }
-        .entity-item.dead { opacity: 0.35; text-decoration: line-through; }
         .entity-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .entity-name-text { overflow: hidden; text-overflow: ellipsis; }
         .entity-type-tag { font-size: 9px; color: #555; margin-left: auto; text-transform: uppercase; flex-shrink: 0; }
 
         /* Entity detail panel */
