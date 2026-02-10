@@ -41,8 +41,8 @@ const LiveSimEngine = (function() {
 
     // Per-entity visualization control groups
     let _vizGroups = {};  // { groupKey: { show, orbits, trails, labels, sensors } }
-    let _vizGlobalOrbits = true;
-    let _vizGlobalTrails = true;
+    let _vizGlobalOrbits = false;
+    let _vizGlobalTrails = false;
     let _vizGlobalLabels = true;
     let _vizGlobalSensors = true;
 
@@ -50,6 +50,16 @@ const LiveSimEngine = (function() {
     let _pickPopup = null;
     let _pickedEntity = null;
     let _trackingEntity = null; // entity being camera-tracked in observer mode
+
+    // Search state
+    let _searchMatchedIds = new Set();
+    let _searchPanelOpen = false;
+
+    // Analytics state
+    let _analyticsHistory = [];
+    let _analyticsCharts = {};  // {chartId: Chart instance}
+    let _analyticsPanelOpen = false;
+    let _analyticsRecordCounter = 0;
 
     // Propulsion — flat list of all individual engines
     let _propModes = [];   // [{name, mode, thrust?, desc?, color}]
@@ -127,6 +137,8 @@ const LiveSimEngine = (function() {
     let _playerTrailTimes = [];
     let _trailCounter = 0;
     let _trailEntity = null;
+    let _groundTrackEntity = null;
+    let _playerGroundTrack = [];
     let _orbitPolyline = null;
     let _eciOrbitPolyline = null;
     let _predictedOrbitPolyline = null;
@@ -228,6 +240,7 @@ const LiveSimEngine = (function() {
                 SpaceplaneOrbital.currentOrbitPositions.length = 0;
             }
             _playerTrail.length = 0;
+            _playerGroundTrack.length = 0;
             // Restart render loop
             _viewer.useDefaultRenderLoop = false;
             setTimeout(function() {
@@ -247,7 +260,19 @@ const LiveSimEngine = (function() {
         const scenarioJson = await resp.json();
         _scenarioJson = scenarioJson;
 
+        // Dynamic sim epoch from scenario or system clock
+        if (_scenarioJson && _scenarioJson.environment && _scenarioJson.environment.simStartTime) {
+            var startMs = Date.parse(_scenarioJson.environment.simStartTime);
+            if (!isNaN(startMs)) {
+                _JD_SIM_EPOCH_LOCAL = 2440587.5 + startMs / 86400000;
+            }
+        } else {
+            // Default to system clock
+            _JD_SIM_EPOCH_LOCAL = 2440587.5 + Date.now() / 86400000;
+        }
+
         _world = ScenarioLoader.build(scenarioJson, viewer);
+        _world.simEpochJD = _JD_SIM_EPOCH_LOCAL;
 
         // Check for observer mode (no player)
         _observerMode = (playerIdParam === '__observer__');
@@ -261,6 +286,8 @@ const LiveSimEngine = (function() {
             _setupCameraHandlers();
             _setupKeyboard();
             _initSettingsGear();
+            _initSearchPanel();
+            _initAnalyticsPanel();
             _setupEntityPicker();
             _buildVizGroups();
 
@@ -306,6 +333,8 @@ const LiveSimEngine = (function() {
 
             // 9. Init settings gear (load prefs, wire handlers)
             _initSettingsGear();
+            _initSearchPanel();
+            _initAnalyticsPanel();
 
             // 9b. Init planner click handler (orbit click → create node)
             _initPlannerClickHandler();
@@ -1252,6 +1281,19 @@ const LiveSimEngine = (function() {
                 }, false),
                 width: 2,
                 material: Cesium.Color.CYAN.withAlpha(0.6),
+            },
+        });
+
+        // Ground track polyline (projected trail on surface)
+        _groundTrackEntity = _viewer.entities.add({
+            name: 'Player Ground Track',
+            polyline: {
+                positions: new Cesium.CallbackProperty(function() {
+                    return _showTrail ? _playerGroundTrack : [];
+                }, false),
+                width: 1,
+                material: Cesium.Color.CYAN.withAlpha(0.25),
+                clampToGround: true,
             },
         });
 
@@ -3482,6 +3524,7 @@ const LiveSimEngine = (function() {
                         _setText('timeWarpDisplay', _timeWarp + 'x');
                         _showMessage('TIME WARP: ' + _timeWarp + 'x');
                         break;
+                    case 'KeyF': _toggleSearchPanel(); break;
                     case 'KeyH': _togglePanel('help'); break;
                     default: handled = false; break;
                 }
@@ -3499,6 +3542,7 @@ const LiveSimEngine = (function() {
                         if (!_isPaused) _lastTickTime = null;
                         break;
                     case 'KeyC': _cycleCamera(); break;
+                    case 'KeyF': _toggleSearchPanel(); break;
                     case 'KeyG':
                         _globeControlsEnabled = !_globeControlsEnabled;
                         _showMessage('Flight controls: ' + (_globeControlsEnabled ? 'ON' : 'OFF'));
@@ -3930,6 +3974,10 @@ const LiveSimEngine = (function() {
             _updateTimeDisplay();
             _updateEntityListPanel();
 
+            // Analytics
+            _recordAnalyticsSnapshot();
+            _refreshAnalyticsIfOpen();
+
             // Subsystems
             if (typeof WeatherSystem !== 'undefined') WeatherSystem.update(totalDt, _simElapsed);
             if (typeof EWSystem !== 'undefined') EWSystem.update(totalDt, _simElapsed);
@@ -4026,6 +4074,8 @@ const LiveSimEngine = (function() {
         if (_trailCounter % 10 === 0) {
             _playerTrail.push(Cesium.Cartesian3.fromRadians(
                 _playerState.lon, _playerState.lat, _playerState.alt));
+            _playerGroundTrack.push(Cesium.Cartesian3.fromRadians(
+                _playerState.lon, _playerState.lat, 0));
             _playerTrailTimes.push(_simElapsed);
             // Time-based trim
             if (_trailDurationSec > 0) {
@@ -4033,10 +4083,12 @@ const LiveSimEngine = (function() {
                 while (_playerTrailTimes.length > 0 && _playerTrailTimes[0] < cutoff) {
                     _playerTrailTimes.shift();
                     _playerTrail.shift();
+                    _playerGroundTrack.shift();
                 }
             } else if (_playerTrail.length > 100000) {
                 // Infinite mode cap
                 _playerTrail.shift();
+                _playerGroundTrack.shift();
                 _playerTrailTimes.shift();
             }
         }
@@ -4184,6 +4236,10 @@ const LiveSimEngine = (function() {
         _updateOrbitalPanel();
         _updateTimeDisplay();
         _updateEntityListPanel();
+
+        // Analytics
+        _recordAnalyticsSnapshot();
+        _refreshAnalyticsIfOpen();
     }
 
     // -----------------------------------------------------------------------
@@ -4364,9 +4420,30 @@ const LiveSimEngine = (function() {
     }
 
     function _updateTimeDisplay() {
-        var mins = Math.floor(_simElapsed / 60);
-        var secs = Math.floor(_simElapsed % 60);
-        _setText('simTime', mins + ':' + secs.toString().padStart(2, '0'));
+        var t = _simElapsed;
+        var parts = [];
+        if (t >= 86400) { parts.push(Math.floor(t / 86400) + 'd'); t %= 86400; }
+        if (t >= 3600) { parts.push(Math.floor(t / 3600) + 'h'); t %= 3600; }
+        var m = Math.floor(t / 60);
+        var s = Math.floor(t % 60);
+        parts.push(m + ':' + s.toString().padStart(2, '0'));
+
+        // Compute actual UTC date from epoch + elapsed
+        var actualJD = _JD_SIM_EPOCH_LOCAL + _simElapsed / 86400;
+        var actualMs = (actualJD - 2440587.5) * 86400000;
+        var actualDate = new Date(actualMs);
+        var utcStr = actualDate.toISOString().slice(0, 19).replace('T', ' ') + 'Z';
+
+        _setText('simTime', parts.join(' ') + '  ' + utcStr);
+
+        // Camera mode & observer indicator
+        var camLabel = _cameraMode.toUpperCase();
+        if (_observerMode) camLabel = 'OBSERVER';
+        _setText('cameraModeDisplay', camLabel);
+
+        // Entity count
+        var count = _world ? _world.entities.size : 0;
+        _setText('entityCountDisplay', count + ' ENT');
     }
 
     var _entityListThrottle = 0;
@@ -4377,28 +4454,45 @@ const LiveSimEngine = (function() {
         var listEl = document.getElementById('entityListInner');
         if (!listEl) return;
 
-        var html = '';
+        // Group items by vizCategory (null = ungrouped)
+        var groups = {};
+        var groupOrder = [];
         for (var i = 0; i < _entityListItems.length; i++) {
             var item = _entityListItems[i];
-            var alive = item.entity.active;
-            var teamColor = item.team === 'blue' ? '#4488ff' :
-                item.team === 'red' ? '#ff4444' : '#888888';
-            var statusIcon = alive ? '\u25CF' : '\u2716';
-            var style = alive ? 'cursor:pointer;' : 'opacity:0.4;text-decoration:line-through;';
-            var playerTag = item.isPlayer ? ' <span style="color:#44aaff">[YOU]</span>' : '';
-            var catTag = item.vizCategory ? ' <span style="color:#666;font-size:9px">' + item.vizCategory + '</span>' : '';
-            var trackTag = (_trackingEntity && _trackingEntity.id === item.id) ?
-                ' <span style="color:#ff0">\u25C9</span>' : '';
+            var cat = item.vizCategory || '__none__';
+            if (!groups[cat]) { groups[cat] = []; groupOrder.push(cat); }
+            groups[cat].push(item);
+        }
 
-            html += '<div class="entity-row" data-eid="' + item.id + '" style="' + style + '">' +
-                '<span style="color:' + teamColor + '">' + statusIcon + '</span> ' +
-                '<span class="entity-name">' + item.name + '</span>' + playerTag + trackTag +
-                ' <span class="entity-type">' + item.type + '</span>' + catTag +
-                '</div>';
+        var html = '';
+        for (var g = 0; g < groupOrder.length; g++) {
+            var cat = groupOrder[g];
+            var items = groups[cat];
+            if (cat !== '__none__' && groupOrder.length > 1) {
+                html += '<div style="color:#666;font-size:9px;padding:3px 4px;border-top:1px solid #333;margin-top:2px">' +
+                    cat.toUpperCase() + ' (' + items.length + ')</div>';
+            }
+            for (var j = 0; j < items.length; j++) {
+                var it = items[j];
+                var alive = it.entity.active;
+                var teamColor = it.team === 'blue' ? '#4488ff' :
+                    it.team === 'red' ? '#ff4444' : '#888888';
+                var statusIcon = alive ? '\u25CF' : '\u2716';
+                var style = alive ? 'cursor:pointer;' : 'opacity:0.4;text-decoration:line-through;';
+                var playerTag = it.isPlayer ? ' <span style="color:#44aaff">[YOU]</span>' : '';
+                var trackTag = (_trackingEntity && _trackingEntity.id === it.id) ?
+                    ' <span style="color:#ff0">\u25C9</span>' : '';
+
+                html += '<div class="entity-row" data-eid="' + it.id + '" style="' + style + '">' +
+                    '<span style="color:' + teamColor + '">' + statusIcon + '</span> ' +
+                    '<span class="entity-name">' + it.name + '</span>' + playerTag + trackTag +
+                    ' <span class="entity-type">' + it.type + '</span>' +
+                    '</div>';
+            }
         }
         listEl.innerHTML = html;
 
-        // Attach click handlers (delegated)
+        // Attach click + dblclick handlers (delegated, once)
         if (!listEl._clickWired) {
             listEl._clickWired = true;
             listEl.addEventListener('click', function(e) {
@@ -4409,6 +4503,18 @@ const LiveSimEngine = (function() {
                 var entity = _world.getEntity(eid);
                 if (!entity) return;
                 _trackEntity(entity);
+            });
+            listEl.addEventListener('dblclick', function(e) {
+                var row = e.target.closest('.entity-row');
+                if (!row) return;
+                var eid = row.getAttribute('data-eid');
+                if (!eid) return;
+                var entity = _world.getEntity(eid);
+                if (!entity || !entity.active) return;
+                // Double-click → assume control (if entity has physics)
+                if (entity.getComponent('physics')) {
+                    _assumeControl(entity);
+                }
             });
         }
     }
@@ -4443,6 +4549,14 @@ const LiveSimEngine = (function() {
     }
 
     function _togglePanel(name) {
+        if (name === 'search') {
+            _toggleSearchPanel();
+            return;
+        }
+        if (name === 'analytics') {
+            _toggleAnalyticsPanel();
+            return;
+        }
         if (name === 'orbital') {
             if (_panelVisible.orbital === 'auto') _panelVisible.orbital = 'on';
             else if (_panelVisible.orbital === 'on') _panelVisible.orbital = 'off';
@@ -4664,6 +4778,12 @@ const LiveSimEngine = (function() {
                 var subsysKey = items[i].getAttribute('data-subsystem');
                 if (subsysKey === 'audio') isActive = _audioEnabled;
                 else if (subsysKey === 'visualfx') isActive = _visualFxEnabled;
+            } else if (items[i].getAttribute('data-viz')) {
+                var vizKey = items[i].getAttribute('data-viz');
+                if (vizKey === 'globalOrbits') isActive = _vizGlobalOrbits;
+                else if (vizKey === 'globalTrails') isActive = _vizGlobalTrails;
+                else if (vizKey === 'globalLabels') isActive = _vizGlobalLabels;
+                else if (vizKey === 'globalSensors') isActive = _vizGlobalSensors;
             }
 
             if (isActive) {
@@ -4701,6 +4821,11 @@ const LiveSimEngine = (function() {
                         FighterHUD.setToggle(keys[i], prefs.hudToggles[keys[i]]);
                     }
                 }
+                // Restore viz global toggles
+                if (prefs.vizGlobalOrbits !== undefined) _vizGlobalOrbits = prefs.vizGlobalOrbits;
+                if (prefs.vizGlobalTrails !== undefined) _vizGlobalTrails = prefs.vizGlobalTrails;
+                if (prefs.vizGlobalLabels !== undefined) _vizGlobalLabels = prefs.vizGlobalLabels;
+                if (prefs.vizGlobalSensors !== undefined) _vizGlobalSensors = prefs.vizGlobalSensors;
             }
         } catch (e) { /* ignore */ }
     }
@@ -4721,6 +4846,11 @@ const LiveSimEngine = (function() {
             if (typeof FighterHUD !== 'undefined' && FighterHUD.getToggles) {
                 data.hudToggles = FighterHUD.getToggles();
             }
+            // Include viz global toggles
+            data.vizGlobalOrbits = _vizGlobalOrbits;
+            data.vizGlobalTrails = _vizGlobalTrails;
+            data.vizGlobalLabels = _vizGlobalLabels;
+            data.vizGlobalSensors = _vizGlobalSensors;
             localStorage.setItem('livesim_panels', JSON.stringify(data));
         } catch (e) { /* ignore */ }
     }
@@ -4848,7 +4978,7 @@ const LiveSimEngine = (function() {
         // 2. Hijack new entity
         _hijackPlayer(entity);
 
-        // 3. Init cockpit
+        // 3. Init cockpit (sets _playerState, _playerConfig, propulsion, weapons/sensors)
         _initCockpit(entity);
         _playerEntity = entity;
 
@@ -4859,22 +4989,33 @@ const LiveSimEngine = (function() {
         // 5. Rebuild entity list with new [YOU] tag
         _buildEntityList();
 
-        // 6. Exit observer mode
+        // 6. Exit observer mode, enter cockpit
         _observerMode = false;
         _trackingEntity = null;
         _cameraMode = 'chase';
 
-        // 7. Release camera from any transform/tracking
+        // 7. Reset camera orbit params to defaults (may be at odd angles from observer mode)
+        _camHeadingOffset = 0;
+        _camPitch = -0.3;
+        _camRange = _playerState.alt > 100000 ? 5000 : 200;
+        _camDragging = false;
+
+        // 8. Show cockpit panels (observer mode hides them)
+        _panelVisible.flightData = true;
+        _panelVisible.systems = true;
+        _applyPanelVisibility();
+
+        // 9. Release camera from any transform/tracking
         _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
         if (_viewer.trackedEntity) _viewer.trackedEntity = undefined;
 
-        // 8. Disable Cesium controller inputs (cockpit mode takes over)
+        // 10. Disable Cesium controller inputs (cockpit mode takes over)
         _viewer.scene.screenSpaceCameraController.enableInputs = false;
 
-        // 9. Position camera
+        // 11. Position camera on new player
         _positionInitialCamera();
 
-        // 10. Init HUD if not already
+        // 12. Init HUD
         var hudCanvas = document.getElementById('hudCanvas');
         if (hudCanvas) {
             hudCanvas.style.display = 'block';
@@ -4885,10 +5026,13 @@ const LiveSimEngine = (function() {
             }
         }
 
-        // 11. Init planner handler if not done
+        // 13. Init planner handler if not done
         if (typeof SpaceplanePlanner !== 'undefined' && !_plannerMode) {
             _initPlannerClickHandler();
         }
+
+        // 14. Close pick popup
+        if (_pickPopup) _pickPopup.style.display = 'none';
 
         _showMessage('ASSUMING CONTROL: ' + entity.name, 3000);
     }
@@ -4995,6 +5139,7 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     function _cleanupOrbitEntities() {
         if (_trailEntity) { _viewer.entities.remove(_trailEntity); _trailEntity = null; }
+        if (_groundTrackEntity) { _viewer.entities.remove(_groundTrackEntity); _groundTrackEntity = null; }
         if (_orbitPolyline) { _viewer.entities.remove(_orbitPolyline); _orbitPolyline = null; }
         if (_eciOrbitPolyline) { _viewer.entities.remove(_eciOrbitPolyline); _eciOrbitPolyline = null; }
         if (_predictedOrbitPolyline) { _viewer.entities.remove(_predictedOrbitPolyline); _predictedOrbitPolyline = null; }
@@ -5003,6 +5148,7 @@ const LiveSimEngine = (function() {
         if (_anMarker) { _viewer.entities.remove(_anMarker); _anMarker = null; }
         if (_dnMarker) { _viewer.entities.remove(_dnMarker); _dnMarker = null; }
         _playerTrail = [];
+        _playerGroundTrack = [];
         _playerTrailTimes = [];
     }
 
@@ -5052,6 +5198,723 @@ const LiveSimEngine = (function() {
         var m = Math.floor(seconds / 60);
         var s = Math.floor(seconds % 60);
         return m + ':' + s.toString().padStart(2, '0');
+    }
+
+    // -----------------------------------------------------------------------
+    // Smart Search
+    // -----------------------------------------------------------------------
+
+    var R_EARTH_SEARCH = 6371000;
+
+    function _classifyRegime(orbital) {
+        if (!orbital || !orbital.sma) return 'OTHER';
+        var altKm = (orbital.sma - R_EARTH_SEARCH) / 1000;
+        if (orbital.ecc > 0.25) return 'HEO';
+        if (altKm < 2000) return 'LEO';
+        if (altKm < 35000) return 'MEO';
+        if (altKm <= 37000) return 'GEO';
+        return 'OTHER';
+    }
+
+    function _searchEntities(criteria) {
+        var matched = new Set();
+        if (!_world) return matched;
+
+        _world.entities.forEach(function(entity) {
+            if (!entity.active) return;
+            var state = entity.state;
+
+            // Name filter
+            if (criteria.name && criteria.name.length > 0) {
+                if (entity.name.toUpperCase().indexOf(criteria.name.toUpperCase()) === -1) return;
+            }
+
+            // Team filter
+            if (criteria.team && entity.team !== criteria.team) return;
+
+            var orbital = state._orbital;
+
+            // Regime filter
+            if (criteria.regime && criteria.regime !== 'ALL') {
+                var regime = _classifyRegime(orbital);
+                if (regime !== criteria.regime) return;
+            }
+
+            // Inclination range
+            if (criteria.incMin != null || criteria.incMax != null) {
+                var inc = orbital ? orbital.inc * (180 / Math.PI) : null;
+                if (inc == null) return;
+                if (criteria.incMin != null && inc < criteria.incMin) return;
+                if (criteria.incMax != null && inc > criteria.incMax) return;
+            }
+
+            // SMA range (input in km, orbital.sma in meters)
+            if (criteria.smaMinKm != null || criteria.smaMaxKm != null) {
+                var smaKm = orbital ? orbital.sma / 1000 : null;
+                if (smaKm == null) return;
+                if (criteria.smaMinKm != null && smaKm < criteria.smaMinKm) return;
+                if (criteria.smaMaxKm != null && smaKm > criteria.smaMaxKm) return;
+            }
+
+            matched.add(entity.id);
+        });
+        return matched;
+    }
+
+    function _highlightSearchResults(matchedIds) {
+        _searchMatchedIds = matchedIds;
+        if (!_world) return;
+
+        _world.entities.forEach(function(entity) {
+            entity.state._searchHighlight = matchedIds.has(entity.id);
+        });
+    }
+
+    function _clearSearch() {
+        _searchMatchedIds = new Set();
+        if (_world) {
+            _world.entities.forEach(function(entity) {
+                entity.state._searchHighlight = false;
+            });
+        }
+        // Reset UI
+        var nameInput = document.getElementById('searchName');
+        if (nameInput) nameInput.value = '';
+        var teamSelect = document.getElementById('searchTeam');
+        if (teamSelect) teamSelect.value = '';
+        var incMin = document.getElementById('searchIncMin');
+        if (incMin) incMin.value = '';
+        var incMax = document.getElementById('searchIncMax');
+        if (incMax) incMax.value = '';
+        var smaMin = document.getElementById('searchSmaMin');
+        if (smaMin) smaMin.value = '';
+        var smaMax = document.getElementById('searchSmaMax');
+        if (smaMax) smaMax.value = '';
+        // Reset regime buttons
+        var regBtns = document.querySelectorAll('.srch-regime');
+        regBtns.forEach(function(btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-regime') === 'ALL');
+            btn.style.background = btn.getAttribute('data-regime') === 'ALL' ? '#1a3a5a' : '#0d1a2a';
+        });
+        _updateSearchResults();
+    }
+
+    function _runSearch() {
+        var criteria = {};
+        var nameInput = document.getElementById('searchName');
+        if (nameInput && nameInput.value.trim()) criteria.name = nameInput.value.trim();
+
+        var teamSelect = document.getElementById('searchTeam');
+        if (teamSelect && teamSelect.value) criteria.team = teamSelect.value;
+
+        // Regime from active button
+        var activeRegime = document.querySelector('.srch-regime.active');
+        if (activeRegime) criteria.regime = activeRegime.getAttribute('data-regime');
+
+        var incMinEl = document.getElementById('searchIncMin');
+        if (incMinEl && incMinEl.value !== '') criteria.incMin = parseFloat(incMinEl.value);
+        var incMaxEl = document.getElementById('searchIncMax');
+        if (incMaxEl && incMaxEl.value !== '') criteria.incMax = parseFloat(incMaxEl.value);
+
+        var smaMinEl = document.getElementById('searchSmaMin');
+        if (smaMinEl && smaMinEl.value !== '') criteria.smaMinKm = parseFloat(smaMinEl.value);
+        var smaMaxEl = document.getElementById('searchSmaMax');
+        if (smaMaxEl && smaMaxEl.value !== '') criteria.smaMaxKm = parseFloat(smaMaxEl.value);
+
+        // Check if any criteria specified
+        var hasCriteria = criteria.name || criteria.team || (criteria.regime && criteria.regime !== 'ALL') ||
+            criteria.incMin != null || criteria.incMax != null || criteria.smaMinKm != null || criteria.smaMaxKm != null;
+
+        if (!hasCriteria) {
+            _clearSearch();
+            return;
+        }
+
+        var matched = _searchEntities(criteria);
+        _highlightSearchResults(matched);
+        _updateSearchResults();
+    }
+
+    function _updateSearchResults() {
+        var el = document.getElementById('searchResults');
+        if (!el) return;
+        var total = _world ? _world.entities.size : 0;
+        var matched = _searchMatchedIds.size;
+        if (matched > 0) {
+            el.style.color = '#44ff88';
+            el.textContent = matched + ' / ' + total + ' entities matched';
+        } else {
+            el.style.color = '#4a9eff';
+            el.textContent = 'No search active';
+        }
+    }
+
+    function _applyBulkAction(action, value) {
+        if (_searchMatchedIds.size === 0) return;
+        if (!_world) return;
+
+        _searchMatchedIds.forEach(function(id) {
+            var entity = _world.getEntity(id);
+            if (!entity) return;
+
+            if (action === 'setTeam') {
+                entity.team = value;
+            } else if (action === 'setColor') {
+                // Update visual component color
+                var vis = entity.getComponent('visual');
+                if (vis && vis.config) vis.config.color = value;
+                // Update point entity color directly if possible
+                if (vis && vis._pointEntity && vis._pointEntity.point) {
+                    try { vis._pointEntity.point.color = Cesium.Color.fromCssColorString(value); } catch(e) {}
+                }
+                if (vis && vis._cesiumEntity && vis._cesiumEntity.point) {
+                    try { vis._cesiumEntity.point.color = Cesium.Color.fromCssColorString(value); } catch(e) {}
+                }
+            } else if (action === 'orbitsOn') {
+                entity.state._vizOrbits = true;
+            } else if (action === 'orbitsOff') {
+                entity.state._vizOrbits = false;
+            } else if (action === 'labelsOn') {
+                entity.state._vizLabels = true;
+            } else if (action === 'labelsOff') {
+                entity.state._vizLabels = false;
+            }
+        });
+    }
+
+    function _toggleSearchPanel() {
+        var panel = document.getElementById('searchPanel');
+        if (!panel) return;
+        _searchPanelOpen = !_searchPanelOpen;
+        panel.style.display = _searchPanelOpen ? '' : 'none';
+        if (!_searchPanelOpen) {
+            // Don't clear search on close — keep highlights
+        }
+    }
+
+    function _initSearchPanel() {
+        // Search input — debounced
+        var searchTimeout = null;
+        var nameInput = document.getElementById('searchName');
+        if (nameInput) {
+            nameInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(_runSearch, 200);
+            });
+        }
+
+        // Team select
+        var teamSelect = document.getElementById('searchTeam');
+        if (teamSelect) teamSelect.addEventListener('change', _runSearch);
+
+        // Regime buttons
+        var regBtns = document.querySelectorAll('.srch-regime');
+        regBtns.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                regBtns.forEach(function(b) {
+                    b.classList.remove('active');
+                    b.style.background = '#0d1a2a';
+                });
+                btn.classList.add('active');
+                btn.style.background = '#1a3a5a';
+                _runSearch();
+            });
+        });
+
+        // Inc/SMA range inputs
+        ['searchIncMin', 'searchIncMax', 'searchSmaMin', 'searchSmaMax'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('change', _runSearch);
+        });
+
+        // Bulk actions
+        var bulkTeam = document.getElementById('bulkTeam');
+        if (bulkTeam) {
+            bulkTeam.addEventListener('change', function() {
+                if (bulkTeam.value) {
+                    _applyBulkAction('setTeam', bulkTeam.value);
+                    bulkTeam.value = '';
+                }
+            });
+        }
+
+        var bulkColor = document.getElementById('bulkColor');
+        if (bulkColor) {
+            bulkColor.addEventListener('input', function() {
+                _applyBulkAction('setColor', bulkColor.value);
+            });
+        }
+
+        var bulkOrbitsOn = document.getElementById('bulkOrbitsOn');
+        if (bulkOrbitsOn) bulkOrbitsOn.addEventListener('click', function() { _applyBulkAction('orbitsOn'); });
+        var bulkOrbitsOff = document.getElementById('bulkOrbitsOff');
+        if (bulkOrbitsOff) bulkOrbitsOff.addEventListener('click', function() { _applyBulkAction('orbitsOff'); });
+        var bulkLabelsOn = document.getElementById('bulkLabelsOn');
+        if (bulkLabelsOn) bulkLabelsOn.addEventListener('click', function() { _applyBulkAction('labelsOn'); });
+        var bulkLabelsOff = document.getElementById('bulkLabelsOff');
+        if (bulkLabelsOff) bulkLabelsOff.addEventListener('click', function() { _applyBulkAction('labelsOff'); });
+
+        // Clear & close
+        var searchClear = document.getElementById('searchClear');
+        if (searchClear) searchClear.addEventListener('click', _clearSearch);
+        var searchClose = document.getElementById('searchClose');
+        if (searchClose) searchClose.addEventListener('click', _toggleSearchPanel);
+    }
+
+    // -----------------------------------------------------------------------
+    // Data Analytics
+    // -----------------------------------------------------------------------
+
+    function _recordAnalyticsSnapshot() {
+        _analyticsRecordCounter++;
+        if (_analyticsRecordCounter % 60 !== 0) return; // ~1Hz at 60fps
+        if (!_world) return;
+
+        var alive = 0, dead = 0, hasFuel = 0;
+        var regimes = { LEO: 0, MEO: 0, GEO: 0, HEO: 0, OTHER: 0 };
+        var teams = {};
+        var types = {};
+        var totalAlt = 0, altCount = 0;
+        var totalSpeed = 0, speedCount = 0;
+
+        _world.entities.forEach(function(entity) {
+            if (entity.active) {
+                alive++;
+                if (entity.state.fuel > 0) hasFuel++;
+
+                var team = entity.team || 'neutral';
+                teams[team] = (teams[team] || 0) + 1;
+
+                var type = entity.type || 'unknown';
+                types[type] = (types[type] || 0) + 1;
+
+                var orbital = entity.state._orbital;
+                if (orbital) {
+                    var regime = _classifyRegime(orbital);
+                    regimes[regime]++;
+                }
+
+                if (entity.state.alt != null) {
+                    totalAlt += entity.state.alt;
+                    altCount++;
+                }
+                if (entity.state.speed != null) {
+                    totalSpeed += entity.state.speed;
+                    speedCount++;
+                }
+            } else {
+                dead++;
+            }
+        });
+
+        _analyticsHistory.push({
+            t: _simElapsed,
+            alive: alive,
+            dead: dead,
+            hasFuel: hasFuel,
+            regimes: regimes,
+            teams: Object.assign({}, teams),
+            types: Object.assign({}, types),
+            avgAlt: altCount > 0 ? totalAlt / altCount / 1000 : 0,  // km
+            avgSpeed: speedCount > 0 ? totalSpeed / speedCount : 0,
+            leo: regimes.LEO,
+            meo: regimes.MEO,
+            geo: regimes.GEO,
+            heo: regimes.HEO
+        });
+
+        // Cap history at 3600 entries (1 hour at 1Hz)
+        if (_analyticsHistory.length > 3600) {
+            _analyticsHistory = _analyticsHistory.slice(-3600);
+        }
+    }
+
+    function _destroyAnalyticsCharts() {
+        for (var key in _analyticsCharts) {
+            if (_analyticsCharts[key]) {
+                _analyticsCharts[key].destroy();
+            }
+        }
+        _analyticsCharts = {};
+    }
+
+    function _renderAnalyticsTemplate(template) {
+        var container = document.getElementById('analyticsContent');
+        if (!container) return;
+
+        _destroyAnalyticsCharts();
+        container.innerHTML = '';
+
+        var customRow = document.getElementById('analyticsCustomRow');
+        if (customRow) customRow.style.display = template === 'custom' ? '' : 'none';
+
+        if (typeof Chart === 'undefined') {
+            container.innerHTML = '<div style="color:#ff4444;padding:10px">Chart.js not loaded</div>';
+            return;
+        }
+
+        switch (template) {
+            case 'overview':
+                _renderOverviewCharts(container);
+                break;
+            case 'regime':
+                _renderRegimeChart(container);
+                break;
+            case 'population':
+                _renderPopulationChart(container);
+                break;
+            case 'teams':
+                _renderTeamChart(container);
+                break;
+            case 'fuel':
+                _renderFuelChart(container);
+                break;
+            case 'custom':
+                _renderCustomChart(container);
+                break;
+        }
+    }
+
+    function _createChartCanvas(container, id, height) {
+        var wrapper = document.createElement('div');
+        wrapper.style.cssText = 'margin-bottom:10px;height:' + (height || 180) + 'px;position:relative';
+        var canvas = document.createElement('canvas');
+        canvas.id = id;
+        wrapper.appendChild(canvas);
+        container.appendChild(wrapper);
+        return canvas;
+    }
+
+    function _chartDefaults() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#a0b8d0', font: { family: 'monospace', size: 10 } }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#666', font: { size: 9 } },
+                    grid: { color: 'rgba(42,74,106,0.3)' }
+                },
+                y: {
+                    ticks: { color: '#666', font: { size: 9 } },
+                    grid: { color: 'rgba(42,74,106,0.3)' }
+                }
+            }
+        };
+    }
+
+    function _getLatestSnapshot() {
+        return _analyticsHistory.length > 0 ? _analyticsHistory[_analyticsHistory.length - 1] : null;
+    }
+
+    function _renderOverviewCharts(container) {
+        // Regime pie + Team bar side by side
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;gap:8px;margin-bottom:10px';
+        container.appendChild(row);
+
+        // Regime pie
+        var pieWrap = document.createElement('div');
+        pieWrap.style.cssText = 'flex:1;height:160px;position:relative';
+        var pieCanvas = document.createElement('canvas');
+        pieCanvas.id = 'chartRegimePie';
+        pieWrap.appendChild(pieCanvas);
+        row.appendChild(pieWrap);
+
+        // Team bar
+        var barWrap = document.createElement('div');
+        barWrap.style.cssText = 'flex:1;height:160px;position:relative';
+        var barCanvas = document.createElement('canvas');
+        barCanvas.id = 'chartTeamBar';
+        barWrap.appendChild(barCanvas);
+        row.appendChild(barWrap);
+
+        var snap = _getLatestSnapshot();
+        var regimes = snap ? snap.regimes : { LEO: 0, MEO: 0, GEO: 0, HEO: 0, OTHER: 0 };
+        var teams = snap ? snap.teams : {};
+
+        _analyticsCharts.regimePie = new Chart(pieCanvas, {
+            type: 'doughnut',
+            data: {
+                labels: ['LEO', 'MEO', 'GEO', 'HEO', 'Other'],
+                datasets: [{
+                    data: [regimes.LEO, regimes.MEO, regimes.GEO, regimes.HEO, regimes.OTHER],
+                    backgroundColor: ['#44ccff', '#44ff88', '#ffcc44', '#ff6688', '#aa88ff']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { color: '#a0b8d0', font: { family: 'monospace', size: 9 }, padding: 6 } },
+                    title: { display: true, text: 'Orbit Regimes', color: '#6ac', font: { family: 'monospace', size: 10 } }
+                }
+            }
+        });
+
+        var teamLabels = Object.keys(teams);
+        var teamColors = teamLabels.map(function(t) {
+            return t === 'blue' ? '#4488ff' : t === 'red' ? '#ff4444' : t === 'green' ? '#44ff44' : '#888888';
+        });
+
+        _analyticsCharts.teamBar = new Chart(barCanvas, {
+            type: 'bar',
+            data: {
+                labels: teamLabels.length > 0 ? teamLabels : ['none'],
+                datasets: [{
+                    label: 'Entities',
+                    data: teamLabels.length > 0 ? teamLabels.map(function(t) { return teams[t]; }) : [0],
+                    backgroundColor: teamLabels.length > 0 ? teamColors : ['#888']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: 'Teams', color: '#6ac', font: { family: 'monospace', size: 10 } }
+                },
+                scales: {
+                    x: { ticks: { color: '#a0b8d0', font: { size: 9 } }, grid: { display: false } },
+                    y: { ticks: { color: '#666', font: { size: 9 } }, grid: { color: 'rgba(42,74,106,0.3)' } }
+                }
+            }
+        });
+
+        // Type distribution
+        var types = snap ? snap.types : {};
+        var typeLabels = Object.keys(types);
+        if (typeLabels.length > 0) {
+            var typeCanvas = _createChartCanvas(container, 'chartTypeBar', 120);
+            _analyticsCharts.typeBar = new Chart(typeCanvas, {
+                type: 'bar',
+                data: {
+                    labels: typeLabels,
+                    datasets: [{
+                        label: 'Count',
+                        data: typeLabels.map(function(t) { return types[t]; }),
+                        backgroundColor: '#4a9eff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Entity Types', color: '#6ac', font: { family: 'monospace', size: 10 } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#666', font: { size: 9 } }, grid: { color: 'rgba(42,74,106,0.3)' } },
+                        y: { ticks: { color: '#a0b8d0', font: { size: 9 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // Summary text
+        var summaryDiv = document.createElement('div');
+        summaryDiv.style.cssText = 'padding:6px;background:#0a1520;border-radius:3px;font-size:10px';
+        var total = _world ? _world.entities.size : 0;
+        summaryDiv.innerHTML = '<span style="color:#44ff88">Alive: ' + (snap ? snap.alive : 0) + '</span>' +
+            ' &middot; <span style="color:#ff4444">Dead: ' + (snap ? snap.dead : 0) + '</span>' +
+            ' &middot; <span style="color:#ffcc44">Fuel: ' + (snap ? snap.hasFuel : 0) + '</span>' +
+            ' &middot; Total: ' + total;
+        container.appendChild(summaryDiv);
+    }
+
+    function _renderRegimeChart(container) {
+        var snap = _getLatestSnapshot();
+        var regimes = snap ? snap.regimes : { LEO: 0, MEO: 0, GEO: 0, HEO: 0, OTHER: 0 };
+
+        var canvas = _createChartCanvas(container, 'chartRegimeFull', 220);
+        _analyticsCharts.regimeFull = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: ['LEO', 'MEO', 'GEO', 'HEO', 'Other'],
+                datasets: [{
+                    data: [regimes.LEO, regimes.MEO, regimes.GEO, regimes.HEO, regimes.OTHER],
+                    backgroundColor: ['#44ccff', '#44ff88', '#ffcc44', '#ff6688', '#aa88ff']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#a0b8d0', font: { family: 'monospace', size: 10 }, padding: 10 } },
+                    title: { display: true, text: 'Orbit Regime Distribution', color: '#4a9eff', font: { family: 'monospace', size: 12 } }
+                }
+            }
+        });
+
+        // Detail counts
+        var detailDiv = document.createElement('div');
+        detailDiv.style.cssText = 'padding:8px;background:#0a1520;border-radius:3px;font-size:10px;margin-top:8px';
+        var total = regimes.LEO + regimes.MEO + regimes.GEO + regimes.HEO + regimes.OTHER;
+        function pct(n) { return total > 0 ? ' (' + (n / total * 100).toFixed(1) + '%)' : ''; }
+        detailDiv.innerHTML =
+            '<div><span style="color:#44ccff">LEO:</span> ' + regimes.LEO + pct(regimes.LEO) + '</div>' +
+            '<div><span style="color:#44ff88">MEO:</span> ' + regimes.MEO + pct(regimes.MEO) + '</div>' +
+            '<div><span style="color:#ffcc44">GEO:</span> ' + regimes.GEO + pct(regimes.GEO) + '</div>' +
+            '<div><span style="color:#ff6688">HEO:</span> ' + regimes.HEO + pct(regimes.HEO) + '</div>' +
+            '<div><span style="color:#aa88ff">Other:</span> ' + regimes.OTHER + pct(regimes.OTHER) + '</div>';
+        container.appendChild(detailDiv);
+    }
+
+    function _renderTimeSeriesChart(container, id, title, fields, colors, height) {
+        if (_analyticsHistory.length < 2) {
+            container.innerHTML += '<div style="color:#666;padding:10px;text-align:center">Collecting data... (' + _analyticsHistory.length + ' samples)</div>';
+            return;
+        }
+
+        var canvas = _createChartCanvas(container, id, height || 200);
+        var times = _analyticsHistory.map(function(s) {
+            var t = s.t;
+            if (t >= 3600) return (t / 3600).toFixed(1) + 'h';
+            if (t >= 60) return Math.floor(t / 60) + 'm';
+            return Math.floor(t) + 's';
+        });
+
+        var datasets = fields.map(function(f, i) {
+            return {
+                label: f.label || f.key,
+                data: _analyticsHistory.map(function(s) { return s[f.key] || 0; }),
+                borderColor: colors[i] || '#4a9eff',
+                backgroundColor: (colors[i] || '#4a9eff') + '20',
+                fill: f.fill !== false,
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 1.5
+            };
+        });
+
+        _analyticsCharts[id] = new Chart(canvas, {
+            type: 'line',
+            data: { labels: times, datasets: datasets },
+            options: Object.assign(_chartDefaults(), {
+                plugins: {
+                    legend: { labels: { color: '#a0b8d0', font: { family: 'monospace', size: 9 } } },
+                    title: { display: true, text: title, color: '#4a9eff', font: { family: 'monospace', size: 11 } }
+                }
+            })
+        });
+    }
+
+    function _renderPopulationChart(container) {
+        _renderTimeSeriesChart(container, 'chartPopulation', 'Population Over Time',
+            [{ key: 'alive', label: 'Alive' }, { key: 'dead', label: 'Dead' }],
+            ['#44ff88', '#ff4444'], 220);
+    }
+
+    function _renderTeamChart(container) {
+        if (_analyticsHistory.length < 2) {
+            container.innerHTML = '<div style="color:#666;padding:10px;text-align:center">Collecting data...</div>';
+            return;
+        }
+
+        // Get all team names from history
+        var allTeams = {};
+        _analyticsHistory.forEach(function(s) {
+            for (var t in s.teams) allTeams[t] = true;
+        });
+        var teamNames = Object.keys(allTeams);
+        var teamColorMap = { blue: '#4488ff', red: '#ff4444', green: '#44ff44', neutral: '#888888' };
+
+        var canvas = _createChartCanvas(container, 'chartTeams', 220);
+        var times = _analyticsHistory.map(function(s) {
+            var t = s.t;
+            if (t >= 3600) return (t / 3600).toFixed(1) + 'h';
+            if (t >= 60) return Math.floor(t / 60) + 'm';
+            return Math.floor(t) + 's';
+        });
+
+        var datasets = teamNames.map(function(team) {
+            return {
+                label: team,
+                data: _analyticsHistory.map(function(s) { return (s.teams && s.teams[team]) || 0; }),
+                borderColor: teamColorMap[team] || '#aa88ff',
+                tension: 0.3,
+                pointRadius: 0,
+                borderWidth: 1.5,
+                fill: false
+            };
+        });
+
+        _analyticsCharts.teams = new Chart(canvas, {
+            type: 'line',
+            data: { labels: times, datasets: datasets },
+            options: Object.assign(_chartDefaults(), {
+                plugins: {
+                    legend: { labels: { color: '#a0b8d0', font: { family: 'monospace', size: 9 } } },
+                    title: { display: true, text: 'Team Balance Over Time', color: '#4a9eff', font: { family: 'monospace', size: 11 } }
+                }
+            })
+        });
+    }
+
+    function _renderFuelChart(container) {
+        _renderTimeSeriesChart(container, 'chartFuel', 'Fuel Status Over Time',
+            [{ key: 'hasFuel', label: 'With Fuel' }, { key: 'alive', label: 'Total Alive' }],
+            ['#ffcc44', '#44ff8840'], 220);
+    }
+
+    function _renderCustomChart(container) {
+        var varSelect = document.getElementById('analyticsCustomVar');
+        var varKey = varSelect ? varSelect.value : 'alive';
+        var varLabel = varSelect ? varSelect.options[varSelect.selectedIndex].text : 'Alive Count';
+
+        _renderTimeSeriesChart(container, 'chartCustom', varLabel + ' Over Time',
+            [{ key: varKey, label: varLabel }],
+            ['#4a9eff'], 220);
+    }
+
+    function _toggleAnalyticsPanel() {
+        var panel = document.getElementById('analyticsPanel');
+        if (!panel) return;
+        _analyticsPanelOpen = !_analyticsPanelOpen;
+        panel.style.display = _analyticsPanelOpen ? '' : 'none';
+        if (_analyticsPanelOpen) {
+            var sel = document.getElementById('analyticsTemplate');
+            _renderAnalyticsTemplate(sel ? sel.value : 'overview');
+        } else {
+            _destroyAnalyticsCharts();
+        }
+    }
+
+    function _refreshAnalyticsIfOpen() {
+        if (!_analyticsPanelOpen) return;
+        // Refresh every 5 seconds (300 frames at 60fps)
+        if (_analyticsRecordCounter % 300 !== 0) return;
+        var sel = document.getElementById('analyticsTemplate');
+        _renderAnalyticsTemplate(sel ? sel.value : 'overview');
+    }
+
+    function _initAnalyticsPanel() {
+        var templateSel = document.getElementById('analyticsTemplate');
+        if (templateSel) {
+            templateSel.addEventListener('change', function() {
+                _renderAnalyticsTemplate(templateSel.value);
+            });
+        }
+
+        var customVar = document.getElementById('analyticsCustomVar');
+        if (customVar) {
+            customVar.addEventListener('change', function() {
+                if (_analyticsPanelOpen) {
+                    var sel = document.getElementById('analyticsTemplate');
+                    if (sel && sel.value === 'custom') {
+                        _renderAnalyticsTemplate('custom');
+                    }
+                }
+            });
+        }
+
+        var closeBtn = document.getElementById('analyticsClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleAnalyticsPanel);
     }
 
     // -----------------------------------------------------------------------

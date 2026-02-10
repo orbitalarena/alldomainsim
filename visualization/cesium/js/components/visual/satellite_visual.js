@@ -66,9 +66,9 @@
             // Parse color
             var color;
             try {
-                color = cfg.color ? Cesium.Color.fromCssColorString(cfg.color) : Cesium.Color.YELLOW;
+                color = cfg.color ? Cesium.Color.fromCssColorString(cfg.color) : Cesium.Color.WHITE;
             } catch (e) {
-                color = Cesium.Color.YELLOW;
+                color = Cesium.Color.WHITE;
             }
             this._color = color;
 
@@ -82,8 +82,7 @@
                     pixelSize: cfg.pixelSize || 8,
                     color: color,
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 1,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    outlineWidth: 1
                 },
                 label: {
                     text: entity.name,
@@ -94,7 +93,6 @@
                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                     pixelOffset: new Cesium.Cartesian2(0, -12),
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     scale: 0.85
                 }
             };
@@ -164,8 +162,7 @@
                         pixelSize: 6,
                         color: Cesium.Color.LIME,
                         outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 1,
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        outlineWidth: 1
                     },
                     label: {
                         text: 'AP',
@@ -176,7 +173,6 @@
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                         pixelOffset: new Cesium.Cartesian2(0, -10),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
                         scale: 0.75
                     }
                 });
@@ -190,8 +186,7 @@
                         pixelSize: 6,
                         color: Cesium.Color.fromCssColorString('#00ccff'),
                         outlineColor: Cesium.Color.WHITE,
-                        outlineWidth: 1,
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                        outlineWidth: 1
                     },
                     label: {
                         text: 'PE',
@@ -202,7 +197,6 @@
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                         pixelOffset: new Cesium.Cartesian2(0, -10),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
                         scale: 0.75
                     }
                 });
@@ -220,17 +214,37 @@
             // Per-entity visibility controls
             var vizShow = this.entity.state._vizShow !== false;
             if (this._pointEntity) this._pointEntity.show = vizShow;
+            if (this._pointEntity && this._pointEntity.label) {
+                this._pointEntity.label.show = vizShow && this.entity.state._vizLabels !== false;
+            }
             if (this._orbitPathEntity) this._orbitPathEntity.show = vizShow && this.entity.state._vizOrbits !== false;
             if (this._groundTrackEntity) this._groundTrackEntity.show = vizShow && this.entity.state._vizOrbits !== false;
+
+            // Search highlight
+            if (this.entity.state._searchHighlight) {
+                if (this._pointEntity && this._pointEntity.point) {
+                    this._pointEntity.point.pixelSize = (this.config.pixelSize || 8) * 2;
+                    this._pointEntity.point.outlineColor = Cesium.Color.GOLD;
+                    this._pointEntity.point.outlineWidth = 2;
+                }
+            } else {
+                if (this._pointEntity && this._pointEntity.point) {
+                    this._pointEntity.point.pixelSize = this.config.model ? 4 : (this.config.pixelSize || 8);
+                    this._pointEntity.point.outlineColor = Cesium.Color.WHITE;
+                    this._pointEntity.point.outlineWidth = 1;
+                }
+            }
 
             // Update model orientation from ECI velocity (every frame for smooth rotation)
             if (this.config.model) {
                 this._updateModelOrientation();
             }
 
-            // Stagger orbit path updates across satellites
+            // Stagger orbit path updates across satellites — skip when orbits are globally off
             if ((this._frameCounter + this._updateOffset) % ORBIT_UPDATE_INTERVAL === 0) {
-                this._computeOrbitPath(world);
+                if (this.entity.state._vizOrbits !== false) {
+                    this._computeOrbitPath(world);
+                }
             }
         }
 

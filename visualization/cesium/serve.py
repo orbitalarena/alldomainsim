@@ -95,49 +95,67 @@ def sanitize_filename(name):
 MC_SERVER_PORT = 8001  # Port where mc_server.js runs
 
 # ──────────────────────────────────────────────────────────────────────
-# TLE Catalog — parse fullsatcat.txt once, group by constellation
+# TLE Catalog — parse fullsatcat.txt, group by mega-constellation + orbit regime
 # ──────────────────────────────────────────────────────────────────────
+
+import math as _math
 
 TLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'data', 'tles')
 
-CONSTELLATION_PREFIXES = [
-    ('STARLINK', 'STARLINK'),
-    ('ONEWEB', 'ONEWEB'),
-    ('IRIDIUM', 'IRIDIUM'),
-    ('NAVSTAR', 'GPS'),
-    ('GPS ', 'GPS'),
-    ('BEIDOU', 'BEIDOU'),
-    ('COSMOS', 'COSMOS'),
-    ('GLOBALSTAR', 'GLOBALSTAR'),
-    ('FLOCK', 'FLOCK'),
-    ('ORBCOMM', 'ORBCOMM'),
-    ('INTELSAT', 'INTELSAT'),
-    ('SES-', 'SES'),
-    ('GOES', 'GOES'),
-    ('GALILEO', 'GALILEO'),
-    ('O3B', 'O3B'),
-    ('HULIANWANG', 'HULIANWANG'),
-    ('LEMUR', 'LEMUR'),
-    ('SPACEBEE', 'SPACEBEE'),
-    ('YAOGAN', 'YAOGAN'),
-    ('JILIN', 'JILIN'),
-]
+_MU_EARTH = 3.986004418e14  # m³/s²
+_R_EARTH_M = 6371000.0      # m
+_TWO_PI = 2 * _math.pi
+_MEGA_THRESHOLD = 200        # constellations with >= this many sats are "mega"
 
-_tle_cache = None  # { 'constellations': { name: [sat,...] }, 'summary': [...] }
+_tle_cache = None
+
+
+def _orbit_regime(mean_motion_revday, ecc):
+    """Classify orbit regime from TLE mean motion (revs/day) and eccentricity."""
+    if mean_motion_revday <= 0:
+        return 'OTHER'
+    if ecc > 0.25:
+        return 'HEO'
+    n_rad = _TWO_PI * mean_motion_revday / 86400.0
+    sma = (_MU_EARTH / (n_rad * n_rad)) ** (1.0 / 3.0)
+    alt_km = (sma - _R_EARTH_M) / 1000.0
+    if alt_km < 2000:
+        return 'LEO'
+    elif alt_km < 35000:
+        return 'MEO'
+    elif alt_km <= 37000:
+        return 'GEO'
+    else:
+        return 'OTHER'
+
+
+def _parse_tle_line2(line2):
+    """Extract mean motion (revs/day) and eccentricity from TLE line 2."""
+    try:
+        # Eccentricity: cols 26-33 (implicit leading decimal)
+        ecc = float('0.' + line2[26:33].strip())
+        # Mean motion: cols 52-63
+        mm = float(line2[52:63].strip())
+        return mm, ecc
+    except (ValueError, IndexError):
+        return 0, 0
 
 
 def _parse_tle_catalog():
-    """Parse fullsatcat.txt and group by constellation. Cached after first call."""
+    """Parse fullsatcat.txt. Group by mega-constellations (>200) + orbit regime.
+    Cached after first call."""
     global _tle_cache
     if _tle_cache is not None:
         return _tle_cache
 
     fullsat_path = os.path.join(TLES_DIR, 'fullsatcat.txt')
     if not os.path.exists(fullsat_path):
-        _tle_cache = {'constellations': {}, 'summary': [], 'total': 0}
+        _tle_cache = {'constellations': {}, 'groups': [], 'total': 0}
         return _tle_cache
 
-    constellations = {}  # name -> [{ name, line1, line2, norad }]
+    # First pass: collect all sats, count name prefixes
+    all_sats = []
+    prefix_counts = {}  # prefix -> count (first word of name, uppercase)
 
     with open(fullsat_path, 'r') as f:
         lines = f.readlines()
@@ -145,7 +163,6 @@ def _parse_tle_catalog():
     i = 0
     while i < len(lines):
         line = lines[i].rstrip()
-        # Look for 3-line format: name, line1 (starts with '1 '), line2 (starts with '2 ')
         if (i + 2 < len(lines)
                 and lines[i + 1].startswith('1 ')
                 and lines[i + 2].startswith('2 ')):
@@ -153,45 +170,98 @@ def _parse_tle_catalog():
             line1 = lines[i + 1].rstrip()
             line2 = lines[i + 2].rstrip()
 
-            # Extract NORAD catalog number from line 1 (cols 2-7)
             try:
                 norad = int(line1[2:7].strip())
             except (ValueError, IndexError):
                 norad = 0
 
-            # Determine constellation
-            group = 'OTHER'
-            upper_name = sat_name.upper()
-            for prefix, group_name in CONSTELLATION_PREFIXES:
-                if upper_name.startswith(prefix):
-                    group = group_name
-                    break
+            mm, ecc = _parse_tle_line2(line2)
+            regime = _orbit_regime(mm, ecc)
 
-            if group not in constellations:
-                constellations[group] = []
-            constellations[group].append({
+            # Determine prefix: first token before space/dash/digit
+            upper = sat_name.upper().strip()
+            # Use everything before first space, dash-number, or paren as prefix
+            prefix = upper.split()[0] if upper else 'UNKNOWN'
+            # Strip trailing numbers/dashes from prefix (e.g. "STARLINK" from "STARLINK-1234")
+            prefix = prefix.rstrip('0123456789-')
+            if not prefix:
+                prefix = upper.split()[0] if upper else 'UNKNOWN'
+
+            sat_data = {
                 'name': sat_name,
                 'line1': line1,
                 'line2': line2,
                 'norad': norad,
-            })
+                'regime': regime,
+                'prefix': prefix,
+            }
+            all_sats.append(sat_data)
+            prefix_counts[prefix] = prefix_counts.get(prefix, 0) + 1
             i += 3
         else:
             i += 1
 
-    # Build summary sorted by count descending
-    total = sum(len(v) for v in constellations.values())
-    summary = sorted(
-        [{'name': k, 'count': len(v)} for k, v in constellations.items()],
-        key=lambda x: -x['count']
-    )
+    # Identify mega-constellations (>= MEGA_THRESHOLD same prefix)
+    mega_prefixes = {p for p, c in prefix_counts.items() if c >= _MEGA_THRESHOLD}
+
+    # Build constellation groups (keyed by name)
+    constellations = {}  # name -> [sat_data, ...]
+    # Mega-constellations get their own group, everything else goes to regime groups
+    regime_groups = {'LEO': [], 'MEO': [], 'GEO': [], 'HEO': [], 'OTHER': []}
+
+    for sat in all_sats:
+        if sat['prefix'] in mega_prefixes:
+            group_name = sat['prefix']
+            if group_name not in constellations:
+                constellations[group_name] = []
+            constellations[group_name].append(sat)
+        else:
+            regime_groups[sat['regime']].append(sat)
+            # Also store in constellations for /api/tle/constellation/ lookup
+            regime_key = sat['regime']
+            if regime_key not in constellations:
+                constellations[regime_key] = []
+            constellations[regime_key].append(sat)
+
+    # Build summary groups for catalog endpoint
+    total = len(all_sats)
+    groups = []
+
+    # Mega-constellations first (sorted by count desc)
+    mega_names = sorted(mega_prefixes, key=lambda p: -len(constellations.get(p, [])))
+    for name in mega_names:
+        sats = constellations[name]
+        # Determine dominant regime
+        regime_counts = {}
+        for s in sats:
+            r = s['regime']
+            regime_counts[r] = regime_counts.get(r, 0) + 1
+        dominant_regime = max(regime_counts, key=regime_counts.get) if regime_counts else 'LEO'
+        groups.append({
+            'name': name,
+            'count': len(sats),
+            'kind': 'mega',
+            'regime': dominant_regime,
+        })
+
+    # Orbit regime groups (non-mega sats only)
+    for regime in ['LEO', 'MEO', 'GEO', 'HEO', 'OTHER']:
+        sats = regime_groups[regime]
+        if sats:
+            groups.append({
+                'name': regime,
+                'count': len(sats),
+                'kind': 'regime',
+            })
 
     _tle_cache = {
         'constellations': constellations,
-        'summary': summary,
+        'groups': groups,
         'total': total,
     }
-    print(f'  TLE catalog parsed: {total} satellites in {len(constellations)} groups')
+    n_mega = len(mega_prefixes)
+    n_regime = sum(1 for g in groups if g['kind'] == 'regime')
+    print(f'  TLE catalog parsed: {total} satellites, {n_mega} mega-constellations, {n_regime} orbit regimes')
     return _tle_cache
 
 
@@ -550,18 +620,20 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
             self._json_response(500, {'error': str(e)})
 
     def _handle_tle_catalog(self):
-        """Return TLE catalog summary (constellation names + counts)."""
+        """Return TLE catalog summary: mega-constellations + orbit regime groups."""
         try:
             catalog = _parse_tle_catalog()
             self._json_response(200, {
                 'totalSatellites': catalog['total'],
-                'constellations': catalog['summary'],
+                'groups': catalog['groups'],
+                # Backward compat: also include flat list as 'constellations'
+                'constellations': catalog['groups'],
             })
         except Exception as e:
             self._json_response(500, {'error': str(e)})
 
     def _handle_tle_constellation(self):
-        """Return full TLE data for a single constellation."""
+        """Return full TLE data for a single constellation or orbit regime group."""
         try:
             # Extract constellation name from path: /api/tle/constellation/{name}
             parts = self.path.split('/')
@@ -573,13 +645,19 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
             catalog = _parse_tle_catalog()
             sats = catalog['constellations'].get(name)
             if sats is None:
-                self._json_response(404, {'error': f'Constellation not found: {name}'})
+                self._json_response(404, {'error': f'Group not found: {name}'})
                 return
+
+            # Strip internal fields (prefix) from response
+            clean_sats = [{
+                'name': s['name'], 'line1': s['line1'], 'line2': s['line2'],
+                'norad': s['norad'], 'regime': s.get('regime', 'LEO'),
+            } for s in sats]
 
             self._json_response(200, {
                 'name': name,
-                'count': len(sats),
-                'satellites': sats,
+                'count': len(clean_sats),
+                'satellites': clean_sats,
             })
         except Exception as e:
             self._json_response(500, {'error': str(e)})

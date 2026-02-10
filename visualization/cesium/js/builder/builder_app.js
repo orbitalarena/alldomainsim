@@ -1509,6 +1509,40 @@ const BuilderApp = (function() {
             });
         });
 
+        // Launch Observer — same as Launch Sim but with __observer__ player
+        _bindButton('btnLaunchObserver', function() {
+            var menu = document.getElementById('exportDropdownMenu');
+            if (menu) menu.classList.remove('open');
+
+            var scenarioData = getScenarioData();
+            if (!scenarioData || !scenarioData.entities || scenarioData.entities.length === 0) {
+                showMessage('No entities in scenario');
+                return;
+            }
+
+            var name = (scenarioData.metadata && scenarioData.metadata.name) || _scenarioName || 'Untitled';
+            showMessage('Saving sim...', 2000);
+
+            fetch('/api/sim/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, scenario: scenarioData })
+            })
+            .then(function(resp) { return resp.json(); })
+            .then(function(result) {
+                if (result.error) {
+                    showMessage('Save failed: ' + result.error);
+                    return;
+                }
+                var liveUrl = 'live_sim_viewer.html?sim=' + encodeURIComponent(result.filename) + '&player=__observer__';
+                window.open(liveUrl, '_blank');
+                showMessage('Observer launched: ' + result.filename, 2000);
+            })
+            .catch(function(err) {
+                showMessage('Launch failed: ' + err.message);
+            });
+        });
+
         _bindButton('btnImportTLE', function() {
             ScenarioIO.importTLEFile().catch(function(err) {
                 if (err.message !== 'No file selected') {

@@ -8,6 +8,7 @@
     <!-- Cesium -->
     <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
     <script src="lib/Cesium/Cesium.js"></script>
+    <script src="lib/chart.umd.min.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -819,9 +820,11 @@
         <span id="simTime">0:00</span> |
         <span id="timeWarpDisplay">1x</span> |
         <span id="pauseStatus">RUNNING</span> |
+        <span id="cameraModeDisplay" style="color:#aaa">CHASE</span> |
         <span id="propModeDisplay">---</span> |
         <span id="pointingModeDisplay" style="color:#44ccff"></span>
-        <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span>
+        <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span> |
+        <span id="entityCountDisplay" style="color:#888">0 ENT</span>
     </div>
 
     <!-- Mode Indicator -->
@@ -1096,13 +1099,21 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Visual Effects</span>
         </div>
+        <div class="settings-item" data-panel="search">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Search [F]</span>
+        </div>
+        <div class="settings-item" data-panel="analytics">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Analytics</span>
+        </div>
         <div class="settings-sep"></div>
         <div class="settings-section-title">Entity Display</div>
-        <div class="settings-item active" data-viz="globalOrbits">
+        <div class="settings-item" data-viz="globalOrbits">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">All Orbits</span>
         </div>
-        <div class="settings-item active" data-viz="globalTrails">
+        <div class="settings-item" data-viz="globalTrails">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">All Trails</span>
         </div>
@@ -1129,6 +1140,111 @@
     <div id="pointingPanel">
         <div class="ep-title" style="color:#00ddff">POINTING MODE <span class="ep-hint" style="color:#005566">[I] cycle &middot; [L] panel</span></div>
         <div id="pointingPanelContent"></div>
+    </div>
+
+    <!-- ===================== SEARCH PANEL ===================== -->
+    <div id="searchPanel" style="display:none;position:fixed;top:50px;right:10px;width:320px;background:rgba(10,20,35,0.95);border:1px solid #2a4a6a;border-radius:6px;padding:12px;z-index:2000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="color:#4a9eff;font-weight:bold;font-size:12px">SEARCH</span>
+            <span id="searchClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
+        </div>
+        <div style="margin-bottom:8px">
+            <input type="text" id="searchName" placeholder="Name filter..." style="width:100%;box-sizing:border-box;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:5px 8px;font-family:monospace;font-size:11px;border-radius:3px" />
+        </div>
+        <div style="margin-bottom:6px">
+            <span style="color:#666;font-size:10px">REGIME</span>
+            <div id="searchRegimeButtons" style="display:flex;gap:4px;margin-top:3px">
+                <button class="srch-regime active" data-regime="ALL" style="flex:1;padding:3px;font-size:9px;background:#1a3a5a;color:#4a9eff;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">ALL</button>
+                <button class="srch-regime" data-regime="LEO" style="flex:1;padding:3px;font-size:9px;background:#0d1a2a;color:#44ccff;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">LEO</button>
+                <button class="srch-regime" data-regime="MEO" style="flex:1;padding:3px;font-size:9px;background:#0d1a2a;color:#44ff88;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">MEO</button>
+                <button class="srch-regime" data-regime="GEO" style="flex:1;padding:3px;font-size:9px;background:#0d1a2a;color:#ffcc44;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">GEO</button>
+                <button class="srch-regime" data-regime="HEO" style="flex:1;padding:3px;font-size:9px;background:#0d1a2a;color:#ff6688;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">HEO</button>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+            <div style="flex:1">
+                <span style="color:#666;font-size:10px">INC RANGE (&deg;)</span>
+                <div style="display:flex;gap:4px;margin-top:2px">
+                    <input type="number" id="searchIncMin" placeholder="0" style="width:50%;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace" />
+                    <input type="number" id="searchIncMax" placeholder="180" style="width:50%;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace" />
+                </div>
+            </div>
+            <div style="flex:1">
+                <span style="color:#666;font-size:10px">SMA RANGE (km)</span>
+                <div style="display:flex;gap:4px;margin-top:2px">
+                    <input type="number" id="searchSmaMin" placeholder="min" style="width:50%;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace" />
+                    <input type="number" id="searchSmaMax" placeholder="max" style="width:50%;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace" />
+                </div>
+            </div>
+        </div>
+        <div style="margin-bottom:8px">
+            <span style="color:#666;font-size:10px">TEAM</span>
+            <select id="searchTeam" style="margin-left:6px;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace">
+                <option value="">All</option>
+                <option value="blue">Blue</option>
+                <option value="red">Red</option>
+                <option value="green">Green</option>
+                <option value="neutral">Neutral</option>
+            </select>
+        </div>
+        <div id="searchResults" style="color:#4a9eff;font-size:10px;margin-bottom:8px;padding:4px;background:#0a1520;border-radius:3px">
+            No search active
+        </div>
+        <div style="border-top:1px solid #2a4a6a;padding-top:8px;margin-top:4px">
+            <span style="color:#666;font-size:10px;display:block;margin-bottom:4px">BULK ACTIONS</span>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+                <select id="bulkTeam" style="background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace">
+                    <option value="">Set Team...</option>
+                    <option value="blue">Blue</option>
+                    <option value="red">Red</option>
+                    <option value="green">Green</option>
+                    <option value="neutral">Neutral</option>
+                </select>
+                <input type="color" id="bulkColor" value="#ffffff" title="Set Color" style="width:30px;height:24px;border:1px solid #2a4a6a;background:#0d1a2a;cursor:pointer" />
+                <button id="bulkOrbitsOn" style="padding:3px 6px;font-size:9px;background:#0d1a2a;color:#4a9eff;border:1px solid #2a4a6a;cursor:pointer">Orbits ON</button>
+                <button id="bulkOrbitsOff" style="padding:3px 6px;font-size:9px;background:#0d1a2a;color:#886644;border:1px solid #2a4a6a;cursor:pointer">Orbits OFF</button>
+                <button id="bulkLabelsOn" style="padding:3px 6px;font-size:9px;background:#0d1a2a;color:#4a9eff;border:1px solid #2a4a6a;cursor:pointer">Labels ON</button>
+                <button id="bulkLabelsOff" style="padding:3px 6px;font-size:9px;background:#0d1a2a;color:#886644;border:1px solid #2a4a6a;cursor:pointer">Labels OFF</button>
+            </div>
+            <div style="margin-top:6px;display:flex;gap:4px">
+                <button id="searchClear" style="flex:1;padding:4px;font-size:10px;background:#1a2a3a;color:#ff6644;border:1px solid #2a4a6a;cursor:pointer;border-radius:2px">Clear Search</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== ANALYTICS PANEL ===================== -->
+    <div id="analyticsPanel" style="display:none;position:fixed;bottom:10px;right:10px;width:420px;max-height:70vh;overflow-y:auto;background:rgba(10,20,35,0.95);border:1px solid #2a4a6a;border-radius:6px;padding:12px;z-index:2000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="color:#4a9eff;font-weight:bold;font-size:12px">ANALYTICS</span>
+            <div style="display:flex;gap:6px;align-items:center">
+                <select id="analyticsTemplate" style="background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace">
+                    <option value="overview">Overview</option>
+                    <option value="regime">Regime Breakdown</option>
+                    <option value="population">Population Health</option>
+                    <option value="teams">Team Balance</option>
+                    <option value="fuel">Fuel Status</option>
+                    <option value="custom">Custom Variable</option>
+                </select>
+                <span id="analyticsClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
+            </div>
+        </div>
+        <div id="analyticsContent">
+            <!-- Charts rendered here by JS -->
+        </div>
+        <div id="analyticsCustomRow" style="display:none;margin-top:8px;border-top:1px solid #2a4a6a;padding-top:8px">
+            <span style="color:#666;font-size:10px">VARIABLE</span>
+            <select id="analyticsCustomVar" style="margin-left:6px;background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:3px;font-size:10px;font-family:monospace">
+                <option value="alive">Alive Count</option>
+                <option value="dead">Dead Count</option>
+                <option value="hasFuel">Entities with Fuel</option>
+                <option value="avgAlt">Avg Altitude (km)</option>
+                <option value="avgSpeed">Avg Speed (m/s)</option>
+                <option value="leo">LEO Count</option>
+                <option value="meo">MEO Count</option>
+                <option value="geo">GEO Count</option>
+                <option value="heo">HEO Count</option>
+            </select>
+        </div>
     </div>
 
     <!-- ===================== MANEUVER DIALOG ===================== -->
@@ -1369,8 +1485,12 @@
                 return;
             }
 
+            // Check localStorage for last used sim
+            var lastSim = null;
+            try { lastSim = localStorage.getItem('livesim_lastSim'); } catch(e) {}
+
             // Normal flow: fetch sim list
-            loadSimList();
+            loadSimList(lastSim);
         }
 
         function loadSimList() {
@@ -1391,9 +1511,7 @@
                     if (sims.length === 0) {
                         statusEl.textContent = '';
                         listEl.innerHTML = '<div class="splash-empty">No sim files found. ' +
-                            'Use the Scenario Builder to create and save sims.</div>';
-                        // Also show built-in scenario files
-                        loadBuiltinScenarios(listEl, statusEl);
+                            'Use the Scenario Builder to create scenarios, or load satellites from the TLE Catalog below.</div>';
                         appendTLECatalogCard(listEl);
                         return;
                     }
@@ -1401,29 +1519,38 @@
                     statusEl.textContent = sims.length + ' sim file' + (sims.length > 1 ? 's' : '') + ' available';
                     renderSimList(sims, listEl);
 
-                    // Also append built-in scenarios section
-                    loadBuiltinScenarios(listEl, null);
-
                     // Append TLE catalog card
                     appendTLECatalogCard(listEl);
                 })
                 .catch(function(err) {
                     statusEl.textContent = '';
                     statusEl.innerHTML = '<span class="splash-error">Failed to load: ' + err.message + '</span>';
-                    // Fallback: show built-in scenarios
-                    loadBuiltinScenarios(listEl, statusEl);
                     appendTLECatalogCard(listEl);
                 });
         }
 
         function renderSimList(sims, container) {
+            var lastSim = null;
+            try { lastSim = localStorage.getItem('livesim_lastSim'); } catch(e) {}
+
+            // Sort: last used sim first
+            if (lastSim) {
+                sims.sort(function(a, b) {
+                    if (a.path === lastSim) return -1;
+                    if (b.path === lastSim) return 1;
+                    return 0;
+                });
+            }
+
             var html = '';
             for (var i = 0; i < sims.length; i++) {
                 var sim = sims[i];
                 var dateStr = sim.modified ? new Date(sim.modified * 1000).toLocaleDateString() : '';
                 var sizeStr = sim.size > 1024 ? (sim.size / 1024).toFixed(0) + ' KB' : sim.size + ' B';
+                var lastTag = (sim.path === lastSim) ?
+                    '<span style="color:#44aaff;font-size:9px;margin-left:6px">LAST USED</span>' : '';
                 html += '<div class="sim-card" data-path="' + sim.path + '">' +
-                    '<div class="sim-card-name">' + _escHtml(sim.name) + '</div>' +
+                    '<div class="sim-card-name">' + _escHtml(sim.name) + lastTag + '</div>' +
                     '<div class="sim-card-meta">' +
                         '<span>' + sim.entityCount + ' entities</span>' +
                         '<span>' + sizeStr + '</span>' +
@@ -1506,12 +1633,15 @@
             modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:1000;' +
                 'background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;';
 
+            var regimeColors = { LEO: '#4af', MEO: '#fa4', GEO: '#f4a', HEO: '#a4f', OTHER: '#888' };
+
             var panel = document.createElement('div');
             panel.style.cssText = 'background:#1a1a2e;border:1px solid #44cc88;border-radius:8px;' +
                 'padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:#eee;font-family:monospace;';
-            panel.innerHTML = '<h3 style="color:#44cc88;margin:0 0 12px">SELECT CONSTELLATIONS</h3>' +
+            panel.innerHTML = '<h3 style="color:#44cc88;margin:0 0 12px">TLE SATELLITE CATALOG</h3>' +
                 '<div id="tleConstellationList" style="margin-bottom:12px">Loading catalog...</div>' +
-                '<div style="display:flex;gap:8px">' +
+                '<div id="tlePlatformSection"></div>' +
+                '<div style="display:flex;gap:8px;margin-top:12px">' +
                 '<button id="tlePickAll" class="splash-btn" style="flex:1;padding:6px;font-size:11px">SELECT ALL</button>' +
                 '<button id="tlePickNone" class="splash-btn" style="flex:1;padding:6px;font-size:11px">CLEAR</button>' +
                 '<button id="tlePickLoad" class="splash-btn primary" style="flex:1;padding:6px">LOAD</button>' +
@@ -1524,18 +1654,51 @@
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     var list = document.getElementById('tleConstellationList');
-                    var constellations = data.constellations || [];
+                    var groups = data.groups || data.constellations || [];
                     var html = '';
-                    for (var i = 0; i < constellations.length; i++) {
-                        var c = constellations[i];
-                        // Pre-select common ones
-                        var preselected = ['GPS', 'IRIDIUM', 'GALILEO'].indexOf(c.name) >= 0;
-                        html += '<label style="display:block;padding:4px 0;cursor:pointer;color:#ccc">' +
-                            '<input type="checkbox" class="tle-const-check" data-name="' + c.name + '"' +
-                            (preselected ? ' checked' : '') + '> ' +
-                            '<span style="color:' + (preselected ? '#44cc88' : '#999') + '">' +
-                            c.name + '</span> <span style="color:#666">(' + c.count + ')</span></label>';
+
+                    // Separate mega-constellations and orbit regimes
+                    var megas = groups.filter(function(g) { return g.kind === 'mega'; });
+                    var regimes = groups.filter(function(g) { return g.kind === 'regime'; });
+
+                    // Mega-constellations section
+                    if (megas.length > 0) {
+                        html += '<div style="color:#44cc88;font-size:10px;font-weight:bold;margin:8px 0 4px;letter-spacing:1px">MEGA-CONSTELLATIONS</div>';
+                        for (var i = 0; i < megas.length; i++) {
+                            var c = megas[i];
+                            var rc = regimeColors[c.regime] || '#888';
+                            html += '<label style="display:block;padding:4px 0;cursor:pointer;color:#ccc">' +
+                                '<input type="checkbox" class="tle-const-check" data-name="' + c.name + '"> ' +
+                                '<span style="color:#eee">' + c.name + '</span> ' +
+                                '<span style="color:' + rc + ';font-size:10px">' + c.regime + '</span> ' +
+                                '<span style="color:#666">(' + c.count.toLocaleString() + ')</span></label>';
+                        }
                     }
+
+                    // Orbit regimes section
+                    if (regimes.length > 0) {
+                        html += '<div style="color:#fa4;font-size:10px;font-weight:bold;margin:12px 0 4px;letter-spacing:1px">ORBIT REGIMES</div>';
+                        var regimeDescriptions = {
+                            LEO: 'Low Earth Orbit (<2,000 km)',
+                            MEO: 'Medium Earth Orbit (2,000-35,000 km)',
+                            GEO: 'Geostationary (35,000-37,000 km)',
+                            HEO: 'Highly Elliptical (ecc > 0.25)',
+                            OTHER: 'Uncategorized'
+                        };
+                        for (var j = 0; j < regimes.length; j++) {
+                            var r = regimes[j];
+                            var rc2 = regimeColors[r.name] || '#888';
+                            var desc = regimeDescriptions[r.name] || '';
+                            html += '<label style="display:block;padding:4px 0;cursor:pointer;color:#ccc">' +
+                                '<input type="checkbox" class="tle-const-check" data-name="' + r.name + '"> ' +
+                                '<span style="color:' + rc2 + '">' + r.name + '</span> ' +
+                                '<span style="color:#666">(' + r.count.toLocaleString() + ')</span>' +
+                                '<div style="color:#555;font-size:10px;margin-left:20px">' + desc + '</div></label>';
+                        }
+                    }
+
+                    html += '<div style="color:#555;font-size:10px;margin-top:8px">' +
+                        data.totalSatellites.toLocaleString() + ' total satellites</div>';
                     list.innerHTML = html;
 
                     // Wire select all / clear
@@ -1550,6 +1713,9 @@
                     document.getElementById('tleConstellationList').innerHTML =
                         '<span style="color:#f44">Failed to load catalog: ' + err.message + '</span>';
                 });
+
+            // Populate platform template section (Item 6)
+            _populateTlePlatformTemplates();
 
             // Cancel
             document.getElementById('tlePickCancel').onclick = function() {
@@ -1567,25 +1733,114 @@
             };
         }
 
+        function _populateTlePlatformTemplates() {
+            var section = document.getElementById('tlePlatformSection');
+            if (!section) return;
+
+            // Load custom platforms from localStorage
+            var templates = [];
+            try {
+                var raw = localStorage.getItem('customPlatforms');
+                if (raw) templates = JSON.parse(raw);
+            } catch (e) {}
+
+            if (templates.length === 0) {
+                section.innerHTML = '<div style="margin-top:10px;border-top:1px solid #333;padding-top:8px">' +
+                    '<span style="color:#555;font-size:10px">No custom platform templates. ' +
+                    'Create templates in Platform Builder to apply propulsion/sensors to imported satellites.</span></div>';
+                return;
+            }
+
+            var optionsHtml = '<option value="">None (point only)</option>';
+            for (var i = 0; i < templates.length; i++) {
+                optionsHtml += '<option value="' + i + '">' + (templates[i].name || 'Template ' + i) + '</option>';
+            }
+
+            section.innerHTML = '<div style="margin-top:10px;border-top:1px solid #333;padding-top:8px">' +
+                '<label style="color:#888;font-size:11px">Apply platform template:</label>' +
+                '<select id="tlePlatformTemplate" style="width:100%;background:#111;color:#eee;border:1px solid #444;' +
+                'padding:4px;margin-top:4px;font-family:monospace;font-size:11px">' + optionsHtml + '</select>' +
+                '<label style="color:#666;font-size:10px;display:block;margin-top:4px;cursor:pointer">' +
+                '<input type="checkbox" id="tleAutoMatch" checked> Auto-match template by satellite name prefix' +
+                '</label></div>';
+        }
+
+        function _findMatchingTemplate(satName, templates) {
+            var upper = satName.toUpperCase();
+            for (var i = 0; i < templates.length; i++) {
+                var tName = (templates[i].name || '').toUpperCase();
+                if (tName && upper.startsWith(tName)) return templates[i];
+            }
+            return null;
+        }
+
+        function _applyTemplateToEntity(entityDef, template) {
+            if (!template) return;
+            // Copy _custom (propulsion, sensors, payloads)
+            if (template._custom) {
+                entityDef._custom = JSON.parse(JSON.stringify(template._custom));
+            }
+            // Apply visual config from template (color, model, pixelSize)
+            if (template.visual) {
+                for (var k in template.visual) {
+                    if (template.visual.hasOwnProperty(k)) {
+                        entityDef.components.visual[k] = template.visual[k];
+                    }
+                }
+            }
+        }
+
         function loadTLEConstellations(names) {
             var statusEl = document.getElementById('simFileStatus');
-            statusEl.textContent = 'Loading ' + names.length + ' constellation(s)...';
+            statusEl.textContent = 'Loading ' + names.length + ' group(s)...';
 
-            // Fetch all selected constellations in parallel
+            // Read template settings before modal is removed
+            var selectedTemplateIdx = -1;
+            var autoMatch = true;
+            var templates = [];
+            try {
+                var tplSelect = document.getElementById('tlePlatformTemplate');
+                if (tplSelect && tplSelect.value) selectedTemplateIdx = parseInt(tplSelect.value);
+                var amCheck = document.getElementById('tleAutoMatch');
+                if (amCheck) autoMatch = amCheck.checked;
+                var raw = localStorage.getItem('customPlatforms');
+                if (raw) templates = JSON.parse(raw);
+            } catch (e) {}
+            var fallbackTemplate = selectedTemplateIdx >= 0 ? templates[selectedTemplateIdx] : null;
+
+            // Fetch all selected groups with progress
+            var fetchedCount = 0;
             var promises = names.map(function(name) {
                 return fetch('/api/tle/constellation/' + encodeURIComponent(name))
-                    .then(function(r) { return r.json(); });
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        fetchedCount++;
+                        statusEl.textContent = 'Fetched ' + fetchedCount + '/' + names.length + ' groups (' + (data.satellites ? data.satellites.length : 0) + ' sats)...';
+                        return data;
+                    });
             });
 
             Promise.all(promises).then(function(results) {
                 // Build scenario JSON from TLE data
+                statusEl.textContent = 'Building entities...';
                 var entities = [];
+                var templatesApplied = 0;
                 for (var i = 0; i < results.length; i++) {
                     var constData = results[i];
                     var sats = constData.satellites || [];
+                    // Regime-based colors for visual distinction
+                    var REGIME_COLORS = {
+                        'LEO': '#44ccff',
+                        'MEO': '#44ff88',
+                        'GEO': '#ffcc44',
+                        'HEO': '#ff6688',
+                        'OTHER': '#aa88ff'
+                    };
+
                     for (var j = 0; j < sats.length; j++) {
                         var sat = sats[j];
-                        entities.push({
+                        var regimeColor = REGIME_COLORS[sat.regime] || '#ffffff';
+                        var entityDef = {
                             id: 'tle_' + sat.norad,
                             name: sat.name,
                             type: 'satellite',
@@ -1599,9 +1854,22 @@
                                     tle_line1: sat.line1,
                                     tle_line2: sat.line2
                                 },
-                                visual: { type: 'satellite', pixelSize: 4, orbitPath: false, groundTrack: false, apPeMarkers: false }
+                                visual: { type: 'satellite', pixelSize: 4, color: regimeColor, orbitPath: false, groundTrack: false, apPeMarkers: false }
                             }
-                        });
+                        };
+
+                        // Apply platform template
+                        var tpl = null;
+                        if (autoMatch && templates.length > 0) {
+                            tpl = _findMatchingTemplate(sat.name, templates);
+                        }
+                        if (!tpl) tpl = fallbackTemplate;
+                        if (tpl) {
+                            _applyTemplateToEntity(entityDef, tpl);
+                            templatesApplied++;
+                        }
+
+                        entities.push(entityDef);
                     }
                 }
 
@@ -1611,6 +1879,8 @@
                     entities: entities,
                     camera: { mode: 'earth', range: 25000000 }
                 };
+
+                statusEl.textContent = 'Saving ' + entities.length + ' entities...';
 
                 // Write to temp sim file via API
                 var blob = new Blob([JSON.stringify(scenario)], { type: 'application/json' });
@@ -1622,12 +1892,12 @@
                     return resp.json();
                 }).then(function(result) {
                     if (result.error) throw new Error(result.error);
-                    statusEl.textContent = entities.length + ' satellites loaded from ' + names.length + ' constellation(s)';
+                    var msg = entities.length + ' satellites loaded from ' + names.length + ' group(s)';
+                    if (templatesApplied > 0) msg += ' (' + templatesApplied + ' with templates)';
+                    statusEl.textContent = msg;
                     _selectedSimPath = result.path || 'sims/tle_catalog.sim';
-                    // Go to entity picker (which will show OBSERVE as primary option)
                     loadScenarioForEntityPick(_selectedSimPath);
                 }).catch(function(err) {
-                    // Fallback: create in-memory scenario URL
                     var url = URL.createObjectURL(blob);
                     _selectedSimPath = url;
                     statusEl.textContent = entities.length + ' satellites loaded';
@@ -1794,6 +2064,9 @@
         // Launch
         // =====================================================================
         function launchSim() {
+            // Remember this sim for next session
+            try { if (_selectedSimPath) localStorage.setItem('livesim_lastSim', _selectedSimPath); } catch(e) {}
+
             // Hide splash, show loading
             document.getElementById('splashOverlay').style.display = 'none';
             var loadEl = document.getElementById('loadingOverlay');

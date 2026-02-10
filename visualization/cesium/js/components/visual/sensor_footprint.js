@@ -406,8 +406,8 @@
             var entity = this.entity;
             var state = entity.state;
 
-            // Check visibility toggle
-            var visible = state._vizSensors !== false;
+            // Check visibility toggles (both entity show and sensor show)
+            var visible = state._vizShow !== false && state._vizSensors !== false;
 
             var lat = state.lat || 0;
             var lon = state.lon || 0;

@@ -674,12 +674,31 @@ const TLEParser = (function() {
     }
 
     // -------------------------------------------------------------------
+    // TLE Epoch → Julian Date
+    // -------------------------------------------------------------------
+
+    /**
+     * Convert TLE epoch (year + fractional day-of-year) to Julian Date.
+     * @param {number} epochYear - Full year (e.g. 2025)
+     * @param {number} epochDay - Fractional day of year (e.g. 350.5)
+     * @returns {number} Julian Date
+     */
+    function tleEpochToJD(epochYear, epochDay) {
+        // Jan 1 of epochYear as Date
+        var jan1 = new Date(Date.UTC(epochYear, 0, 1));
+        var msPerDay = 86400000;
+        var epochMs = jan1.getTime() + (epochDay - 1) * msPerDay;
+        return 2440587.5 + epochMs / msPerDay;
+    }
+
+    // -------------------------------------------------------------------
     // Public API
     // -------------------------------------------------------------------
     return {
         parse: parse,
         parseTLE: parseTLE,
         tleToECI: tleToECI,
+        tleEpochToJD: tleEpochToJD,
         eciToGeodetic: eciToGeodetic,
         eciToCesiumCartesian: eciToCesiumCartesian,
         propagateKepler: propagateKepler,

@@ -119,6 +119,18 @@
                 return;
             }
 
+            // Advance mean anomaly from TLE epoch to sim epoch
+            if (sat.epochYear && sat.epochDay && typeof TLEParser.tleEpochToJD === 'function') {
+                var tleJD = TLEParser.tleEpochToJD(sat.epochYear, sat.epochDay);
+                var simEpochJD = (this.entity._world && this.entity._world.simEpochJD) || 2440587.5 + Date.now() / 86400000;
+                var dtSec = (simEpochJD - tleJD) * 86400;
+                if (Math.abs(dtSec) > 1) {
+                    var n_rad = Math.sqrt(MU / (sat.sma * sat.sma * sat.sma)); // rad/s
+                    var dM_deg = (n_rad * dtSec) * (180 / Math.PI);
+                    sat.meanAnomaly = ((sat.meanAnomaly + dM_deg) % 360 + 360) % 360;
+                }
+            }
+
             var eci = TLEParser.tleToECI(sat);
             this._eciPos = eci.pos;
             this._eciVel = eci.vel;

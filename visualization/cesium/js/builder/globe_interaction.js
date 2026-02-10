@@ -299,6 +299,11 @@ const GlobeInteraction = (function() {
             components: template.components || {}
         };
 
+        // Preserve _custom metadata (propulsion, sensors, payloads from Platform Builder)
+        if (template._custom) {
+            entityDef._custom = template._custom;
+        }
+
         // Add the entity
         var newId = BuilderApp.addEntity(entityDef);
 

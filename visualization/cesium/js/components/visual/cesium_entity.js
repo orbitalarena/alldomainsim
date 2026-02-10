@@ -82,8 +82,7 @@
                     pixelSize: cfg.pixelSize || 10,
                     color: color,
                     outlineColor: Cesium.Color.BLACK,
-                    outlineWidth: 1,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    outlineWidth: 1
                 }
             };
 
@@ -97,8 +96,7 @@
                     outlineWidth: 2,
                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                    pixelOffset: new Cesium.Cartesian2(0, -12),
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    pixelOffset: new Cesium.Cartesian2(0, -12)
                 };
             }
 
@@ -217,7 +215,25 @@
             // Per-entity visibility controls
             var vizShow = this.entity.state._vizShow !== false;
             if (this._cesiumEntity) this._cesiumEntity.show = vizShow;
+            if (this._cesiumEntity && this._cesiumEntity.label) {
+                this._cesiumEntity.label.show = vizShow && this.entity.state._vizLabels !== false;
+            }
             if (this._trailEntity) this._trailEntity.show = vizShow && this.entity.state._vizTrails !== false;
+
+            // Search highlight
+            if (this.entity.state._searchHighlight) {
+                if (this._cesiumEntity && this._cesiumEntity.point) {
+                    this._cesiumEntity.point.pixelSize = (this.config.pixelSize || 10) * 2;
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.GOLD;
+                    this._cesiumEntity.point.outlineWidth = 2;
+                }
+            } else {
+                if (this._cesiumEntity && this._cesiumEntity.point) {
+                    this._cesiumEntity.point.pixelSize = this.config.model ? 4 : (this.config.pixelSize || 10);
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.BLACK;
+                    this._cesiumEntity.point.outlineWidth = 1;
+                }
+            }
 
             // Update cached position (avoids allocation in CallbackProperty)
             this._cachedPosition = Cesium.Cartesian3.fromRadians(

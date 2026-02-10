@@ -96,8 +96,7 @@
                     pixelSize: pixelSize,
                     color: color,
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 2,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    outlineWidth: 2
                 },
                 label: {
                     text: new Cesium.CallbackProperty(function() {
@@ -110,7 +109,6 @@
                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                     verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                     pixelOffset: new Cesium.Cartesian2(0, -14),
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     scale: 0.9
                 }
             });
@@ -197,7 +195,6 @@
                         verticalOrigin: Cesium.VerticalOrigin.CENTER,
                         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                         pixelOffset: new Cesium.Cartesian2(4, 0),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
                         scale: 0.85
                     }
                 }));
@@ -232,7 +229,6 @@
                         verticalOrigin: Cesium.VerticalOrigin.CENTER,
                         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                         pixelOffset: new Cesium.Cartesian2(4, 0),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
                         scale: 0.85
                     }
                 }));
@@ -267,7 +263,6 @@
                         verticalOrigin: Cesium.VerticalOrigin.CENTER,
                         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                         pixelOffset: new Cesium.Cartesian2(4, 0),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
                         scale: 0.85
                     }
                 }));
@@ -275,9 +270,20 @@
         }
 
         update(dt, world) {
-            // Ground station is fixed -- no position update needed.
-            // Check for radar detection count changes and update label.
             var state = this.entity.state;
+
+            // Per-entity visibility controls
+            var vizShow = state._vizShow !== false;
+            if (this._pointEntity) this._pointEntity.show = vizShow;
+            if (this._pointEntity && this._pointEntity.label) {
+                this._pointEntity.label.show = vizShow && state._vizLabels !== false;
+            }
+            if (this._sensorEntity) this._sensorEntity.show = vizShow && state._vizSensors !== false;
+            for (var r = 0; r < this._ringEntities.length; r++) {
+                this._ringEntities[r].show = vizShow && state._vizSensors !== false;
+            }
+
+            // Check for radar detection count changes and update label.
             var detections = state._detections;
             var count = detections ? detections.length : 0;
 

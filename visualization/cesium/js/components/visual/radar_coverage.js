@@ -201,9 +201,15 @@
         update(dt, world) {
             var state = this.entity.state;
             var cfg = this.config;
+
+            // Per-entity visibility controls
+            var vizShow = state._vizShow !== false && state._vizSensors !== false;
+            if (this._coverageEntity) this._coverageEntity.show = vizShow;
+            if (this._scanLineEntity) this._scanLineEntity.show = vizShow;
+
             var showScanLine = cfg.showScanLine !== undefined ? cfg.showScanLine : DEFAULTS.showScanLine;
 
-            if (!showScanLine || !this._scanLineEntity) return;
+            if (!showScanLine || !this._scanLineEntity || !vizShow) return;
 
             // Update scan line azimuth from entity state (set by radar system)
             var scanAz = state._radarScanAz;

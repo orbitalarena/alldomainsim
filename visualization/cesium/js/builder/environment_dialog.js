@@ -142,6 +142,21 @@ const EnvironmentDialog = (function() {
                 </div>
 
                 <div class="env-section">
+                    <div class="env-section-title">Simulation Start Time</div>
+                    <div class="env-row">
+                        <label>Start Date/Time (UTC)</label>
+                        <input type="datetime-local" id="env-start-time" step="1"
+                               style="background:#0d1a2a;color:#a0b8d0;border:1px solid #2a4a6a;padding:4px 6px;font-family:monospace;font-size:11px;width:220px"
+                        />
+                    </div>
+                    <div class="env-row" style="margin-top:4px">
+                        <button id="env-use-now" style="background:#1a3a5a;color:#4a9eff;border:1px solid #2a4a6a;padding:4px 10px;cursor:pointer;font-size:10px;font-family:monospace">
+                            Use Current Time
+                        </button>
+                    </div>
+                </div>
+
+                <div class="env-section">
                     <div class="env-section-title">Weather</div>
                     <div class="env-group">
                         <div class="env-row">
@@ -313,6 +328,15 @@ const EnvironmentDialog = (function() {
         }
 
 
+        // Use Current Time button
+        var useNowBtn = document.getElementById('env-use-now');
+        if (useNowBtn) {
+            useNowBtn.addEventListener('click', function() {
+                var startInput = document.getElementById('env-start-time');
+                if (startInput) startInput.value = new Date().toISOString().slice(0, 19);
+            });
+        }
+
         // Buttons
         document.getElementById('env-btn-confirm').addEventListener('click', function() {
             if (_resolvePromise) _resolvePromise(_readFormValues());
@@ -419,6 +443,16 @@ const EnvironmentDialog = (function() {
             var radInt = document.getElementById('env-radiation-intensity');
             if (radInt) radInt.value = rad.intensity || 1.0;
         }
+
+        // Simulation start time
+        var startInput = document.getElementById('env-start-time');
+        if (startInput) {
+            if (env && env.simStartTime) {
+                startInput.value = env.simStartTime.slice(0, 19);
+            } else {
+                startInput.value = new Date().toISOString().slice(0, 19);
+            }
+        }
     }
 
     function _readFormValues() {
@@ -470,6 +504,11 @@ const EnvironmentDialog = (function() {
                 intensity: parseFloat(document.getElementById('env-radiation-intensity').value) || 1.0
             };
         }
+
+        // Simulation start time
+        var startInput = document.getElementById('env-start-time');
+        var simStartTime = startInput ? startInput.value : null;
+        env.simStartTime = simStartTime || null;
 
         return env;
     }
