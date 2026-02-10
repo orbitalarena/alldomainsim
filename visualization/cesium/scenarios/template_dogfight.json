@@ -1,0 +1,366 @@
+{
+  "metadata": {
+    "name": "4v4 Dogfight - Central US",
+    "description": "4v4 air combat engagement over central Indiana. Blue flight of 4x F-22A Raptors at 9000m heading west. Red flight of 4x Su-35S Flanker-Es at 8000m heading east, approximately 200km away. Blue uses waypoint patrol, red uses intercept AI targeting blue lead.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["dogfight", "air-combat", "4v4", "f22", "su35"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "blue_lead",
+      "name": "RAPTOR 1 (Lead)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.0,
+        "lon": -86.0,
+        "alt": 9000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f22" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim120", "aim120", "aim9", "aim9"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_2",
+      "name": "RAPTOR 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.02,
+        "lon": -85.97,
+        "alt": 9000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f22" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 39.02, "lon": -87.0, "alt": 9000 },
+            { "lat": 39.02, "lon": -88.0, "alt": 9000 },
+            { "lat": 39.02, "lon": -87.0, "alt": 9000 },
+            { "lat": 39.02, "lon": -86.0, "alt": 9000 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim120", "aim120", "aim9", "aim9"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_3",
+      "name": "RAPTOR 3",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 38.98,
+        "lon": -85.97,
+        "alt": 9200,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f22" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 38.98, "lon": -87.0, "alt": 9200 },
+            { "lat": 38.98, "lon": -88.0, "alt": 9200 },
+            { "lat": 38.98, "lon": -87.0, "alt": 9200 },
+            { "lat": 38.98, "lon": -86.0, "alt": 9200 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim120", "aim120", "aim9", "aim9"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_4",
+      "name": "RAPTOR 4",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.0,
+        "lon": -85.94,
+        "alt": 9100,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f22" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 39.0, "lon": -87.0, "alt": 9100 },
+            { "lat": 39.0, "lon": -88.0, "alt": 9100 },
+            { "lat": 39.0, "lon": -87.0, "alt": 9100 },
+            { "lat": 39.0, "lon": -86.0, "alt": 9100 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim120", "aim120", "aim9", "aim9"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_lead",
+      "name": "FLANKER 1 (Lead)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 39.0,
+        "lon": -88.0,
+        "alt": 8000,
+        "speed": 270,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_lead"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_2",
+      "name": "FLANKER 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 39.02,
+        "lon": -88.03,
+        "alt": 8000,
+        "speed": 270,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_2"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_3",
+      "name": "FLANKER 3",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 38.98,
+        "lon": -88.03,
+        "alt": 8200,
+        "speed": 270,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_3"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_4",
+      "name": "FLANKER 4",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 39.0,
+        "lon": -88.06,
+        "alt": 8100,
+        "speed": 270,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_4"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_merge",
+      "trigger": {
+        "type": "proximity",
+        "entityId": "blue_lead",
+        "targetId": "red_lead",
+        "range_m": 50000,
+        "condition": "closing"
+      },
+      "action": {
+        "type": "message",
+        "text": "MERGE! Blue and Red flights within visual range!",
+        "level": "alert"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_radar_contact",
+      "trigger": {
+        "type": "proximity",
+        "entityId": "blue_lead",
+        "targetId": "red_lead",
+        "range_m": 180000,
+        "condition": "closing"
+      },
+      "action": {
+        "type": "message",
+        "text": "RAPTOR 1: Radar contact, 4 bogeys bearing west, angels 26",
+        "level": "warning"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "chase",
+    "target": "blue_lead",
+    "range": 5000
+  }
+}

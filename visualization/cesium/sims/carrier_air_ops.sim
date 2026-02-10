@@ -1,0 +1,105 @@
+{
+  "metadata": {
+    "name": "Carrier Air Operations - Pacific",
+    "description": "US carrier strike group launching aircraft against a red naval force. Blue CVN with 4x F/A-18E + 2x E-2D embarked. Red Kuznetsov with Su-33 air wing. DDG and FFG escorts with Aegis radar and SAMs.",
+    "version": "2.0",
+    "tags": ["naval", "carrier", "air-ops", "pacific"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "cvn_68",
+      "name": "CVN-68 Nimitz",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 22.0, "lon": 132.0, "alt": 0, "speed": 4.12, "heading": 45 },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.90 },
+        "ai": {
+          "type": "carrier_ops", "carrierType": "naval", "maxAirborne": 24, "catapults": 2, "launchInterval": 8,
+          "airWing": [
+            { "template": "F/A-18E Super Hornet", "count": 4 },
+            { "template": "F-15E Strike Eagle", "count": 2 }
+          ]
+        },
+        "visual": { "type": "ground_station", "color": "#4488cc", "label": "CVN-68 NIMITZ", "sensorRange_m": 200000, "sensorColor": "rgba(68,136,204,0.04)", "sensorOutlineColor": "#4488cc" }
+      }
+    },
+    {
+      "id": "ddg_112",
+      "name": "DDG-112 Michael Murphy",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 22.1, "lon": 131.8, "alt": 0, "speed": 5.14, "heading": 45 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 40, "detectionProbability": 0.92 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 170000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 22.5, "lon": 132.3, "alt": 0 },
+          { "lat": 23.0, "lon": 133.0, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#3355aa", "label": "DDG-112", "sensorRange_m": 350000, "sensorColor": "rgba(51,85,170,0.04)", "sensorOutlineColor": "#3355aa" }
+      }
+    },
+    {
+      "id": "ffg_62",
+      "name": "FFG-62 Constellation",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 21.9, "lon": 131.8, "alt": 0, "speed": 5.14, "heading": 45 },
+      "components": {
+        "physics": { "type": "naval", "config": "ffg_constellation" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.85 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 50000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 22.3, "lon": 132.3, "alt": 0 },
+          { "lat": 22.8, "lon": 133.0, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#5577aa", "label": "FFG-62", "sensorRange_m": 200000, "sensorColor": "rgba(85,119,170,0.04)", "sensorOutlineColor": "#5577aa" }
+      }
+    },
+    {
+      "id": "kuznetsov",
+      "name": "Admiral Kuznetsov",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 24.0, "lon": 135.0, "alt": 0, "speed": 4.12, "heading": 225 },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.85 },
+        "ai": {
+          "type": "carrier_ops", "carrierType": "naval", "maxAirborne": 12, "catapults": 1, "launchInterval": 15,
+          "airWing": [
+            { "template": "Su-27S Flanker", "count": 4 },
+            { "template": "MiG-29 Fulcrum", "count": 2 }
+          ]
+        },
+        "visual": { "type": "ground_station", "color": "#cc3333", "label": "KUZNETSOV", "sensorRange_m": 200000, "sensorColor": "rgba(204,51,51,0.04)", "sensorOutlineColor": "#cc3333" }
+      }
+    },
+    {
+      "id": "kirov",
+      "name": "Kirov Battlecruiser",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 24.2, "lon": 134.8, "alt": 0, "speed": 7.72, "heading": 225 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.90 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 150000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 23.5, "lon": 134.0, "alt": 0 },
+          { "lat": 23.0, "lon": 133.5, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#aa3333", "label": "KIROV", "sensorRange_m": 300000, "sensorColor": "rgba(170,51,51,0.04)", "sensorOutlineColor": "#aa3333" }
+      }
+    }
+  ],
+  "camera": { "mode": "free", "range": 800000 }
+}

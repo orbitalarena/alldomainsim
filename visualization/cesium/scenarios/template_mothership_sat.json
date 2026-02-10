@@ -1,0 +1,188 @@
+{
+  "metadata": {
+    "name": "Mothership Satellite Deployment - LEO",
+    "description": "Inspector mothership satellite at 500km altitude in a 51.6 degree inclination orbit carrying 6 inspector sub-satellites for close-approach operations. A neutral target satellite orbits at 510km for inspection. Two additional reference LEO satellites provide situational awareness.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["space", "mothership", "inspector", "leo", "deployment"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 1024
+  },
+  "entities": [
+    {
+      "id": "mothership_1",
+      "name": "INSPECTOR-1 Mothership",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6878000,
+          "ecc": 0.001,
+          "inc": 51.6,
+          "raan": 45.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.80
+        },
+        "ai": {
+          "type": "carrier_ops",
+          "carrierType": "orbital",
+          "deployDeltaV": 8,
+          "maxAirborne": 6,
+          "subSats": [
+            { "template": "Satellite Inspector", "count": 6 }
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aa88ff",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      },
+      "_custom": {
+        "category": "mothership",
+        "carrierType": "orbital",
+        "subSatCount": 6,
+        "physics": {
+          "coe": {
+            "semiMajorAxis": 6878,
+            "eccentricity": 0.001,
+            "inclination": 51.6,
+            "raan": 45.0,
+            "argPerigee": 0,
+            "trueAnomaly": 0
+          }
+        },
+        "sensors": [{ "type": "optical", "name": "Inspection Camera", "fov_deg": 30, "maxRange_m": 50000 }]
+      }
+    },
+    {
+      "id": "target_sat",
+      "name": "TARGET-SAT (Neutral)",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6888000,
+          "ecc": 0.0008,
+          "inc": 51.6,
+          "raan": 45.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 5.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffffff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "ref_leo_1",
+      "name": "LEO-REF Alpha",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6900000,
+          "ecc": 0.002,
+          "inc": 52.0,
+          "raan": 47.0,
+          "argPerigee": 10.0,
+          "meanAnomaly": 90.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "ref_leo_2",
+      "name": "LEO-REF Bravo",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6860000,
+          "ecc": 0.0015,
+          "inc": 51.0,
+          "raan": 43.0,
+          "argPerigee": 5.0,
+          "meanAnomaly": 180.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_deploy_ready",
+      "trigger": {
+        "type": "time",
+        "time_s": 60
+      },
+      "action": {
+        "type": "message",
+        "text": "INSPECTOR-1: Sub-satellite deployment systems nominal. Ready for deployment.",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_target_acquired",
+      "trigger": {
+        "type": "time",
+        "time_s": 300
+      },
+      "action": {
+        "type": "message",
+        "text": "INSPECTOR-1: Target satellite acquired on optical sensor at 12km range.",
+        "level": "warning"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "earth",
+    "range": 2000000
+  }
+}

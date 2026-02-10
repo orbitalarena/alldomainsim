@@ -1807,6 +1807,38 @@
                         <div class="demo-item-meta">8 entities &middot; ~10 min &middot; Tip: SAM goes weapons-free on radar detect -- watch range rings</div>
                     </button>
                     <div class="demo-dropdown-sep"></div>
+                    <div class="demo-section-label">Domain Templates</div>
+                    <button class="demo-dropdown-item" data-scenario="template_carrier_ops">
+                        <div class="demo-item-name">Carrier Strike Group <span class="demo-difficulty intermediate">Intermediate</span></div>
+                        <div class="demo-item-desc">CVN carrier group with embarked air wing in the Pacific. Launch F/A-18E and E-2D from carrier during simulation. Includes escort DDG and FFG.</div>
+                        <div class="demo-item-meta">4 naval + air wing &middot; ~15 min &middot; Tip: Use carrier launch UI to deploy aircraft</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_mothership_sat">
+                        <div class="demo-item-name">Mothership Satellite Ops <span class="demo-difficulty intermediate">Intermediate</span></div>
+                        <div class="demo-item-desc">LEO inspector mothership deploying sub-satellites near a target constellation. Deploy sub-sats in-sim for close-approach inspection.</div>
+                        <div class="demo-item-meta">4 satellites &middot; ~10 min &middot; Tip: Deploy sub-sats and watch them drift from mothership</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_dogfight">
+                        <div class="demo-item-name">4v4 Air Combat <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Blue F-22 flight vs Red Su-35 flight in a contested airspace. BVR + WVR engagement with AI wingmen. Demonstrates air combat AI and weapons employment.</div>
+                        <div class="demo-item-meta">8 aircraft &middot; ~5 min &middot; Tip: Take control of any aircraft via click-to-assume</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_cyber_warfare">
+                        <div class="demo-item-name">Cyber Warfare Scenario <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Blue vs Red cyber operations with comm networks, IADS, and cyber attack/defense. Demonstrate scan/exploit/brick capabilities against enemy networks.</div>
+                        <div class="demo-item-meta">12 entities + networks &middot; ~15 min &middot; Tip: Open cyber terminal (Shift+~) to run attacks</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_commercial_flight">
+                        <div class="demo-item-name">Commercial Flight <span class="demo-difficulty beginner">Beginner</span></div>
+                        <div class="demo-item-desc">Cross-country commercial flight from LAX to JFK. Demonstrates autopilot, waypoint navigation, approach procedures, and landing quest.</div>
+                        <div class="demo-item-meta">1 aircraft + waypoints &middot; ~20 min &middot; Tip: Engage autopilot and time-warp to destination</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="template_multi_domain">
+                        <div class="demo-item-name">Multi-Domain Operations <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Full-spectrum scenario: air (F-16 strike), space (ISR satellites), naval (carrier group), ground (IADS), cyber (comm networks). All domains interacting.</div>
+                        <div class="demo-item-meta">20+ entities &middot; ~15 min &middot; Tip: Switch between entities to see each domain</div>
+                    </button>
+                    <div class="demo-dropdown-sep"></div>
                     <div class="demo-section-label">Orbital Arena (Combat)</div>
                     <button class="demo-dropdown-item" data-scenario="__orbital_arena_small">
                         <div class="demo-item-name">Orbital Arena Small <span class="demo-difficulty intermediate">Intermediate</span></div>
@@ -2598,6 +2630,9 @@
 <script src="js/components/ai/cyber_defense.js"></script>
 <script src="js/components/ai/orbital_combat.js"></script>
 <script src="js/components/ai/formation.js"></script>
+<script src="js/components/ai/carrier_ops.js"></script>
+<script src="js/components/ai/naval_formation.js"></script>
+<script src="js/components/ai/emcon.js"></script>
 
 <!-- Components: Sensors -->
 <script src="js/components/sensors/radar.js"></script>

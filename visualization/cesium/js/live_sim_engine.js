@@ -2305,6 +2305,7 @@ const LiveSimEngine = (function() {
         _entityListItems = [];
         var playerId = _playerEntity ? _playerEntity.id : null;
         _world.entities.forEach(function(entity) {
+            var isCarrier = entity.state && entity.state._isCarrier;
             _entityListItems.push({
                 id: entity.id,
                 name: entity.name,
@@ -2314,6 +2315,10 @@ const LiveSimEngine = (function() {
                 entity: entity,
                 vizCategory: entity.vizCategory || null,
                 hasPhysics: !!entity.getComponent('physics'),
+                isCarrier: isCarrier,
+                carrierType: isCarrier ? entity.state._carrierType : null,
+                carrierReady: isCarrier ? entity.state._carrierReady : 0,
+                carrierAirborne: isCarrier ? entity.state._carrierAirborne : 0,
             });
         });
     }
@@ -6116,9 +6121,19 @@ const LiveSimEngine = (function() {
                     }
                 }
 
+                // Carrier status badge
+                var carrierTag = '';
+                if (alive && it.isCarrier) {
+                    var rdy = it.entity.state._carrierReady || 0;
+                    var airb = it.entity.state._carrierAirborne || 0;
+                    var cLabel = it.carrierType === 'orbital' ? 'DEPLOY' : 'AIR WING';
+                    carrierTag = ' <span title="' + cLabel + ': ' + rdy + ' ready, ' + airb + ' airborne" style="color:#44ccff;font-size:9px;background:rgba(0,60,120,0.5);padding:0 4px;border-radius:2px">' +
+                        '\u2708 ' + rdy + '/' + airb + '</span>';
+                }
+
                 html += '<div class="entity-row" data-eid="' + it.id + '" style="' + style + '">' +
                     '<span style="color:' + teamColor + '">' + statusIcon + '</span> ' +
-                    '<span class="entity-name">' + it.name + '</span>' + playerTag + trackTag + cyberTag +
+                    '<span class="entity-name">' + it.name + '</span>' + playerTag + trackTag + cyberTag + carrierTag +
                     ' <span class="entity-type">' + it.type + '</span>' +
                     '</div>';
             }
@@ -6449,40 +6464,115 @@ const LiveSimEngine = (function() {
     function _initSettingsGear() {
         _loadPanelPrefs();
 
-        var btn = document.getElementById('settingsBtn');
-        var dropdown = document.getElementById('settingsDropdown');
-        if (!btn || !dropdown) return;
+        // --- Initialize Tabbed Settings Panel ---
+        if (typeof SettingsPanel !== 'undefined') {
+            SettingsPanel.init({
+                onTogglePanel: function(key) { _togglePanel(key); },
+                onToggleHud: function(key) { _toggleHud(key); },
+                onToggleTrace: function(key) { _toggleTrace(key); },
+                onToggleSubsystem: function(key) { _toggleSubsystem(key); },
+                onToggleViz: function(key) {
+                    // Reuse old viz toggle logic
+                    if (key === 'globalOrbits') { _vizGlobalOrbits = !_vizGlobalOrbits; _applyVizControls(); }
+                    else if (key === 'globalTrails') { _vizGlobalTrails = !_vizGlobalTrails; _applyVizControls(); }
+                    else if (key === 'globalLabels') { _vizGlobalLabels = !_vizGlobalLabels; _applyVizControls(); }
+                    else if (key === 'globalSensors') { _vizGlobalSensors = !_vizGlobalSensors; _applyVizControls(); }
+                    else if (key === 'globalComms') { _vizGlobalComms = !_vizGlobalComms; _applyVizControls(); }
+                    _savePanelPrefs();
+                },
+                onHudBrightness: function(val) {
+                    if (typeof FighterHUD !== 'undefined' && FighterHUD.setBrightness) FighterHUD.setBrightness(val / 100);
+                    _savePanelPrefs();
+                },
+                onHudAllOn: function() {
+                    if (typeof FighterHUD !== 'undefined' && FighterHUD.toggles) {
+                        var keys = Object.keys(FighterHUD.toggles);
+                        for (var i = 0; i < keys.length; i++) FighterHUD.toggles[keys[i]] = true;
+                    }
+                },
+                onHudAllOff: function() {
+                    if (typeof FighterHUD !== 'undefined' && FighterHUD.toggles) {
+                        var keys = Object.keys(FighterHUD.toggles);
+                        for (var i = 0; i < keys.length; i++) FighterHUD.toggles[keys[i]] = false;
+                    }
+                },
+                onOrbitRevs: function(val) {
+                    _orbitRevs = val;
+                    _showMessage('ORBIT REVS: ' + _orbitRevs);
+                    _savePanelPrefs();
+                },
+                onTrailDuration: function(val) {
+                    _trailDurationSec = val;
+                    _showMessage('TRAIL: ' + (val === 0 ? 'INFINITE' : val + 's'));
+                    _savePanelPrefs();
+                },
+                onShowMessage: function(msg) { _showMessage(msg); },
+                onLayoutPreset: function(preset) { _applyLayoutPreset(preset); },
+                onCarrierLaunch: function() { _openCarrierLaunchUI(); },
+                onSatDeploy: function() { _openSubSatDeployUI(); },
+                getState: function(type, key) {
+                    if (type === 'panel') {
+                        if (key === 'orbital') return _panelVisible.orbital !== 'off';
+                        return !!_panelVisible[key];
+                    }
+                    if (type === 'hud') return typeof FighterHUD !== 'undefined' && FighterHUD.toggles ? !!FighterHUD.toggles[key] : false;
+                    if (type === 'trace') {
+                        if (key === 'ecef') return _showEcefOrbit;
+                        if (key === 'eci') return _showEciOrbit;
+                        if (key === 'groundtrack') return _showPredictedGroundTrack;
+                        if (key === 'trail') return _showTrail;
+                    }
+                    if (type === 'subsystem') {
+                        if (key === 'audio') return _audioEnabled;
+                        if (key === 'visualfx') return _visualFxEnabled;
+                    }
+                    if (type === 'viz') {
+                        if (key === 'globalOrbits') return _vizGlobalOrbits;
+                        if (key === 'globalTrails') return _vizGlobalTrails;
+                        if (key === 'globalLabels') return _vizGlobalLabels;
+                        if (key === 'globalSensors') return _vizGlobalSensors;
+                        if (key === 'globalComms') return _vizGlobalComms;
+                    }
+                    return false;
+                },
+                getOrbitRevs: function() { return _orbitRevs; },
+                getTrailDuration: function() { return _trailDurationSec; },
+                getHudBrightness: function() { return typeof FighterHUD !== 'undefined' && FighterHUD.getBrightness ? Math.round(FighterHUD.getBrightness() * 100) : 100; },
+                getVizGroupsHtml: function() { return _buildVizGroupsHtml(); }
+            });
+        } else {
+            // Fallback: old dropdown behavior
+            var btn = document.getElementById('settingsBtn');
+            var dropdown = document.getElementById('settingsDropdown');
+            if (btn && dropdown) {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var isOpen = dropdown.classList.toggle('open');
+                    btn.classList.toggle('open', isOpen);
+                });
+                document.addEventListener('click', function() {
+                    dropdown.classList.remove('open');
+                    btn.classList.remove('open');
+                });
+                dropdown.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var item = e.target.closest('.settings-item');
+                    if (!item) return;
+                    var panel = item.getAttribute('data-panel');
+                    var hudKey = item.getAttribute('data-hud');
+                    var traceKey = item.getAttribute('data-trace');
+                    var subsysKey = item.getAttribute('data-subsystem');
+                    var vizKey = item.getAttribute('data-viz');
+                    if (panel) _togglePanel(panel);
+                    else if (hudKey) _toggleHud(hudKey);
+                    else if (traceKey) _toggleTrace(traceKey);
+                    else if (subsysKey) _toggleSubsystem(subsysKey);
+                    else if (vizKey) _toggleGlobalViz(vizKey, item);
+                });
+            }
+        }
 
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var isOpen = dropdown.classList.toggle('open');
-            btn.classList.toggle('open', isOpen);
-        });
-
-        // Close dropdown when clicking elsewhere
-        document.addEventListener('click', function() {
-            dropdown.classList.remove('open');
-            btn.classList.remove('open');
-        });
-
-        // Single delegated click handler for all settings items
-        dropdown.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var item = e.target.closest('.settings-item');
-            if (!item) return;
-            var panel = item.getAttribute('data-panel');
-            var hudKey = item.getAttribute('data-hud');
-            var traceKey = item.getAttribute('data-trace');
-            var subsysKey = item.getAttribute('data-subsystem');
-            var vizKey = item.getAttribute('data-viz');
-            if (panel) _togglePanel(panel);
-            else if (hudKey) _toggleHud(hudKey);
-            else if (traceKey) _toggleTrace(traceKey);
-            else if (subsysKey) _toggleSubsystem(subsysKey);
-            else if (vizKey) _toggleGlobalViz(vizKey, item);
-        });
-
-        // Orbit revolutions selector
+        // Orbit revolutions selector (old fallback)
         var revSelect = document.getElementById('orbitRevSelect');
         if (revSelect) {
             revSelect.value = String(_orbitRevs);
@@ -6493,7 +6583,7 @@ const LiveSimEngine = (function() {
             });
         }
 
-        // Trail duration input
+        // Trail duration input (old fallback)
         var trailInput = document.getElementById('trailDuration');
         if (trailInput) {
             trailInput.value = String(_trailDurationSec);
@@ -6505,7 +6595,308 @@ const LiveSimEngine = (function() {
             });
         }
 
+        // --- Initialize Window Manager ---
+        _initWindowManager();
+
         _syncSettingsUI();
+    }
+
+    // -----------------------------------------------------------------------
+    // Window Manager Integration
+    // -----------------------------------------------------------------------
+    function _initWindowManager() {
+        if (typeof WindowManager === 'undefined') return;
+
+        // Register all draggable panels
+        var panelDefs = [
+            { id: 'flightDataPanel', title: 'FLIGHT DATA' },
+            { id: 'systemsPanel', title: 'SYSTEMS' },
+            { id: 'orbitalPanel', title: 'ORBITAL' },
+            { id: 'entityListPanel', title: 'ENTITIES', closable: true, onClose: function() { _panelVisible.entityList = false; _syncSettingsUI(); } },
+            { id: 'searchPanel', title: 'SEARCH', closable: true, onClose: function() { _panelVisible.search = false; _syncSettingsUI(); } },
+            { id: 'analyticsPanel', title: 'ANALYTICS', closable: true, onClose: function() { _panelVisible.analytics = false; _syncSettingsUI(); } },
+            { id: 'commPanel', title: 'COMMS', closable: true, onClose: function() { _panelVisible.comm = false; _syncSettingsUI(); } },
+            { id: 'cyberTerminal', title: 'CYBER', closable: true, onClose: function() { if (typeof CyberCockpit !== 'undefined') CyberCockpit.hide(); } },
+            { id: 'engTimelinePanel', title: 'ENGAGEMENTS', closable: true },
+            { id: 'engagementPanel', title: 'COMBAT STATS', closable: true },
+            { id: 'threatOverlay', title: 'THREATS', closable: true },
+            { id: 'statusBoard', title: 'STATUS BOARD', closable: true },
+            { id: 'cyberLogPanel', title: 'CYBER LOG', closable: true }
+        ];
+
+        for (var i = 0; i < panelDefs.length; i++) {
+            var def = panelDefs[i];
+            var el = document.getElementById(def.id);
+            if (el) {
+                WindowManager.register(def.id, el, {
+                    title: def.title,
+                    closable: !!def.closable,
+                    onClose: def.onClose || null,
+                    snap: true,
+                    collapsible: true
+                });
+            }
+        }
+
+        WindowManager.init();
+    }
+
+    // -----------------------------------------------------------------------
+    // Layout Presets
+    // -----------------------------------------------------------------------
+    function _applyLayoutPreset(preset) {
+        // First hide all optional panels
+        var optionalPanels = ['search', 'analytics', 'comm', 'cyber', 'cyberLog', 'aar', 'statusboard', 'threats', 'engagement', 'engTimeline', 'dataExport', 'spread'];
+        for (var i = 0; i < optionalPanels.length; i++) {
+            _panelVisible[optionalPanels[i]] = false;
+        }
+
+        switch (preset) {
+            case 'combat':
+                _panelVisible.flightData = true;
+                _panelVisible.systems = true;
+                _panelVisible.entityList = true;
+                _panelVisible.threats = true;
+                _panelVisible.engagement = true;
+                _panelVisible.engTimeline = true;
+                if (typeof FighterHUD !== 'undefined' && FighterHUD.toggles) {
+                    FighterHUD.toggles.hud = true;
+                    FighterHUD.toggles.weapons = true;
+                    FighterHUD.toggles.rwr = true;
+                    FighterHUD.toggles.warnings = true;
+                }
+                _showMessage('COMBAT LAYOUT');
+                break;
+
+            case 'orbital':
+                _panelVisible.flightData = true;
+                _panelVisible.systems = false;
+                _panelVisible.orbital = 'full';
+                _panelVisible.entityList = true;
+                _showEcefOrbit = true;
+                _showEciOrbit = true;
+                _vizGlobalOrbits = true;
+                _applyVizControls();
+                _showMessage('ORBITAL OPS LAYOUT');
+                break;
+
+            case 'observer':
+                _panelVisible.flightData = false;
+                _panelVisible.systems = false;
+                _panelVisible.entityList = true;
+                _panelVisible.analytics = true;
+                _panelVisible.search = true;
+                _vizGlobalLabels = true;
+                _applyVizControls();
+                _showMessage('OBSERVER LAYOUT');
+                break;
+
+            case 'cyber':
+                _panelVisible.flightData = false;
+                _panelVisible.systems = false;
+                _panelVisible.cyber = true;
+                _panelVisible.comm = true;
+                _panelVisible.threats = true;
+                _panelVisible.cyberLog = true;
+                if (typeof CyberCockpit !== 'undefined') CyberCockpit.show();
+                _showMessage('CYBER OPS LAYOUT');
+                break;
+
+            case 'minimal':
+                _panelVisible.flightData = false;
+                _panelVisible.systems = false;
+                _panelVisible.entityList = false;
+                _panelVisible.statusBar = false;
+                _showMessage('MINIMAL LAYOUT');
+                break;
+        }
+
+        _updatePanelVisibility();
+        _savePanelPrefs();
+        if (typeof SettingsPanel !== 'undefined') SettingsPanel.syncAll();
+    }
+
+    // -----------------------------------------------------------------------
+    // Carrier Operations UI
+    // -----------------------------------------------------------------------
+    function _openCarrierLaunchUI() {
+        // Check if player is on a carrier
+        if (!_playerEntity) { _showMessage('NO PLAYER'); return; }
+
+        var carrierComp = null;
+        if (_playerEntity.components) {
+            for (var key in _playerEntity.components) {
+                var comp = _playerEntity.components[key];
+                if (comp && comp.type === 'ai/carrier_ops') {
+                    carrierComp = comp;
+                    break;
+                }
+            }
+        }
+
+        // Also check nearby carriers if player is not a carrier
+        var targetCarrier = null;
+        if (carrierComp) {
+            targetCarrier = _playerEntity;
+        } else {
+            // Find the nearest carrier entity
+            targetCarrier = _findNearestCarrier();
+        }
+
+        if (!targetCarrier) {
+            _showMessage('NO CARRIER IN RANGE');
+            return;
+        }
+
+        _showCarrierLaunchDialog(targetCarrier);
+    }
+
+    function _findNearestCarrier() {
+        if (!_world || !_world.entities) return null;
+        var best = null;
+        var bestDist = Infinity;
+        var pState = _playerState;
+        if (!pState) return null;
+
+        _world.entities.forEach(function(entity) {
+            if (!entity.components) return;
+            for (var key in entity.components) {
+                var comp = entity.components[key];
+                if (comp && comp.type === 'ai/carrier_ops') {
+                    var es = entity.state;
+                    if (!es) return;
+                    var dLat = (es.lat || 0) - (pState.lat || 0);
+                    var dLon = (es.lon || 0) - (pState.lon || 0);
+                    var dist = Math.sqrt(dLat * dLat + dLon * dLon) * 6371000;
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = entity;
+                    }
+                }
+            }
+        });
+        return best;
+    }
+
+    function _showCarrierLaunchDialog(carrier) {
+        var comp = null;
+        for (var key in carrier.components) {
+            if (carrier.components[key] && carrier.components[key].type === 'ai/carrier_ops') {
+                comp = carrier.components[key];
+                break;
+            }
+        }
+        if (!comp) return;
+
+        var isOrbital = comp.config.carrierType === 'orbital';
+        var wing = isOrbital ? comp.config.subSats : comp.config.airWing;
+
+        var html = '<div style="padding:16px;font-family:monospace;color:#00ff00;max-width:400px">';
+        html += '<h3 style="color:#44aaff;text-align:center;margin:0 0 12px">' + (isOrbital ? 'DEPLOY SUB-SATELLITE' : 'CARRIER LAUNCH') + '</h3>';
+        html += '<div style="color:#006600;font-size:10px;margin-bottom:8px">Carrier: ' + carrier.name + ' | Airborne: ' + comp.state.airborne + '/' + comp.config.maxAirborne + '</div>';
+
+        if (wing.length === 0) {
+            html += '<div style="color:#555;text-align:center;padding:20px">No assets configured</div>';
+        } else {
+            for (var i = 0; i < wing.length; i++) {
+                var item = wing[i];
+                var ready = item.count || 0;
+                html += '<div class="carrier-launch-row" data-template="' + item.template + '" data-carrier="' + carrier.id + '" style="' +
+                    'display:flex;align-items:center;padding:8px 12px;margin:4px 0;' +
+                    'background:rgba(0,30,0,0.6);border:1px solid #004400;border-radius:4px;' +
+                    'cursor:pointer;transition:border-color 0.15s">' +
+                    '<span style="flex:1;font-weight:bold">' + item.template + '</span>' +
+                    '<span style="color:#006600;margin-right:12px">x' + ready + '</span>' +
+                    '<button class="carrier-launch-one" style="background:rgba(0,60,0,0.8);border:1px solid #00aa00;color:#00ff00;padding:4px 10px;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px;margin-right:4px">LAUNCH 1</button>' +
+                    '<button class="carrier-launch-all" style="background:rgba(0,40,60,0.8);border:1px solid #0088aa;color:#44ccff;padding:4px 10px;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px">ALL</button>' +
+                    '</div>';
+            }
+        }
+
+        html += '<div style="text-align:center;margin-top:12px">' +
+            '<button id="carrierLaunchClose" style="background:rgba(60,0,0,0.8);border:1px solid #aa0000;color:#ff4444;padding:6px 20px;border-radius:3px;cursor:pointer;font-family:monospace">CLOSE</button>' +
+            '</div></div>';
+
+        // Show in a modal
+        var modal = document.createElement('div');
+        modal.id = 'carrierLaunchModal';
+        modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(8,12,8,0.95);border:1px solid #00aa00;border-radius:6px;z-index:3000;box-shadow:0 4px 20px rgba(0,0,0,0.8)';
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+
+        // Event handlers
+        modal.querySelector('#carrierLaunchClose').addEventListener('click', function() {
+            document.body.removeChild(modal);
+        });
+
+        var launchOnes = modal.querySelectorAll('.carrier-launch-one');
+        for (var j = 0; j < launchOnes.length; j++) {
+            launchOnes[j].addEventListener('click', function(e) {
+                e.stopPropagation();
+                var row = this.closest('.carrier-launch-row');
+                var tmpl = row.getAttribute('data-template');
+                var cId = row.getAttribute('data-carrier');
+                _doCarrierLaunch(cId, tmpl, 1);
+                _showMessage('LAUNCHING ' + tmpl);
+                document.body.removeChild(modal);
+            });
+        }
+
+        var launchAlls = modal.querySelectorAll('.carrier-launch-all');
+        for (var k = 0; k < launchAlls.length; k++) {
+            launchAlls[k].addEventListener('click', function(e) {
+                e.stopPropagation();
+                var row = this.closest('.carrier-launch-row');
+                var tmpl = row.getAttribute('data-template');
+                var cId = row.getAttribute('data-carrier');
+                _doCarrierLaunch(cId, tmpl, -1); // -1 = all
+                _showMessage('LAUNCHING ALL ' + tmpl);
+                document.body.removeChild(modal);
+            });
+        }
+    }
+
+    function _doCarrierLaunch(carrierId, templateName, count) {
+        if (!_world || !_world.entities) return;
+        var carrier = null;
+        _world.entities.forEach(function(e) { if (e.id === carrierId) carrier = e; });
+        if (!carrier) return;
+
+        var comp = null;
+        for (var key in carrier.components) {
+            if (carrier.components[key] && carrier.components[key].type === 'ai/carrier_ops') {
+                comp = carrier.components[key];
+                break;
+            }
+        }
+        if (!comp) return;
+
+        if (count === -1) {
+            comp.launchAll(templateName);
+        } else {
+            for (var i = 0; i < count; i++) {
+                comp.queueLaunch(templateName, {});
+            }
+        }
+    }
+
+    function _openSubSatDeployUI() {
+        _openCarrierLaunchUI(); // Same UI, different wording handled internally
+    }
+
+    function _buildVizGroupsHtml() {
+        if (!_vizGroups) return '';
+        var html = '';
+        var keys = Object.keys(_vizGroups);
+        for (var i = 0; i < keys.length; i++) {
+            var g = _vizGroups[keys[i]];
+            var activeClass = g.show !== false ? ' sp-active' : '';
+            html += '<div class="sp-check-item' + activeClass + '" data-vizgroup="' + keys[i] + '">' +
+                '<div class="sp-check"><span class="sp-checkmark">&#10003;</span></div>' +
+                '<span class="sp-label">' + keys[i] + ' (' + g.count + ')</span>' +
+            '</div>';
+        }
+        return html;
     }
 
     function _syncSettingsUI() {

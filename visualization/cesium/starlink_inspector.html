@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink Inspector Model - All Domain Sim</title>
+
+    <!-- Cesium -->
+    <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
+    <script src="lib/Cesium/Cesium.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #060a10; }
+        #cesiumContainer { width: 100%; height: 100%; }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(6, 10, 16, 0.95); z-index: 100;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-family: 'Courier New', monospace; color: #00ff88;
+        }
+        .overlay h1 { font-size: 28px; margin-bottom: 8px; text-shadow: 0 0 20px rgba(0,255,136,0.4); }
+        .overlay .subtitle { font-size: 14px; color: #00aa66; margin-bottom: 24px; }
+        .overlay .progress-bar { width: 400px; height: 6px; background: #0a1a0a; border: 1px solid #00aa66; border-radius: 3px; margin: 10px 0; }
+        .overlay .progress-fill { height: 100%; background: #00ff88; border-radius: 2px; transition: width 0.3s; width: 0%; }
+        .overlay .status { font-size: 13px; color: #00cc66; margin-top: 6px; }
+        .overlay .error { color: #ff4444; margin-top: 10px; }
+
+        #resultsPanel {
+            position: absolute; top: 10px; left: 10px; width: 420px; max-height: calc(100vh - 20px);
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00aa66; border-radius: 6px;
+            padding: 14px; z-index: 30; overflow-y: auto;
+            font-family: 'Courier New', monospace; font-size: 12px; color: #00ff88;
+            display: none;
+        }
+        #resultsPanel h2 { font-size: 16px; color: #00ffaa; margin-bottom: 8px; border-bottom: 1px solid #0a3a2a; padding-bottom: 6px; }
+        #resultsPanel h3 { font-size: 13px; color: #00cc88; margin-top: 12px; margin-bottom: 4px; }
+        .stat-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .stat-label { color: #00aa66; }
+        .stat-value { color: #00ffcc; font-weight: bold; }
+        .snapshot-list { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+        .snapshot-item { padding: 4px 6px; border-bottom: 1px solid #0a2a1a; font-size: 11px; cursor: pointer; }
+        .snapshot-item:hover { background: #0a2a1a; }
+        .snapshot-item .snap-idx { color: #00cc66; font-weight: bold; width: 30px; display: inline-block; }
+        .snapshot-item .snap-name { color: #00ff88; }
+        .snapshot-item .snap-dv { color: #ffaa44; margin-left: 8px; }
+
+        #statusBar {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(6, 10, 16, 0.9); border: 1px solid #00aa66; border-radius: 4px;
+            padding: 6px 18px; z-index: 25;
+            font-family: 'Courier New', monospace; font-size: 14px; color: #00ff88; font-weight: bold;
+            display: none;
+        }
+
+        #speedControls {
+            position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+            background: rgba(6, 10, 16, 0.85); border: 1px solid #005533; border-radius: 4px;
+            padding: 5px 12px; z-index: 25;
+            font-family: monospace; font-size: 12px; color: #00aa66;
+            display: none; gap: 8px; align-items: center;
+        }
+        .speed-btn {
+            background: #0a1a0a; border: 1px solid #224422; color: #00ff88;
+            font-family: monospace; padding: 3px 10px; cursor: pointer; border-radius: 3px;
+        }
+        .speed-btn:hover { background: #1a3a1a; }
+        .speed-btn.active { border-color: #00ff88; background: #0a3a0a; }
+
+        #snapshotViewer {
+            position: absolute; bottom: 10px; right: 10px; width: 320px;
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00aa66; border-radius: 6px;
+            padding: 10px; z-index: 25; display: none;
+            font-family: 'Courier New', monospace; font-size: 11px; color: #00ff88;
+        }
+        #snapshotViewer h3 { font-size: 13px; color: #00ffaa; margin-bottom: 6px; }
+        #snapshotCanvas { width: 100%; border: 1px solid #0a3a2a; border-radius: 3px; background: #000; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+
+    <div id="overlay" class="overlay">
+        <h1>STARLINK INSPECTOR MODEL</h1>
+        <div class="subtitle">Greedy Plane-Walker Orbital Inspection Mission</div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="status" id="statusText">Initializing...</div>
+        <div class="error" id="errorText" style="display:none;"></div>
+    </div>
+
+    <div id="statusBar">
+        <span id="modelName">STARLINK INSPECTOR</span> |
+        <span id="modelEntities">--</span> targets |
+        <span id="modelSpeed">10x</span> |
+        <span id="modelPhase">--</span>
+    </div>
+
+    <div id="speedControls">
+        Speed:
+        <button class="speed-btn" data-speed="1">1x</button>
+        <button class="speed-btn" data-speed="10">10x</button>
+        <button class="speed-btn active" data-speed="50">50x</button>
+        <button class="speed-btn" data-speed="100">100x</button>
+        <button class="speed-btn" data-speed="500">500x</button>
+    </div>
+
+    <div id="resultsPanel"></div>
+
+    <div id="snapshotViewer">
+        <h3>SNAPSHOT <span id="snapIdx">--</span></h3>
+        <canvas id="snapshotCanvas" width="300" height="200"></canvas>
+        <div id="snapInfo" style="margin-top:4px;"></div>
+    </div>
+
+    <script src="cesium_config.js"></script>
+    <script src="js/framework/tle_parser.js"></script>
+
+    <script>
+    'use strict';
+
+    // =========================================================================
+    // STARLINK INSPECTOR MODEL
+    // =========================================================================
+    (async function() {
+
+        var MU = 3.986004418e14;
+        var R_EARTH = 6371000;
+        var TWO_PI = 2 * Math.PI;
+        var DEG = Math.PI / 180;
+        var RAD = 180 / Math.PI;
+        var OMEGA_EARTH = 7.2921159e-5;
+
+        // Inspector spacecraft config
+        var INSPECTOR = {
+            name: 'INSPECTOR-1',
+            dryMass: 300,       // kg
+            fuelMass: 1650,     // kg (hydrazine) — sized for ~4000 m/s budget
+            isp: 220,           // seconds (hydrazine thruster)
+            thrust: 22,         // N (22N thruster)
+            photoRange: 5000,   // meters — take photo within this range
+            photoTime: 30,      // seconds to capture photo
+            maxDV: null         // computed from fuel
+        };
+
+        // Compute max delta-V from Tsiolkovsky
+        var g0 = 9.80665;
+        INSPECTOR.maxDV = INSPECTOR.isp * g0 *
+            Math.log((INSPECTOR.dryMass + INSPECTOR.fuelMass) / INSPECTOR.dryMass);
+
+        // Plane matching tolerance
+        var INC_TOLERANCE = 0.1;   // degrees
+        var RAAN_TOLERANCE = 1.0;  // degrees
+
+        // Sim epoch (current time as Julian Date)
+        var SIM_EPOCH_MS = Date.now();
+        var SIM_EPOCH_JD = 2440587.5 + SIM_EPOCH_MS / 86400000;
+
+        // True GMST at epoch (radians) — needed for correct ECI→ECEF in CZML
+        var _D0 = SIM_EPOCH_JD - 2451545.0;
+        var GMST0 = ((280.46061837 + 360.98564736629 * _D0) % 360 + 360) % 360 * DEG;
+
+        /** Advance a parsed sat's meanAnomaly to the common sim epoch. */
+        function propagateToSimEpoch(sat) {
+            var tleJD = TLEParser.tleEpochToJD(sat.epochYear, sat.epochDay);
+            var dtSec = (SIM_EPOCH_JD - tleJD) * 86400;
+            var n_rad = 2 * Math.PI / sat.period; // rad/s
+            var advanceDeg = (n_rad * dtSec) * RAD;
+            sat.meanAnomaly = ((sat.meanAnomaly + advanceDeg) % 360 + 360) % 360;
+        }
+
+        /** Sun direction in ECI (approximate solar ephemeris). */
+        function getSunECI(simTimeSec) {
+            var jd = SIM_EPOCH_JD + simTimeSec / 86400;
+            var T = (jd - 2451545.0) / 36525;
+            var M = (357.5291 + 35999.0503 * T) * DEG;
+            var L = (280.4664 + 36000.7698 * T) * DEG;
+            var lambda = L + 1.9146 * DEG * Math.sin(M);
+            var eps = 23.4393 * DEG;
+            var AU = 1.496e11;
+            return [
+                AU * Math.cos(lambda),
+                AU * Math.sin(lambda) * Math.cos(eps),
+                AU * Math.sin(lambda) * Math.sin(eps)
+            ];
+        }
+
+        /** Cylindrical Earth shadow check. Returns true if sat is eclipsed. */
+        function isInEclipse(posECI, sunECI) {
+            var sunLen = Math.sqrt(sunECI[0]*sunECI[0]+sunECI[1]*sunECI[1]+sunECI[2]*sunECI[2]);
+            var sd = [sunECI[0]/sunLen, sunECI[1]/sunLen, sunECI[2]/sunLen];
+            var dot = posECI[0]*sd[0] + posECI[1]*sd[1] + posECI[2]*sd[2];
+            if (dot > 0) return false; // sun-side of Earth
+            var px = posECI[0] - dot*sd[0];
+            var py = posECI[1] - dot*sd[1];
+            var pz = posECI[2] - dot*sd[2];
+            return Math.sqrt(px*px + py*py + pz*pz) < R_EARTH;
+        }
+
+        /** Which cube face is most sunlit (body frame: +X=vel, +Y=orbit-normal, +Z=nadir).
+         *  Returns {face: string, brightness: 0-1, sunAngleDeg}. */
+        function computeIllumination(posECI, velECI, sunECI) {
+            var r = Math.sqrt(posECI[0]*posECI[0]+posECI[1]*posECI[1]+posECI[2]*posECI[2]);
+            // Body frame axes
+            var vLen = Math.sqrt(velECI[0]*velECI[0]+velECI[1]*velECI[1]+velECI[2]*velECI[2]);
+            var xB = [velECI[0]/vLen, velECI[1]/vLen, velECI[2]/vLen]; // +X = velocity
+            var zB = [-posECI[0]/r, -posECI[1]/r, -posECI[2]/r]; // +Z = nadir
+            var yB = [
+                xB[1]*zB[2]-xB[2]*zB[1],
+                xB[2]*zB[0]-xB[0]*zB[2],
+                xB[0]*zB[1]-xB[1]*zB[0]
+            ]; // +Y = cross(vel, nadir) ≈ orbit normal
+
+            // Sun direction relative to satellite
+            var sunRel = [sunECI[0]-posECI[0], sunECI[1]-posECI[1], sunECI[2]-posECI[2]];
+            var sLen = Math.sqrt(sunRel[0]*sunRel[0]+sunRel[1]*sunRel[1]+sunRel[2]*sunRel[2]);
+            sunRel = [sunRel[0]/sLen, sunRel[1]/sLen, sunRel[2]/sLen];
+
+            // Project sun onto body axes
+            var dotX = sunRel[0]*xB[0]+sunRel[1]*xB[1]+sunRel[2]*xB[2];
+            var dotY = sunRel[0]*yB[0]+sunRel[1]*yB[1]+sunRel[2]*yB[2];
+            var dotZ = sunRel[0]*zB[0]+sunRel[1]*zB[1]+sunRel[2]*zB[2];
+
+            var faces = [
+                { face: '+X (RAM)',    dot: dotX },
+                { face: '-X (WAKE)',   dot: -dotX },
+                { face: '+Y (NORTH)',  dot: dotY },
+                { face: '-Y (SOUTH)',  dot: -dotY },
+                { face: '+Z (NADIR)',  dot: dotZ },
+                { face: '-Z (ZENITH)', dot: -dotZ }
+            ];
+            faces.sort(function(a,b) { return b.dot - a.dot; });
+            var best = faces[0];
+            var sunAngle = Math.acos(Math.min(1, Math.max(-1,
+                sunRel[0]*(-posECI[0]/r)+sunRel[1]*(-posECI[1]/r)+sunRel[2]*(-posECI[2]/r)
+            ))) * RAD;
+            return {
+                face: best.face,
+                brightness: Math.max(0, best.dot),
+                sunAngleDeg: sunAngle,
+                allFaces: faces
+            };
+        }
+
+        // State
+        var _viewer = null;
+        var _allSats = [];
+        var _shells = [];
+        var _planes = [];
+        var _results = null;
+        var _snapshots = [];
+
+        // =====================================================================
+        // Step 1: Fetch Starlink TLEs
+        // =====================================================================
+        setStatus('Fetching Starlink TLE catalog...', 5);
+
+        var tleResponse;
+        try {
+            tleResponse = await fetch('/api/tle/constellation/STARLINK');
+            if (!tleResponse.ok) throw new Error('API returned ' + tleResponse.status);
+        } catch(e) {
+            showError('Failed to fetch TLEs: ' + e.message);
+            return;
+        }
+
+        var tleData = await tleResponse.json();
+        setStatus('Parsing ' + tleData.count + ' Starlink TLEs...', 15);
+
+        // Parse each TLE
+        for (var i = 0; i < tleData.satellites.length; i++) {
+            var s = tleData.satellites[i];
+            var parsed = TLEParser.parseTLE(s.name, s.line1, s.line2);
+            if (parsed && parsed.sma > 0 && parsed.eccentricity < 0.1) {
+                _allSats.push(parsed);
+            }
+        }
+
+        // Advance all MAs to common sim epoch (fixes bunching from stale TLE epochs)
+        for (var k = 0; k < _allSats.length; k++) {
+            propagateToSimEpoch(_allSats[k]);
+        }
+
+        setStatus('Parsed ' + _allSats.length + ' valid Starlink satellites (epoch-corrected)', 25);
+        await sleep(100);
+
+        // =====================================================================
+        // Step 2: Identify orbital shells by altitude
+        // =====================================================================
+        setStatus('Identifying orbital shells...', 30);
+
+        // Known Starlink shells (approximate):
+        // Shell 1: ~550 km, 53.0° (Gen1 v1.5)
+        // Shell 2: ~540 km, 53.2° (Gen1 v2.0)
+        // Shell 3: ~570 km, 70.0° (Polar)
+        // Shell 4: ~560 km, 97.6° (SSO-like)
+        // We'll auto-detect by clustering inclination
+
+        // Group by inclination bands (5 deg tolerance for shell detection)
+        var incBands = {};
+        for (var i = 0; i < _allSats.length; i++) {
+            var sat = _allSats[i];
+            // Round inc to nearest 1 degree for shell grouping
+            var incBand = Math.round(sat.inclination);
+            if (!incBands[incBand]) incBands[incBand] = [];
+            incBands[incBand].push(sat);
+        }
+
+        // Merge adjacent inc bands into shells
+        var shellIncBands = Object.keys(incBands).map(Number).sort(function(a,b){ return a-b; });
+        var currentShell = null;
+        for (var i = 0; i < shellIncBands.length; i++) {
+            var inc = shellIncBands[i];
+            var count = incBands[inc].length;
+            if (count < 10) continue; // Skip tiny groups
+
+            if (!currentShell || Math.abs(inc - currentShell.incCenter) > 3) {
+                // New shell
+                currentShell = {
+                    incCenter: inc,
+                    incMin: inc, incMax: inc,
+                    sats: [],
+                    count: 0
+                };
+                _shells.push(currentShell);
+            }
+
+            currentShell.incMax = inc;
+            currentShell.incCenter = (currentShell.incMin + currentShell.incMax) / 2;
+            for (var j = 0; j < incBands[inc].length; j++) {
+                currentShell.sats.push(incBands[inc][j]);
+            }
+            currentShell.count = currentShell.sats.length;
+        }
+
+        setStatus('Found ' + _shells.length + ' orbital shells', 35);
+        await sleep(100);
+
+        // =====================================================================
+        // Step 3: Identify planes within each shell (inc/RAAN matching)
+        // =====================================================================
+        setStatus('Identifying orbital planes (tolerance: ' + INC_TOLERANCE + '°)...', 40);
+
+        _planes = [];
+        for (var si = 0; si < _shells.length; si++) {
+            var shell = _shells[si];
+            var shellPlanes = [];
+
+            for (var j = 0; j < shell.sats.length; j++) {
+                var sat = shell.sats[j];
+                var foundPlane = false;
+
+                for (var p = 0; p < shellPlanes.length; p++) {
+                    var plane = shellPlanes[p];
+                    if (Math.abs(sat.inclination - plane.inc) <= INC_TOLERANCE &&
+                        _raanDiff(sat.raan, plane.raan) <= RAAN_TOLERANCE) {
+                        plane.sats.push(sat);
+                        foundPlane = true;
+                        break;
+                    }
+                }
+
+                if (!foundPlane) {
+                    shellPlanes.push({
+                        shell: si,
+                        inc: sat.inclination,
+                        raan: sat.raan,
+                        sats: [sat],
+                        avgAlt: 0
+                    });
+                }
+            }
+
+            // Compute average altitude per plane
+            for (var p = 0; p < shellPlanes.length; p++) {
+                var plane = shellPlanes[p];
+                var sumAlt = 0;
+                for (var k = 0; k < plane.sats.length; k++) {
+                    sumAlt += plane.sats[k].altitudeKm;
+                }
+                plane.avgAlt = sumAlt / plane.sats.length;
+            }
+
+            shell.planes = shellPlanes;
+            _planes = _planes.concat(shellPlanes);
+        }
+
+        setStatus('Found ' + _planes.length + ' orbital planes across ' + _shells.length + ' shells', 50);
+        await sleep(100);
+
+        // =====================================================================
+        // Step 4: Select a plane and plan greedy inspection
+        // =====================================================================
+
+        // Pick the plane with the most satellites for best demo
+        var targetPlane = _planes[0];
+        for (var i = 1; i < _planes.length; i++) {
+            if (_planes[i].sats.length > targetPlane.sats.length) {
+                targetPlane = _planes[i];
+            }
+        }
+
+        // Compute orbital parameters for this plane
+        var sma = targetPlane.sats[0].sma;
+        var period = 2 * Math.PI * Math.sqrt(sma * sma * sma / MU);
+        var n = 2 * Math.PI / period; // mean motion rad/s
+
+        // Phasing DV between two co-orbital sats (by mean anomaly difference)
+        function computePhasingDV(maFrom, maTo) {
+            var dMA = ((maTo - maFrom) % 360 + 360) % 360;
+            if (dMA > 180) dMA -= 360;
+            if (Math.abs(dMA) < 0.5) return 0;
+            var dMA_rad = dMA * DEG;
+            var newPeriod = period - dMA_rad / n;
+            if (newPeriod < period * 0.5) newPeriod = period * 0.5;
+            if (newPeriod > period * 1.5) newPeriod = period * 1.5;
+            var newSMA = Math.pow(MU * newPeriod * newPeriod / (4 * Math.PI * Math.PI), 1/3);
+            var v_circ = Math.sqrt(MU / sma);
+            var v_transfer = Math.sqrt(MU * (2 / sma - 1 / newSMA));
+            return Math.abs(v_transfer - v_circ) * 2; // enter + exit phasing
+        }
+
+        // Phasing transfer time
+        function computePhasingTime(maFrom, maTo) {
+            var dMA = ((maTo - maFrom) % 360 + 360) % 360;
+            if (dMA > 180) dMA -= 360;
+            if (Math.abs(dMA) < 0.5) return Math.abs(dMA * DEG) / n;
+            var dMA_rad = dMA * DEG;
+            var newPeriod = period - dMA_rad / n;
+            if (newPeriod < period * 0.5) newPeriod = period * 0.5;
+            if (newPeriod > period * 1.5) newPeriod = period * 1.5;
+            return newPeriod;
+        }
+
+        setStatus('Computing medoid (cheapest DV center) for ' +
+            targetPlane.sats.length + ' satellites...', 55);
+        await sleep(50);
+
+        // Compute medoid: satellite with cheapest total DV to all others
+        var medoidIdx = 0;
+        var medoidCost = Infinity;
+        for (var i = 0; i < targetPlane.sats.length; i++) {
+            var cost = 0;
+            for (var j = 0; j < targetPlane.sats.length; j++) {
+                if (i === j) continue;
+                cost += computePhasingDV(
+                    targetPlane.sats[i].meanAnomaly,
+                    targetPlane.sats[j].meanAnomaly);
+            }
+            if (cost < medoidCost) {
+                medoidCost = cost;
+                medoidIdx = i;
+            }
+        }
+
+        var medoidSat = targetPlane.sats[medoidIdx];
+        setStatus('Medoid: ' + medoidSat.name + ' (MA=' +
+            medoidSat.meanAnomaly.toFixed(1) + '°) — plane Inc=' +
+            targetPlane.inc.toFixed(2) + '° RAAN=' +
+            targetPlane.raan.toFixed(2) + '°', 58);
+        await sleep(100);
+
+        // =====================================================================
+        // Step 5: Greedy nearest-neighbor plane-walk from medoid
+        // =====================================================================
+        setStatus('Computing greedy nearest-neighbor trajectory from medoid...', 60);
+
+        // Inspector starts near the medoid with small angular offset
+        var inspectorSat = JSON.parse(JSON.stringify(medoidSat));
+        inspectorSat.meanAnomaly = (inspectorSat.meanAnomaly + 5) % 360;
+
+        var inspectorECI = TLEParser.tleToECI(inspectorSat);
+        var inspectorPos = inspectorECI.pos.slice();
+        var inspectorVel = inspectorECI.vel.slice();
+
+        var totalDV = 0;
+        var totalTime = 0;
+        var fuelRemaining = INSPECTOR.fuelMass;
+        var maneuvers = [];
+        _snapshots = [];
+        var visitOrder = []; // indices into targetPlane.sats
+
+        var currentMA = inspectorSat.meanAnomaly;
+
+        // Greedy nearest-neighbor: prefer sunlit + cheap DV targets
+        var visited = new Set();
+        var sunlitCount = 0;
+        var eclipseCount = 0;
+        for (var step = 0; step < targetPlane.sats.length; step++) {
+            var bestIdx = -1;
+            var bestCost = Infinity;
+            var bestDV = 0;
+            for (var j = 0; j < targetPlane.sats.length; j++) {
+                if (visited.has(j)) continue;
+                var dv = computePhasingDV(currentMA, targetPlane.sats[j].meanAnomaly);
+                var xferTime = computePhasingTime(currentMA, targetPlane.sats[j].meanAnomaly);
+                var arrivalTime = totalTime + xferTime;
+
+                // Check sun illumination at arrival
+                var tSat = targetPlane.sats[j];
+                // Advance target MA to arrival time
+                var arrivalMA = (tSat.meanAnomaly + (n * arrivalTime) * RAD) % 360;
+                var tmpSat = { sma: sma, eccentricity: tSat.eccentricity || 0.0001,
+                    inclination: tSat.inclination, raan: tSat.raan,
+                    argPerigee: tSat.argPerigee || 0, meanAnomaly: arrivalMA };
+                var tECI = TLEParser.tleToECI(tmpSat);
+                var sunDir = getSunECI(arrivalTime);
+                var eclipsed = isInEclipse(tECI.pos, sunDir);
+
+                // Cost = DV with 5x penalty for shadow targets
+                var cost = dv + (eclipsed ? dv * 4 + 50 : 0);
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    bestIdx = j;
+                    bestDV = dv;
+                }
+            }
+            if (bestIdx === -1) break;
+
+            var target = targetPlane.sats[bestIdx];
+            var transferDV = bestDV;
+            var transferTime = computePhasingTime(currentMA, target.meanAnomaly);
+
+            // Check fuel
+            var fuelNeeded = _dvToFuel(transferDV, fuelRemaining);
+            if (fuelRemaining - fuelNeeded < 0) break;
+
+            visited.add(bestIdx);
+            visitOrder.push(bestIdx);
+            fuelRemaining -= fuelNeeded;
+            totalDV += transferDV;
+            totalTime += transferTime + INSPECTOR.photoTime;
+            currentMA = target.meanAnomaly;
+
+            // Compute illumination at photo time
+            var photoMA = (target.meanAnomaly + (n * totalTime) * RAD) % 360;
+            var photoSat = { sma: sma, eccentricity: target.eccentricity || 0.0001,
+                inclination: target.inclination, raan: target.raan,
+                argPerigee: target.argPerigee || 0, meanAnomaly: photoMA };
+            var photoECI = TLEParser.tleToECI(photoSat);
+            var photoSun = getSunECI(totalTime);
+            var photoEclipse = isInEclipse(photoECI.pos, photoSun);
+            var illum = photoEclipse ? null :
+                computeIllumination(photoECI.pos, photoECI.vel, photoSun);
+
+            if (photoEclipse) eclipseCount++;
+            else sunlitCount++;
+
+            maneuvers.push({
+                targetIdx: bestIdx,
+                targetName: target.name,
+                targetMA: target.meanAnomaly,
+                targetInc: target.inclination,
+                targetRaan: target.raan,
+                transferDV: transferDV,
+                transferTime: transferTime,
+                totalDV: totalDV,
+                totalTime: totalTime,
+                fuelRemaining: fuelRemaining
+            });
+
+            _snapshots.push({
+                index: step + 1,
+                name: target.name,
+                time: totalTime,
+                dv: transferDV,
+                totalDV: totalDV,
+                lat: null, lon: null, alt: target.altitudeKm,
+                inc: target.inclination,
+                raan: target.raan,
+                meanAnomaly: target.meanAnomaly,
+                fuelRemaining: fuelRemaining,
+                eclipsed: photoEclipse,
+                sunlit: !photoEclipse,
+                illumination: illum ? illum.face : 'SHADOW',
+                brightness: illum ? illum.brightness : 0,
+                sunAngleDeg: illum ? illum.sunAngleDeg : 0
+            });
+
+            setStatus('Planning maneuver ' + (step+1) + '/' + targetPlane.sats.length +
+                ' — DV: ' + totalDV.toFixed(1) + ' m/s', 60 + (step / targetPlane.sats.length) * 25);
+
+            if (step % 10 === 0) await sleep(1);
+        }
+
+        // =====================================================================
+        // Step 6: Build results
+        // =====================================================================
+        _results = {
+            totalSatellites: _allSats.length,
+            shells: _shells.map(function(sh, i) {
+                return {
+                    index: i,
+                    incCenter: sh.incCenter,
+                    incRange: sh.incMin + '-' + sh.incMax,
+                    count: sh.count,
+                    planes: sh.planes ? sh.planes.length : 0
+                };
+            }),
+            totalPlanes: _planes.length,
+            targetPlane: {
+                inc: targetPlane.inc,
+                raan: targetPlane.raan,
+                satsInPlane: targetPlane.sats.length,
+                avgAlt: targetPlane.avgAlt,
+                medoid: medoidSat.name,
+                medoidMA: medoidSat.meanAnomaly,
+                medoidTotalCost: medoidCost
+            },
+            inspector: {
+                maxDV: INSPECTOR.maxDV,
+                isp: INSPECTOR.isp,
+                dryMass: INSPECTOR.dryMass,
+                fuelMass: INSPECTOR.fuelMass
+            },
+            mission: {
+                photosComplete: _snapshots.length,
+                totalTargets: targetPlane.sats.length,
+                sunlitPhotos: sunlitCount,
+                eclipsePhotos: eclipseCount,
+                totalDV: totalDV,
+                totalTime: totalTime,
+                totalTimeHrs: totalTime / 3600,
+                fuelUsed: INSPECTOR.fuelMass - fuelRemaining,
+                fuelRemaining: fuelRemaining,
+                maneuvers: maneuvers
+            }
+        };
+
+        setStatus('Mission planned: ' + _snapshots.length + ' photos, ' +
+            totalDV.toFixed(1) + ' m/s DV, ' + (totalTime/3600).toFixed(1) + ' hrs', 88);
+        await sleep(200);
+
+        // =====================================================================
+        // Step 7: Generate CZML playback
+        // =====================================================================
+        setStatus('Generating CZML playback...', 90);
+
+        var epoch = new Date();
+        var epochISO = epoch.toISOString();
+        var endTime = new Date(epoch.getTime() + totalTime * 1000);
+        var endISO = endTime.toISOString();
+
+        var czml = [];
+
+        // Document packet
+        czml.push({
+            id: 'document',
+            name: 'Starlink Inspector — Plane Walk',
+            version: '1.0',
+            clock: {
+                interval: epochISO + '/' + endISO,
+                currentTime: epochISO,
+                multiplier: 50,
+                range: 'LOOP_STOP',
+                step: 'SYSTEM_CLOCK_MULTIPLIER'
+            }
+        });
+
+        // Generate inspector trajectory via Kepler propagation
+        var dt = 60; // 1 minute steps
+        var numSteps = Math.ceil(totalTime / dt);
+        var inspectorPositions = []; // epoch-seconds, x, y, z
+        var simPos = inspectorECI.pos.slice();
+        var simVel = inspectorECI.vel.slice();
+        var simTime = 0;
+        var maneuverIdx = 0;
+
+        for (var step = 0; step <= numSteps; step++) {
+            var t = step * dt;
+            if (t > totalTime) t = totalTime;
+
+            // Apply maneuver DV at maneuver times
+            while (maneuverIdx < maneuvers.length && t >= maneuvers[maneuverIdx].totalTime - maneuvers[maneuverIdx].transferTime) {
+                maneuverIdx++;
+            }
+
+            // Propagate
+            if (step > 0) {
+                var result = TLEParser.propagateKepler(simPos, simVel, dt);
+                simPos = result.pos;
+                simVel = result.vel;
+            }
+
+            // Convert ECI to ECEF for CZML (Cesium expects ECEF in "cartesian" with epoch offsets)
+            var gmst = GMST0 + OMEGA_EARTH * t;
+            var cosG = Math.cos(-gmst);
+            var sinG = Math.sin(-gmst);
+            var ecefX = cosG * simPos[0] - sinG * simPos[1];
+            var ecefY = sinG * simPos[0] + cosG * simPos[1];
+            var ecefZ = simPos[2];
+
+            inspectorPositions.push(t, ecefX, ecefY, ecefZ);
+        }
+
+        // Inspector entity
+        czml.push({
+            id: 'inspector',
+            name: INSPECTOR.name,
+            availability: epochISO + '/' + endISO,
+            position: {
+                epoch: epochISO,
+                cartesian: inspectorPositions,
+                interpolationAlgorithm: 'LAGRANGE',
+                interpolationDegree: 5
+            },
+            point: {
+                color: { rgba: [0, 255, 136, 255] },
+                pixelSize: 14,
+                outlineColor: { rgba: [255, 255, 255, 200] },
+                outlineWidth: 2
+            },
+            path: {
+                show: true,
+                width: 2,
+                material: { solidColor: { color: { rgba: [0, 255, 136, 100] } } },
+                leadTime: 0,
+                trailTime: 3600
+            },
+            label: {
+                text: INSPECTOR.name,
+                font: '12pt monospace',
+                fillColor: { rgba: [0, 255, 136, 255] },
+                outlineColor: { rgba: [0, 0, 0, 200] },
+                outlineWidth: 2,
+                pixelOffset: { cartesian2: [10, -10] },
+                style: 'FILL_AND_OUTLINE'
+            },
+            model: {
+                gltf: 'models/satellite_simple.glb',
+                scale: 50000,
+                minimumPixelSize: 48
+            }
+        });
+
+        // Add target satellites — coarse 5-min steps, no labels/paths (inspector path only)
+        var targetDt = 300; // 5-minute steps for targets
+        var targetNumSteps = Math.ceil(totalTime / targetDt);
+        for (var ti = 0; ti < targetPlane.sats.length; ti++) {
+            var sat = targetPlane.sats[ti];
+            var eci = TLEParser.tleToECI(sat);
+
+            var targetPositions = [];
+            var tPos = eci.pos.slice();
+            var tVel = eci.vel.slice();
+
+            for (var step = 0; step <= targetNumSteps; step++) {
+                var tt = step * targetDt;
+                if (tt > totalTime) tt = totalTime;
+
+                if (step > 0) {
+                    var res = TLEParser.propagateKepler(tPos, tVel, targetDt);
+                    tPos = res.pos;
+                    tVel = res.vel;
+                }
+
+                var gmst2 = GMST0 + OMEGA_EARTH * tt;
+                var cG = Math.cos(-gmst2);
+                var sG = Math.sin(-gmst2);
+
+                targetPositions.push(tt,
+                    cG * tPos[0] - sG * tPos[1],
+                    sG * tPos[0] + cG * tPos[1],
+                    tPos[2]
+                );
+            }
+
+            var wasPhotographed = visitOrder.indexOf(ti) !== -1;
+            var pointColor = wasPhotographed ? [68, 136, 255, 200] : [100, 100, 100, 100];
+
+            czml.push({
+                id: 'target_' + ti,
+                name: sat.name,
+                availability: epochISO + '/' + endISO,
+                position: {
+                    epoch: epochISO,
+                    cartesian: targetPositions,
+                    interpolationAlgorithm: 'LAGRANGE',
+                    interpolationDegree: 3
+                },
+                point: {
+                    color: { rgba: pointColor },
+                    pixelSize: wasPhotographed ? 6 : 3
+                },
+                model: {
+                    gltf: 'models/satellite_simple.glb',
+                    scale: 30000,
+                    minimumPixelSize: 24
+                }
+            });
+        }
+
+        setStatus('CZML generated: ' + czml.length + ' entities', 95);
+        await sleep(100);
+
+        // =====================================================================
+        // Step 8: Save outputs
+        // =====================================================================
+        setStatus('Saving playback and snapshots...', 97);
+
+        // Save CZML
+        try {
+            await fetch('/api/sim/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'starlink_inspector_playback.json',
+                    scenario: czml
+                })
+            });
+        } catch(e) {
+            console.warn('Could not save CZML:', e);
+        }
+
+        // Save results JSON
+        try {
+            await fetch('/api/sim/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'starlink_inspector_results.json',
+                    scenario: _results
+                })
+            });
+        } catch(e) {
+            console.warn('Could not save results:', e);
+        }
+
+        // Save snapshots
+        try {
+            await fetch('/api/sim/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: 'starlink_inspector_snapshots.json',
+                    scenario: {
+                        mission: 'Starlink Inspector Plane Walk',
+                        plane: { inc: targetPlane.inc, raan: targetPlane.raan },
+                        totalPhotos: _snapshots.length,
+                        totalDV: totalDV,
+                        totalTime: totalTime,
+                        snapshots: _snapshots
+                    }
+                })
+            });
+        } catch(e) {
+            console.warn('Could not save snapshots:', e);
+        }
+
+        // =====================================================================
+        // Step 9: Initialize Cesium viewer and load CZML
+        // =====================================================================
+        setStatus('Initializing 3D viewer...', 99);
+
+        try {
+            _viewer = new Cesium.Viewer('cesiumContainer', {
+                baseLayerPicker: true,
+                geocoder: false,
+                homeButton: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: true,
+                timeline: true,
+                fullscreenButton: false,
+                vrButton: false,
+                infoBox: true,
+                selectionIndicator: true,
+                shadows: false,
+                shouldAnimate: true
+            });
+
+            setupTerrain(_viewer);
+            setupImagery(_viewer);
+            _viewer.scene.globe.enableLighting = true;
+
+            // Load CZML
+            var dataSource = await Cesium.CzmlDataSource.load(czml);
+            _viewer.dataSources.add(dataSource);
+            _viewer.clock.multiplier = 50;
+            _viewer.zoomTo(dataSource);
+
+        } catch(e) {
+            showError('Cesium init failed: ' + e.message);
+            return;
+        }
+
+        // Hide overlay, show controls
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('statusBar').style.display = 'block';
+        document.getElementById('speedControls').style.display = 'flex';
+        document.getElementById('resultsPanel').style.display = 'block';
+
+        document.getElementById('modelEntities').textContent = targetPlane.sats.length;
+
+        // =====================================================================
+        // Step 10: Build results panel
+        // =====================================================================
+        buildResultsPanel();
+        setupSpeedControls();
+        setupKeyboard();
+
+        // Track inspector position for phase display
+        _viewer.clock.onTick.addEventListener(function(clock) {
+            var elapsed = Cesium.JulianDate.secondsDifference(clock.currentTime,
+                Cesium.JulianDate.fromIso8601(epochISO));
+            var photoIdx = 0;
+            for (var i = 0; i < _snapshots.length; i++) {
+                if (elapsed >= _snapshots[i].time) photoIdx = i + 1;
+            }
+            document.getElementById('modelPhase').textContent =
+                'Photo ' + photoIdx + '/' + _snapshots.length;
+            document.getElementById('modelSpeed').textContent =
+                clock.multiplier.toFixed(0) + 'x';
+        });
+
+        console.log('Starlink Inspector Model loaded successfully');
+        console.log('Results:', _results);
+
+        // =====================================================================
+        // Helper functions
+        // =====================================================================
+
+        function buildResultsPanel() {
+            var panel = document.getElementById('resultsPanel');
+            var html = '<h2>MISSION RESULTS</h2>';
+
+            // Constellation overview
+            html += '<h3>CONSTELLATION</h3>';
+            html += statRow('Total Starlink', _results.totalSatellites);
+            html += statRow('Orbital Shells', _results.shells.length);
+            html += statRow('Total Planes', _results.totalPlanes);
+
+            // Shell breakdown
+            html += '<h3>SHELLS</h3>';
+            for (var i = 0; i < _results.shells.length; i++) {
+                var sh = _results.shells[i];
+                html += statRow('Shell ' + (i+1) + ' (Inc ' + sh.incCenter.toFixed(1) + '°)',
+                    sh.count + ' sats, ' + sh.planes + ' planes');
+            }
+
+            // Target plane
+            html += '<h3>TARGET PLANE</h3>';
+            html += statRow('Inclination', _results.targetPlane.inc.toFixed(2) + '°');
+            html += statRow('RAAN', _results.targetPlane.raan.toFixed(2) + '°');
+            html += statRow('Avg Altitude', _results.targetPlane.avgAlt.toFixed(0) + ' km');
+            html += statRow('Satellites', _results.targetPlane.satsInPlane);
+            html += statRow('Medoid', _results.targetPlane.medoid);
+            html += statRow('Medoid MA', _results.targetPlane.medoidMA.toFixed(2) + '°');
+            html += statRow('Medoid DV Cost', _results.targetPlane.medoidTotalCost.toFixed(1) + ' m/s total');
+
+            // Inspector
+            html += '<h3>INSPECTOR</h3>';
+            html += statRow('Max Delta-V', _results.inspector.maxDV.toFixed(1) + ' m/s');
+            html += statRow('ISP', _results.inspector.isp + ' s');
+            html += statRow('Dry Mass', _results.inspector.dryMass + ' kg');
+            html += statRow('Fuel Mass', _results.inspector.fuelMass + ' kg');
+
+            // Mission
+            html += '<h3>MISSION</h3>';
+            html += statRow('Photos Complete', _results.mission.photosComplete + '/' + _results.mission.totalTargets);
+            html += statRow('Total Delta-V', _results.mission.totalDV.toFixed(1) + ' m/s');
+            html += statRow('DV Budget Used', ((_results.mission.totalDV / _results.inspector.maxDV) * 100).toFixed(1) + '%');
+            html += statRow('Mission Duration', _results.mission.totalTimeHrs.toFixed(1) + ' hrs (' +
+                (_results.mission.totalTimeHrs / 24).toFixed(1) + ' days)');
+            html += statRow('Fuel Used', _results.mission.fuelUsed.toFixed(1) + ' kg');
+            html += statRow('Fuel Remaining', _results.mission.fuelRemaining.toFixed(1) + ' kg');
+            html += statRow('Sunlit Photos', _results.mission.sunlitPhotos + ' / ' + _results.mission.photosComplete);
+            html += statRow('Eclipse Photos', _results.mission.eclipsePhotos + ' (degraded)');
+
+            // Snapshot list
+            html += '<h3>SNAPSHOTS (' + _snapshots.length + ')</h3>';
+            html += '<div class="snapshot-list">';
+            for (var i = 0; i < _snapshots.length; i++) {
+                var snap = _snapshots[i];
+                var sunTag = snap.eclipsed
+                    ? '<span style="color:#ff4444;margin-left:4px">SHADOW</span>'
+                    : '<span style="color:#ffcc00;margin-left:4px">' + snap.illumination + '</span>';
+                html += '<div class="snapshot-item" data-idx="' + i + '">' +
+                    '<span class="snap-idx">#' + snap.index + '</span>' +
+                    '<span class="snap-name">' + snap.name + '</span>' +
+                    '<span class="snap-dv">dV=' + snap.dv.toFixed(1) + '</span>' +
+                    sunTag +
+                    '</div>';
+            }
+            html += '</div>';
+
+            panel.innerHTML = html;
+
+            // Click snapshot → show detail + fly to
+            var items = panel.querySelectorAll('.snapshot-item');
+            for (var i = 0; i < items.length; i++) {
+                items[i].addEventListener('click', function() {
+                    var idx = parseInt(this.getAttribute('data-idx'));
+                    showSnapshot(idx);
+                });
+            }
+        }
+
+        function showSnapshot(idx) {
+            var snap = _snapshots[idx];
+            var viewer = document.getElementById('snapshotViewer');
+            viewer.style.display = 'block';
+            document.getElementById('snapIdx').textContent = snap.index + '/' + _snapshots.length;
+
+            // Draw synthetic snapshot image with illumination
+            var canvas = document.getElementById('snapshotCanvas');
+            var ctx = canvas.getContext('2d');
+            var W = canvas.width, H = canvas.height;
+            var bri = snap.brightness || 0;
+
+            // Background: black (space)
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, W, H);
+
+            // Stars
+            for (var i = 0; i < 40; i++) {
+                ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')';
+                ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+            }
+
+            // Earth limb at bottom (darker in eclipse)
+            ctx.fillStyle = snap.eclipsed ? '#040810' : '#0a1a3a';
+            ctx.beginPath();
+            ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
+            ctx.fill();
+            if (!snap.eclipsed) {
+                // Atmosphere glow
+                ctx.strokeStyle = 'rgba(60,140,255,0.15)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
+                ctx.stroke();
+            }
+
+            var cx = W / 2 + (Math.random() - 0.5) * 40;
+            var cy = H / 2 + (Math.random() - 0.5) * 30;
+            var size = 22 + Math.random() * 10;
+
+            if (snap.eclipsed) {
+                // Eclipse: satellite is a dark silhouette
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(cx - size * 2, cy - 3, size * 1.5, 6);
+                ctx.fillRect(cx + size * 0.5, cy - 3, size * 1.5, 6);
+                ctx.fillRect(cx - size/2, cy - size/2, size, size);
+
+                // Red ECLIPSE overlay
+                ctx.fillStyle = 'rgba(255, 40, 40, 0.8)';
+                ctx.font = 'bold 16px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('ECLIPSE', W/2, H/2 - 50);
+                ctx.font = '11px monospace';
+                ctx.fillText('NO SOLAR ILLUMINATION', W/2, H/2 - 35);
+                ctx.textAlign = 'left';
+            } else {
+                // Sunlit: shade faces based on sun angle
+                // Determine sunlit vs shadow sides of the cube
+                var sunSide = snap.illumination || '+Z (NADIR)';
+                var litR = Math.round(68 + 180 * bri);
+                var litG = Math.round(136 + 100 * bri);
+                var litB = Math.round(200 + 55 * bri);
+                var darkR = Math.round(15 + 20 * bri);
+                var darkG = Math.round(25 + 30 * bri);
+                var darkB = Math.round(50 + 40 * bri);
+
+                var litColor = 'rgb(' + litR + ',' + litG + ',' + litB + ')';
+                var darkColor = 'rgb(' + darkR + ',' + darkG + ',' + darkB + ')';
+                var panelLit = 'rgb(' + Math.round(34+60*bri) + ',' + Math.round(68+80*bri) + ',' + Math.round(170+60*bri) + ')';
+                var panelDark = 'rgb(' + Math.round(10+15*bri) + ',' + Math.round(20+25*bri) + ',' + Math.round(60+30*bri) + ')';
+
+                // Isometric-ish cube: draw shadow side first, then lit side
+                // Left solar panel (shadow side)
+                ctx.fillStyle = panelDark;
+                ctx.fillRect(cx - size * 2, cy - 3, size * 1.4, 6);
+                // Right solar panel (lit side)
+                ctx.fillStyle = panelLit;
+                ctx.fillRect(cx + size * 0.6, cy - 3, size * 1.4, 8);
+
+                // 3D cube effect: dark face (left/top)
+                ctx.fillStyle = darkColor;
+                ctx.beginPath();
+                ctx.moveTo(cx - size/2, cy - size/2);
+                ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
+                ctx.lineTo(cx + size/2 - 6, cy - size/2 - 4);
+                ctx.lineTo(cx + size/2, cy - size/2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(cx - size/2, cy - size/2);
+                ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
+                ctx.lineTo(cx - size/2 - 6, cy + size/2 - 4);
+                ctx.lineTo(cx - size/2, cy + size/2);
+                ctx.fill();
+
+                // Front face (lit)
+                ctx.fillStyle = litColor;
+                ctx.fillRect(cx - size/2, cy - size/2, size, size);
+                ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + 0.3*bri) + ')';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(cx - size/2, cy - size/2, size, size);
+
+                // Sun direction indicator (yellow arrow)
+                var sunAngle = (snap.sunAngleDeg || 45) * DEG;
+                var arrowLen = 35;
+                var ax = W - 40, ay = 30;
+                ctx.strokeStyle = '#ffcc00';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(ax, ay);
+                ctx.lineTo(ax + arrowLen * Math.cos(sunAngle), ay + arrowLen * Math.sin(sunAngle));
+                ctx.stroke();
+                ctx.fillStyle = '#ffcc00';
+                ctx.font = '9px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText('SUN', W - 15, 15);
+                ctx.textAlign = 'left';
+
+                // Face label on satellite
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '8px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(sunSide, cx, cy + 3);
+                ctx.textAlign = 'left';
+            }
+
+            // Crosshair (always visible)
+            ctx.strokeStyle = snap.eclipsed ? 'rgba(255,60,60,0.5)' : 'rgba(0,255,136,0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(cx - 30, cy); ctx.lineTo(cx - 10, cy);
+            ctx.moveTo(cx + 10, cy); ctx.lineTo(cx + 30, cy);
+            ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy - 10);
+            ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy + 30);
+            ctx.stroke();
+
+            // Info overlay on image
+            ctx.fillStyle = snap.eclipsed ? 'rgba(255,80,80,0.8)' : 'rgba(0,255,136,0.8)';
+            ctx.font = '10px monospace';
+            ctx.fillText('TGT: ' + snap.name, 5, 12);
+            ctx.fillText('ALT: ' + snap.alt.toFixed(0) + ' km', 5, 24);
+            ctx.fillText('T+' + formatTime(snap.time), 5, 36);
+            ctx.fillText('DV: ' + snap.totalDV.toFixed(1) + ' m/s', 5, 48);
+            ctx.fillText(snap.eclipsed ? 'ECLIPSED' :
+                'FACE: ' + snap.illumination + ' [' + (snap.brightness * 100).toFixed(0) + '%]', 5, 60);
+
+            // Info text below canvas
+            var illumHtml = snap.eclipsed
+                ? '<span style="color:#ff4444">ECLIPSED - NO ILLUMINATION</span>'
+                : '<span style="color:#ffcc00">Illuminated face: ' + snap.illumination +
+                  ' (' + (snap.brightness * 100).toFixed(0) + '% brightness)</span>';
+            document.getElementById('snapInfo').innerHTML =
+                '<div style="color:#00aa66">' +
+                'Target: ' + snap.name + '<br>' +
+                'Inc: ' + snap.inc.toFixed(2) + '° | RAAN: ' + snap.raan.toFixed(2) + '°<br>' +
+                'MA: ' + snap.meanAnomaly.toFixed(2) + '° | Alt: ' + snap.alt.toFixed(0) + ' km<br>' +
+                'Transfer DV: ' + snap.dv.toFixed(2) + ' m/s | Cum DV: ' + snap.totalDV.toFixed(1) + ' m/s<br>' +
+                'Fuel remaining: ' + snap.fuelRemaining.toFixed(1) + ' kg<br>' +
+                'Time: T+' + formatTime(snap.time) + '<br>' +
+                illumHtml +
+                '</div>';
+
+            // Jump viewer to this time
+            if (_viewer) {
+                var snapTime = new Date(epoch.getTime() + snap.time * 1000);
+                _viewer.clock.currentTime = Cesium.JulianDate.fromIso8601(snapTime.toISOString());
+            }
+        }
+
+        function setupSpeedControls() {
+            var btns = document.querySelectorAll('.speed-btn');
+            for (var i = 0; i < btns.length; i++) {
+                btns[i].addEventListener('click', function() {
+                    var speed = parseFloat(this.getAttribute('data-speed'));
+                    _viewer.clock.multiplier = speed;
+                    for (var j = 0; j < btns.length; j++) btns[j].classList.remove('active');
+                    this.classList.add('active');
+                });
+            }
+        }
+
+        function setupKeyboard() {
+            document.addEventListener('keydown', function(e) {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    _viewer.clock.shouldAnimate = !_viewer.clock.shouldAnimate;
+                } else if (e.key === '+' || e.key === '=') {
+                    _viewer.clock.multiplier = Math.min(_viewer.clock.multiplier * 2, 1000);
+                } else if (e.key === '-') {
+                    _viewer.clock.multiplier = Math.max(_viewer.clock.multiplier / 2, 1);
+                }
+            });
+        }
+
+        function statRow(label, value) {
+            return '<div class="stat-row"><span class="stat-label">' + label +
+                '</span><span class="stat-value">' + value + '</span></div>';
+        }
+
+        function formatTime(seconds) {
+            var h = Math.floor(seconds / 3600);
+            var m = Math.floor((seconds % 3600) / 60);
+            return h + 'h ' + m + 'm';
+        }
+
+    })();
+
+    // =========================================================================
+    // Utility functions
+    // =========================================================================
+
+    function _raanDiff(a, b) {
+        var d = Math.abs(a - b);
+        if (d > 180) d = 360 - d;
+        return d;
+    }
+
+    function _dvToFuel(dv, currentFuel) {
+        // Tsiolkovsky: dv = Isp * g0 * ln(m0/m1)
+        // m0 = dry + currentFuel, m1 = m0 * exp(-dv / (Isp * g0))
+        var g0 = 9.80665;
+        var isp = 220;
+        var dryMass = 300;
+        var m0 = dryMass + currentFuel;
+        var m1 = m0 * Math.exp(-dv / (isp * g0));
+        return m0 - m1;
+    }
+
+    function setStatus(msg, pct) {
+        document.getElementById('statusText').textContent = msg;
+        document.getElementById('progressFill').style.width = pct + '%';
+    }
+
+    function showError(msg) {
+        document.getElementById('errorText').textContent = msg;
+        document.getElementById('errorText').style.display = 'block';
+    }
+
+    function sleep(ms) {
+        return new Promise(function(resolve) { setTimeout(resolve, ms); });
+    }
+    </script>
+</body>
+</html>

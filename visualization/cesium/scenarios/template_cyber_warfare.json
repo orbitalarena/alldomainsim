@@ -1,0 +1,358 @@
+{
+  "metadata": {
+    "name": "Cyber Warfare - Eastern Europe",
+    "description": "Integrated cyber warfare scenario in eastern Europe. Blue force includes 2 F-16 fighters, a ground radar station, a cyber operations center, and a comm relay node connected via mesh network. Red force has 2 SAM batteries, an EW radar site, and a cyber node connected via star network. Demonstrates offensive and defensive cyber operations with comm network integration.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["cyber", "ew", "comms", "eastern-europe", "network"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 32
+  },
+  "entities": [
+    {
+      "id": "blue_f16_1",
+      "name": "VIPER 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 49.5,
+        "lon": 24.0,
+        "alt": 7000,
+        "speed": 220,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim9", "aim9", "mk84", "mk84"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_f16_2",
+      "name": "VIPER 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 49.52,
+        "lon": 24.05,
+        "alt": 7200,
+        "speed": 220,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 49.5, "lon": 25.0, "alt": 7200 },
+            { "lat": 50.0, "lon": 25.5, "alt": 7200 },
+            { "lat": 50.0, "lon": 24.5, "alt": 7200 },
+            { "lat": 49.5, "lon": 24.0, "alt": 7200 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim9", "aim9"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_radar_gs",
+      "name": "Blue Radar Station",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 49.8,
+        "lon": 24.2,
+        "alt": 350
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Blue Radar",
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(68,136,255,0.04)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "blue_cyber_ops",
+      "name": "Blue Cyber Ops Center",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 49.6,
+        "lon": 23.8,
+        "alt": 280
+      },
+      "components": {
+        "physics": { "type": "static_ground" },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff66",
+          "label": "CYBER OPS"
+        }
+      },
+      "_custom": { "sensors": [], "payloads": [] }
+    },
+    {
+      "id": "blue_comm_relay",
+      "name": "Blue Comm Relay",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 49.9,
+        "lon": 24.5,
+        "alt": 420
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 50000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.60
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ccff",
+          "label": "COMM RELAY",
+          "sensorRange_m": 50000,
+          "sensorColor": "rgba(68,204,255,0.04)",
+          "sensorOutlineColor": "#44ccff"
+        }
+      }
+    },
+    {
+      "id": "red_sam_1",
+      "name": "SA-20 Battery Alpha",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 50.3,
+        "lon": 25.5,
+        "alt": 200
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 150000,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "SA-20 Alpha",
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(255,68,68,0.05)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "red_sam_2",
+      "name": "SA-20 Battery Bravo",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 50.5,
+        "lon": 26.0,
+        "alt": 180
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 150000,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "SA-20 Bravo",
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(255,68,68,0.05)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "red_ew_radar",
+      "name": "Red EW Radar",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 50.1,
+        "lon": 25.8,
+        "alt": 300
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff6644",
+          "label": "EW Radar",
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(255,102,68,0.03)",
+          "sensorOutlineColor": "#ff6644"
+        }
+      }
+    },
+    {
+      "id": "red_cyber_node",
+      "name": "Red Cyber Node",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 50.4,
+        "lon": 26.2,
+        "alt": 220
+      },
+      "components": {
+        "physics": { "type": "static_ground" },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2222",
+          "label": "RED CYBER"
+        }
+      },
+      "_custom": { "sensors": [], "payloads": [] }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_mesh_net",
+      "name": "Blue Force Mesh",
+      "type": "mesh",
+      "members": ["blue_f16_1", "blue_f16_2", "blue_radar_gs", "blue_cyber_ops", "blue_comm_relay"],
+      "config": {
+        "frequency_mhz": 400,
+        "bandwidth_mhz": 10,
+        "txPower_dbw": 20,
+        "dataRate_mbps": 50,
+        "encryption": true
+      }
+    },
+    {
+      "id": "red_star_net",
+      "name": "Red Force Star",
+      "type": "star",
+      "hub": "red_ew_radar",
+      "members": ["red_sam_1", "red_sam_2", "red_ew_radar", "red_cyber_node"],
+      "config": {
+        "frequency_mhz": 350,
+        "bandwidth_mhz": 5,
+        "txPower_dbw": 15,
+        "dataRate_mbps": 20,
+        "encryption": false
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_cyber_scan",
+      "trigger": {
+        "type": "time",
+        "time_s": 30
+      },
+      "action": {
+        "type": "message",
+        "text": "Blue Cyber Ops: Initiating network reconnaissance of red force communications",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_ew_detection",
+      "trigger": {
+        "type": "detection",
+        "sensorEntityId": "red_ew_radar",
+        "targetEntityId": "blue_f16_1"
+      },
+      "action": {
+        "type": "message",
+        "text": "Red EW Radar: Blue fighter detected, feeding track to SAM batteries",
+        "level": "warning"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_cyber_exploit",
+      "trigger": {
+        "type": "time",
+        "time_s": 180
+      },
+      "action": {
+        "type": "message",
+        "text": "Blue Cyber Ops: Vulnerability identified in red comm link. Ready for exploit.",
+        "level": "alert"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}

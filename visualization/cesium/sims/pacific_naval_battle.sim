@@ -1,0 +1,174 @@
+{
+  "metadata": {
+    "name": "Pacific Naval Battle - Carrier vs Carrier",
+    "description": "Blue CVN strike group vs Red carrier group in the Western Pacific. Both sides have carrier air wings, escort destroyers with Aegis radar and SAMs, and comm networks. Full carrier operations with launch queues, recovery, and coordinated strikes.",
+    "version": "2.0",
+    "tags": ["naval", "carrier", "air-ops", "pacific", "battle"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "cvn_76",
+      "name": "CVN-76 Ronald Reagan",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 20.0, "lon": 130.0, "alt": 0, "speed": 4.12, "heading": 30 },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.90 },
+        "ai": {
+          "type": "carrier_ops", "carrierType": "naval", "maxAirborne": 24, "catapults": 2, "launchInterval": 8,
+          "airWing": [
+            { "template": "F/A-18E Super Hornet", "count": 6 },
+            { "template": "F-35C Lightning II", "count": 4 },
+            { "template": "F-15E Strike Eagle", "count": 2 }
+          ]
+        },
+        "visual": { "type": "ground_station", "color": "#4488cc", "label": "CVN-76 REAGAN", "sensorRange_m": 200000, "sensorColor": "rgba(68,136,204,0.04)", "sensorOutlineColor": "#4488cc" }
+      }
+    },
+    {
+      "id": "ddg_91",
+      "name": "DDG-91 Pinckney",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 20.2, "lon": 129.7, "alt": 0, "speed": 5.14, "heading": 30 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 40, "detectionProbability": 0.93 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 170000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.5, "lon": 130.2, "alt": 0 },
+          { "lat": 21.0, "lon": 130.5, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#3355aa", "label": "DDG-91", "sensorRange_m": 350000, "sensorColor": "rgba(51,85,170,0.04)", "sensorOutlineColor": "#3355aa" }
+      }
+    },
+    {
+      "id": "ddg_105",
+      "name": "DDG-105 Dewey",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 19.8, "lon": 130.3, "alt": 0, "speed": 5.14, "heading": 30 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 40, "detectionProbability": 0.93 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 170000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.3, "lon": 130.6, "alt": 0 },
+          { "lat": 20.8, "lon": 131.0, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#3355aa", "label": "DDG-105", "sensorRange_m": 350000, "sensorColor": "rgba(51,85,170,0.04)", "sensorOutlineColor": "#3355aa" }
+      }
+    },
+    {
+      "id": "cg_73",
+      "name": "CG-73 Port Royal",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 20.1, "lon": 130.0, "alt": 0, "speed": 5.14, "heading": 30 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 400000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.95 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 200000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.4, "lon": 130.3, "alt": 0 },
+          { "lat": 20.8, "lon": 130.7, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#2244aa", "label": "CG-73 PORT ROYAL", "sensorRange_m": 400000, "sensorColor": "rgba(34,68,170,0.03)", "sensorOutlineColor": "#2244aa" }
+      }
+    },
+    {
+      "id": "red_cv",
+      "name": "Shandong (Type 002)",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 22.5, "lon": 133.0, "alt": 0, "speed": 4.12, "heading": 210 },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.85 },
+        "ai": {
+          "type": "carrier_ops", "carrierType": "naval", "maxAirborne": 16, "catapults": 1, "launchInterval": 15,
+          "airWing": [
+            { "template": "Su-27S Flanker", "count": 6 },
+            { "template": "MiG-29 Fulcrum", "count": 4 }
+          ]
+        },
+        "visual": { "type": "ground_station", "color": "#cc3333", "label": "SHANDONG", "sensorRange_m": 200000, "sensorColor": "rgba(204,51,51,0.04)", "sensorOutlineColor": "#cc3333" }
+      }
+    },
+    {
+      "id": "red_ddg_1",
+      "name": "Type 055 Nanchang",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 22.7, "lon": 132.7, "alt": 0, "speed": 7.72, "heading": 210 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.90 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 180000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 22.0, "lon": 132.5, "alt": 0 },
+          { "lat": 21.5, "lon": 132.0, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#aa3333", "label": "NANCHANG", "sensorRange_m": 350000, "sensorColor": "rgba(170,51,51,0.04)", "sensorOutlineColor": "#aa3333" }
+      }
+    },
+    {
+      "id": "red_ddg_2",
+      "name": "Type 052D Kunming",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 22.3, "lon": 133.3, "alt": 0, "speed": 7.72, "heading": 210 },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 36, "detectionProbability": 0.88 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 120000, "engagementRules": "weapons_free" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 21.8, "lon": 133.0, "alt": 0 },
+          { "lat": 21.3, "lon": 132.5, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#aa3333", "label": "KUNMING", "sensorRange_m": 300000, "sensorColor": "rgba(170,51,51,0.04)", "sensorOutlineColor": "#aa3333" }
+      }
+    },
+    {
+      "id": "red_sub",
+      "name": "Type 093B Shang-class",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 21.0, "lon": 131.5, "alt": 0, "speed": 3.09, "heading": 180 },
+      "components": {
+        "physics": { "type": "naval", "config": "ffg_constellation" },
+        "sensors": { "type": "radar", "maxRange_m": 50000, "fov_deg": 360, "scanRate_dps": 10, "detectionProbability": 0.70 },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.5, "lon": 131.0, "alt": 0 },
+          { "lat": 20.0, "lon": 130.5, "alt": 0 }
+        ], "loopMode": "cycle" },
+        "visual": { "type": "ground_station", "color": "#993333", "label": "TYPE 093B", "sensorRange_m": 50000, "sensorColor": "rgba(153,51,51,0.06)", "sensorOutlineColor": "#993333" }
+      },
+      "_custom": { "rcs_m2": 0.01 }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_sag_net",
+      "name": "Blue SAG Network",
+      "type": "mesh",
+      "members": ["cvn_76", "ddg_91", "ddg_105", "cg_73"],
+      "config": { "frequency_mhz": 380, "bandwidth_mhz": 20, "txPower_dbw": 30, "dataRate_mbps": 200, "encryption": true }
+    },
+    {
+      "id": "red_fleet_net",
+      "name": "Red Fleet Network",
+      "type": "star",
+      "hub": "red_cv",
+      "members": ["red_cv", "red_ddg_1", "red_ddg_2", "red_sub"],
+      "config": { "frequency_mhz": 350, "bandwidth_mhz": 15, "txPower_dbw": 25, "dataRate_mbps": 50, "encryption": true }
+    }
+  ],
+  "camera": { "mode": "free", "range": 600000 }
+}

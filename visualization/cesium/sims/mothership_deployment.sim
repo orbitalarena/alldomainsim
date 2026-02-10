@@ -1,0 +1,153 @@
+{
+  "metadata": {
+    "name": "Mothership Satellite Deployment - LEO Inspector Mission",
+    "description": "Blue inspector mothership deploys sub-satellites to investigate a suspicious red satellite in LEO. Mothership at 500km, 51.6 deg inclination with 6 inspector payloads. Red target sat nearby. Two neutral reference satellites for context.",
+    "version": "2.0",
+    "tags": ["space", "mothership", "inspection", "LEO", "sub-satellite"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 1024
+  },
+  "entities": [
+    {
+      "id": "mothership_1",
+      "name": "INSPECTOR-1 Mothership",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6878000,
+          "ecc": 0.001,
+          "inc": 51.6,
+          "raan": 45.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "ai": {
+          "type": "carrier_ops",
+          "carrierType": "orbital",
+          "maxAirborne": 6,
+          "launchInterval": 30,
+          "catapults": 1,
+          "deployDeltaV": 8,
+          "subSats": [
+            { "template": "Satellite Inspector", "count": 4 },
+            { "template": "SIGINT Collector", "count": 2 }
+          ]
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 120,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      },
+      "_custom": {
+        "rcs_m2": 2.5,
+        "sensors": [
+          { "type": "optical", "name": "Inspection Camera", "fov_deg": 15, "range_m": 200000 }
+        ]
+      }
+    },
+    {
+      "id": "target_sat",
+      "name": "KOSMOS-2580 (Target)",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6888000,
+          "ecc": 0.002,
+          "inc": 51.6,
+          "raan": 45.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 5.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.80
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      },
+      "_custom": { "rcs_m2": 3.0 }
+    },
+    {
+      "id": "ref_alpha",
+      "name": "LEO-REF Alpha",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6920000,
+          "ecc": 0.001,
+          "inc": 53.0,
+          "raan": 46.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 30.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#888888",
+          "pixelSize": 8,
+          "orbitPath": true
+        }
+      }
+    },
+    {
+      "id": "ref_bravo",
+      "name": "LEO-REF Bravo",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6950000,
+          "ecc": 0.003,
+          "inc": 50.0,
+          "raan": 44.0,
+          "argPerigee": 10.0,
+          "meanAnomaly": 120.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#888888",
+          "pixelSize": 8,
+          "orbitPath": true
+        }
+      }
+    }
+  ],
+  "camera": { "mode": "earth", "range": 3000000 }
+}

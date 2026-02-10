@@ -8,13 +8,13 @@ An integrated Earth-Air-Space simulation for multi-domain scenarios from ground 
 
 ## Current Capabilities
 
-**Live Sim Viewer** (`live_sim_viewer.html`): Full cockpit sim with TLE catalog (14k+ satellites), observer mode, click-to-assume control, analytics panel (Chart.js), smart search (F key), auto-pointing (9 modes), sensor footprints, weather, naval physics, Hohmann transfer planner, engine selection panel, comm networks, cyber cockpit, viz group controls.
+**Live Sim Viewer** (`live_sim_viewer.html`): Full cockpit sim with TLE catalog (14k+ satellites), observer mode, click-to-assume control, analytics panel (Chart.js), smart search (F key), auto-pointing (9 modes), sensor footprints, weather, naval physics, Hohmann transfer planner, engine selection panel, comm networks, cyber cockpit, viz group controls, carrier auto-launch, EMCON, tactical datalink, SDA alerts.
 
 **Scenario Builder** (`scenario_builder.html`): Drag-and-drop ECS editor. BUILD/RUN/ANALYZE modes. Platform Builder (5-tab composer: Physics/Propulsion/Sensors/Payload/Environment). 6 scenario templates. MC analysis dashboard. DOE system. Export to live viewer, CZML model, or C++ replay.
 
 **C++ MC Engine** (`mc_engine`): Headless Monte Carlo — batch MC (100 runs in 35ms) or replay generation. Multi-domain combat: orbital KKV + atmospheric SAM/A2A + flight3dof. Progress reporting via JSON-Lines stderr. 11 scenario/replay pairs.
 
-**Standalone Sims**: Fighter sim (F-16 with weapons/AI), Spaceplane sim (atmosphere-to-orbit), GEO rendezvous, satellite tour, GPS PDOP, launch trajectory. 6 analytic tools (ballistic/intercept/maneuver/visibility/radar/link budget planners).
+**Standalone Sims**: Fighter sim (F-16 with weapons/AI), Spaceplane sim (atmosphere-to-orbit), GEO rendezvous, satellite tour, GPS PDOP, launch trajectory, **Starlink Inspector** (greedy plane-walker with medoid start, sun illumination model, CZML playback). 6 analytic tools (ballistic/intercept/maneuver/visibility/radar/link budget planners).
 
 **Communications + Cyber**: CommEngine (Dijkstra routing, link budget, jamming, fiber/laser links). Cyber cockpit terminal (scan/exploit/brick/ddos/mitm/inject + defense commands). F2T2EA comm-integrated kill chain.
 
@@ -55,6 +55,10 @@ spaceplane_hud.js       - Planner mode HUD, navball, orbital overlay
 comm_engine.js          - Dijkstra routing, link budget, jamming, cyber attacks
 cyber_cockpit.js        - Terminal UI, scan/exploit/defend commands
 minimap.js              - Minimap overlay
+settings_panel.js       - Tabbed settings panel (from gear icon)
+window_manager.js       - Draggable/snappable windows for Cesium viewer
+tactical_datalink.js    - Link-16 style track sharing (organic + contributed)
+space_domain_awareness.js - Conjunction, maneuver detection, keep-out zones
 ```
 
 ### ECS Framework (visualization/cesium/js/framework/)
@@ -74,7 +78,8 @@ tle_parser.js     - TLE parsing, SGP4-lite, epoch-aware propagation
 ```
 physics/    flight3dof, orbital_2body, naval
 control/    player_input
-ai/         waypoint_patrol, intercept, orbital_combat, cyber_defense, cyber_ops
+ai/         waypoint_patrol, intercept, orbital_combat, cyber_defense, cyber_ops,
+            carrier_ops, naval_formation, emcon
 sensors/    radar
 weapons/    sam_battery, fighter_loadout, a2a_missile, kinetic_kill
 visual/     cesium_entity, satellite_visual, ground_station, radar_coverage, sensor_footprint
@@ -116,6 +121,7 @@ maneuver_planner.html   - Orbital maneuver planner
 visibility_planner.html - Satellite pass prediction
 radar_horizon.html      - Radar horizon calculator
 link_budget.html        - RF link budget analyzer
+starlink_inspector.html - Greedy plane-walker orbital inspector (CZML model)
 ```
 
 ### Servers

@@ -1,0 +1,487 @@
+{
+  "metadata": {
+    "name": "Multi-Domain Operations - South China Sea",
+    "description": "Full-spectrum multi-domain scenario in the South China Sea. Blue force: 2 F-16 strike aircraft, 1 LEO ISR satellite, 1 CVN carrier with escorts, and 1 command post. Red force: 2 Su-35 CAP fighters, 1 ASAT satellite, 1 Kirov battlecruiser, 1 SAM battery, and 1 EW radar. Blue assets connected via mesh comm network. Demonstrates air, space, naval, ground, and cyber domain integration.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["multi-domain", "south-china-sea", "air", "space", "naval", "ground", "cyber"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "blue_strike_1",
+      "name": "VIPER 1 (Strike Lead)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 14.5,
+        "lon": 114.0,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim9", "aim9", "mk84", "mk84"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_strike_2",
+      "name": "VIPER 2 (Strike Wing)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 14.48,
+        "lon": 114.05,
+        "alt": 8200,
+        "speed": 250,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 15.0, "lon": 114.5, "alt": 8200 },
+            { "lat": 15.5, "lon": 115.0, "alt": 8200 },
+            { "lat": 16.0, "lon": 115.5, "alt": 8200 },
+            { "lat": 15.5, "lon": 115.0, "alt": 8200 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["aim120", "aim120", "aim9", "aim9", "mk84", "mk84"]
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "blue_isr_sat",
+      "name": "USA-310 (LEO ISR)",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6878000,
+          "ecc": 0.001,
+          "inc": 45.0,
+          "raan": 115.0,
+          "argPerigee": 0.0,
+          "meanAnomaly": 0.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 800000,
+          "fov_deg": 60,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.85
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "blue_cvn",
+      "name": "CVN-76 Ronald Reagan",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 13.5,
+        "lon": 113.5,
+        "alt": 0,
+        "speed": 4.12,
+        "heading": 30,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4466aa",
+          "label": "CVN-76 Reagan",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,102,170,0.04)",
+          "sensorOutlineColor": "#4466aa"
+        }
+      }
+    },
+    {
+      "id": "blue_cmd_post",
+      "name": "Blue Command Post",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 14.6,
+        "lon": 121.0,
+        "alt": 15
+      },
+      "components": {
+        "physics": { "type": "static_ground" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 100000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.80
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Blue CMD",
+          "sensorRange_m": 100000,
+          "sensorColor": "rgba(68,136,255,0.04)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "red_cap_1",
+      "name": "FLANKER 1 (Red CAP)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 16.0,
+        "lon": 116.0,
+        "alt": 9000,
+        "speed": 260,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_strike_1"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_cap_2",
+      "name": "FLANKER 2 (Red CAP)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 16.2,
+        "lon": 116.2,
+        "alt": 8800,
+        "speed": 260,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "su35" },
+        "ai": {
+          "type": "intercept",
+          "targetId": "blue_strike_2"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "fighter_loadout",
+          "loadout": ["r77", "r77", "r77", "r77", "r73", "r73"]
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "red_asat",
+      "name": "Kosmos-2580 (ASAT)",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6900000,
+          "ecc": 0.002,
+          "inc": 45.0,
+          "raan": 115.5,
+          "argPerigee": 0.0,
+          "meanAnomaly": 10.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 600000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.85
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true
+        }
+      }
+    },
+    {
+      "id": "red_kirov",
+      "name": "Pyotr Velikiy (Kirov)",
+      "type": "naval",
+      "team": "red",
+      "initialState": {
+        "lat": 16.5,
+        "lon": 116.5,
+        "alt": 0,
+        "speed": 7.72,
+        "heading": 200,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 150000,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#aa3333",
+          "label": "Pyotr Velikiy",
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(170,51,51,0.04)",
+          "sensorOutlineColor": "#aa3333"
+        }
+      }
+    },
+    {
+      "id": "red_sam",
+      "name": "HQ-9 SAM Battery",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 16.8,
+        "lon": 112.3,
+        "alt": 5
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.93
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "HQ-9",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,68,68,0.05)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "red_ew",
+      "name": "Red EW Radar Site",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 17.0,
+        "lon": 112.5,
+        "alt": 50
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff6644",
+          "label": "Red EW Radar",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(255,102,68,0.02)",
+          "sensorOutlineColor": "#ff6644"
+        }
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_c2_net",
+      "name": "Blue C2 Network",
+      "type": "mesh",
+      "members": ["blue_strike_1", "blue_strike_2", "blue_cvn", "blue_cmd_post", "blue_isr_sat"],
+      "config": {
+        "frequency_mhz": 380,
+        "bandwidth_mhz": 20,
+        "txPower_dbw": 25,
+        "dataRate_mbps": 100,
+        "encryption": true
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_isr_pass",
+      "trigger": {
+        "type": "time",
+        "time_s": 60
+      },
+      "action": {
+        "type": "message",
+        "text": "USA-310 ISR: Beginning collection pass over South China Sea theater",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_red_detection",
+      "trigger": {
+        "type": "detection",
+        "sensorEntityId": "red_ew",
+        "targetEntityId": "blue_strike_1"
+      },
+      "action": {
+        "type": "message",
+        "text": "Red EW Radar: Blue strike package detected! Vectoring CAP fighters to intercept.",
+        "level": "warning"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_ssa_warning",
+      "trigger": {
+        "type": "time",
+        "time_s": 120
+      },
+      "action": {
+        "type": "message",
+        "text": "Space Domain Awareness: Kosmos-2580 maneuvering toward USA-310 orbit. ASAT threat assessment: HIGH.",
+        "level": "alert"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_merge_air",
+      "trigger": {
+        "type": "proximity",
+        "entityId": "blue_strike_1",
+        "targetId": "red_cap_1",
+        "range_m": 80000,
+        "condition": "closing"
+      },
+      "action": {
+        "type": "message",
+        "text": "VIPER 1: Hostile fighters 40nm, nose hot! Engaging!",
+        "level": "alert"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_sam_fence",
+      "trigger": {
+        "type": "proximity",
+        "entityId": "blue_strike_1",
+        "targetId": "red_sam",
+        "range_m": 250000,
+        "condition": "closing"
+      },
+      "action": {
+        "type": "message",
+        "text": "FENCE IN: Entering HQ-9 SAM engagement zone. Arm countermeasures.",
+        "level": "warning"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 800000
+  }
+}

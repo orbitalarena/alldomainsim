@@ -1,0 +1,218 @@
+{
+  "metadata": {
+    "name": "Commercial Flight - LAX to JFK",
+    "description": "Simulated transcontinental commercial flight from Los Angeles International Airport (LAX) to John F. Kennedy International Airport (JFK). Single aircraft following waypoints across the continental United States through Kansas City and Indianapolis.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["commercial", "flight", "cross-country", "lax", "jfk"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "commercial_1",
+      "name": "AA-100 (LAX-JFK)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 33.94,
+        "lon": -118.41,
+        "alt": 1000,
+        "speed": 90,
+        "heading": 90,
+        "gamma": 3,
+        "throttle": 0.9,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "transport" },
+        "control": { "type": "player_input", "config": "fighter" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 34.0, "lon": -117.5, "alt": 5000 },
+            { "lat": 34.5, "lon": -116.0, "alt": 9000 },
+            { "lat": 35.5, "lon": -113.0, "alt": 11000 },
+            { "lat": 36.5, "lon": -110.0, "alt": 11000 },
+            { "lat": 37.5, "lon": -106.0, "alt": 11000 },
+            { "lat": 38.5, "lon": -102.0, "alt": 11000 },
+            { "lat": 39.1, "lon": -94.6, "alt": 11000 },
+            { "lat": 39.77, "lon": -86.16, "alt": 11000 },
+            { "lat": 40.2, "lon": -80.0, "alt": 10000 },
+            { "lat": 40.5, "lon": -76.0, "alt": 8000 },
+            { "lat": 40.6, "lon": -74.5, "alt": 4000 },
+            { "lat": 40.64, "lon": -73.78, "alt": 300 }
+          ],
+          "loopMode": "once"
+        },
+        "visual": { "type": "point", "color": "#44ccff", "pixelSize": 12, "trail": true }
+      }
+    },
+    {
+      "id": "gs_lax",
+      "name": "LAX Tower",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 33.9425,
+        "lon": -118.408,
+        "alt": 38
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 100000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.98
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "LAX",
+          "sensorRange_m": 100000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "gs_kci",
+      "name": "Kansas City Center",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.3,
+        "lon": -94.7,
+        "alt": 310
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "KC Center",
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "gs_indy",
+      "name": "Indianapolis Center",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.72,
+        "lon": -86.29,
+        "alt": 220
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "Indy Center",
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "gs_jfk",
+      "name": "JFK Tower",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 40.6413,
+        "lon": -73.7781,
+        "alt": 4
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 100000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.98
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "JFK",
+          "sensorRange_m": 100000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_departure",
+      "trigger": {
+        "type": "time",
+        "time_s": 5
+      },
+      "action": {
+        "type": "message",
+        "text": "LAX Tower: AA-100, radar contact. Cleared direct Kansas City, climb and maintain FL360.",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_cruise",
+      "trigger": {
+        "type": "time",
+        "time_s": 600
+      },
+      "action": {
+        "type": "message",
+        "text": "AA-100 reaching cruise altitude FL360. Smooth ride expected.",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_approach",
+      "trigger": {
+        "type": "proximity",
+        "entityId": "commercial_1",
+        "targetId": "gs_jfk",
+        "range_m": 200000,
+        "condition": "closing"
+      },
+      "action": {
+        "type": "message",
+        "text": "New York TRACON: AA-100, descend and maintain 4000, expect ILS Runway 31L.",
+        "level": "info"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "chase",
+    "target": "commercial_1",
+    "range": 8000
+  }
+}

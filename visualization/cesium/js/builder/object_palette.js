@@ -1553,6 +1553,194 @@ var ObjectPalette = (function() {
                 weapons: { type: 'sam_battery', maxRange_m: 120000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#bb4444', label: 'SLAVA', sensorRange_m: 250000, sensorColor: 'rgba(187,68,68,0.04)', sensorOutlineColor: '#bb4444' }
             }
+        },
+
+        // --- Carrier Groups (with Air Wings) ---
+        {
+            category: 'Carrier Groups',
+            name: 'CVN Strike Group (Blue)',
+            icon: '#4488cc',
+            description: 'Nimitz carrier + air wing: 4x F/A-18E, 2x E-2D. Launch aircraft in-sim.',
+            tooltip: 'Full carrier strike group with embarked air wing. Aircraft can be launched during simulation via carrier ops UI. Includes 4 Super Hornets and 2 Hawkeye AWACS.',
+            type: 'naval',
+            team: 'blue',
+            defaults: { alt: 0, speed: 8 },
+            components: {
+                physics: { type: 'naval', config: 'cvn_nimitz' },
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.90 },
+                ai: { type: 'carrier_ops', carrierType: 'naval', maxAirborne: 24, catapults: 2, launchInterval: 8, launchSpeedKts: 160, launchAltOffset: 60,
+                    airWing: [
+                        { template: 'F/A-18E Super Hornet', count: 4 },
+                        { template: 'E-2D Hawkeye', count: 2 }
+                    ]
+                },
+                visual: { type: 'ground_station', color: '#4488cc', label: 'CVN-CSG', sensorRange_m: 200000, sensorColor: 'rgba(68,136,204,0.04)', sensorOutlineColor: '#4488cc' }
+            },
+            _custom: { category: 'carrier', carrierType: 'naval', airWingSize: 6 }
+        },
+        {
+            category: 'Carrier Groups',
+            name: 'CVN Air Superiority Group',
+            icon: '#6644ff',
+            description: 'Carrier with F-35C stealth wing: 6x F-35C, 1x EA-18G, 1x E-2D.',
+            tooltip: 'Stealth-optimized carrier air wing. 6 F-35Cs for air superiority, 1 EA-18G Growler for EW, 1 E-2D for early warning. Launch in-sim.',
+            type: 'naval',
+            team: 'blue',
+            defaults: { alt: 0, speed: 8 },
+            components: {
+                physics: { type: 'naval', config: 'cvn_nimitz' },
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.90 },
+                ai: { type: 'carrier_ops', carrierType: 'naval', maxAirborne: 24, catapults: 2, launchInterval: 8,
+                    airWing: [
+                        { template: 'F-35A Lightning II', count: 6 },
+                        { template: 'F/A-18E Super Hornet', count: 1 },
+                        { template: 'E-2D Hawkeye', count: 1 }
+                    ]
+                },
+                visual: { type: 'ground_station', color: '#6644ff', label: 'CVN-ASW', sensorRange_m: 200000, sensorColor: 'rgba(102,68,255,0.04)', sensorOutlineColor: '#6644ff' }
+            },
+            _custom: { category: 'carrier', carrierType: 'naval', airWingSize: 8 }
+        },
+        {
+            category: 'Carrier Groups',
+            name: 'Kuznetsov Strike Group (Red)',
+            icon: '#cc3333',
+            description: 'Russian carrier + air wing: 4x Su-33, 2x MiG-29K. Launch aircraft in-sim.',
+            tooltip: 'Russian carrier strike group. STOBAR launch, smaller air wing. Su-33 for fleet defense, MiG-29K for multirole.',
+            type: 'naval',
+            team: 'red',
+            defaults: { alt: 0, speed: 8 },
+            components: {
+                physics: { type: 'naval', config: 'cvn_nimitz' },
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.85 },
+                ai: { type: 'carrier_ops', carrierType: 'naval', maxAirborne: 12, catapults: 1, launchInterval: 15,
+                    airWing: [
+                        { template: 'Su-27S Flanker', count: 4 },
+                        { template: 'MiG-29 Fulcrum', count: 2 }
+                    ]
+                },
+                visual: { type: 'ground_station', color: '#cc3333', label: 'KUZNTSV', sensorRange_m: 200000, sensorColor: 'rgba(204,51,51,0.04)', sensorOutlineColor: '#cc3333' }
+            },
+            _custom: { category: 'carrier', carrierType: 'naval', airWingSize: 6 }
+        },
+        {
+            category: 'Carrier Groups',
+            name: 'LHD Amphibious Ready Group',
+            icon: '#669988',
+            description: 'Amphibious assault ship: 4x F-35B STOVL, 2x MV-22.',
+            tooltip: 'Amphibious ready group with F-35B STOVL fighters and MV-22 tiltrotors. STOVL launch capability (no catapults). Good for contested littorals.',
+            type: 'naval',
+            team: 'blue',
+            defaults: { alt: 0, speed: 10 },
+            components: {
+                physics: { type: 'naval', config: 'lpd_san_antonio' },
+                sensors: { type: 'radar', maxRange_m: 100000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.80 },
+                ai: { type: 'carrier_ops', carrierType: 'naval', maxAirborne: 8, catapults: 1, launchInterval: 20,
+                    airWing: [
+                        { template: 'F-35A Lightning II', count: 4 },
+                        { template: 'C-130J Super Hercules', count: 2 }
+                    ]
+                },
+                visual: { type: 'ground_station', color: '#669988', label: 'LHD-ARG', sensorRange_m: 100000, sensorColor: 'rgba(102,153,136,0.05)', sensorOutlineColor: '#669988' }
+            },
+            _custom: { category: 'carrier', carrierType: 'naval', airWingSize: 6 }
+        },
+
+        // --- Mothership Satellites ---
+        {
+            category: 'Mothership Satellites',
+            name: 'Inspector Mothership (LEO)',
+            icon: '#aa88ff',
+            description: 'LEO mothership carrying 6 inspector sub-satellites. Deploy in-sim.',
+            tooltip: 'Large LEO satellite that carries 6 small inspector satellites. Deploy sub-sats during simulation for close-approach inspection of targets. Each sub-sat has basic sensors and minimal delta-V.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 500000 },
+            components: {
+                physics: { type: 'orbital_2body' },
+                sensors: { type: 'radar', maxRange_m: 500000, fov_deg: 360, scanRate_dps: 20, detectionProbability: 0.80 },
+                ai: { type: 'carrier_ops', carrierType: 'orbital', deployDeltaV: 8, maxAirborne: 6,
+                    subSats: [
+                        { template: 'Satellite Inspector', count: 6 }
+                    ]
+                },
+                visual: { type: 'satellite', color: '#aa88ff', pixelSize: 14 }
+            },
+            _custom: { category: 'mothership', carrierType: 'orbital', subSatCount: 6,
+                physics: { coe: { semiMajorAxis: 6871, eccentricity: 0.001, inclination: 51.6, raan: 0, argPerigee: 0, trueAnomaly: 0 } },
+                sensors: [{ type: 'optical', name: 'Inspection Camera', fov_deg: 30, maxRange_m: 50000 }]
+            }
+        },
+        {
+            category: 'Mothership Satellites',
+            name: 'SIGINT Mothership (LEO)',
+            icon: '#ff88aa',
+            description: 'SIGINT platform deploying 4 signal collection sub-sats.',
+            tooltip: 'Signals intelligence mothership in LEO. Deploys 4 SIGINT sub-satellites to form a distributed collection array. Covers wider frequency band than single platform.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 600000 },
+            components: {
+                physics: { type: 'orbital_2body' },
+                sensors: { type: 'radar', maxRange_m: 300000, fov_deg: 360, scanRate_dps: 15, detectionProbability: 0.70 },
+                ai: { type: 'carrier_ops', carrierType: 'orbital', deployDeltaV: 5, maxAirborne: 4,
+                    subSats: [
+                        { template: 'LEO Satellite', count: 4 }
+                    ]
+                },
+                visual: { type: 'satellite', color: '#ff88aa', pixelSize: 12 }
+            },
+            _custom: { category: 'mothership', carrierType: 'orbital', subSatCount: 4,
+                physics: { coe: { semiMajorAxis: 6971, eccentricity: 0.001, inclination: 98, raan: 0, argPerigee: 0, trueAnomaly: 0 } },
+                sensors: [{ type: 'sigint', name: 'SIGINT Array', fov_deg: 120, maxRange_m: 800000 }]
+            }
+        },
+        {
+            category: 'Mothership Satellites',
+            name: 'GEO Relay Mothership',
+            icon: '#ffcc44',
+            description: 'GEO mothership deploying 3 relay satellites for comm coverage.',
+            tooltip: 'Geostationary relay mothership. Deploys 3 communication relay sub-satellites to extend coverage. Useful for comm network expansion during simulation.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 35786000 },
+            components: {
+                physics: { type: 'orbital_2body' },
+                sensors: { type: 'radar', maxRange_m: 1000000, fov_deg: 360, scanRate_dps: 5, detectionProbability: 0.60 },
+                ai: { type: 'carrier_ops', carrierType: 'orbital', deployDeltaV: 3, maxAirborne: 3,
+                    subSats: [
+                        { template: 'GEO Comms Satellite', count: 3 }
+                    ]
+                },
+                visual: { type: 'satellite', color: '#ffcc44', pixelSize: 12 }
+            },
+            _custom: { category: 'mothership', carrierType: 'orbital', subSatCount: 3,
+                physics: { coe: { semiMajorAxis: 42164, eccentricity: 0.0001, inclination: 0.1, raan: 0, argPerigee: 0, trueAnomaly: 0 } }
+            }
+        },
+        {
+            category: 'Mothership Satellites',
+            name: 'ASAT Hunter-Killer',
+            icon: '#ff4444',
+            description: 'Offensive mothership with 4 kinetic kill vehicles. Deploy KKVs in-sim.',
+            tooltip: 'Anti-satellite warfare platform. Carries 4 co-orbital KKVs that can be deployed to intercept target satellites. Each KKV has high delta-V for terminal maneuvering.',
+            type: 'satellite',
+            team: 'red',
+            defaults: { alt: 500000 },
+            components: {
+                physics: { type: 'orbital_2body' },
+                sensors: { type: 'radar', maxRange_m: 800000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.90 },
+                ai: { type: 'carrier_ops', carrierType: 'orbital', deployDeltaV: 15, maxAirborne: 4,
+                    subSats: [
+                        { template: 'Co-Orbital ASAT', count: 4 }
+                    ]
+                },
+                visual: { type: 'satellite', color: '#ff4444', pixelSize: 14 }
+            },
+            _custom: { category: 'mothership', carrierType: 'orbital', subSatCount: 4,
+                physics: { coe: { semiMajorAxis: 6871, eccentricity: 0.001, inclination: 65, raan: 0, argPerigee: 0, trueAnomaly: 0 } },
+                rcs_m2: 0.1
+            }
         }
     ];
 

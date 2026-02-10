@@ -138,6 +138,7 @@ const FighterHUD = (function() {
         drawSensorReticle(state, scale);
         drawMissileWarning(state, scale);
         drawFormationStatus(state, scale);
+        drawCarrierStatus(state, scale);
         if (_toggles.warnings)    drawTCAS(state, scale);
         if (_toggles.warnings)    drawGPWS(state, scale);
         if (_toggles.warnings)    drawTerrainProfile(state, scale);
@@ -2662,6 +2663,72 @@ const FighterHUD = (function() {
             ctx.textAlign = 'left';
 
             fmY += 22 * scale;
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // Carrier Status HUD — shows carrier air wing status when player is a carrier
+    // or shows parent carrier info when player was launched from a carrier
+    // Data: state._isCarrier, state._carrierReady, state._carrierAirborne, state._carrierWing
+    // -----------------------------------------------------------------
+    function drawCarrierStatus(state, scale) {
+        if (!state._isCarrier && !state._carrierParentName) return;
+
+        ctx.save();
+
+        if (state._isCarrier) {
+            // Player IS a carrier — show air wing status
+            var csX = 10 * scale;
+            var csY = height - 180 * scale;
+
+            // Background box
+            ctx.fillStyle = 'rgba(0,20,40,0.6)';
+            ctx.strokeStyle = '#0088cc';
+            ctx.lineWidth = 1;
+            var boxW = 180 * scale;
+            var boxH = 80 * scale;
+            ctx.fillRect(csX, csY, boxW, boxH);
+            ctx.strokeRect(csX, csY, boxW, boxH);
+
+            // Title
+            ctx.font = 'bold ' + (9 * scale) + 'px "Courier New", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#44ccff';
+            ctx.fillText(state._carrierType === 'orbital' ? 'MOTHERSHIP' : 'CARRIER OPS', csX + 6 * scale, csY + 12 * scale);
+
+            // Stats
+            ctx.font = (8 * scale) + 'px "Courier New", monospace';
+            ctx.fillStyle = HUD_GREEN;
+            ctx.fillText('READY: ' + (state._carrierReady || 0), csX + 6 * scale, csY + 26 * scale);
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillText('AIRBORNE: ' + (state._carrierAirborne || 0) + '/' + (state._carrierMaxAirborne || 0), csX + 6 * scale, csY + 38 * scale);
+
+            // Wing composition
+            var wing = state._carrierWing;
+            if (wing && wing.length > 0) {
+                var wY = csY + 52 * scale;
+                ctx.font = (7 * scale) + 'px "Courier New", monospace';
+                for (var i = 0; i < wing.length && i < 3; i++) {
+                    ctx.fillStyle = wing[i].count > 0 ? HUD_GREEN : HUD_DIM;
+                    var shortName = wing[i].template.length > 18 ? wing[i].template.substring(0, 18) + '..' : wing[i].template;
+                    ctx.fillText(shortName + ' x' + wing[i].count, csX + 6 * scale, wY);
+                    wY += 10 * scale;
+                }
+            }
+
+            // Launch hint
+            ctx.font = (7 * scale) + 'px "Courier New", monospace';
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('GEAR > TOOLS > CARRIER LAUNCH', csX + 6 * scale, csY + boxH - 4 * scale);
+
+        } else if (state._carrierParentName) {
+            // Player was LAUNCHED from a carrier — show parent info
+            ctx.font = (8 * scale) + 'px "Courier New", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#0088cc';
+            ctx.fillText('FROM: ' + state._carrierParentName, 10 * scale, height - 100 * scale);
         }
 
         ctx.restore();

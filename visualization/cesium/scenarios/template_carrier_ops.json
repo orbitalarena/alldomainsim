@@ -1,0 +1,188 @@
+{
+  "metadata": {
+    "name": "Carrier Strike Group - Western Pacific",
+    "description": "US Navy carrier strike group operating in the western Pacific. CVN Nimitz with embarked air wing (4x F/A-18E, 2x E-2D), DDG Arleigh Burke with Aegis radar and SM-2 SAMs, and FFG Constellation escort with EASR radar. All vessels heading east at 8 knots in formation.",
+    "version": "2.0",
+    "author": "Builder",
+    "tags": ["naval", "carrier", "strike-group", "pacific", "blue"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "cvn_nimitz",
+      "name": "CVN-68 Nimitz",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 20.0,
+        "lon": 130.0,
+        "alt": 0,
+        "speed": 4.12,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "config": "cvn_nimitz" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.90
+        },
+        "ai": {
+          "type": "carrier_ops",
+          "carrierType": "naval",
+          "maxAirborne": 24,
+          "catapults": 2,
+          "launchInterval": 8,
+          "launchSpeedKts": 160,
+          "launchAltOffset": 60,
+          "airWing": [
+            { "template": "F/A-18E Super Hornet", "count": 4 },
+            { "template": "E-2D Hawkeye", "count": 2 }
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488cc",
+          "label": "CVN-68 Nimitz",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,136,204,0.04)",
+          "sensorOutlineColor": "#4488cc"
+        }
+      },
+      "_custom": { "category": "carrier", "carrierType": "naval", "airWingSize": 6 }
+    },
+    {
+      "id": "ddg_escort",
+      "name": "DDG-112 Michael Murphy",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 20.05,
+        "lon": 129.85,
+        "alt": 0,
+        "speed": 4.12,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "config": "ddg_arleigh_burke" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.92
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 170000,
+          "engagementRules": "weapons_hold"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 20.05, "lon": 130.5, "alt": 0 },
+            { "lat": 20.05, "lon": 131.0, "alt": 0 },
+            { "lat": 20.05, "lon": 131.5, "alt": 0 },
+            { "lat": 20.05, "lon": 132.0, "alt": 0 }
+          ],
+          "loopMode": "cycle"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#3355aa",
+          "label": "DDG-112",
+          "sensorRange_m": 350000,
+          "sensorColor": "rgba(51,85,170,0.04)",
+          "sensorOutlineColor": "#3355aa"
+        }
+      }
+    },
+    {
+      "id": "ffg_escort",
+      "name": "FFG-62 Constellation",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 19.95,
+        "lon": 129.85,
+        "alt": 0,
+        "speed": 4.12,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "config": "ffg_constellation" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.85
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 50000,
+          "engagementRules": "weapons_hold"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 19.95, "lon": 130.5, "alt": 0 },
+            { "lat": 19.95, "lon": 131.0, "alt": 0 },
+            { "lat": 19.95, "lon": 131.5, "alt": 0 },
+            { "lat": 19.95, "lon": 132.0, "alt": 0 }
+          ],
+          "loopMode": "cycle"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#5577aa",
+          "label": "FFG-62",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(85,119,170,0.04)",
+          "sensorOutlineColor": "#5577aa"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_launch_cap",
+      "trigger": {
+        "type": "time",
+        "time_s": 30
+      },
+      "action": {
+        "type": "message",
+        "text": "CVN Nimitz: Launching combat air patrol",
+        "level": "info"
+      },
+      "once": true
+    },
+    {
+      "id": "evt_radar_sweep",
+      "trigger": {
+        "type": "time",
+        "time_s": 120
+      },
+      "action": {
+        "type": "message",
+        "text": "DDG-112: SPY-1D radar sweep complete, no contacts",
+        "level": "info"
+      },
+      "once": true
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}
