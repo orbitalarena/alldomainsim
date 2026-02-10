@@ -4,54 +4,59 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios from ground operations through orbital mechanics. Think KSP meets STK meets AFSIM with Cesium 3D visualization.
 
-## Current Status: DOE Analysis + Analytic Tools + Live Sim Cockpit + MC Engine
+## Current Status: Live Sim with TLE Catalog, Analytics, Observer Mode, Smart Search + MC Engine
 
-### Recent Session (2026-02-06): DOE System + Analytic Tools + Solar System Fix
-Major features: DOE parameter sweep system for Orbital Arena, 6 standalone analytic tools, solar system viewer fix.
+### Recent Session (2026-02-10): Analytics, Globe Occlusion, TLE Epoch, Smart Search
+Six feature additions to the live sim viewer.
 
-- **DOE System** (`doe_panel.js` + `doe_results.js` + `mc_server.js`): Design of Experiments for Orbital Arena
-  - Configuration dialog: min/max/step ranges for 5 roles (HVA, Defender, Attacker, Escort, Sweep)
-  - Generates Cartesian product of role compositions, runs each through C++ mc_engine
-  - Server-side `POST /api/mc/doe` endpoint with inline arena scenario generator
-  - Results panel with 4 tabs: sortable data table, canvas heat map, Pearson correlation sensitivity chart, CSV/JSON export
-  - Progress polling per permutation
-- **Analytic Tools** (6 standalone HTML pages):
-  - `ballistic_planner.html`: Ballistic trajectory with adaptive angle selection + Newton-Raphson optimization
-  - `intercept_planner.html`: TLE-based satellite intercept planning with Lambert solver
-  - `maneuver_planner.html`: Hohmann/bi-elliptic/plane change transfers with delta-V charts
-  - `visibility_planner.html`: Ground station pass prediction, access windows, coverage gap analysis
-  - `radar_horizon.html`: Radar line-of-sight with terrain masking and atmospheric refraction
-  - `link_budget.html`: RF link budget analyzer (Tx → path loss → atmosphere → Rx → link margin)
-- **Solar System Fix**: Added SCALE=1e6 factor to all Cesium coordinates in solar_system_viewer.html to prevent WebGL float32 overflow beyond Jupiter
-- **Ballistic Planner Improvement**: Replaced hardcoded ±15° angle offsets with bisection boundary search + Newton-Raphson solver targeting specific apogee altitudes
-- **Index Page**: Updated with cards for all new tools and solar system viewer
+- **Data Analytics Panel**: Chart.js graphs in live sim — regime pie chart, team bar chart, population/fuel time-series, custom variable plotting. 6 graph templates (Overview, Regime, Population, Teams, Fuel, Custom). `_analyticsHistory[]` records snapshots at ~1Hz. Auto-refresh every 5 seconds.
+- **Globe Occlusion**: Removed `disableDepthTestDistance: Number.POSITIVE_INFINITY` from satellite_visual.js, cesium_entity.js, ground_station.js. Entities behind the globe now naturally hidden by Cesium depth testing.
+- **TLE Epoch-Aware Propagation**: `TLEParser.tleEpochToJD()` converts TLE epoch to Julian Date. `orbital_2body.js` `_initFromTLE()` advances mean anomaly from TLE epoch to sim epoch before `tleToECI()`. Uses `world.simEpochJD`.
+- **Sim Start Time**: `_JD_SIM_EPOCH_LOCAL` now dynamic — reads `scenario.environment.simStartTime` (ISO string) or defaults to `Date.now()`. EnvironmentDialog has datetime input with "Use Current Time" button.
+- **Default Template Removal**: Removed `loadBuiltinScenarios()` calls from live_sim_viewer.html splash. Only saved sims + TLE catalog shown.
+- **Smart Search**: F key toggles search panel. Name/regime/inclination/SMA/team filters. Debounced matching. `_searchEntities(criteria)` returns matched IDs. `_highlightSearchResults()` sets gold outline on matched entities. Bulk actions: set team, set color, orbits on/off, labels on/off.
 
-### C++ Backend (Milestones 0-4 + Phases 2-3 + MC Engine):
-- **M0**: Project skeleton, CMake build system, Git setup
-- **M1**: TLE parsing, single orbit propagation
-- **M2**: Cesium 3D visualization of orbits
-- **M3**: Coordinate transformations (ECI/ECEF/Geodetic), animation, ground tracks
-- **M4**: Launch vehicle physics, orbital elements, rendezvous planning
-- **Phase 2**: High-fidelity orbital perturbations (J2/J3/J4, Sun/Moon third-body, SRP, drag)
-- **Phase 3**: 6DOF aerodynamics, synthetic camera, gamepad input, checkpoint/resume, crushed-it demo
-- **MC Engine**: Headless Monte Carlo simulation engine — see detailed section below
+### Recent Session (2026-02-09): Observer Mode, Click-to-Assume, 20 Autonomous Improvements
+Massive feature session: observer mode, click-to-assume control, TLE catalog API, sensor footprints, auto-pointing, naval physics, weather system, and many UX improvements.
 
-### Recent Session (2026-02-06): Cockpit Combat + Orbital Fix + Escape Recovery
-Major features: Live sim cockpit with weapons/sensor HUD, orbital mechanics frame fix, escape trajectory recovery.
+- **Observer Mode**: `player=__observer__` URL param. Camera cycles free/earth/moon. Entity list clickable (click → track). ECS runs without player hijack.
+- **Click-to-Assume Control**: `_setupEntityPicker()` uses Cesium LEFT_CLICK + `scene.pick()` → popup with TRACK/ASSUME CONTROL. `_assumeControl(entity)` hijacks new entity, inits cockpit, recreates orbit viz.
+- **TLE Catalog API**: `serve.py` `/api/tle/catalog` returns constellation groups (STARLINK, ONEWEB) + orbit regime groups (LEO/MEO/GEO/HEO). `/api/tle/constellation/{name}` returns TLEs. TLE picker with platform template dropdown. 14,000+ satellites.
+- **Auto-Pointing System**: `_tickPointing()` maintains spacecraft attitude. Modes: manual/prograde/retrograde/normal/antinormal/radial/nadir/sun/target. I key cycles, L key opens panel. Active above 80km.
+- **Sensor Footprint Component**: `sensor_footprint.js` — radar sector, EO/IR ellipse, SAR swath, SIGINT ring, LIDAR spot. Throttled 2Hz. Auto-added when `_custom.sensors` present.
+- **Sensor View Camera**: V key cycles sensors. When visual sensor active + pointing mode, camera looks in pointing direction. CSS filters for EO/IR.
+- **Engine Selection Panel**: P key opens/closes categorized dropdown. Digit keys 1-9/0 quick-select. Categories: ATMOSPHERIC/MICRO/LIGHT/MEDIUM/HEAVY. Rocket engine presets: OMS 25kN, AJ10 100kN, RL10 500kN, RS25 5MN.
+- **Naval ECS Physics**: `naval.js` wraps `NavalPhysics` module. Object Palette naval templates (`type: 'naval'` with cruise speeds).
+- **Weather System**: EnvironmentDialog weather presets. `WeatherSystem.init(viewer, preset)`. Wind deltas applied after physics step.
+- **Viz Controls**: `_vizGroups` keyed by type/team/category. Toggle show per group. Global defaults: orbits=OFF, trails=OFF, labels=ON, sensors=ON. Persisted in localStorage.
+- **Entity List**: Groups by vizCategory with section headers. Double-click → assume control. Team color indicators.
+- **Player Ground Track**: `_playerGroundTrack[]` polyline at alt=0, CYAN 25% opacity.
+- **TLE Regime Colors**: LEO=#44ccff, MEO=#44ff88, GEO=#ffcc44, HEO=#ff6688, OTHER=#aa88ff.
+- **Remember Last Sim**: `localStorage` stores last-used sim path, shown first in list tagged "LAST USED".
+- **Observer Export**: Scenario Builder "Launch Observer" button saves sim + opens in observer mode.
+- **Weapon Key Rebind**: Weapon cycling moved from W to R. W is throttle-up only.
+- **RCS in Radar**: `radar.js` uses `EWSystem.getRCS()` + `computeDetectionPd()` for range-dependent detection.
 
-- **Live Sim Viewer** (`live_sim_viewer.html` + `live_sim_engine.js`): Full cockpit sim launched from Scenario Builder
-  - Chase camera reflects aircraft bank/roll angle (manual ENU positioning, not lookAt)
-  - Cockpit camera with full attitude (heading + pitch + roll)
-  - Pitch trim control: T/Shift+T, ±0.5° per press, -5° to +10° range
-  - Weapons HUD rollup: W cycles weapons, Space fires/activates, inventory tracking
-  - Sensor cycling: V key cycles through available sensors
-  - Pause moved from Space to Escape (cockpit + planner modes)
-  - Per-element HUD toggles (11 items) in settings gear with localStorage persistence
-  - Weapon/sensor lists auto-populated from entity `_custom` payloads/sensors or default loadout
-- **Thrust boost**: Rocket 2MN→5MN, Hypersonic 400kN→800kN in SPACEPLANE_CONFIG
-- **Orbital mechanics fix** (`spaceplane_orbital.js`): Removed erroneous ω×r Earth rotation velocity from geodeticToECI — the 3-DOF physics engine models non-rotating Earth where state.speed is already inertial. Adding ω×r double-counted ~494 m/s at equator, causing SMA to oscillate ±1000km as latitude changed during orbit.
-- **Escape trajectory recovery**: Eccentricity guard tightened to 0.99, period capped at 30 days, ESCAPE regime clears orbit display immediately, renderError handler recovers from buffer overflows
-- **Platform Builder CRUD**: Edit/delete buttons on custom palette items, placement mode dropdown (Spacecraft/Aircraft/Ground), fixed double-handler bug in builder_app.js
+### Recent Session (2026-02-07/08): Orbital Mechanics + Maneuver System
+Major orbital mechanics improvements for the live sim spaceplane cockpit.
+
+- **Unified Physics Model**: NO `isSpaceplane` flag. ALL entities use inverse-square gravity, centrifugal term, aero blend, Kepler vacuum propagation. Behavior driven by dynamic pressure and altitude.
+- **Hohmann Two-Burn**: `_computeHohmann()` stores `_pendingHohmann`. Burn complete handler recalculates from actual post-burn elements. Works for both raising and lowering transfers.
+- **Orbital Element Targeting**: Monitor actual SMA/ecc during burn. Monotonic SMA crossing for cutoff — can never be missed at any warp. DV cutoff at 2x as safety.
+- **Dynamic Warp During Burns**: `maxWarpForDV = dvRemaining / dvPerFrameAt1x`. Warp drops to 1x at burn start, then ramps up. SMA proximity warp scaling when |curSMA - targetR| < 500km.
+- **Auto-Execute Burn Direction**: `_computeBurnOrientation(node)` uses CURRENT ECI state orbital frame, not stale node creation data. Recalculated every frame during long burns.
+- **DV-Based Burn Cutoff**: `_autoExecCumulativeDV` tracks delivered thrust per frame. Primary cutoff; time at 2x is safety fallback.
+- **High-Warp Substep Fix**: Uncapped substeps (numSteps = ceil(totalDt/0.05)) instead of 500-step cap that lost 76% of physics at 1024x warp.
+- **COE Deg/Rad Fix**: `satellite_dialog.js` returns degrees, `globe_interaction.js:_coeToFlightState()` converts to radians.
+- **orbital_2body.js Fixes**: Accepts both short (`ecc`/`inc`) and long (`eccentricity`/`inclination`) field names. Fixed ω×r bug. Fixed `||` treating 0 as falsy.
+- **Plane Change Escape Guard**: Pure normal DV = 2v·sin(Δi/2). Warns when plane change would exceed escape velocity.
+
+### Previous Session (2026-02-06): DOE System + Analytic Tools + Cockpit Combat
+- **DOE System** (`doe_panel.js` + `doe_results.js`): Design of Experiments for Orbital Arena. Role ranges, Cartesian product, heat map, sensitivity, export.
+- **Analytic Tools**: 6 standalone HTML pages — ballistic planner, TLE intercept, orbital maneuver, visibility, radar horizon, RF link budget.
+- **Live Sim Cockpit**: Weapons HUD (R cycles, Space fires), sensor cycling (V), pitch trim (T), chase camera with bank, per-element HUD toggles.
+- **Orbital Mechanics Fix**: Removed ω×r from geodeticToECI (speed already inertial). Fixed SMA oscillation.
+- **Escape Trajectory Recovery**: Ecc guard 0.99, period cap 30 days, ESCAPE clears display.
 
 ### Previous Session (2026-02-05): Platform Builder + Nuclear + Environment Systems
 Major feature: Modular platform composer for creating custom entities with any combination of physics, propulsion, sensors, payloads, and environment settings.
@@ -94,7 +99,7 @@ Interactive drag-and-drop editor with ECS simulation engine. No C++ needed.
 ### JavaScript Interactive Sims (visualization/cesium/):
 Standalone browser-based simulations — no C++ backend needed.
 
-- **Live Sim Viewer** (`live_sim_viewer.html`) — **Cockpit sim launched from Scenario Builder** with weapons, sensors, trim, HUD toggles
+- **Live Sim Viewer** (`live_sim_viewer.html`) — **Full cockpit sim** with TLE catalog (14k sats), observer mode, click-to-assume control, analytics panel, smart search, auto-pointing, sensor footprints, weather, naval physics, Hohmann planner, engine selection panel
 - **Satellite Tour** (`sat_tour_viewer.html`) — Animated tour of satellite constellations
 - **GEO Sim** (`geo_sim_viewer.html`) — GEO rendezvous with Newton-Raphson intercept
 - **LEO Sensor** — LEO imaging constellation revisit visualization
@@ -361,11 +366,11 @@ Created a comprehensive 5-tab dialog for building custom entities with any combi
 ## NEXT STEPS
 
 ### Potential Enhancements
-- **Index/hub page**: Update `index.html` with links to replay viewer, all available replays, build instructions
-- **Replay viewer entity info**: Click/hover tooltip showing entity metadata (type, team, weapons, status)
-- **Replay file auto-discovery**: Server endpoint to list available replay_*.json files instead of hardcoded list
 - **WASM compilation**: Compile mc_engine to WebAssembly for in-browser MC runs without Node.js server
-- **Longer simulations**: Some scenarios (fighter_patrol, two_aircraft, multi_domain) resolve at t=0.1s because one team has no combatants — add opposing forces or adjust scenarios
+- **Longer simulations**: Some scenarios (fighter_patrol, two_aircraft, multi_domain) resolve at t=0.1s because one side has no combatants
+- **SGP4 propagation**: Replace Kepler-only TLE propagation with full SGP4 for better accuracy at epoch offsets >30 days
+- **Multi-player**: WebSocket-based shared sim state for cooperative/adversarial scenarios
+- **Terrain-aware ground operations**: Cesium terrain sampling for realistic taxi/landing on any runway
 
 ### Known Behavior Notes
 
@@ -402,7 +407,9 @@ montecarlo/     - MC engine: MCEntity, MCWorld, ScenarioParser, MCRunner,
 ### JavaScript Sim Modules (visualization/cesium/js/):
 ```
 live_sim_engine.js      - Hybrid cockpit+ECS engine: player hijack, weapons,
-                          sensors, trim, chase camera with bank, HUD toggles
+                          sensors, camera, observer mode, click-to-assume,
+                          TLE catalog, analytics, smart search, auto-pointing,
+                          Hohmann planner, engine panel, viz controls, weather
 fighter_sim_engine.js   - 3-DOF flight physics (F-16 + spaceplane configs)
                           Gravity, aero, thrust, control, ground handling
 fighter_atmosphere.js   - US Standard Atmosphere + thermosphere extension above 84km
@@ -432,7 +439,8 @@ framework/
   sensor_system.js     - Runs sensor components (radar detection sweep)
   weapon_system.js     - Runs weapon components (SAM engagement)
   event_system.js      - Timed/proximity/detection event triggers + actions
-  tle_parser.js        - TLE parsing, SGP4-lite propagation, ECI↔geodetic
+  tle_parser.js        - TLE parsing, SGP4-lite propagation, ECI↔geodetic,
+                          tleEpochToJD() for epoch-aware propagation
 
 components/
   physics/flight3dof.js      - Aircraft 3-DOF (uses fighter_sim_engine)
@@ -448,8 +456,10 @@ components/
   weapons/kinetic_kill.js    - Kinetic projectile intercept (orbital)
   visual/cesium_entity.js    - Point marker + trail (circular buffer) + label
   visual/satellite_visual.js - Orbit path, ground track, Ap/Pe markers
-  visual/ground_station.js   - Ground station icon + comm link lines
+  visual/ground_station.js   - Ground station icon + weapon range rings
   visual/radar_coverage.js   - Radar coverage fan (ellipse + arc)
+  visual/sensor_footprint.js - Sensor ground footprints (radar/EO/IR/SAR/SIGINT)
+  physics/naval.js           - Naval entity physics (wraps NavalPhysics module)
 
 builder/
   builder_app.js         - Main controller: BUILD/RUN/ANALYZE modes
@@ -476,6 +486,9 @@ builder/
                            preview, server polling, arena config)
   doe_results.js         - DOE results panel (4 tabs: data table, canvas heat map,
                            Pearson correlation sensitivity, CSV/JSON export)
+  environment_dialog.js  - Scenario-level environment config (gravity, atmosphere,
+                           weather, magnetic field, ionosphere, radiation belts,
+                           sim start time)
 ```
 
 ### Executables:
@@ -488,7 +501,7 @@ builder/
 All served from `visualization/cesium/` via `python3 serve.py 8000`
 
 - `scenario_builder.html` — Interactive scenario editor (BUILD/RUN/ANALYZE)
-- `live_sim_viewer.html` — **Cockpit sim** (weapons, sensors, trim, HUD toggles, chase/cockpit/free camera)
+- `live_sim_viewer.html` — **Cockpit sim** (TLE catalog, observer mode, analytics, smart search, auto-pointing, engine panel, weather, viz controls)
 - `scenario_viewer.html` — Lightweight scenario runner (live ECS physics)
 - `replay_viewer.html` — **C++ replay playback** (load ?replay=replay_iads.json)
 - `model_viewer.html` — CZML rapid-playback viewer (native Cesium, no JS physics)
@@ -674,23 +687,28 @@ Above 30km, KSP-style orbital markers appear on the pitch ladder:
 - Color-coded: green=ATMOSPHERIC, yellow=SUBORBITAL, cyan=ORBIT, red=ESCAPE
 - Always visible in cockpit mode
 
-### Keyboard Controls (spaceplane_viewer.html / live_sim_viewer.html)
+### Keyboard Controls (live_sim_viewer.html)
 ```
-WASD / Arrows  — Throttle, pitch, roll
+W/S or Up/Down — Throttle, pitch
+A/D or Left/Right — Roll (bank)
 Q/E            — Yaw (nose rotation in vacuum — does NOT change velocity)
 Escape         — Pause (cockpit + planner modes)
-P              — Cycle propulsion: AIR → HYPERSONIC → ROCKET
+P              — Open/close engine selection panel (1-9/0 quick-select)
 E              — Engine on/off
 Space          — Fire weapon
-W              — Cycle weapon
-V              — Cycle sensor
+R              — Cycle weapon
+V              — Cycle sensor (EO/IR with CSS effects)
 T / Shift+T    — Adjust pitch trim (+0.5° / -0.5°, range -5° to +10°)
+I              — Cycle pointing mode (prograde/retrograde/normal/radial/nadir/sun/target)
+L              — Open pointing mode panel
+F              — Toggle smart search panel
 M              — Toggle planner mode
 N              — Create maneuver node
 Enter          — Execute maneuver node
 Delete         — Delete maneuver node
 +/-            — Time warp (up to 1024x)
-C              — Cycle camera (chase with bank / cockpit / free)
+C              — Cycle camera (chase / cockpit / free / earth / moon)
+B              — Hold to brake (ground operations)
 H              — Controls help
 1 / 2 / 3     — Toggle flight data / systems / orbital panels
 O              — Toggle orbital elements panel (auto / on / off)
@@ -819,4 +837,4 @@ When placing a satellite on the globe, a modal dialog appears with 6 Classical O
 
 ## Git Conventions
 - Commit messages: imperative mood, describe what changes do
-- Co-author: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
+- Co-author: `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`

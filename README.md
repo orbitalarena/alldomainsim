@@ -2,7 +2,7 @@
 
 An integrated Earth-Air-Space simulation for multi-domain scenarios — from runway taxi through atmospheric flight to orbital mechanics. KSP meets STK meets AFSIM with Cesium 3D globe visualization.
 
-**Team**: Human + Claude | **Status**: DOE Analysis + Analytic Tools + Live Cockpit Combat + MC Engine
+**Team**: Human + Claude | **Status**: Live Sim (TLE Catalog + Observer + Analytics + Search) + MC Engine
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ Then open: **http://localhost:8000/**
 | App | URL | Description |
 |-----|-----|-------------|
 | **Scenario Builder** | `/scenario_builder.html` | Interactive drag-and-drop scenario editor. Place aircraft, satellites, SAM batteries, ground stations. Run simulation, analyze with Chart.js dashboard, export to C++ engine. |
-| **Live Sim** | `/live_sim_viewer.html` | Cockpit sim launched from Scenario Builder. Weapons HUD, sensor cycling, pitch trim, chase camera with bank, per-element HUD toggles. |
+| **Live Sim** | `/live_sim_viewer.html` | Full cockpit sim with TLE catalog (14k sats), observer mode, click-to-assume, analytics panel, smart search, auto-pointing, engine selection, Hohmann planner, sensor footprints, weather, naval physics. |
 | **Replay Viewer** | `/replay_viewer.html?replay=replay_iads.json` | C++ replay playback with range rings, animated missile trails, engagement timeline. 11 pre-generated replays. |
 | **Spaceplane** | `/spaceplane_viewer.html` | Atmosphere-to-orbit flight. KSP-style orbital mechanics, maneuver nodes, 3 propulsion modes. Start on the runway or in orbit. |
 | **Fighter** | `/fighter_sim_viewer.html` | F-16 flight sim with full HUD, weapons (AIM-9/AIM-120/bombs/gun), AI adversaries. |
@@ -55,8 +55,9 @@ Interactive multi-domain scenario editor with three modes:
 
 ### Entity Types
 - **Aircraft**: F-16, MiG-29, X-37S Spaceplane (3-DOF flight physics)
-- **Satellites**: LEO, GPS, GEO with Classical Orbital Elements dialog (SMA, eccentricity, inclination, RAAN, arg perigee, mean anomaly)
+- **Satellites**: LEO, GPS, GEO with Classical Orbital Elements dialog + TLE catalog (14k real satellites)
 - **Ground**: SAM batteries (F2T2EA kill chain), ground stations, GPS receivers, EW radar
+- **Naval**: Ships with cruise speed physics
 - **AI**: Waypoint patrol, intercept pursuit
 - **Custom Platforms**: Create any entity via the Platform Builder (see below)
 
@@ -90,6 +91,25 @@ Click **"+ Platform"** in the Scenario Builder toolbar to create fully custom en
 - *Radiation Belts*: Van Allen, Starfish-Enhanced, Jupiter-level
 
 Custom platforms are saved to localStorage and embedded in scenario JSON.
+
+### Live Sim Features
+
+The Live Sim Viewer (`live_sim_viewer.html`) is the primary runtime for scenarios:
+
+- **TLE Catalog**: Load 14,000+ real satellites from CelesTrak. Mega-constellation grouping (Starlink, OneWeb). Orbit regime classification with color coding (LEO=cyan, MEO=green, GEO=yellow, HEO=red).
+- **Observer Mode**: `?player=__observer__` URL param for observe-only. Click entities to track or assume control. "Launch Observer" button in Scenario Builder.
+- **Click-to-Assume**: Click any entity in the 3D view → popup with TRACK / ASSUME CONTROL buttons. Seamlessly switch between controlling any entity.
+- **Auto-Pointing**: 9 modes (manual/prograde/retrograde/normal/antinormal/radial/nadir/sun/target). I key cycles, L opens panel. Active above 80km.
+- **Engine Selection Panel**: P key opens categorized dropdown (ATMOSPHERIC/MICRO/LIGHT/MEDIUM/HEAVY). Presets: OMS 25kN, AJ10 100kN, RL10 500kN, RS25 5MN. Digit keys 1-9/0 quick-select.
+- **Smart Search**: F key opens search panel. Filter by name, regime, inclination range, SMA range, team. Gold highlight on matches. Bulk actions (set team, set color, toggle orbits/labels).
+- **Analytics Panel**: Chart.js graphs updated at ~1Hz. 6 templates: Overview, Regime Breakdown, Population Health, Team Balance, Fuel Status, Custom Variable.
+- **Sensor Footprints**: Ground projections for radar (sector), EO/IR (ellipse), SAR (rectangle), SIGINT (ring), LIDAR (spot). Auto-added when sensors present.
+- **Viz Controls**: Per-group show/hide by type, team, or category. Global toggles for orbits, trails, labels, sensors. Persisted in localStorage.
+- **Hohmann Planner**: Two-burn transfers with auto-execute. DV-based cutoff with orbital element targeting. Dynamic warp scaling.
+- **Sensor View**: V key cycles visual sensors. CSS filters for EO (B&W) and IR (FLIR). Camera follows pointing direction.
+- **Weather**: Wind presets applied after physics step. Configured in Environment Dialog.
+- **Globe Occlusion**: Entities behind the Earth are naturally hidden by depth testing.
+- **Dynamic Sim Epoch**: Uses system clock or user-specified start time. TLE mean anomaly propagated from TLE epoch to sim epoch.
 
 ### Export Modes
 - **Export Sim** — Writes scenario JSON to `scenarios/`, opens in the Scenario Viewer with live ECS physics
@@ -132,18 +152,22 @@ Fly from the runway to orbit and back. Full 3-DOF flight physics with smooth atm
 W/S or Up/Down    Throttle, pitch
 A/D or Left/Right Roll (bank)
 Q/E               Yaw (repoints nose in vacuum, does not change orbit)
-P                 Cycle propulsion: AIR → HYPERSONIC → ROCKET
+P                 Open/close engine selection panel (1-9/0 quick-select)
 Escape            Pause (cockpit + planner modes)
 E                 Engine on/off
 Space             Fire weapon
-W                 Cycle weapon
-V                 Cycle sensor
+R                 Cycle weapon
+V                 Cycle sensor (EO/IR with visual effects)
 T / Shift+T       Adjust pitch trim (+0.5° / -0.5°)
+I                 Cycle pointing mode (prograde/retrograde/normal/radial/nadir/sun/target)
+L                 Open pointing mode panel
+F                 Toggle smart search panel
+B                 Hold to brake (ground)
 M                 Toggle orbital planner mode
 N                 Create maneuver node
 Enter             Execute maneuver node
 +/-               Time warp (up to 1024x)
-C                 Cycle camera (chase with bank / cockpit / free)
+C                 Cycle camera (chase / cockpit / free / earth / moon)
 H                 Show all controls
 1/2/3             Toggle flight data / systems / orbital panels
 O                 Toggle orbital elements panel
@@ -226,7 +250,8 @@ src/
 ### JavaScript Sim Modules
 ```
 visualization/cesium/js/
-├── live_sim_engine.js       Hybrid cockpit+ECS engine (weapons, sensors, trim, camera)
+├── live_sim_engine.js       Hybrid cockpit+ECS engine (TLE catalog, observer, analytics,
+│                            search, pointing, engine panel, weather, viz, Hohmann)
 ├── fighter_sim_engine.js    3-DOF flight physics engine
 ├── fighter_atmosphere.js    US Standard Atmosphere + thermosphere
 ├── fighter_hud.js           Canvas HUD with pitch ladder & orbital markers
@@ -261,8 +286,10 @@ visualization/cesium/js/
 │   ├── weapons/sam_battery.js      SAM with F2T2EA kill chain
 │   ├── visual/cesium_entity.js     Point marker + trail rendering
 │   ├── visual/satellite_visual.js  Orbit path + ground track + Ap/Pe
-│   ├── visual/ground_station.js    Ground station icon + comm links
-│   └── visual/radar_coverage.js    Radar coverage fan visualization
+│   ├── visual/ground_station.js    Ground station icon + weapon range rings
+│   ├── visual/radar_coverage.js    Radar coverage fan visualization
+│   ├── visual/sensor_footprint.js  Sensor ground footprints (radar/EO/IR/SAR/SIGINT)
+│   └── physics/naval.js            Naval entity physics
 └── builder/
     ├── builder_app.js         Main app controller (BUILD/RUN/ANALYZE)
     ├── scenario_io.js         Save/load/export/validate + CZML model export
@@ -274,6 +301,7 @@ visualization/cesium/js/
     ├── timeline_panel.js      Canvas timeline with playhead + events
     ├── analysis_overlay.js    Post-run track/coverage/engagement overlays
     ├── platform_builder.js    Modular platform composer (5-tab dialog)
+    ├── environment_dialog.js  Scenario-level environment + sim start time config
     └── sensor_view_mode.js    Camera switching for optical sensor view
 ```
 
@@ -315,6 +343,20 @@ The end goal — all in one continuous simulation:
 - [x] **DOE Analysis**: Design of Experiments parameter sweeps for Orbital Arena role compositions
 - [x] **Analytic Tools**: Ballistic planner, TLE intercept, orbital maneuver, visibility, radar horizon, RF link budget
 - [x] **Solar System Fix**: Position scaling for WebGL float32 precision at outer planet distances
+- [x] **Orbital Mechanics**: Unified physics model, Hohmann planner, orbital element targeting, dynamic warp, DV-based burn cutoff
+- [x] **Observer Mode**: Observe-only camera, click-to-assume control, entity tracking, Scenario Builder export
+- [x] **TLE Catalog**: 14k satellite loading, mega-constellation grouping, regime colors, platform template matching
+- [x] **Auto-Pointing**: 9 pointing modes (prograde/retrograde/normal/radial/nadir/sun/target), sensor view camera
+- [x] **Engine Panel**: Categorized engine selection (OMS/AJ10/RL10/RS25), digit key quick-select
+- [x] **Viz Controls**: Per-group show/hide (type/team/category), global orbit/trail/label/sensor toggles
+- [x] **Smart Search**: Name/regime/inclination/SMA/team filters, gold highlight, bulk operations
+- [x] **Analytics Panel**: Chart.js graphs (regime pie, team bars, population/fuel time-series, custom variable)
+- [x] **Globe Occlusion**: Entities behind Earth naturally hidden by depth testing
+- [x] **TLE Epoch Fix**: Mean anomaly propagated from TLE epoch to sim epoch
+- [x] **Sim Start Time**: Dynamic epoch from environment dialog or system clock
+- [x] **Naval Physics**: Naval entity type with cruise speeds in ECS
+- [x] **Weather System**: Wind presets applied after physics step
+- [x] **Sensor Footprints**: Ground projections for radar/EO/IR/SAR/SIGINT/LIDAR
 - [ ] M8: Runway landing + ground taxi
 - [ ] M9: Full scenario integration
 
@@ -334,6 +376,6 @@ The end goal — all in one continuous simulation:
 - [CesiumJS](https://cesium.com/cesiumjs/) — 3D globe visualization
 
 ---
-*Last Updated*: 2026-02-06
+*Last Updated*: 2026-02-10
 *Team*: Human + Claude
-*Status*: DOE analysis, analytic tools, live cockpit combat, C++ MC engine, Chart.js dashboard
+*Status*: Live sim (TLE catalog, observer mode, analytics, smart search, auto-pointing, engine panel), MC engine, DOE analysis, analytic tools
