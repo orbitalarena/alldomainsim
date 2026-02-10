@@ -305,6 +305,9 @@ const LiveSimEngine = (function() {
             _panelVisible.flightData = false;
             _panelVisible.systems = false;
 
+            // Set keyboard help to observer mode
+            if (typeof KeyboardHelp !== 'undefined') KeyboardHelp.setMode('observer');
+
         } else {
             // COCKPIT MODE — normal player path
             // 2. Select player entity
@@ -378,6 +381,7 @@ const LiveSimEngine = (function() {
             }
         }
         if (typeof EWSystem !== 'undefined') EWSystem.init();
+        if (typeof Minimap !== 'undefined') Minimap.init(document.getElementById('minimapCanvas'));
 
         _started = true;
         _lastTickTime = null;
@@ -1796,6 +1800,11 @@ const LiveSimEngine = (function() {
 
         var modeEl = document.getElementById('modeIndicator');
         if (modeEl) modeEl.style.display = _plannerMode ? 'block' : 'none';
+
+        // Update keyboard help mode
+        if (typeof KeyboardHelp !== 'undefined') {
+            KeyboardHelp.setMode(_plannerMode ? 'planner' : (_observerMode ? 'observer' : 'flight'));
+        }
 
         if (_plannerMode) {
             _viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
@@ -3505,7 +3514,9 @@ const LiveSimEngine = (function() {
                         _togglePointingPanel();
                         break;
                     case 'Escape':
-                        if (_autoExecState) {
+                        if (typeof KeyboardHelp !== 'undefined' && KeyboardHelp.isVisible()) {
+                            KeyboardHelp.hide();
+                        } else if (_autoExecState) {
                             _cancelAutoExec();
                         } else {
                             _isPaused = !_isPaused;
@@ -3525,7 +3536,10 @@ const LiveSimEngine = (function() {
                         _showMessage('TIME WARP: ' + _timeWarp + 'x');
                         break;
                     case 'KeyF': _toggleSearchPanel(); break;
-                    case 'KeyH': _togglePanel('help'); break;
+                    case 'KeyH':
+                        if (typeof KeyboardHelp !== 'undefined') KeyboardHelp.toggle();
+                        else _togglePanel('help');
+                        break;
                     default: handled = false; break;
                 }
                 if (handled) { e.preventDefault(); e.stopPropagation(); }
@@ -3536,10 +3550,14 @@ const LiveSimEngine = (function() {
             if (_cameraMode === 'earth' || _cameraMode === 'moon') {
                 switch (e.code) {
                     case 'Escape':
-                        _isPaused = !_isPaused;
-                        _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
-                        _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
-                        if (!_isPaused) _lastTickTime = null;
+                        if (typeof KeyboardHelp !== 'undefined' && KeyboardHelp.isVisible()) {
+                            KeyboardHelp.hide();
+                        } else {
+                            _isPaused = !_isPaused;
+                            _setText('pauseStatus', _isPaused ? 'PAUSED' : 'RUNNING');
+                            _showMessage(_isPaused ? 'PAUSED' : 'RESUMED');
+                            if (!_isPaused) _lastTickTime = null;
+                        }
                         break;
                     case 'KeyC': _cycleCamera(); break;
                     case 'KeyF': _toggleSearchPanel(); break;
@@ -3547,7 +3565,10 @@ const LiveSimEngine = (function() {
                         _globeControlsEnabled = !_globeControlsEnabled;
                         _showMessage('Flight controls: ' + (_globeControlsEnabled ? 'ON' : 'OFF'));
                         break;
-                    case 'KeyH': _togglePanel('help'); break;
+                    case 'KeyH':
+                        if (typeof KeyboardHelp !== 'undefined') KeyboardHelp.toggle();
+                        else _togglePanel('help');
+                        break;
                     case 'Equal': case 'NumpadAdd':
                         _timeWarp = Math.min(_timeWarp * 2, _getMaxWarp());
                         _setText('timeWarpDisplay', _timeWarp + 'x');
@@ -3568,6 +3589,10 @@ const LiveSimEngine = (function() {
             // preventDefault to stop Cesium from consuming arrow keys etc.
             switch (e.code) {
                 case 'Escape':
+                    if (typeof KeyboardHelp !== 'undefined' && KeyboardHelp.isVisible()) {
+                        KeyboardHelp.hide();
+                        break;
+                    }
                     if (_enginePanelOpen) {
                         _enginePanelOpen = false;
                         var epanel = document.getElementById('enginePanel');
@@ -3643,7 +3668,10 @@ const LiveSimEngine = (function() {
                     break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
-                case 'KeyH': _togglePanel('help'); break;
+                case 'KeyH':
+                    if (typeof KeyboardHelp !== 'undefined') KeyboardHelp.toggle();
+                    else _togglePanel('help');
+                    break;
                 case 'Equal': case 'NumpadAdd':
                     _timeWarp = Math.min(_timeWarp * 2, _getMaxWarp());
                     _setText('timeWarpDisplay', _timeWarp + 'x');
@@ -3981,6 +4009,9 @@ const LiveSimEngine = (function() {
             // Subsystems
             if (typeof WeatherSystem !== 'undefined') WeatherSystem.update(totalDt, _simElapsed);
             if (typeof EWSystem !== 'undefined') EWSystem.update(totalDt, _simElapsed);
+
+            // Minimap (observer mode)
+            if (typeof Minimap !== 'undefined' && Minimap.isVisible()) Minimap.update(null, _world, _simElapsed);
             return;
         }
         if (!_playerState) return;
@@ -4222,6 +4253,16 @@ const LiveSimEngine = (function() {
                     });
                 });
                 _playerState._nearby = nearbyList;
+                // Fuel/propulsion metadata for HUD fuel gauge & delta-V display
+                _playerState._fuelCapacity = _playerConfig ? (_playerConfig.fuel_capacity || Infinity) : Infinity;
+                _playerState._dryMass = _playerConfig ? (_playerConfig.mass_empty || 8570) : 8570;
+                var _curPropEntry = _propModes[_propModeIndex];
+                _playerState._propName = _curPropEntry ? _curPropEntry.name : (_playerState.forcedPropMode || 'AIR');
+                // Current thrust level (for HUD display)
+                var _mode = _playerState.forcedPropMode || 'AIR';
+                if (_mode === 'ROCKET') _playerState._currentThrust = (_curPropEntry && _curPropEntry.thrust) || (_playerConfig && _playerConfig.thrust_rocket) || 5000000;
+                else if (_mode === 'HYPERSONIC') _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_hypersonic) || 800000;
+                else _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_ab) || (_playerConfig && _playerConfig.thrust_mil) || 130000;
                 FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
 
                 if (typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {

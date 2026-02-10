@@ -15,7 +15,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'F-16C Fighting Falcon',
             icon: '#4488ff',
-            description: '4th-gen multirole fighter, 3-DOF flight physics',
+            description: '4th gen multirole fighter. 120km radar, A2A missiles.',
+            tooltip: '4th gen multirole fighter. Air-breathing engine, 120km radar, AIM-9X/AIM-120C missiles. Good all-around platform for strike and air superiority.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -37,7 +38,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'F-15E Strike Eagle',
             icon: '#4488ff',
-            description: 'Twin-engine multirole fighter, heavy payload',
+            description: 'Twin-engine multirole fighter. 150km radar, heavy payload.',
+            tooltip: 'Twin-engine multirole fighter. 150km radar, 6x AIM-120C + 2x AIM-9X. Heavy payload capacity for deep strike missions.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -59,7 +61,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'F-22A Raptor',
             icon: '#6644ff',
-            description: '5th-gen stealth air superiority, supercruise',
+            description: '5th-gen stealth air superiority, supercruise.',
+            tooltip: '5th-gen stealth air superiority fighter. 200km AESA radar, supercruise capable. Highest detection probability (0.92) and longest-range missiles.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -81,7 +84,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'F-35A Lightning II',
             icon: '#5566ff',
-            description: '5th-gen stealth multirole, sensor fusion',
+            description: '5th-gen stealth multirole, sensor fusion.',
+            tooltip: '5th-gen stealth multirole with advanced sensor fusion. 170km radar, internal weapons bay. Balanced stealth and payload.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -103,7 +107,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'F/A-18E Super Hornet',
             icon: '#3388ff',
-            description: 'Carrier-based multirole fighter',
+            description: 'Carrier-based multirole fighter. 130km radar.',
+            tooltip: 'Carrier-based multirole fighter. 130km radar, AIM-9X/AIM-120C missiles. Versatile for carrier strike group operations.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -125,7 +130,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'A-10C Thunderbolt II',
             icon: '#448844',
-            description: 'Close air support, GAU-8 Avenger',
+            description: 'Close air support, GAU-8 30mm cannon.',
+            tooltip: 'Dedicated close air support aircraft. GAU-8 Avenger 30mm cannon. Low and slow -- vulnerable to SAMs but devastating against ground targets.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -209,6 +215,23 @@ var ObjectPalette = (function() {
         },
         {
             category: 'Aircraft',
+            name: 'C-17A Globemaster III',
+            icon: '#99bb99',
+            description: 'Strategic airlift, 4-engine jet, STOL capable',
+            type: 'aircraft',
+            team: 'blue',
+            defaults: {
+                alt: 8000, speed: 180, heading: 90, gamma: 0,
+                throttle: 0.55, engineOn: true, gearDown: false, infiniteFuel: true
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'c17' },
+                ai: { type: 'waypoint_patrol', waypoints: [], loopMode: 'cycle' },
+                visual: { type: 'point', color: '#99bb99', pixelSize: 14, trail: true }
+            }
+        },
+        {
+            category: 'Aircraft',
             name: 'MQ-9A Reaper',
             icon: '#44aacc',
             description: 'Armed MALE UAV, ISR/strike',
@@ -247,7 +270,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'X-37S Spaceplane',
             icon: '#00ccff',
-            description: 'Runway-to-orbit vehicle, multi-mode propulsion',
+            description: 'Runway-to-orbit, 3 propulsion modes (P key).',
+            tooltip: 'Reusable spaceplane capable of runway takeoff to orbital insertion. Three propulsion modes: Air (160kN), Hypersonic (800kN), Rocket (5MN). Press P to cycle modes.',
             type: 'aircraft',
             team: 'blue',
             defaults: {
@@ -264,7 +288,8 @@ var ObjectPalette = (function() {
             category: 'Aircraft',
             name: 'MiG-29 Fulcrum',
             icon: '#ff4444',
-            description: '4th-gen air superiority fighter, AI patrol',
+            description: 'Russian air superiority fighter. Red team default.',
+            tooltip: 'Russian air superiority fighter. Similar performance to F-16. 100km radar, R-73/R-77 missiles. Default red team fighter with AI patrol.',
             type: 'aircraft',
             team: 'red',
             defaults: {
@@ -405,7 +430,8 @@ var ObjectPalette = (function() {
             category: 'Spacecraft',
             name: 'LEO Satellite',
             icon: '#ffaa00',
-            description: 'Low Earth orbit satellite (400km circular)',
+            description: 'Low Earth Orbit, 400km, ~92 min period.',
+            tooltip: 'Low Earth Orbit satellite (400km altitude, 51.6 deg inclination). Fast orbital period (~92 min). Keplerian 2-body propagation with orbit path and ground track.',
             type: 'satellite',
             team: 'neutral',
             defaults: { alt: 400000, speed: 7670, heading: 45, gamma: 0 },
@@ -418,7 +444,8 @@ var ObjectPalette = (function() {
             category: 'Spacecraft',
             name: 'GPS Satellite',
             icon: '#ffcc00',
-            description: 'MEO GPS constellation satellite (20,200km)',
+            description: 'MEO navigation, 20,200km, ~12hr period.',
+            tooltip: 'Medium Earth Orbit navigation satellite (20,200km altitude, 55 deg inclination). ~12 hour orbital period. Use 6+ for GPS coverage analysis.',
             type: 'satellite',
             team: 'neutral',
             defaults: { alt: 20200000, speed: 3874, heading: 55, gamma: 0 },
@@ -431,7 +458,8 @@ var ObjectPalette = (function() {
             category: 'Spacecraft',
             name: 'GEO Comms Satellite',
             icon: '#ff8800',
-            description: 'Geostationary communications satellite (35,786km)',
+            description: 'GEO, 35,786km, appears stationary over equator.',
+            tooltip: 'Geostationary orbit (35,786km altitude, 0 deg inclination). Appears stationary over a point on the equator. ~24 hour period.',
             type: 'satellite',
             team: 'neutral',
             defaults: { alt: 35786000, speed: 3075, heading: 90, gamma: 0 },
@@ -523,7 +551,8 @@ var ObjectPalette = (function() {
             category: 'Ground',
             name: 'Ground Station',
             icon: '#00ff88',
-            description: 'TT&C facility with radar and sensor cone',
+            description: 'Fixed ground sensor, 150km 360-degree radar.',
+            tooltip: 'Fixed ground sensor platform with 150km 360-degree radar. Tracks and communicates with satellites and aircraft. TT&C facility.',
             type: 'ground',
             team: 'blue',
             defaults: { alt: 0, speed: 0 },
@@ -627,7 +656,8 @@ var ObjectPalette = (function() {
             category: 'Ground',
             name: 'SAM Battery',
             icon: '#ff2222',
-            description: 'SA-20 with radar, kill chain, missiles',
+            description: 'SA-20, 200km radar, F2T2EA kill chain.',
+            tooltip: 'Surface-to-air missile system with 200km radar and 150km engagement range. F2T2EA kill chain: Detect, Track, Target, Engage, Assess. Active SAM combat.',
             type: 'ground',
             team: 'red',
             defaults: { alt: 0, speed: 0 },
@@ -889,6 +919,13 @@ var ObjectPalette = (function() {
         item.setAttribute('data-template-index', idx);
         if (isCustom) {
             item.setAttribute('data-custom', 'true');
+        }
+
+        // Tooltip from template tooltip or description field
+        if (tpl.tooltip) {
+            item.title = tpl.tooltip;
+        } else if (tpl.description) {
+            item.title = tpl.description;
         }
 
         // Icon dot

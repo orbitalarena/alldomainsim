@@ -83,13 +83,21 @@ const PlatformBuilder = (function() {
         { id: 'f16', name: 'F-16 Fighting Falcon' },
         { id: 'f15', name: 'F-15 Strike Eagle' },
         { id: 'f22', name: 'F-22 Raptor' },
+        { id: 'f35', name: 'F-35A Lightning II' },
+        { id: 'f18', name: 'F/A-18E Super Hornet' },
+        { id: 'a10', name: 'A-10 Thunderbolt II' },
         { id: 'mig29', name: 'MiG-29 Fulcrum' },
         { id: 'su27', name: 'Su-27 Flanker' },
+        { id: 'su35', name: 'Su-35S Flanker-E' },
+        { id: 'su57', name: 'Su-57 Felon' },
         { id: 'spaceplane', name: 'X-37 Spaceplane' },
         { id: 'bomber', name: 'B-2 Spirit' },
+        { id: 'bomber_fast', name: 'B-1B / Tu-160 Class' },
         { id: 'awacs', name: 'E-3 AWACS' },
         { id: 'transport', name: 'C-130 Hercules' },
-        { id: 'drone_male', name: 'MQ-9 Reaper' }
+        { id: 'c17', name: 'C-17 Globemaster III' },
+        { id: 'drone_male', name: 'MQ-9 Reaper' },
+        { id: 'drone_hale', name: 'RQ-4 Global Hawk' }
     ];
 
     /**

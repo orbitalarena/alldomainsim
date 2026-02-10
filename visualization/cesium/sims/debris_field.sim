@@ -1,0 +1,469 @@
+{
+  "metadata": {
+    "name": "Orbital Debris Field Tracking",
+    "description": "Two operational crewed spacecraft (ISS and Tiangong) sharing LEO with 12 tracked debris objects from a breakup event. Debris scattered between 350-500km altitude across various inclinations. US Space Command at Colorado Springs and RAF Fylingdales provide ground-based space surveillance radar coverage.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 128
+  },
+  "entities": [
+    {
+      "id": "iss",
+      "name": "ISS",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6791000,
+          "ecc": 0.0003,
+          "inc": 51.6,
+          "raan": 45,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff44",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "ISS"
+        }
+      }
+    },
+    {
+      "id": "tiangong",
+      "name": "Tiangong",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6761000,
+          "ecc": 0.0004,
+          "inc": 41.5,
+          "raan": 190,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff44",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "TIANGONG"
+        }
+      }
+    },
+    {
+      "id": "debris_01",
+      "name": "DEB-00401",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6731000,
+          "ecc": 0.005,
+          "inc": 52.1,
+          "raan": 30,
+          "argPerigee": 45,
+          "meanAnomaly": 15
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00401"
+        }
+      }
+    },
+    {
+      "id": "debris_02",
+      "name": "DEB-00402",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6781000,
+          "ecc": 0.008,
+          "inc": 48.3,
+          "raan": 72,
+          "argPerigee": 120,
+          "meanAnomaly": 88
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00402"
+        }
+      }
+    },
+    {
+      "id": "debris_03",
+      "name": "DEB-00403",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6851000,
+          "ecc": 0.012,
+          "inc": 55.0,
+          "raan": 145,
+          "argPerigee": 200,
+          "meanAnomaly": 220
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00403"
+        }
+      }
+    },
+    {
+      "id": "debris_04",
+      "name": "DEB-00404",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6711000,
+          "ecc": 0.003,
+          "inc": 28.5,
+          "raan": 210,
+          "argPerigee": 90,
+          "meanAnomaly": 310
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00404"
+        }
+      }
+    },
+    {
+      "id": "debris_05",
+      "name": "DEB-00405",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6871000,
+          "ecc": 0.015,
+          "inc": 43.2,
+          "raan": 315,
+          "argPerigee": 270,
+          "meanAnomaly": 55
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00405"
+        }
+      }
+    },
+    {
+      "id": "debris_06",
+      "name": "DEB-00406",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6751000,
+          "ecc": 0.006,
+          "inc": 50.8,
+          "raan": 88,
+          "argPerigee": 160,
+          "meanAnomaly": 142
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00406"
+        }
+      }
+    },
+    {
+      "id": "debris_07",
+      "name": "DEB-00407",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6821000,
+          "ecc": 0.010,
+          "inc": 34.7,
+          "raan": 260,
+          "argPerigee": 30,
+          "meanAnomaly": 275
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00407"
+        }
+      }
+    },
+    {
+      "id": "debris_08",
+      "name": "DEB-00408",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6741000,
+          "ecc": 0.004,
+          "inc": 51.2,
+          "raan": 50,
+          "argPerigee": 310,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00408"
+        }
+      }
+    },
+    {
+      "id": "debris_09",
+      "name": "DEB-00409",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6891000,
+          "ecc": 0.018,
+          "inc": 47.6,
+          "raan": 170,
+          "argPerigee": 75,
+          "meanAnomaly": 33
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00409"
+        }
+      }
+    },
+    {
+      "id": "debris_10",
+      "name": "DEB-00410",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6771000,
+          "ecc": 0.007,
+          "inc": 39.1,
+          "raan": 128,
+          "argPerigee": 240,
+          "meanAnomaly": 99
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00410"
+        }
+      }
+    },
+    {
+      "id": "debris_11",
+      "name": "DEB-00411",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6801000,
+          "ecc": 0.009,
+          "inc": 53.4,
+          "raan": 5,
+          "argPerigee": 185,
+          "meanAnomaly": 260
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00411"
+        }
+      }
+    },
+    {
+      "id": "debris_12",
+      "name": "DEB-00412",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6841000,
+          "ecc": 0.011,
+          "inc": 45.9,
+          "raan": 295,
+          "argPerigee": 350,
+          "meanAnomaly": 195
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "DEB-00412"
+        }
+      }
+    },
+    {
+      "id": "gs_spacecom",
+      "name": "US Space Command",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 38.83,
+        "lon": -104.82,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "US SPACECOM",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "gs_fylingdales",
+      "name": "RAF Fylingdales",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 54.36,
+        "lon": -0.67,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.93
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "FYLINGDALES",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 20000000
+  }
+}

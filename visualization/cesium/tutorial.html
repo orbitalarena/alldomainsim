@@ -1,0 +1,1401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tutorial - All-Domain Simulation</title>
+    <style>
+        /* ------------------------------------------------------------------ */
+        /*  Reset & base                                                       */
+        /* ------------------------------------------------------------------ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 15px;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0e17;
+            color: #c8cdd5;
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Sidebar navigation                                                 */
+        /* ------------------------------------------------------------------ */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 260px;
+            height: 100vh;
+            background: #0d1220;
+            border-right: 1px solid #1e2a42;
+            overflow-y: auto;
+            z-index: 100;
+            padding: 24px 0;
+            scrollbar-width: thin;
+            scrollbar-color: #1e2a42 transparent;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid #1e2a42;
+            margin-bottom: 12px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #e8ecf2;
+            letter-spacing: -0.3px;
+        }
+
+        .sidebar-header h2 span {
+            color: #4a9eff;
+        }
+
+        .sidebar-header .sub {
+            font-size: 11px;
+            color: #5a6a80;
+            margin-top: 4px;
+        }
+
+        .sidebar-back {
+            display: block;
+            padding: 6px 20px;
+            font-size: 12px;
+            color: #4a9eff;
+            text-decoration: none;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-back:hover { color: #6db8ff; }
+
+        .nav-section {
+            padding: 6px 20px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #5a6a80;
+            margin-top: 12px;
+        }
+
+        .sidebar a.nav-link {
+            display: block;
+            padding: 6px 20px 6px 28px;
+            font-size: 13px;
+            color: #8a96a6;
+            text-decoration: none;
+            border-left: 2px solid transparent;
+            transition: all 0.15s ease;
+        }
+
+        .sidebar a.nav-link:hover {
+            color: #c8cdd5;
+            background: rgba(74, 158, 255, 0.05);
+            border-left-color: #2a3f5f;
+        }
+
+        .sidebar a.nav-link.active {
+            color: #4a9eff;
+            border-left-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.08);
+        }
+
+        /* Mobile hamburger */
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 200;
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            color: #c8cdd5;
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            line-height: 38px;
+            text-align: center;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Main content                                                       */
+        /* ------------------------------------------------------------------ */
+        .content {
+            margin-left: 260px;
+            max-width: 900px;
+            padding: 40px 48px 100px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Header                                                             */
+        /* ------------------------------------------------------------------ */
+        .page-header {
+            margin-bottom: 48px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #1e2a42;
+        }
+
+        .page-header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #e8ecf2;
+            letter-spacing: -0.5px;
+        }
+
+        .page-header h1 span { color: #4a9eff; }
+
+        .page-header .subtitle {
+            font-size: 15px;
+            color: #6b7a90;
+            margin-top: 8px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Sections                                                           */
+        /* ------------------------------------------------------------------ */
+        section {
+            margin-bottom: 56px;
+            scroll-margin-top: 24px;
+        }
+
+        h2.section-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #e8ecf2;
+            margin-bottom: 8px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #1e2a42;
+            letter-spacing: -0.3px;
+        }
+
+        h2.section-title .num {
+            color: #4a9eff;
+            margin-right: 8px;
+            font-weight: 400;
+            font-size: 18px;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #dce1e8;
+            margin: 24px 0 8px;
+        }
+
+        h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #b0b8c4;
+            margin: 18px 0 6px;
+        }
+
+        p {
+            margin-bottom: 12px;
+        }
+
+        a {
+            color: #4a9eff;
+            text-decoration: none;
+        }
+
+        a:hover { text-decoration: underline; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Separator (gradient line between sections)                         */
+        /* ------------------------------------------------------------------ */
+        .sep {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #1e2a42 30%, #2a3f5f 50%, #1e2a42 70%, transparent);
+            margin: 48px 0;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Lists                                                              */
+        /* ------------------------------------------------------------------ */
+        ul, ol {
+            margin: 8px 0 16px 24px;
+        }
+
+        li { margin-bottom: 4px; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Keyboard keys                                                      */
+        /* ------------------------------------------------------------------ */
+        kbd {
+            display: inline-block;
+            padding: 2px 7px;
+            font-family: 'Consolas', 'SF Mono', 'Courier New', monospace;
+            font-size: 12px;
+            color: #dce1e8;
+            background: #1a2235;
+            border: 1px solid #2a3f5f;
+            border-bottom-width: 2px;
+            border-radius: 4px;
+            line-height: 1.4;
+            white-space: nowrap;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Inline code                                                        */
+        /* ------------------------------------------------------------------ */
+        code {
+            font-family: 'Consolas', 'SF Mono', 'Courier New', monospace;
+            font-size: 13px;
+            background: #1a2235;
+            color: #8aafdb;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Code blocks                                                        */
+        /* ------------------------------------------------------------------ */
+        pre {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 16px 20px;
+            overflow-x: auto;
+            margin: 12px 0 18px;
+            line-height: 1.6;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            font-size: 13px;
+            color: #c8cdd5;
+        }
+
+        /* Syntax highlight classes */
+        .kw { color: #c792ea; }          /* keyword */
+        .str { color: #c3e88d; }         /* string */
+        .cmt { color: #546e7a; }         /* comment */
+        .num { color: #f78c6c; }         /* number */
+        .fn  { color: #82aaff; }         /* function */
+        .flag { color: #ffcb6b; }        /* flag / parameter */
+
+        /* ------------------------------------------------------------------ */
+        /*  Tables                                                             */
+        /* ------------------------------------------------------------------ */
+        .table-wrap {
+            overflow-x: auto;
+            margin: 12px 0 18px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            background: #111827;
+            color: #8a96a6;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-bottom: 2px solid #1e2a42;
+        }
+
+        td {
+            padding: 8px 14px;
+            border-bottom: 1px solid #151d2e;
+            vertical-align: top;
+        }
+
+        tr:hover td { background: rgba(74, 158, 255, 0.03); }
+
+        /* ------------------------------------------------------------------ */
+        /*  Step list                                                          */
+        /* ------------------------------------------------------------------ */
+        .steps {
+            counter-reset: step-counter;
+            list-style: none;
+            margin-left: 0;
+            padding-left: 0;
+        }
+
+        .steps li {
+            counter-increment: step-counter;
+            position: relative;
+            padding-left: 44px;
+            margin-bottom: 20px;
+        }
+
+        .steps li::before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 2px;
+            width: 28px;
+            height: 28px;
+            background: #111827;
+            border: 1px solid #2a3f5f;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 26px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a9eff;
+        }
+
+        .steps li strong { color: #dce1e8; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Callout / tip boxes                                                */
+        /* ------------------------------------------------------------------ */
+        .callout {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-left: 3px solid #4a9eff;
+            border-radius: 6px;
+            padding: 14px 18px;
+            margin: 16px 0;
+            font-size: 13px;
+        }
+
+        .callout.tip     { border-left-color: #2ecc71; }
+        .callout.warning { border-left-color: #f39c12; }
+
+        .callout-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 4px;
+        }
+
+        .callout-label.info    { color: #4a9eff; }
+        .callout-label.tip     { color: #2ecc71; }
+        .callout-label.warning { color: #f39c12; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Diagram / architecture box                                         */
+        /* ------------------------------------------------------------------ */
+        .diagram {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin: 16px 0 20px;
+            font-family: 'Consolas', 'SF Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #8a96a6;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        .diagram .hl { color: #4a9eff; }
+        .diagram .gr { color: #2ecc71; }
+        .diagram .yl { color: #ffcb6b; }
+        .diagram .cy { color: #89ddff; }
+
+        /* ------------------------------------------------------------------ */
+        /*  Orbital element descriptions                                       */
+        /* ------------------------------------------------------------------ */
+        .coe-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 12px 0 18px;
+        }
+
+        .coe-item {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            padding: 12px 16px;
+        }
+
+        .coe-item .label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #4a9eff;
+            margin-bottom: 4px;
+        }
+
+        .coe-item .desc {
+            font-size: 13px;
+            color: #8a96a6;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Tabs inside the Platform Builder section                           */
+        /* ------------------------------------------------------------------ */
+        .tab-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
+            margin: 12px 0 18px;
+        }
+
+        .tab-card {
+            background: #111827;
+            border: 1px solid #1e2a42;
+            border-radius: 6px;
+            padding: 14px 16px;
+        }
+
+        .tab-card .tab-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #dce1e8;
+            margin-bottom: 6px;
+        }
+
+        .tab-card .tab-desc {
+            font-size: 12px;
+            color: #6b7a90;
+            line-height: 1.5;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /*  Responsive                                                         */
+        /* ------------------------------------------------------------------ */
+        @media (max-width: 860px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                width: 280px;
+            }
+
+            .sidebar.open { transform: translateX(0); }
+
+            .menu-toggle { display: block; }
+
+            .content {
+                margin-left: 0;
+                padding: 60px 20px 80px;
+            }
+
+            .coe-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Mobile menu toggle -->
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle navigation">&#9776;</button>
+
+<!-- ===================================================================== -->
+<!--  Sidebar                                                               -->
+<!-- ===================================================================== -->
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h2>All-Domain <span>Sim</span></h2>
+        <div class="sub">Getting Started Tutorial</div>
+    </div>
+    <a class="sidebar-back" href="index.html">&larr; Back to Hub</a>
+
+    <div class="nav-section">Basics</div>
+    <a class="nav-link" href="#overview">Welcome / Overview</a>
+    <a class="nav-link" href="#quickstart">Quick Start</a>
+    <a class="nav-link" href="#controls">Flight Controls</a>
+
+    <div class="nav-section">Core Features</div>
+    <a class="nav-link" href="#satellites">Working with Satellites</a>
+    <a class="nav-link" href="#livesim">Live Sim Features</a>
+    <a class="nav-link" href="#orbital">Orbital Mechanics</a>
+
+    <div class="nav-section">Advanced</div>
+    <a class="nav-link" href="#platforms">Custom Platforms</a>
+    <a class="nav-link" href="#spaceplane">Spaceplane: Runway to Orbit</a>
+    <a class="nav-link" href="#mcengine">C++ MC Engine</a>
+
+    <div class="nav-section">Reference</div>
+    <a class="nav-link" href="#tips">Tips &amp; Tricks</a>
+</nav>
+
+<!-- ===================================================================== -->
+<!--  Content                                                               -->
+<!-- ===================================================================== -->
+<div class="content">
+
+    <!-- ================================================================= -->
+    <!--  Header                                                            -->
+    <!-- ================================================================= -->
+    <div class="page-header">
+        <h1>Getting Started <span>Tutorial</span></h1>
+        <p class="subtitle">A step-by-step guide to the All-Domain Simulation environment</p>
+    </div>
+
+    <!-- ================================================================= -->
+    <!--  1. Welcome / Overview                                             -->
+    <!-- ================================================================= -->
+    <section id="overview">
+        <h2 class="section-title"><span class="num">01</span> Welcome / Overview</h2>
+
+        <p>
+            All-Domain Sim is an integrated Earth-Air-Space simulation that covers everything from
+            ground operations and atmospheric flight to full orbital mechanics and interplanetary
+            trajectories. Think KSP meets STK meets AFSIM, rendered in Cesium 3D right in your
+            browser. You can build multi-domain scenarios with aircraft, satellites, SAM batteries,
+            and ground stations, then simulate them with realistic physics, sensor models, and
+            weapons engagement logic.
+        </p>
+        <p>
+            The simulation runs entirely in the browser for interactive use &mdash; no compilation
+            required. For high-fidelity Monte Carlo analysis, an optional C++ backend runs
+            headless batch simulations at native speed and feeds results back to the browser for
+            visualization.
+        </p>
+
+        <h3>Architecture</h3>
+
+        <div class="diagram"><span class="hl">Scenario Builder</span> (drag-and-drop editor)
+    |
+    +--&gt; <span class="gr">Export Sim</span>  --&gt; Live Sim Viewer (cockpit + ECS physics)
+    +--&gt; <span class="gr">Export Model</span> --&gt; Model Viewer   (CZML rapid playback)
+    +--&gt; <span class="gr">C++ Replay</span>  --&gt; Replay Viewer   (headless MC output)
+
+<span class="yl">Standalone Sims</span> (no builder needed):
+    Spaceplane  |  Fighter (F-16)  |  GEO Rendezvous
+
+<span class="cy">Analytic Tools</span> (standalone HTML):
+    Ballistic Planner | Intercept Planner | Maneuver Planner
+    Visibility Planner | Radar Horizon | Link Budget</div>
+
+        <h3>Getting Running</h3>
+        <p>No build step is needed for the interactive sims. Just start the HTTP server:</p>
+        <pre><code><span class="kw">cd</span> visualization/cesium
+<span class="fn">python3</span> serve.py <span class="num">8000</span></code></pre>
+        <p>
+            Then open <a href="http://localhost:8000/">http://localhost:8000/</a> in any modern
+            browser with WebGL support. The hub page links to every simulation, tool, and viewer.
+        </p>
+
+        <div class="callout tip">
+            <div class="callout-label tip">Tip</div>
+            Use <code>serve.py</code> instead of <code>python3 -m http.server</code> &mdash;
+            it adds the <code>POST /api/export</code> endpoint needed by the Scenario Builder
+            and proxies Monte Carlo requests to the Node.js backend.
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  2. Quick Start                                                    -->
+    <!-- ================================================================= -->
+    <section id="quickstart">
+        <h2 class="section-title"><span class="num">02</span> Quick Start: Your First Scenario</h2>
+
+        <p>
+            This walkthrough takes you from a blank globe to a running multi-domain simulation
+            in under two minutes.
+        </p>
+
+        <ol class="steps">
+            <li>
+                <strong>Open the Scenario Builder</strong><br>
+                Navigate to
+                <a href="scenario_builder.html">scenario_builder.html</a>.
+                You will see a Cesium globe on the left and an object palette on the right.
+                The mode indicator in the top-left reads <code>BUILD</code>.
+            </li>
+            <li>
+                <strong>Place an aircraft</strong><br>
+                In the palette on the right, click <strong>F-16</strong> under the Aircraft
+                category. Your cursor changes to a crosshair. Click anywhere on the globe to
+                place the entity. A blue dot appears with the label "F-16".
+            </li>
+            <li>
+                <strong>Add more entities</strong><br>
+                Place a <strong>SAM Battery</strong> (under Ground) about 200 km from your F-16.
+                Add a <strong>Ground Station</strong> nearby. Place a second aircraft &mdash;
+                maybe a <strong>MiG-29</strong> on the red team &mdash; near the SAM.
+            </li>
+            <li>
+                <strong>Configure properties</strong><br>
+                Click on any entity to select it. The Property Inspector panel on the right
+                shows editable fields: team color, altitude, speed, heading, waypoints, sensor
+                ranges, and weapon loadouts.
+            </li>
+            <li>
+                <strong>Run the simulation</strong><br>
+                Click the <strong>RUN</strong> button in the top toolbar (or press the run
+                hotkey). The mode switches to <code>RUN</code> and entities begin moving
+                according to their physics models and AI behaviors. The timeline at the bottom
+                shows elapsed sim time.
+            </li>
+            <li>
+                <strong>Export to Live Sim</strong><br>
+                Click <strong>Export Sim</strong> in the toolbar. The scenario is saved and the
+                Live Sim Viewer opens in a new tab. You can now fly any aircraft in the
+                scenario with full cockpit controls, HUD, weapons, and sensors.
+            </li>
+        </ol>
+
+        <div class="callout">
+            <div class="callout-label info">Scenario Templates</div>
+            Instead of starting from scratch, use the <strong>Templates</strong> dropdown in
+            the Scenario Builder toolbar. Pre-built scenarios include: Multi-Domain, IADS
+            Engagement, GPS Coverage, Contested Orbit, Strike Package, and Orbital Arena
+            (three sizes: Small, 100, and Large with 1700 entities).
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  3. Flight Controls                                                -->
+    <!-- ================================================================= -->
+    <section id="controls">
+        <h2 class="section-title"><span class="num">03</span> Flight Controls</h2>
+
+        <p>
+            These keybindings apply to the <strong>Live Sim Viewer</strong>,
+            <strong>Spaceplane Sim</strong>, and <strong>Fighter Sim</strong>. Some keys are
+            context-dependent (e.g., planner mode vs. flight mode).
+        </p>
+
+        <h3>Flight</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>W</kbd> / <kbd>Up</kbd></td><td>Increase throttle</td></tr>
+                    <tr><td><kbd>S</kbd> / <kbd>Down</kbd></td><td>Decrease throttle</td></tr>
+                    <tr><td><kbd>A</kbd> / <kbd>Left</kbd></td><td>Roll left (bank)</td></tr>
+                    <tr><td><kbd>D</kbd> / <kbd>Right</kbd></td><td>Roll right (bank)</td></tr>
+                    <tr><td><kbd>Q</kbd></td><td>Yaw left (nose rotation &mdash; cosmetic in vacuum)</td></tr>
+                    <tr><td><kbd>E</kbd></td><td>Yaw right / Engine on-off toggle (context)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Engine &amp; Systems</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>P</kbd></td><td>Open engine selection panel (digit keys to quick-select)</td></tr>
+                    <tr><td><kbd>E</kbd></td><td>Engine on / off</td></tr>
+                    <tr><td><kbd>G</kbd></td><td>Gear up / down</td></tr>
+                    <tr><td><kbd>F</kbd></td><td>Flaps up / down (in flight) / Smart Search (in observer)</td></tr>
+                    <tr><td><kbd>X</kbd></td><td>Speed brake</td></tr>
+                    <tr><td><kbd>B</kbd></td><td>Wheel brakes (hold)</td></tr>
+                    <tr><td><kbd>A</kbd></td><td>Autopilot toggle</td></tr>
+                    <tr><td><kbd>T</kbd></td><td>Auto-trim (hold)</td></tr>
+                    <tr><td><kbd>Shift</kbd>+<kbd>T</kbd></td><td>Manual trim down (-0.5 deg)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>Manual trim up (+0.5 deg)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Weapons &amp; Sensors</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>Space</kbd></td><td>Fire / activate selected weapon</td></tr>
+                    <tr><td><kbd>R</kbd></td><td>Cycle weapon</td></tr>
+                    <tr><td><kbd>V</kbd></td><td>Cycle sensor</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Camera</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>C</kbd></td><td>Cycle camera: Chase &rarr; Cockpit &rarr; Free &rarr; Earth &rarr; Moon</td></tr>
+                    <tr><td><kbd>H</kbd></td><td>Toggle help panel</td></tr>
+                    <tr><td><kbd>1</kbd></td><td>Toggle flight data panel</td></tr>
+                    <tr><td><kbd>2</kbd></td><td>Toggle systems panel</td></tr>
+                    <tr><td><kbd>3</kbd></td><td>Toggle entity list panel</td></tr>
+                    <tr><td><kbd>O</kbd></td><td>Toggle orbital elements panel</td></tr>
+                    <tr><td><kbd>Tab</kbd></td><td>Hide / show all panels</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Orbital &amp; Planner</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Key</th><th>Action</th></tr></thead>
+                <tbody>
+                    <tr><td><kbd>I</kbd></td><td>Cycle auto-pointing mode (prograde, retrograde, normal, radial, nadir, sun, target)</td></tr>
+                    <tr><td><kbd>L</kbd></td><td>Toggle pointing panel</td></tr>
+                    <tr><td><kbd>M</kbd></td><td>Toggle planner mode (maneuver nodes)</td></tr>
+                    <tr><td><kbd>N</kbd></td><td>Create maneuver node</td></tr>
+                    <tr><td><kbd>Enter</kbd></td><td>Execute maneuver node</td></tr>
+                    <tr><td><kbd>Delete</kbd></td><td>Delete selected maneuver node</td></tr>
+                    <tr><td><kbd>+</kbd> / <kbd>=</kbd></td><td>Increase time warp (up to 1024x)</td></tr>
+                    <tr><td><kbd>-</kbd></td><td>Decrease time warp (down to 0.25x)</td></tr>
+                    <tr><td><kbd>Escape</kbd></td><td>Pause / Resume (also closes open panels)</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  4. Working with Satellites                                        -->
+    <!-- ================================================================= -->
+    <section id="satellites">
+        <h2 class="section-title"><span class="num">04</span> Working with Satellites</h2>
+
+        <h3>Placing Satellites</h3>
+        <p>
+            When you select a satellite type (LEO, GPS, or GEO) from the Object Palette and
+            click the globe, a <strong>Classical Orbital Elements (COE) dialog</strong> appears.
+            Your click position seeds the initial values: longitude sets RAAN, latitude magnitude
+            sets inclination.
+        </p>
+
+        <h3>Understanding Orbital Elements</h3>
+        <p>
+            Six numbers fully define an orbit. The COE dialog lets you set each one:
+        </p>
+
+        <div class="coe-grid">
+            <div class="coe-item">
+                <div class="label">SMA &mdash; Semi-Major Axis</div>
+                <div class="desc">
+                    Size of the orbit in km. LEO: ~6,771 km (400 km alt), GPS: ~26,571 km,
+                    GEO: ~42,164 km.
+                </div>
+            </div>
+            <div class="coe-item">
+                <div class="label">Eccentricity (e)</div>
+                <div class="desc">
+                    Shape: 0 = circle, 0&ndash;1 = ellipse. GTO is ~0.73. Higher values mean
+                    more elongated orbits.
+                </div>
+            </div>
+            <div class="coe-item">
+                <div class="label">Inclination (i)</div>
+                <div class="desc">
+                    Tilt of the orbital plane relative to the equator, in degrees. ISS = 51.6 deg,
+                    Sun-synch = ~98 deg, GEO = ~0 deg.
+                </div>
+            </div>
+            <div class="coe-item">
+                <div class="label">RAAN (&Omega;)</div>
+                <div class="desc">
+                    Right Ascension of the Ascending Node. Rotates the orbital plane around
+                    Earth's axis. 0&ndash;360 degrees.
+                </div>
+            </div>
+            <div class="coe-item">
+                <div class="label">Arg of Perigee (&omega;)</div>
+                <div class="desc">
+                    Rotates the ellipse within the orbital plane. Defines where the closest
+                    approach (perigee) occurs.
+                </div>
+            </div>
+            <div class="coe-item">
+                <div class="label">Mean Anomaly (M)</div>
+                <div class="desc">
+                    Where the satellite is along the orbit at epoch. 0 deg = perigee,
+                    180 deg = apogee (for circular orbits, position along the circle).
+                </div>
+            </div>
+        </div>
+
+        <p>
+            The dialog computes <strong>periapsis altitude</strong>, <strong>apoapsis altitude</strong>,
+            and <strong>orbital period</strong> in real time as you adjust the elements.
+        </p>
+
+        <h3>Loading the TLE Catalog</h3>
+        <p>
+            The <a href="all_sats_viewer.html">All Satellites viewer</a> loads over 14,000 real
+            tracked objects from Two-Line Element sets. You can also paste individual TLEs into
+            the Platform Builder's Physics tab to create entities from real satellite data.
+        </p>
+
+        <h3>Orbit Visualization</h3>
+        <ul>
+            <li><strong>Orbit path</strong> &mdash; 360-point Kepler-propagated ellipse</li>
+            <li><strong>Ground track</strong> &mdash; sub-satellite point trace on the globe surface</li>
+            <li><strong>Ap/Pe markers</strong> &mdash; apoapsis and periapsis labeled on the orbit path</li>
+            <li><strong>Regime indicator</strong> &mdash; color-coded: green = ATMOSPHERIC, yellow = SUBORBITAL, cyan = ORBIT, red = ESCAPE</li>
+        </ul>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  5. Live Sim Features                                              -->
+    <!-- ================================================================= -->
+    <section id="livesim">
+        <h2 class="section-title"><span class="num">05</span> Live Sim Features</h2>
+
+        <p>
+            The Live Sim Viewer is the full-featured cockpit experience. It combines standalone
+            flight sim physics for the player entity with the ECS system pipeline running AI,
+            sensors, and weapons for all other entities.
+        </p>
+
+        <h3>Observer Mode</h3>
+        <p>
+            Add <code>?player=__observer__</code> to the URL to enter observer mode. You get a
+            free-flying camera with no player entity. All entities run on their AI behaviors.
+            Useful for watching scenarios play out without interfering.
+        </p>
+
+        <h3>Click-to-Assume</h3>
+        <p>
+            Click any entity on the globe to see its info popup. In observer mode, click
+            <strong>Assume Control</strong> to take over that entity. You inherit its position,
+            velocity, and flight state. The entity's AI is disabled and you fly it manually.
+        </p>
+
+        <h3>Smart Search</h3>
+        <p>
+            Press <kbd>F</kbd> (in observer or globe/earth camera mode) to open the search panel.
+            Type to filter entities by name, type, orbital regime, or inclination. Click a result
+            to track that entity. Search uses fuzzy matching across all entity metadata.
+        </p>
+
+        <h3>Analytics Panel</h3>
+        <p>
+            The analytics system records simulation data over time and presents it as Chart.js
+            graphs. Data includes entity counts, survival rates, engagement timelines, and
+            weapon usage. The analytics panel opens from the toolbar.
+        </p>
+
+        <h3>Auto-Pointing</h3>
+        <p>
+            Press <kbd>I</kbd> to cycle through auto-pointing modes. The spacecraft automatically
+            orients to point in the selected direction:
+        </p>
+        <ul>
+            <li><strong>Prograde</strong> &mdash; along the velocity vector (for orbital burns)</li>
+            <li><strong>Retrograde</strong> &mdash; opposite the velocity vector (for braking)</li>
+            <li><strong>Normal / Anti-normal</strong> &mdash; perpendicular to the orbital plane (for plane changes)</li>
+            <li><strong>Radial In / Out</strong> &mdash; toward/away from Earth center</li>
+            <li><strong>Nadir</strong> &mdash; straight down toward Earth surface</li>
+            <li><strong>Sun</strong> &mdash; toward the Sun (for solar panel alignment)</li>
+            <li><strong>Target</strong> &mdash; toward the tracked target entity</li>
+        </ul>
+
+        <h3>Engine Selection</h3>
+        <p>
+            Press <kbd>P</kbd> to open the engine panel. A scrollable list shows all available
+            engines sorted from smallest (ION 0.5N) to largest (MERLIN 845kN, RAPTOR 2.2MN, etc.).
+            Use digit keys <kbd>1</kbd>&ndash;<kbd>9</kbd> for quick selection, or click an engine
+            in the list. The currently selected engine determines thrust level for the
+            <kbd>W</kbd>/<kbd>S</kbd> throttle controls.
+        </p>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  6. Orbital Mechanics Guide                                        -->
+    <!-- ================================================================= -->
+    <section id="orbital">
+        <h2 class="section-title"><span class="num">06</span> Orbital Mechanics Guide</h2>
+
+        <h3>Hohmann Transfers (Raise / Lower Orbit)</h3>
+        <p>
+            The most fuel-efficient way to move between two circular orbits. It requires two burns:
+        </p>
+        <ol>
+            <li>
+                <strong>First burn</strong> at your current altitude: point
+                <strong>prograde</strong> (green marker on the HUD) and fire your engine.
+                This raises the opposite side of your orbit (apoapsis).
+            </li>
+            <li>
+                <strong>Coast</strong> to the new apoapsis (use <kbd>+</kbd> to time warp).
+            </li>
+            <li>
+                <strong>Second burn</strong> at apoapsis: point prograde again and burn to
+                circularize. Watch the eccentricity approach 0 on the orbital elements panel.
+            </li>
+        </ol>
+        <p>
+            To lower your orbit, point <strong>retrograde</strong> (red marker) and burn. This
+            lowers the opposite side.
+        </p>
+
+        <h3>Plane Changes</h3>
+        <p>
+            To change inclination, burn toward <strong>Normal</strong> (purple marker) or
+            <strong>Anti-Normal</strong>. Plane changes are expensive in delta-V &mdash; do them
+            at the highest altitude possible where your velocity is lowest.
+        </p>
+
+        <h3>Maneuver Nodes</h3>
+        <ol>
+            <li>Press <kbd>M</kbd> to enter planner mode</li>
+            <li>Press <kbd>N</kbd> to create a maneuver node at your current position</li>
+            <li>Adjust the node's prograde/normal/radial components in the planner HUD</li>
+            <li>Press <kbd>Enter</kbd> to execute the burn</li>
+            <li>Press <kbd>Delete</kbd> to remove a node</li>
+        </ol>
+        <p>
+            Use time warp (<kbd>+</kbd>/<kbd>-</kbd>) to fast-forward through coast phases.
+            Time warp automatically drops to 1x when a burn begins.
+        </p>
+
+        <h3>Understanding the HUD Orbital Markers</h3>
+        <p>
+            Above 30 km altitude, KSP-style markers appear on the pitch ladder:
+        </p>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Marker</th><th>Color</th><th>Meaning</th></tr></thead>
+                <tbody>
+                    <tr><td>Prograde</td><td style="color:#44ff44">Green</td><td>Direction of travel. Burn here to raise opposite side of orbit.</td></tr>
+                    <tr><td>Retrograde</td><td style="color:#ff4444">Red</td><td>Opposite of travel. Burn here to lower opposite side.</td></tr>
+                    <tr><td>Normal</td><td style="color:#cc66ff">Purple</td><td>Perpendicular to orbital plane (north). Burn for plane change.</td></tr>
+                    <tr><td>Anti-Normal</td><td style="color:#cc66ff">Purple</td><td>Opposite of normal (south).</td></tr>
+                    <tr><td>Radial Out</td><td style="color:#66ffff">Cyan</td><td>Away from Earth center. Rotates the orbit in-plane.</td></tr>
+                    <tr><td>Radial In</td><td style="color:#66ffff">Cyan</td><td>Toward Earth center.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>
+            A compact <strong>navball</strong> appears at the bottom center of the screen above
+            30 km. It shows the horizon line, prograde/retrograde markers, and normal/radial
+            indicators relative to the spacecraft's current orientation.
+        </p>
+
+        <div class="callout tip">
+            <div class="callout-label tip">Tip</div>
+            The <a href="maneuver_planner.html">Orbital Maneuver Planner</a> tool computes
+            exact delta-V requirements for Hohmann, bi-elliptic, and plane change transfers
+            between any two orbits, including fuel mass estimates via Tsiolkovsky's equation.
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  7. Building Custom Platforms                                       -->
+    <!-- ================================================================= -->
+    <section id="platforms">
+        <h2 class="section-title"><span class="num">07</span> Building Custom Platforms</h2>
+
+        <p>
+            The Platform Builder is a 5-tab dialog for composing entities with any combination
+            of physics, propulsion, sensors, payloads, and weapons. Open it from the
+            <strong>+ Platform</strong> button in the Scenario Builder toolbar.
+        </p>
+
+        <h3>The Five Tabs</h3>
+
+        <div class="tab-grid">
+            <div class="tab-card">
+                <div class="tab-name">Physics</div>
+                <div class="tab-desc">TLE paste, Classical Orbital Elements (COE), or Atmospheric flight with 10 aircraft configs.</div>
+            </div>
+            <div class="tab-card">
+                <div class="tab-name">Propulsion</div>
+                <div class="tab-desc">Air-breathing, Hypersonic, Rocket, Ion/Electric, RCS thrusters. P key cycles at runtime.</div>
+            </div>
+            <div class="tab-card">
+                <div class="tab-name">Sensors</div>
+                <div class="tab-desc">Radar, EO, IR, SAR, SIGINT, LIDAR with configurable range, FOV, scan rate.</div>
+            </div>
+            <div class="tab-card">
+                <div class="tab-name">Payload</div>
+                <div class="tab-desc">A2A/A2G missiles, KKV, Jammer, Decoys, Cargo deployer, Nuclear warhead.</div>
+            </div>
+            <div class="tab-card">
+                <div class="tab-name">Environment</div>
+                <div class="tab-desc">Gravity model, atmosphere, magnetic field, ionosphere, radiation belts.</div>
+            </div>
+        </div>
+
+        <h3>Example: Building a Reconnaissance Satellite</h3>
+        <ol class="steps">
+            <li>
+                <strong>Physics tab</strong>: Select <em>COE</em> mode. Set SMA to 6,871 km
+                (500 km altitude), eccentricity 0.001 (near-circular), inclination 97.4 deg
+                (sun-synchronous).
+            </li>
+            <li>
+                <strong>Propulsion tab</strong>: Enable <em>Ion/Electric</em> for station-keeping
+                and <em>RCS Thrusters</em> for attitude control.
+            </li>
+            <li>
+                <strong>Sensors tab</strong>: Add <em>Electro-Optical</em> with 0.5 deg FOV and
+                0.3m GSD. Add <em>SAR</em> with 1m resolution and 30 km swath.
+            </li>
+            <li>
+                <strong>Payload tab</strong>: None needed for a recon platform (or add
+                <em>Cargo deployer</em> to release cubesats).
+            </li>
+            <li>
+                Click <strong>Create</strong>. The platform appears in the Custom section of
+                the Object Palette and is saved to localStorage for future sessions.
+            </li>
+        </ol>
+
+        <h3>Example: Building a Strike Aircraft</h3>
+        <ol class="steps">
+            <li>
+                <strong>Physics tab</strong>: Select <em>Atmospheric</em> mode, choose F-15 config.
+            </li>
+            <li>
+                <strong>Propulsion tab</strong>: <em>Air-Breathing</em> is enabled by default.
+            </li>
+            <li>
+                <strong>Sensors tab</strong>: Add <em>Search Radar</em> with 200 km range and
+                120 deg FOV.
+            </li>
+            <li>
+                <strong>Payload tab</strong>: Select <em>A2A Missiles</em> (AIM-120 loadout),
+                <em>A2G Ordnance</em>, and <em>Jammer/ECM</em>.
+            </li>
+            <li>
+                Click <strong>Create</strong>. Place it on the globe, assign waypoints, and run.
+            </li>
+        </ol>
+
+        <div class="callout">
+            <div class="callout-label info">Runtime Controls</div>
+            Custom platforms respond to runtime keybindings:
+            <kbd>P</kbd> cycles propulsion modes,
+            <kbd>V</kbd> cycles sensors,
+            <kbd>R</kbd> cycles weapons,
+            <kbd>Space</kbd> fires the selected weapon.
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  8. Spaceplane: Runway to Orbit                                    -->
+    <!-- ================================================================= -->
+    <section id="spaceplane">
+        <h2 class="section-title"><span class="num">08</span> Spaceplane: Runway to Orbit</h2>
+
+        <p>
+            The <a href="spaceplane_viewer.html">Spaceplane Sim</a> lets you fly a vehicle from
+            a runway through the atmosphere and into stable orbit. It uses 3-DOF physics with
+            three propulsion modes, full orbital mechanics, and a HUD that transitions smoothly
+            from atmospheric flight instruments to orbital markers.
+        </p>
+
+        <h3>Start Modes</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Mode</th><th>Altitude</th><th>Speed</th><th>Use Case</th></tr></thead>
+                <tbody>
+                    <tr><td>Runway</td><td>0 m (Edwards AFB)</td><td>0 m/s</td><td>Full ascent profile</td></tr>
+                    <tr><td>Airborne</td><td>5,000 m</td><td>200 m/s</td><td>Skip takeoff</td></tr>
+                    <tr><td>Suborbital</td><td>80,000 m</td><td>Mach 10</td><td>Practice orbit insertion</td></tr>
+                    <tr><td>Orbital</td><td>400,000 m</td><td>7,700 m/s</td><td>Already in orbit</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Ascent Profile</h3>
+        <ol class="steps">
+            <li>
+                <strong>Takeoff</strong>: Full throttle on the runway with <kbd>W</kbd>.
+                Rotate at ~80 m/s. Retract gear (<kbd>G</kbd>) after positive climb.
+            </li>
+            <li>
+                <strong>Accelerate to Mach 1</strong>: Climb gently (10-15 deg pitch).
+                Use AIR propulsion mode (default 160 kN turbofan).
+            </li>
+            <li>
+                <strong>Switch to HYPERSONIC</strong>: Press <kbd>P</kbd> to open the engine
+                panel, select HYPERSONIC (800 kN scramjet, effective Mach 2-10). Pitch up to
+                20-30 deg and accelerate through the upper atmosphere.
+            </li>
+            <li>
+                <strong>Switch to ROCKET</strong>: Above 40 km where air is too thin for
+                scramjet, switch to ROCKET (5 MN). Push toward orbital velocity (~7,700 m/s
+                at 200 km altitude).
+            </li>
+            <li>
+                <strong>Orbit insertion</strong>: When the orbital elements panel shows
+                periapsis above ~100 km, you are in a stable orbit. Cut engine and coast.
+                Circularize at apoapsis by burning prograde until eccentricity approaches 0.
+            </li>
+        </ol>
+
+        <h3>Propulsion Modes</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Mode</th><th>Thrust</th><th>Best Use</th></tr></thead>
+                <tbody>
+                    <tr><td>AIR (Turbofan)</td><td>160 kN</td><td>Sea level to ~Mach 2, density-lapse model</td></tr>
+                    <tr><td>HYPERSONIC (Scramjet)</td><td>800 kN</td><td>Mach 2&ndash;10, mid-atmosphere acceleration</td></tr>
+                    <tr><td>ROCKET</td><td>5 MN</td><td>Upper atmosphere and vacuum, orbit insertion</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Vacuum Flight</h3>
+        <p>
+            In vacuum (above ~80 km), aerodynamic controls have no effect. Instead:
+        </p>
+        <ul>
+            <li><strong>Roll</strong> (<kbd>A</kbd>/<kbd>D</kbd>): Free 360-degree rotation</li>
+            <li><strong>Pitch</strong> (<kbd>Up</kbd>/<kbd>Down</kbd>): Rotates nose up/down relative to velocity vector (alpha)</li>
+            <li><strong>Yaw</strong> (<kbd>Q</kbd>/<kbd>E</kbd>): Rotates <code>yawOffset</code> (cosmetic nose direction, does NOT change trajectory)</li>
+            <li><strong>Thrust</strong>: Decomposes along nose direction &mdash; prograde component changes speed, normal component changes flight path angle, lateral component changes heading</li>
+        </ul>
+
+        <div class="callout warning">
+            <div class="callout-label warning">Important</div>
+            In vacuum, yaw (<kbd>Q</kbd>/<kbd>E</kbd>) only rotates where the nose points, not
+            the velocity vector. To change your orbital plane, use roll + pitch to orient the
+            thrust vector, then burn. The HUD shows your nose heading
+            (<code>heading + yawOffset</code>), not the velocity direction.
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  9. C++ MC Engine                                                  -->
+    <!-- ================================================================= -->
+    <section id="mcengine">
+        <h2 class="section-title"><span class="num">09</span> C++ MC Engine (Advanced)</h2>
+
+        <p>
+            The headless Monte Carlo engine runs simulations at native speed without any browser
+            overhead. It processes scenario JSON files and outputs results or replay data.
+        </p>
+
+        <h3>Building the Engine</h3>
+        <pre><code><span class="kw">cd</span> build
+<span class="fn">cmake</span> ..
+<span class="fn">ninja</span> mc_engine</code></pre>
+        <p>Requires CMake 3.20+ and a C++17 compiler.</p>
+
+        <h3>Running Batch Monte Carlo</h3>
+        <pre><code><span class="fn">./bin/mc_engine</span> \
+    <span class="flag">--scenario</span> <span class="str">../visualization/cesium/scenarios/demo_iads_engagement.json</span> \
+    <span class="flag">--runs</span> <span class="num">100</span> \
+    <span class="flag">--seed</span> <span class="num">42</span> \
+    <span class="flag">--max-time</span> <span class="num">600</span> \
+    <span class="flag">--output</span> <span class="str">results.json</span> \
+    <span class="flag">--verbose</span></code></pre>
+        <p>
+            Runs 100 independent simulations with different random seeds, outputs aggregated
+            statistics: survival rates, engagement counts, per-run breakdowns.
+        </p>
+
+        <h3>Generating Replay Data</h3>
+        <pre><code><span class="fn">./bin/mc_engine</span> \
+    <span class="flag">--replay</span> \
+    <span class="flag">--scenario</span> <span class="str">../visualization/cesium/scenarios/demo_iads_engagement.json</span> \
+    <span class="flag">--seed</span> <span class="num">42</span> \
+    <span class="flag">--max-time</span> <span class="num">600</span> \
+    <span class="flag">--sample-interval</span> <span class="num">2</span> \
+    <span class="flag">--output</span> <span class="str">../visualization/cesium/replay_iads.json</span> \
+    <span class="flag">--verbose</span></code></pre>
+        <p>
+            Single deterministic run, sampling ECEF positions every 2 seconds. Output loads
+            directly into the <a href="replay_viewer.html">Replay Viewer</a>.
+        </p>
+
+        <h3>DOE Parameter Sweeps</h3>
+        <p>
+            The Design of Experiments (DOE) system in the Scenario Builder lets you define
+            parameter ranges (min/max/step) for each role in an Orbital Arena scenario. The
+            system generates a Cartesian product of all role compositions and runs each through
+            the C++ engine.
+        </p>
+        <p>
+            Results include a sortable data table, heat map, Pearson correlation sensitivity
+            chart, and CSV/JSON export. This requires the Node.js MC bridge server:
+        </p>
+        <pre><code><span class="fn">node</span> mc_server.js   <span class="cmt"># Port 8001, spawns C++ engine for each job</span></code></pre>
+
+        <h3>Node.js MC Bridge</h3>
+        <p>
+            The <code>mc_server.js</code> bridge server manages a job queue for async C++ engine
+            execution. Start it alongside the Python server:
+        </p>
+        <pre><code><span class="kw">cd</span> visualization/cesium
+<span class="fn">python3</span> serve.py <span class="num">8000</span> &amp;      <span class="cmt"># Main server</span>
+<span class="fn">node</span> mc_server.js &amp;           <span class="cmt"># MC bridge (port 8001)</span></code></pre>
+        <p>
+            The Python server proxies <code>/api/mc/*</code> requests to the Node.js backend.
+            The Scenario Builder polls for job progress and displays real-time progress bars.
+        </p>
+
+        <h3>Performance</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Scenario</th><th>Mode</th><th>Time</th></tr></thead>
+                <tbody>
+                    <tr><td>IADS (10 entities, 448s sim)</td><td>Replay</td><td>7.8 ms</td></tr>
+                    <tr><td>Strike (8 entities, 600s sim)</td><td>Replay</td><td>7.5 ms</td></tr>
+                    <tr><td>Orbital Arena Small (10 entities, 600s)</td><td>Replay</td><td>13.8 ms</td></tr>
+                    <tr><td>Orbital Arena Large (1700 entities, 600s)</td><td>Replay</td><td>5.3 s</td></tr>
+                    <tr><td>IADS (10 entities, 300s x 10 runs)</td><td>Batch MC</td><td>34.8 ms</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <div class="sep"></div>
+
+    <!-- ================================================================= -->
+    <!--  10. Tips & Tricks                                                 -->
+    <!-- ================================================================= -->
+    <section id="tips">
+        <h2 class="section-title"><span class="num">10</span> Tips &amp; Tricks</h2>
+
+        <h3>Performance</h3>
+        <ul>
+            <li>
+                <strong>Large catalogs</strong>: When viewing 14,000+ satellites, orbit paths
+                are the main bottleneck. Toggle orbit visualization off to maintain framerate.
+            </li>
+            <li>
+                <strong>Time warp</strong>: The physics engine sub-steps up to 500 iterations
+                of 0.05s each per frame for stability during high time warp. If you exceed
+                1024x, the sim may lose fidelity.
+            </li>
+            <li>
+                <strong>Replay viewer</strong>: Uses <code>Float64Array</code> per entity for
+                zero-allocation interpolation and <code>PointPrimitiveCollection</code> for
+                single-draw-call rendering. Should handle 1700+ entities smoothly.
+            </li>
+        </ul>
+
+        <h3>Offline Mode</h3>
+        <p>
+            Run <code>./setup_offline.sh</code> once to download Cesium and Chart.js locally
+            (~70 MB). Then add <code>?offline=true</code> to any viewer URL. Offline mode uses
+            NaturalEarthII imagery (~10 km/pixel) with no terrain elevation.
+        </p>
+
+        <h3>Common Issues</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Issue</th><th>Solution</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Scenario Builder won't export</td>
+                        <td>Make sure you are using <code>serve.py</code>, not <code>python3 -m http.server</code>. The export endpoint requires the custom server.</td>
+                    </tr>
+                    <tr>
+                        <td>MC runs say "not running"</td>
+                        <td>Start the Node.js bridge: <code>node mc_server.js</code>. Check the hub page status indicator.</td>
+                    </tr>
+                    <tr>
+                        <td>Orbit path disappears at high eccentricity</td>
+                        <td>Near-parabolic orbits (e &gt; 0.99) are guarded to prevent buffer overflows. This is intentional &mdash; the ESCAPE regime clears the display.</td>
+                    </tr>
+                    <tr>
+                        <td>SMA oscillating in orbit</td>
+                        <td>This was a known bug (fixed). If you see it, hard-refresh with <kbd>Ctrl</kbd>+<kbd>F5</kbd> to clear cached JS.</td>
+                    </tr>
+                    <tr>
+                        <td>Entities not moving in Live Sim</td>
+                        <td>Check that the sim is not paused (<kbd>Escape</kbd> toggles pause). The status bar shows PAUSED/RUNNING.</td>
+                    </tr>
+                    <tr>
+                        <td>Black screen / WebGL error</td>
+                        <td>Your browser may not support WebGL or hardware acceleration is disabled. Check browser console for Cesium errors.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Keyboard Shortcuts Cheat Sheet</h3>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Category</th><th>Keys</th></tr></thead>
+                <tbody>
+                    <tr><td>Throttle</td><td><kbd>W</kbd>/<kbd>S</kbd> or <kbd>Up</kbd>/<kbd>Down</kbd></td></tr>
+                    <tr><td>Roll</td><td><kbd>A</kbd>/<kbd>D</kbd> or <kbd>Left</kbd>/<kbd>Right</kbd></td></tr>
+                    <tr><td>Yaw</td><td><kbd>Q</kbd>/<kbd>E</kbd></td></tr>
+                    <tr><td>Fire weapon</td><td><kbd>Space</kbd></td></tr>
+                    <tr><td>Cycle weapon</td><td><kbd>R</kbd></td></tr>
+                    <tr><td>Cycle sensor</td><td><kbd>V</kbd></td></tr>
+                    <tr><td>Engine panel</td><td><kbd>P</kbd></td></tr>
+                    <tr><td>Auto-pointing</td><td><kbd>I</kbd></td></tr>
+                    <tr><td>Camera</td><td><kbd>C</kbd></td></tr>
+                    <tr><td>Planner mode</td><td><kbd>M</kbd></td></tr>
+                    <tr><td>Maneuver node</td><td><kbd>N</kbd> create, <kbd>Enter</kbd> execute, <kbd>Delete</kbd> remove</td></tr>
+                    <tr><td>Time warp</td><td><kbd>+</kbd> faster, <kbd>-</kbd> slower</td></tr>
+                    <tr><td>Pause</td><td><kbd>Escape</kbd></td></tr>
+                    <tr><td>Search</td><td><kbd>F</kbd></td></tr>
+                    <tr><td>Help</td><td><kbd>H</kbd></td></tr>
+                    <tr><td>Panels</td><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>O</kbd> <kbd>Tab</kbd></td></tr>
+                    <tr><td>Gear / Flaps</td><td><kbd>G</kbd> / <kbd>F</kbd></td></tr>
+                    <tr><td>Speed brake</td><td><kbd>X</kbd></td></tr>
+                    <tr><td>Brakes</td><td><kbd>B</kbd> (hold)</td></tr>
+                    <tr><td>Trim</td><td><kbd>T</kbd> auto, <kbd>Shift+T</kbd> down, <kbd>Ctrl+T</kbd> up</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>Further Resources</h3>
+        <ul>
+            <li><a href="index.html">Hub Page</a> &mdash; links to every simulation, tool, and viewer</li>
+            <li><a href="maneuver_planner.html">Maneuver Planner</a> &mdash; compute delta-V for orbital transfers</li>
+            <li><a href="visibility_planner.html">Visibility Planner</a> &mdash; satellite pass prediction from ground sites</li>
+            <li><a href="intercept_planner.html">Intercept Planner</a> &mdash; TLE-based launch window analysis</li>
+            <li><a href="ballistic_planner.html">Ballistic Planner</a> &mdash; ballistic trajectory computation</li>
+            <li><a href="radar_horizon.html">Radar Horizon Calculator</a> &mdash; line-of-sight with atmospheric refraction</li>
+            <li><a href="link_budget.html">Link Budget Analyzer</a> &mdash; RF link margin computation</li>
+        </ul>
+    </section>
+
+</div><!-- .content -->
+
+<!-- Close sidebar on mobile when clicking a nav link -->
+<script>
+    document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (window.innerWidth <= 860) {
+                document.querySelector('.sidebar').classList.remove('open');
+            }
+        });
+    });
+
+    // Highlight active nav link on scroll
+    var sections = document.querySelectorAll('section[id]');
+    var navLinks = document.querySelectorAll('.sidebar .nav-link');
+
+    function updateActiveLink() {
+        var scrollY = window.scrollY + 60;
+        var current = '';
+        for (var i = 0; i < sections.length; i++) {
+            if (sections[i].offsetTop <= scrollY) {
+                current = sections[i].getAttribute('id');
+            }
+        }
+        for (var j = 0; j < navLinks.length; j++) {
+            navLinks[j].classList.remove('active');
+            if (navLinks[j].getAttribute('href') === '#' + current) {
+                navLinks[j].classList.add('active');
+            }
+        }
+    }
+
+    window.addEventListener('scroll', updateActiveLink);
+    updateActiveLink();
+</script>
+
+</body>
+</html>

@@ -1161,11 +1161,13 @@ const BuilderApp = (function() {
         });
         _wireNumericField('inspAlt', function(val) {
             if (_selectedEntityId) updateEntityDef(_selectedEntityId, { initialState: { alt: val } });
+            _validateInspectorFields();
         });
 
         // State
         _wireNumericField('inspSpeed', function(val) {
             if (_selectedEntityId) updateEntityDef(_selectedEntityId, { initialState: { speed: val } });
+            _validateInspectorFields();
         });
         _wireNumericField('inspHeading', function(val) {
             if (_selectedEntityId) updateEntityDef(_selectedEntityId, { initialState: { heading: val } });
@@ -1203,6 +1205,82 @@ const BuilderApp = (function() {
             var val = parseFloat(el.value);
             if (!isNaN(val)) onChange(val);
         });
+    }
+
+    // -------------------------------------------------------------------
+    // Entity Validation Warnings
+    // -------------------------------------------------------------------
+
+    /**
+     * Show or hide a validation warning below an inspector field.
+     * @param {string} warningId - DOM id of the warning div
+     * @param {string|null} message - Warning text, or null to hide
+     */
+    function _setValidationWarning(warningId, message) {
+        var el = document.getElementById(warningId);
+        if (!el) return;
+        if (message) {
+            el.textContent = message;
+            el.classList.add('visible');
+        } else {
+            el.textContent = '';
+            el.classList.remove('visible');
+        }
+    }
+
+    /**
+     * Run validation checks on the currently selected entity and show/hide warnings.
+     * Warnings are advisory only -- they do not block edits.
+     */
+    function _validateInspectorFields() {
+        if (!_selectedEntityId) {
+            _setValidationWarning('inspAltWarning', null);
+            _setValidationWarning('inspSpeedWarning', null);
+            return;
+        }
+
+        var def = _findEntityDef(_selectedEntityId);
+        if (!def) return;
+
+        var init = def.initialState || {};
+        var entityType = def.type || '';
+
+        // --- Altitude validation ---
+        var altVal = init.alt !== undefined ? init.alt : 0;
+        var altWarning = null;
+
+        if (entityType === 'aircraft' && altVal > 30000) {
+            altWarning = 'Warning: ' + Math.round(altVal/1000) + 'km is above typical aircraft ceiling (~30km). Consider using Spaceplane for high altitudes.';
+        } else if (entityType === 'satellite') {
+            // Check if using COE (sma-based) or state-based altitude
+            var comps = def.components || {};
+            var phys = comps.physics || {};
+            if (phys.sma) {
+                var smaKm = phys.sma / 1000;
+                if (smaKm < 6500) {
+                    altWarning = 'Warning: SMA ' + smaKm.toFixed(0) + 'km is below Earth surface (6371km). Satellite will crash.';
+                }
+                if (phys.eccentricity > 0.99) {
+                    altWarning = 'Warning: Eccentricity ' + phys.eccentricity.toFixed(4) + ' is near escape velocity. Orbit prediction may be unstable.';
+                }
+            } else if (altVal < 150000) {
+                altWarning = 'Warning: ' + Math.round(altVal/1000) + 'km is very low orbit. Atmospheric drag will decay orbit rapidly below ~200km.';
+            }
+        } else if (entityType === 'ground' && altVal > 5000) {
+            altWarning = 'Warning: ' + altVal + 'm is very high for a ground entity. Most terrain is below 5000m.';
+        }
+        _setValidationWarning('inspAltWarning', altWarning);
+
+        // --- Speed validation ---
+        var speedVal = init.speed !== undefined ? init.speed : 0;
+        var speedWarning = null;
+
+        if (speedVal < 0) {
+            speedWarning = 'Warning: Speed is negative. Speed should be 0 or positive.';
+        } else if (entityType === 'aircraft' && speedVal > 1000) {
+            speedWarning = 'Warning: ' + speedVal + ' m/s (' + (speedVal * 3.6).toFixed(0) + ' km/h) exceeds most aircraft limits. Use Spaceplane for hypersonic flight.';
+        }
+        _setValidationWarning('inspSpeedWarning', speedWarning);
     }
 
     /**
@@ -1774,6 +1852,9 @@ const BuilderApp = (function() {
 
         // Component summary
         _renderComponentSummary(def);
+
+        // Run validation warnings
+        _validateInspectorFields();
     }
 
     function _setFieldValue(id, value) {

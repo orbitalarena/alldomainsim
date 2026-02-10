@@ -1,0 +1,260 @@
+{
+  "metadata": {
+    "name": "Mixed Domain Showcase",
+    "description": "Multi-domain scenario combining space, air, and ground assets. Blue force: 2 GEO surveillance satellites, 2 F-16 patrol fighters, and a ground radar station. Red force: 1 SA-20 SAM battery defending an airfield, and 2 LEO reconnaissance satellites. Demonstrates cross-domain interaction between orbital overwatch, air patrol, and ground-based air defense.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "geo_watch_1",
+      "name": "SENTINEL 1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 250
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "SENTINEL 1"
+        }
+      }
+    },
+    {
+      "id": "geo_watch_2",
+      "name": "SENTINEL 2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 290
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "SENTINEL 2"
+        }
+      }
+    },
+    {
+      "id": "eagle_1",
+      "name": "EAGLE 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.5,
+        "lon": -118.0,
+        "alt": 8000,
+        "speed": 240,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.65,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.5, "lon": -117.0, "alt": 8000, "speed": 250 },
+          { "lat": 36.0, "lon": -116.5, "alt": 8500, "speed": 260 },
+          { "lat": 36.0, "lon": -117.5, "alt": 8000, "speed": 250 },
+          { "lat": 35.5, "lon": -118.0, "alt": 8000, "speed": 240 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 4, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "EAGLE 1" }
+      }
+    },
+    {
+      "id": "eagle_2",
+      "name": "EAGLE 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.3,
+        "lon": -117.8,
+        "alt": 7500,
+        "speed": 230,
+        "heading": 80,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.3, "lon": -117.0, "alt": 7500, "speed": 240 },
+          { "lat": 35.8, "lon": -116.3, "alt": 8000, "speed": 250 },
+          { "lat": 35.8, "lon": -117.3, "alt": 7500, "speed": 240 },
+          { "lat": 35.3, "lon": -117.8, "alt": 7500, "speed": 230 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 4, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "EAGLE 2" }
+      }
+    },
+    {
+      "id": "gnd_radar",
+      "name": "Beale AFB Radar",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.13,
+        "lon": -121.44,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "BEALE",
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(0,255,136,0.04)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "sam_alpha",
+      "name": "SA-20 ALPHA",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.8,
+        "lon": -116.0,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 150000,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2222",
+          "label": "SAM ALPHA",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,50,50,0.06)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "red_recon_1",
+      "name": "KOSMOS 2571",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6771000,
+          "ecc": 0.002,
+          "inc": 82,
+          "raan": 45,
+          "argPerigee": 0,
+          "meanAnomaly": 100
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "KOSMOS 2571"
+        }
+      }
+    },
+    {
+      "id": "red_recon_2",
+      "name": "KOSMOS 2583",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6821000,
+          "ecc": 0.003,
+          "inc": 97.5,
+          "raan": 135,
+          "argPerigee": 0,
+          "meanAnomaly": 220
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "KOSMOS 2583"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 5000000
+  }
+}

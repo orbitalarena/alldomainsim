@@ -9,101 +9,225 @@
 
         body {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #0a0e17;
+            background: #060a10;
             color: #c8cdd5;
             min-height: 100vh;
         }
 
+        /* ---- Header ---- */
         header {
-            background: linear-gradient(135deg, #0d1320 0%, #141c2e 100%);
-            border-bottom: 1px solid #1e2a42;
-            padding: 32px 40px;
+            background: linear-gradient(135deg, #0a0f1a 0%, #101828 50%, #0d1420 100%);
+            border-bottom: 1px solid #1a2540;
+            padding: 28px 40px 22px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(0, 200, 120, 0.04) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 30%, rgba(60, 140, 255, 0.04) 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+
+        .header-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
         }
 
         header h1 {
-            font-size: 28px;
-            font-weight: 600;
+            font-size: 26px;
+            font-weight: 700;
             color: #e8ecf2;
             letter-spacing: -0.5px;
         }
 
-        header h1 span {
-            color: #4a9eff;
-        }
+        header h1 .accent { color: #00d68f; }
+        header h1 .accent2 { color: #4a9eff; }
 
-        header p {
-            margin-top: 6px;
-            font-size: 14px;
-            color: #6b7a90;
+        header .subtitle {
+            margin-top: 4px;
+            font-size: 13px;
+            color: #5a6a80;
+            letter-spacing: 0.3px;
         }
 
         .status-bar {
             display: flex;
-            gap: 20px;
+            gap: 16px;
             margin-top: 14px;
-            font-size: 12px;
+            font-size: 11px;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .status-item {
             display: flex;
             align-items: center;
-            gap: 6px;
-            color: #5a6a80;
+            gap: 5px;
+            color: #4a5a70;
         }
 
         .status-dot {
-            width: 7px;
-            height: 7px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             background: #2ecc71;
-            box-shadow: 0 0 6px rgba(46, 204, 113, 0.4);
+            box-shadow: 0 0 6px rgba(46, 204, 113, 0.5);
         }
 
         .status-dot.amber { background: #f39c12; box-shadow: 0 0 6px rgba(243, 156, 18, 0.4); }
+        .status-dot.off   { background: #555; box-shadow: none; }
 
-        main {
-            max-width: 1400px;
+        .status-sep {
+            width: 1px;
+            height: 12px;
+            background: #1a2540;
+        }
+
+        /* ---- Quick Start Banner ---- */
+        .quick-start {
+            background: linear-gradient(90deg, rgba(0, 214, 143, 0.06) 0%, rgba(74, 158, 255, 0.06) 100%);
+            border-top: 1px solid rgba(0, 214, 143, 0.1);
+            border-bottom: 1px solid #111a2a;
+            padding: 12px 40px;
+        }
+
+        .quick-start-inner {
+            max-width: 1500px;
             margin: 0 auto;
-            padding: 32px 40px 60px;
-        }
-
-        .category {
-            margin-bottom: 36px;
-        }
-
-        .category-header {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 16px;
+            gap: 24px;
+            flex-wrap: wrap;
+            font-size: 12px;
         }
 
-        .category-header h2 {
-            font-size: 15px;
+        .qs-label {
+            color: #00d68f;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .qs-step {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #6b7a90;
+        }
+
+        .qs-step code {
+            background: #111827;
+            border: 1px solid #1a2540;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #8aafdb;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+        }
+
+        .qs-step .arrow {
+            color: #2a3a55;
+            font-size: 16px;
+        }
+
+        /* ---- Main Layout ---- */
+        main {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 28px 40px 80px;
+        }
+
+        /* ---- Section Headers ---- */
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .section-icon {
+            font-size: 18px;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background: rgba(74, 158, 255, 0.08);
+            flex-shrink: 0;
+        }
+
+        .section-icon.green  { background: rgba(0, 214, 143, 0.08); }
+        .section-icon.purple { background: rgba(155, 89, 182, 0.08); }
+        .section-icon.amber  { background: rgba(255, 176, 0, 0.08); }
+        .section-icon.cyan   { background: rgba(0, 200, 255, 0.08); }
+        .section-icon.red    { background: rgba(255, 80, 80, 0.08); }
+
+        .section-title {
+            font-size: 14px;
             font-weight: 600;
             color: #8a96a6;
             text-transform: uppercase;
-            letter-spacing: 1.2px;
+            letter-spacing: 1.5px;
         }
 
-        .category-line {
+        .section-count {
+            font-size: 11px;
+            color: #3a4a60;
+            margin-left: 4px;
+        }
+
+        .section-line {
             flex: 1;
             height: 1px;
-            background: #1a2235;
+            background: linear-gradient(90deg, #1a2540, transparent);
         }
 
+        /* ---- Card Grid ---- */
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 16px;
+            gap: 14px;
         }
 
+        .grid-featured {
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        }
+
+        .grid-standard {
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        }
+
+        .grid-compact {
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        }
+
+        /* ---- Cards ---- */
         .card {
-            background: #111827;
-            border: 1px solid #1e2a42;
-            border-radius: 10px;
-            padding: 22px 24px;
+            background: #0d1220;
+            border: 1px solid #16203a;
+            border-radius: 8px;
+            padding: 20px 22px;
             cursor: pointer;
             transition: all 0.2s ease;
             text-decoration: none;
@@ -114,921 +238,1232 @@
         }
 
         .card:hover {
-            border-color: #2a3f5f;
-            background: #151d2e;
+            border-color: #2a4060;
+            background: #111a2e;
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
         }
 
-        .card-top {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-
-        .card-icon {
-            font-size: 28px;
-            line-height: 1;
-            filter: grayscale(0.2);
-        }
-
-        .card-badge {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            padding: 3px 8px;
-            border-radius: 4px;
-            background: rgba(74, 158, 255, 0.12);
-            color: #4a9eff;
-        }
-
-        .card-badge.interactive {
-            background: rgba(46, 204, 113, 0.12);
-            color: #2ecc71;
-        }
-
-        .card-badge.analysis {
-            background: rgba(155, 89, 182, 0.12);
-            color: #b57edc;
-        }
-
-        .card-badge.engine {
-            background: rgba(255, 136, 0, 0.12);
-            color: #ff8800;
-        }
-
-        .card-badge.replay {
-            background: rgba(255, 215, 0, 0.12);
-            color: #ffd700;
-        }
-
-        .card h3 {
-            font-size: 16px;
-            font-weight: 600;
-            color: #dce1e8;
-            margin-bottom: 6px;
-        }
-
-        .card p {
-            font-size: 13px;
-            color: #6b7a90;
-            line-height: 1.5;
-            flex: 1;
-        }
-
-        .card-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid #1a2235;
-        }
-
-        .card-tags {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .tag {
-            font-size: 10px;
-            padding: 2px 7px;
-            border-radius: 3px;
-            background: #1a2235;
-            color: #5a6a80;
-        }
-
-        .launch-arrow {
+        .card::after {
+            content: '\2192';
+            position: absolute;
+            bottom: 16px;
+            right: 18px;
             font-size: 14px;
-            color: #3a5070;
+            color: #253050;
             transition: all 0.2s ease;
         }
 
-        .card:hover .launch-arrow {
+        .card:hover::after {
             color: #4a9eff;
             transform: translateX(3px);
         }
 
-        .featured .card {
-            border-color: #1e3a5f;
-            background: linear-gradient(135deg, #111827 0%, #131f33 100%);
+        /* Featured cards */
+        .card-featured {
+            border-color: #1a2e50;
+            background: linear-gradient(135deg, #0d1220 0%, #0f1830 100%);
         }
 
-        .featured .card:hover {
-            border-color: #2a5080;
+        .card-featured:hover {
+            border-color: #2a4a70;
+            box-shadow: 0 8px 32px rgba(0, 50, 100, 0.25);
         }
 
-        /* Build instructions */
-        .build-info {
-            background: #111827;
-            border: 1px solid #1e2a42;
+        .card-hero {
+            border-color: #1a3a2e;
+            background: linear-gradient(135deg, #0d1220 0%, #0d1a28 50%, #0d1820 100%);
+            grid-column: span 1;
+        }
+
+        .card-hero:hover {
+            border-color: #1a5a3e;
+            box-shadow: 0 8px 32px rgba(0, 80, 60, 0.2);
+        }
+
+        /* Card content */
+        .card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .card-icon {
+            font-size: 24px;
+            line-height: 1;
+        }
+
+        .card-badge {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .badge-builder    { background: rgba(0, 214, 143, 0.12); color: #00d68f; }
+        .badge-interactive { background: rgba(46, 204, 113, 0.12); color: #2ecc71; }
+        .badge-cockpit    { background: rgba(255, 176, 0, 0.12); color: #ffb000; }
+        .badge-replay     { background: rgba(255, 215, 0, 0.12); color: #ffd700; }
+        .badge-tool       { background: rgba(100, 160, 255, 0.12); color: #64a0ff; }
+        .badge-viz        { background: rgba(74, 158, 255, 0.10); color: #4a9eff; }
+        .badge-analysis   { background: rgba(155, 89, 182, 0.12); color: #b57edc; }
+        .badge-engine     { background: rgba(255, 136, 0, 0.12); color: #ff8800; }
+        .badge-reference  { background: rgba(140, 140, 160, 0.12); color: #8888a0; }
+
+        .card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: #dce1e8;
+            margin-bottom: 5px;
+        }
+
+        .card p {
+            font-size: 12px;
+            color: #5a6a80;
+            line-height: 1.55;
+            flex: 1;
+        }
+
+        .card-tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .tag {
+            font-size: 9px;
+            padding: 2px 7px;
+            border-radius: 3px;
+            background: #111a2a;
+            color: #4a5a70;
+            letter-spacing: 0.3px;
+        }
+
+        /* Feature list in hero cards */
+        .card-features {
+            list-style: none;
+            margin: 8px 0 0;
+            padding: 0;
+            font-size: 11px;
+            color: #5a6a80;
+            line-height: 1.7;
+        }
+
+        .card-features li {
+            padding-left: 14px;
+            position: relative;
+        }
+
+        .card-features li::before {
+            content: '\25B8';
+            position: absolute;
+            left: 0;
+            color: #2a4060;
+        }
+
+        .card-features .new {
+            color: #00d68f;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: 4px;
+        }
+
+        /* Keyboard shortcut chips */
+        .shortcut-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #141e30;
+        }
+
+        .shortcut {
+            font-size: 10px;
+            color: #4a5a70;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .shortcut kbd {
+            display: inline-block;
+            background: #141e30;
+            border: 1px solid #1a2a40;
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            color: #7a8a9a;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        /* ---- Keyboard Quick Launch Bar ---- */
+        .launch-bar {
+            background: #0a0f18;
+            border: 1px solid #141e30;
+            border-radius: 8px;
+            padding: 14px 20px;
+            margin-bottom: 28px;
+        }
+
+        .launch-bar-title {
+            font-size: 10px;
+            font-weight: 600;
+            color: #3a4a60;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 10px;
+        }
+
+        .launch-keys {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .launch-key {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px 4px 4px;
+            border-radius: 5px;
+            background: #0d1420;
+            border: 1px solid #161e30;
+            font-size: 11px;
+            color: #5a6a80;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+
+        .launch-key:hover {
+            background: #111a2a;
+            border-color: #2a3a55;
+            color: #8a9aaa;
+        }
+
+        .launch-key kbd {
+            display: inline-block;
+            background: #141e30;
+            border: 1px solid #1a2a42;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            color: #00d68f;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        /* ---- Build/Dev Section ---- */
+        .dev-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .dev-box {
+            background: #0a0f18;
+            border: 1px solid #141e30;
             border-radius: 8px;
             padding: 16px 20px;
-            font-size: 12px;
-            font-family: 'Consolas', monospace;
-            color: #6b7a90;
-            line-height: 1.8;
-            margin-top: 20px;
         }
 
-        .build-info code {
-            background: #1a2235;
-            padding: 2px 6px;
-            border-radius: 3px;
+        .dev-box h4 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            color: #5a6a80;
+        }
+
+        .dev-box pre {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 11px;
+            line-height: 1.8;
+            color: #5a6a80;
+        }
+
+        .dev-box pre code {
             color: #8aafdb;
         }
 
-        .build-info h4 {
-            color: #8a96a6;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
+        .dev-box pre .comment {
+            color: #3a4a60;
+        }
+
+        /* ---- Footer ---- */
+        footer {
+            border-top: 1px solid #111a2a;
+            padding: 20px 40px;
+            text-align: center;
+            font-size: 11px;
+            color: #2a3a50;
+        }
+
+        footer a {
+            color: #3a5a80;
+            text-decoration: none;
+        }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 1100px) {
+            .dev-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            header { padding: 20px 20px 16px; }
+            .quick-start { padding: 10px 20px; }
+            main { padding: 20px 20px 60px; }
+            .grid-featured { grid-template-columns: 1fr; }
+            .grid-standard { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+            .grid-compact { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+        }
+
+        @media (max-width: 600px) {
+            header h1 { font-size: 20px; }
+            .quick-start-inner { flex-direction: column; gap: 8px; }
+            .grid-standard, .grid-compact { grid-template-columns: 1fr; }
+            .launch-keys { gap: 4px; }
+            .launch-key { font-size: 10px; }
+            .dev-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>All-Domain <span>Simulation</span></h1>
-        <p>Integrated Earth-Air-Space simulation &mdash; runway to orbit</p>
+
+<!-- ========== HEADER ========== -->
+<header>
+    <div class="header-content">
+        <div class="header-top">
+            <div>
+                <h1>All-Domain <span class="accent">Sim</span><span class="accent2">ulation</span></h1>
+                <div class="subtitle">Integrated Earth-Air-Space simulation &mdash; from the runway to orbit and beyond</div>
+            </div>
+        </div>
         <div class="status-bar">
             <div class="status-item">
                 <div class="status-dot"></div>
-                Scenario Builder + 11 Replays
+                Scenario Builder
             </div>
+            <div class="status-sep"></div>
             <div class="status-item">
                 <div class="status-dot"></div>
-                C++ MC Engine
+                11 C++ Replays
             </div>
+            <div class="status-sep"></div>
+            <div class="status-item">
+                <div class="status-dot"></div>
+                6 Analytic Tools
+            </div>
+            <div class="status-sep"></div>
             <div class="status-item">
                 <div class="status-dot"></div>
                 Cesium 3D
             </div>
+            <div class="status-sep"></div>
             <div class="status-item">
-                <div class="status-dot" id="mcServerDot" style="background:#666;box-shadow:none"></div>
+                <div class="status-dot off" id="mcServerDot"></div>
                 <span id="mcServerStatus">MC Server: checking...</span>
             </div>
         </div>
-    </header>
+    </div>
+</header>
 
-    <main>
-        <!-- Scenario Builder & MC Engine -->
-        <div class="category featured">
-            <div class="category-header">
-                <h2>Scenario Builder &amp; MC Engine</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="scenario_builder.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128736;</div>
-                        <div class="card-badge interactive">Builder</div>
-                    </div>
-                    <h3>Scenario Builder</h3>
-                    <p>Compose multi-domain scenarios: place aircraft, satellites, ground stations, SAM batteries on the globe. Configure sensors, weapons, AI patrol routes. Run via JS or C++ engine.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">ECS</span>
-                            <span class="tag">Multi-Domain</span>
-                            <span class="tag">Monte Carlo</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-                <a class="card" href="live_sim_viewer.html?scenario=scenarios/demo_iads_engagement.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#127918;</div>
-                        <div class="card-badge interactive">Live</div>
-                    </div>
-                    <h3>Live Sim</h3>
-                    <p>Full cockpit experience: fly any aircraft in a scenario with HUD, propulsion modes, camera views, and time warp while AI entities simulate around you.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Cockpit</span>
-                            <span class="tag">HUD</span>
-                            <span class="tag">ECS + Physics</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+<!-- ========== QUICK START ========== -->
+<div class="quick-start">
+    <div class="quick-start-inner">
+        <div class="qs-label">Quick Start</div>
+        <div class="qs-step">
+            <code>cd visualization/cesium</code>
+            <span class="arrow">&rarr;</span>
         </div>
-
-        <!-- C++ Replay Viewer -->
-        <div class="category featured">
-            <div class="category-header">
-                <h2>C++ Engine Replays</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="replay_viewer.html?replay=replay_iads.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#127919;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>IADS Engagement</h3>
-                    <p>10 entities: F-16s, MiG-29s, SAM batteries, AWACS, ground stations, recon satellite. Full multi-domain combat with SAM kill chains.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">SAM</span>
-                            <span class="tag">Aircraft</span>
-                            <span class="tag">10 entities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html?replay=replay_strike.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#9992;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>Strike Package</h3>
-                    <p>8 entities: F-16 strike flight vs SA-20 IADS network. Waypoint patrol, intercept AI, radar detection, and SAM engagement.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Strike</span>
-                            <span class="tag">IADS</span>
-                            <span class="tag">8 entities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html?replay=replay_multi_domain.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#127760;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>Multi-Domain</h3>
-                    <p>9 entities: ISS, LEO recon, GPS/GEO satellites, aircraft, and ground stations. Full domain coverage from surface to GEO.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Orbital</span>
-                            <span class="tag">Air</span>
-                            <span class="tag">Ground</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html?replay=replay_contested_orbit.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#9678;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>Contested Orbit</h3>
-                    <p>7 entities: GEO satellites with co-orbital threats and inspector satellites. SSA proximity warning events.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GEO</span>
-                            <span class="tag">SSA</span>
-                            <span class="tag">7 entities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html?replay=replay_data.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#10022;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>Orbital Arena</h3>
-                    <p>10 GEO satellites in combat: HVAs, defenders, attackers with kinetic kill vehicles. Blue vs Red orbital engagement.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">KKV</span>
-                            <span class="tag">GEO</span>
-                            <span class="tag">10 entities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html?replay=replay_gps_coverage.json">
-                    <div class="card-top">
-                        <div class="card-icon">&#128225;</div>
-                        <div class="card-badge replay">Replay</div>
-                    </div>
-                    <h3>GPS Coverage</h3>
-                    <p>11 entities: 6 GPS satellites, ground receivers, and tracking stations. Constellation propagation (no combat).</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GPS</span>
-                            <span class="tag">MEO</span>
-                            <span class="tag">11 entities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="replay_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9654;</div>
-                        <div class="card-badge engine">Viewer</div>
-                    </div>
-                    <h3>Replay Viewer</h3>
-                    <p>Open the replay viewer with a dropdown to select any available replay. Supports file browsing and URL parameters.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">All Replays</span>
-                            <span class="tag">Selector</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+        <div class="qs-step">
+            <code>python3 serve.py 8000</code>
+            <span class="arrow">&rarr;</span>
         </div>
-
-        <!-- Interactive Flight Sims -->
-        <div class="category featured">
-            <div class="category-header">
-                <h2>Interactive Flight Sims</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="spaceplane_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9992;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Spaceplane</h3>
-                    <p>Fly from the runway to orbit and back. KSP-style maneuver nodes, 3 propulsion modes, full orbital mechanics with prograde/retrograde markers.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">3-DOF</span>
-                            <span class="tag">Orbital</span>
-                            <span class="tag">HUD</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="fighter_sim_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9881;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Fighter (F-16)</h3>
-                    <p>Full F-16 flight sim with pitch ladder HUD, speed/altitude tapes, weapons systems (AIM-9, AIM-120, bombs, gun), and AI adversaries.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Weapons</span>
-                            <span class="tag">AI</span>
-                            <span class="tag">Autopilot</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+        <div class="qs-step">
+            Open <code>localhost:8000</code>
         </div>
-
-        <!-- Orbital Mechanics -->
-        <div class="category">
-            <div class="category-header">
-                <h2>Orbital Mechanics</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="geo_sim_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9678;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>GEO Rendezvous Sim</h3>
-                    <p>Interactive GEO rendezvous planner with Newton-Raphson intercept targeting. Plan and execute orbital transfers in real time.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GEO</span>
-                            <span class="tag">Intercept</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="orbit_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#127760;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>Orbit Viewer</h3>
-                    <p>TLE-based orbit visualization with animated ground tracks, orbital elements display, and 3D globe rendering.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">TLE</span>
-                            <span class="tag">Ground Track</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="sat_tour_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128752;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>Satellite Tour</h3>
-                    <p>Animated 3D tour through satellite constellations. Camera flies between orbital regimes showcasing different mission types.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Tour</span>
-                            <span class="tag">Constellations</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="all_sats_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#10022;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>All Satellites</h3>
-                    <p>Full satellite catalog visualization. Every tracked object rendered on the Cesium globe with orbital paths.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Catalog</span>
-                            <span class="tag">Full TLE</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="geo_rendezvous_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#8693;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>GEO Rendezvous</h3>
-                    <p>Pre-computed GEO rendezvous trajectory visualization. Watch a transfer orbit from parking to GEO with phasing maneuvers.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GEO</span>
-                            <span class="tag">Transfer</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="lunar_return_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9789;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>Lunar Return</h3>
-                    <p>Lunar return trajectory with aerobraking. Multi-body gravity simulation of Earth-Moon transfer and atmospheric capture.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Multi-body</span>
-                            <span class="tag">Aerobraking</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="collision_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128165;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>GEO Collision</h3>
-                    <p>GEO satellite collision and debris cloud propagation. Visualizes Kessler-style fragment dispersal over time.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Debris</span>
-                            <span class="tag">GEO</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="van_allen_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9762;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Van Allen Belts</h3>
-                    <p>Radiation belt visualization with 6 satellites tracking real-time particle flux. Trigger Starfish Prime nuclear detonation.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Radiation</span>
-                            <span class="tag">Starfish</span>
-                            <span class="tag">AP-8</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="nuclear_detonation_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9889;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Nuclear Detonation</h3>
-                    <p>Configurable high-altitude nuclear detonation. Set altitude, location, and yield. Physics computes injection L-shell, trapping fraction, and belt decay.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Configurable</span>
-                            <span class="tag">Trapping</span>
-                            <span class="tag">Decay</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="maneuver_planner.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#916;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Orbital Maneuver Planner</h3>
-                    <p>Compute Hohmann, bielliptic, plane change, and combined transfers between any two orbits. Delta-V budget chart, fuel mass via Tsiolkovsky, 3D transfer arc on globe.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Hohmann</span>
-                            <span class="tag">Delta-V</span>
-                            <span class="tag">Transfers</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="visibility_planner.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128301;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Satellite Visibility Planner</h3>
-                    <p>STK-style pass prediction from a ground site. Paste TLE, get AOS/LOS/TCA times with AZ/EL polar plot, max elevation, sunlit status, and 3D orbit visualization.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">TLE</span>
-                            <span class="tag">AZ/EL</span>
-                            <span class="tag">Passes</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+        <div class="qs-step" style="color: #3a4a60;">|</div>
+        <div class="qs-step">
+            C++ MC: <code>cd build && cmake .. && ninja mc_engine</code>
         </div>
-
-        <!-- Launch & Trajectory -->
-        <div class="category">
-            <div class="category-header">
-                <h2>Launch &amp; Trajectory</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="intercept_planner.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#127919;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>TLE Intercept Planner</h3>
-                    <p>Paste a TLE, pick a launch site, compute optimal launch windows. Porkchop-style delta-V heat map with Lambert solver and 3D transfer arc visualization.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">TLE</span>
-                            <span class="tag">Lambert</span>
-                            <span class="tag">Porkchop</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="ballistic_planner.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9757;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Ballistic Trajectory Planner</h3>
-                    <p>Click two points on the globe to compute ballistic arcs. Min-energy, lofted, and depressed trajectories with apogee, TOF, impact parameters, and range rings.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Ballistic</span>
-                            <span class="tag">3 Trajectories</span>
-                            <span class="tag">Globe</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="launch_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128640;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>Launch Trajectory</h3>
-                    <p>Gravity turn rocket launch with multiple scenario demos. Multi-stage separation, trajectory visualization from pad to orbit.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Gravity Turn</span>
-                            <span class="tag">Multi-stage</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+        <div class="qs-step">
+            <span class="arrow">&rarr;</span>
+            <code>node mc_server.js</code>
         </div>
+    </div>
+</div>
 
-        <!-- Interplanetary -->
-        <div class="category">
-            <div class="category-header">
-                <h2>Interplanetary</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="solar_system_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9788;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Solar System</h3>
-                    <p>Heliocentric 3D viewer with all 8 planet orbits, real-time Meeus ephemeris, interplanetary transfer arcs, and time warp controls.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Heliocentric</span>
-                            <span class="tag">Ephemeris</span>
-                            <span class="tag">Transfer</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+<!-- ========== MAIN ========== -->
+<main>
 
-                <a class="card" href="porkchop_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9673;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Porkchop Plot</h3>
-                    <p>Interplanetary transfer analysis with C3 and delta-V contour plots. Click to inspect individual transfers with geometry inset view.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">C3</span>
-                            <span class="tag">Lambert</span>
-                            <span class="tag">Contour</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+<!-- Keyboard Quick-Launch Bar -->
+<div class="launch-bar">
+    <div class="launch-bar-title">Keyboard Quick Launch &mdash; press a number key to jump directly</div>
+    <div class="launch-keys">
+        <a class="launch-key" href="scenario_builder.html"><kbd>0</kbd> Scenario Builder</a>
+        <a class="launch-key" href="spaceplane_viewer.html"><kbd>1</kbd> Spaceplane</a>
+        <a class="launch-key" href="fighter_sim_viewer.html"><kbd>2</kbd> Fighter F-16</a>
+        <a class="launch-key" href="replay_viewer.html?replay=replay_iads.json"><kbd>3</kbd> IADS Replay</a>
+        <a class="launch-key" href="geo_sim_viewer.html"><kbd>4</kbd> GEO Rendezvous</a>
+        <a class="launch-key" href="solar_system_viewer.html"><kbd>5</kbd> Solar System</a>
+        <a class="launch-key" href="porkchop_viewer.html"><kbd>6</kbd> Porkchop Plot</a>
+        <a class="launch-key" href="intercept_planner.html"><kbd>7</kbd> Intercept</a>
+        <a class="launch-key" href="ballistic_planner.html"><kbd>8</kbd> Ballistic</a>
+        <a class="launch-key" href="maneuver_planner.html"><kbd>9</kbd> Maneuver</a>
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 1: FEATURED APPLICATIONS
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon green">&#9733;</div>
+        <div class="section-title">Featured Applications</div>
+        <div class="section-count">(5)</div>
+        <div class="section-line"></div>
+    </div>
+    <div class="grid grid-featured">
+
+        <!-- Scenario Builder -->
+        <a class="card card-hero" href="scenario_builder.html">
+            <div class="card-top">
+                <div class="card-icon">&#128736;</div>
+                <div class="card-badge badge-builder">Builder</div>
             </div>
+            <h3>Scenario Builder</h3>
+            <p>The main editor. Compose multi-domain scenarios on a 3D globe: place aircraft, satellites, SAMs, ground stations. Configure sensors, weapons, AI, events. Run via JS ECS or C++ MC engine.</p>
+            <ul class="card-features">
+                <li>ECS framework with 9-system pipeline (AI, physics, sensors, weapons ...)</li>
+                <li>Platform Builder: custom entities with any physics/propulsion/sensor/payload combo</li>
+                <li>DOE analysis: parameter sweeps across role compositions<span class="new">New</span></li>
+                <li>Monte Carlo dashboard with Chart.js visualizations</li>
+                <li>Dual export: live ECS viewer or headless C++ replay</li>
+                <li>6 scenario templates + Orbital Arena (up to 1700 entities)</li>
+            </ul>
+            <div class="shortcut-row">
+                <span class="shortcut"><kbd>0</kbd> Quick launch</span>
+            </div>
+            <div class="card-tags">
+                <span class="tag">ECS</span>
+                <span class="tag">Multi-Domain</span>
+                <span class="tag">Monte Carlo</span>
+                <span class="tag">DOE</span>
+                <span class="tag">Platform Builder</span>
+            </div>
+        </a>
+
+        <!-- Live Sim Viewer -->
+        <a class="card card-hero" href="live_sim_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#127918;</div>
+                <div class="card-badge badge-cockpit">Cockpit</div>
+            </div>
+            <h3>Live Sim Viewer</h3>
+            <p>Full cockpit experience: fly any aircraft or satellite in a scenario. Chase camera with bank/roll, cockpit view, full HUD with pitch ladder, weapons, sensors, and trim.</p>
+            <ul class="card-features">
+                <li>Chase / cockpit / free / globe camera modes</li>
+                <li>Weapons HUD: cycle with W, fire with Space, inventory tracking</li>
+                <li>Sensor cycling (V): radar, EO, IR, SAR, SIGINT, LIDAR</li>
+                <li>Pitch trim (T / Shift+T), 11 per-element HUD toggles</li>
+                <li>AI entities simulate around you in real-time</li>
+            </ul>
+            <div class="shortcut-row">
+                <span class="shortcut"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Flight</span>
+                <span class="shortcut"><kbd>P</kbd> Propulsion</span>
+                <span class="shortcut"><kbd>C</kbd> Camera</span>
+                <span class="shortcut"><kbd>Esc</kbd> Pause</span>
+            </div>
+            <div class="card-tags">
+                <span class="tag">Cockpit</span>
+                <span class="tag">HUD</span>
+                <span class="tag">Weapons</span>
+                <span class="tag">Sensors</span>
+            </div>
+        </a>
+
+        <!-- Replay Viewer -->
+        <a class="card card-featured" href="replay_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#9654;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>C++ Replay Viewer</h3>
+            <p>Playback C++ MC engine replays in 3D. Animated missile trails, range rings, engagement timeline with click-to-scrub, kill flash, entity tracking.</p>
+            <ul class="card-features">
+                <li>11 pre-generated replay datasets</li>
+                <li>Animated missile trails (cyan/orange glow)</li>
+                <li>SAM/radar range rings at ground level</li>
+                <li>Timeline bar with event dots: click to scrub</li>
+            </ul>
+            <div class="shortcut-row">
+                <span class="shortcut"><kbd>Space</kbd> Play/Pause</span>
+                <span class="shortcut"><kbd>+</kbd><kbd>-</kbd> Speed</span>
+                <span class="shortcut"><kbd>L</kbd> Labels</span>
+                <span class="shortcut"><kbd>T</kbd> Trails</span>
+            </div>
+            <div class="card-tags">
+                <span class="tag">C++ Engine</span>
+                <span class="tag">11 Replays</span>
+                <span class="tag">Timeline</span>
+            </div>
+        </a>
+
+        <!-- Spaceplane -->
+        <a class="card card-featured" href="spaceplane_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#9992;</div>
+                <div class="card-badge badge-interactive">Interactive</div>
+            </div>
+            <h3>Spaceplane Sim</h3>
+            <p>Fly from the runway to orbit and back. KSP-style maneuver nodes, 3 propulsion modes (air/hypersonic/rocket), full orbital mechanics with prograde/retrograde markers.</p>
+            <ul class="card-features">
+                <li>Atmosphere to orbit continuous flight</li>
+                <li>Orbital elements, Ap/Pe, navball above 30km</li>
+                <li>Maneuver planner: create, edit, execute delta-V nodes</li>
+                <li>4 start modes: runway, airborne, suborbital, orbital</li>
+            </ul>
+            <div class="shortcut-row">
+                <span class="shortcut"><kbd>P</kbd> Propulsion</span>
+                <span class="shortcut"><kbd>M</kbd> Planner</span>
+                <span class="shortcut"><kbd>N</kbd> Node</span>
+                <span class="shortcut"><kbd>+</kbd><kbd>-</kbd> Time warp</span>
+            </div>
+            <div class="card-tags">
+                <span class="tag">3-DOF</span>
+                <span class="tag">Orbital</span>
+                <span class="tag">Maneuver Nodes</span>
+            </div>
+        </a>
+
+        <!-- Fighter -->
+        <a class="card card-featured" href="fighter_sim_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#9876;</div>
+                <div class="card-badge badge-interactive">Interactive</div>
+            </div>
+            <h3>Fighter Sim (F-16)</h3>
+            <p>Full F-16 flight sim with pitch ladder HUD, speed/altitude tapes, weapons systems (AIM-9, AIM-120, bombs, gun), autopilot, and AI adversaries.</p>
+            <ul class="card-features">
+                <li>Realistic F-16 aerodynamics (Cl/Cd, Oswald efficiency)</li>
+                <li>AB thrust 130kN, TSFC, 3200kg fuel</li>
+                <li>AI wingmen and adversary tactics</li>
+                <li>Autopilot: altitude/heading/speed hold, waypoint nav</li>
+            </ul>
+            <div class="shortcut-row">
+                <span class="shortcut"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Flight</span>
+                <span class="shortcut"><kbd>Space</kbd> Fire</span>
+                <span class="shortcut"><kbd>C</kbd> Camera</span>
+                <span class="shortcut"><kbd>H</kbd> Help</span>
+            </div>
+            <div class="card-tags">
+                <span class="tag">F-16</span>
+                <span class="tag">Weapons</span>
+                <span class="tag">AI Combat</span>
+                <span class="tag">Autopilot</span>
+            </div>
+        </a>
+
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 2: ANALYTIC TOOLS
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon purple">&#916;</div>
+        <div class="section-title">Analytic Tools</div>
+        <div class="section-count">(6)</div>
+        <div class="section-line"></div>
+    </div>
+    <div class="grid grid-standard">
+
+        <a class="card" href="intercept_planner.html">
+            <div class="card-top">
+                <div class="card-icon">&#127919;</div>
+                <div class="card-badge badge-tool">Planner</div>
+            </div>
+            <h3>TLE Intercept Planner</h3>
+            <p>Paste a TLE, pick a launch site, compute optimal launch windows. Porkchop-style delta-V heat map with Lambert solver, 3D transfer arc on globe.</p>
+            <div class="card-tags">
+                <span class="tag">TLE</span>
+                <span class="tag">Lambert</span>
+                <span class="tag">Porkchop</span>
+            </div>
+        </a>
+
+        <a class="card" href="ballistic_planner.html">
+            <div class="card-top">
+                <div class="card-icon">&#9757;</div>
+                <div class="card-badge badge-tool">Planner</div>
+            </div>
+            <h3>Ballistic Trajectory</h3>
+            <p>Click two points on the globe for ballistic arcs. Min-energy, lofted, depressed trajectories with adaptive angle + Newton-Raphson for specific apogee targets.</p>
+            <div class="card-tags">
+                <span class="tag">Ballistic</span>
+                <span class="tag">Newton-Raphson</span>
+                <span class="tag">3 Trajectories</span>
+            </div>
+        </a>
+
+        <a class="card" href="maneuver_planner.html">
+            <div class="card-top">
+                <div class="card-icon">&#8710;</div>
+                <div class="card-badge badge-tool">Planner</div>
+            </div>
+            <h3>Orbital Maneuver Planner</h3>
+            <p>Hohmann, bi-elliptic, plane change, and combined transfers between any two orbits. Delta-V budget chart, fuel mass via Tsiolkovsky, 3D arcs.</p>
+            <div class="card-tags">
+                <span class="tag">Hohmann</span>
+                <span class="tag">Delta-V</span>
+                <span class="tag">Bi-elliptic</span>
+            </div>
+        </a>
+
+        <a class="card" href="visibility_planner.html">
+            <div class="card-top">
+                <div class="card-icon">&#128301;</div>
+                <div class="card-badge badge-tool">Planner</div>
+            </div>
+            <h3>Satellite Visibility</h3>
+            <p>STK-style pass prediction from a ground site. TLE input, AOS/LOS/TCA times, AZ/EL polar plot, max elevation, sunlit status.</p>
+            <div class="card-tags">
+                <span class="tag">Passes</span>
+                <span class="tag">AZ/EL</span>
+                <span class="tag">Ground Site</span>
+            </div>
+        </a>
+
+        <a class="card" href="radar_horizon.html">
+            <div class="card-top">
+                <div class="card-icon">&#128225;</div>
+                <div class="card-badge badge-tool">Calculator</div>
+            </div>
+            <h3>Radar Horizon</h3>
+            <p>Line-of-sight analysis with Earth curvature and atmospheric refraction (k=4/3). Multi-radar coverage, AN/FPS-132, AN/TPY-2, SPY-1 presets.</p>
+            <div class="card-tags">
+                <span class="tag">LOS</span>
+                <span class="tag">Refraction</span>
+                <span class="tag">Coverage</span>
+            </div>
+        </a>
+
+        <a class="card" href="link_budget.html">
+            <div class="card-top">
+                <div class="card-icon">&#128246;</div>
+                <div class="card-badge badge-tool">Calculator</div>
+            </div>
+            <h3>RF Link Budget</h3>
+            <p>FSPL, atmospheric attenuation, Eb/N0, link margin for satellite comms. LEO, GPS, GEO, deep space presets with waterfall and range charts.</p>
+            <div class="card-tags">
+                <span class="tag">RF</span>
+                <span class="tag">FSPL</span>
+                <span class="tag">Link Margin</span>
+            </div>
+        </a>
+
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 3: C++ ENGINE REPLAYS
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon amber">&#9654;</div>
+        <div class="section-title">C++ Engine Replays</div>
+        <div class="section-count">(7)</div>
+        <div class="section-line"></div>
+    </div>
+    <div class="grid grid-compact">
+
+        <a class="card" href="replay_viewer.html?replay=replay_iads.json">
+            <div class="card-top">
+                <div class="card-icon">&#127919;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>IADS Engagement</h3>
+            <p>F-16s, MiG-29s, SAM batteries, AWACS, recon satellite. Full multi-domain combat with SAM kill chains and F2T2EA.</p>
+            <div class="card-tags">
+                <span class="tag">10 entities</span>
+                <span class="tag">SAM</span>
+                <span class="tag">Multi-domain</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_strike.json">
+            <div class="card-top">
+                <div class="card-icon">&#9992;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>Strike Package</h3>
+            <p>F-16 strike flight vs SA-20 IADS network. Waypoint patrol, intercept AI, radar detection, SAM engagement.</p>
+            <div class="card-tags">
+                <span class="tag">8 entities</span>
+                <span class="tag">Strike</span>
+                <span class="tag">IADS</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_multi_domain.json">
+            <div class="card-top">
+                <div class="card-icon">&#127760;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>Multi-Domain</h3>
+            <p>ISS, LEO recon, GPS/GEO satellites, aircraft, ground stations. Full domain coverage from surface to GEO.</p>
+            <div class="card-tags">
+                <span class="tag">9 entities</span>
+                <span class="tag">Orbital + Air + Ground</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_contested_orbit.json">
+            <div class="card-top">
+                <div class="card-icon">&#9678;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>Contested Orbit</h3>
+            <p>GEO satellites with co-orbital threats and inspector satellites. SSA proximity warning events.</p>
+            <div class="card-tags">
+                <span class="tag">7 entities</span>
+                <span class="tag">GEO</span>
+                <span class="tag">SSA</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_data.json">
+            <div class="card-top">
+                <div class="card-icon">&#10022;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>Orbital Arena</h3>
+            <p>10 GEO satellites in combat: HVAs, defenders, attackers with kinetic kill vehicles.</p>
+            <div class="card-tags">
+                <span class="tag">10 entities</span>
+                <span class="tag">KKV</span>
+                <span class="tag">GEO</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_arena_large.json">
+            <div class="card-top">
+                <div class="card-icon">&#10022;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>Orbital Arena Large</h3>
+            <p>1700 entities (850v850) across 4 regimes: LEO Sun-Synch, GTO, GEO, Lunar orbit.</p>
+            <div class="card-tags">
+                <span class="tag">1700 entities</span>
+                <span class="tag">4 regimes</span>
+            </div>
+        </a>
+
+        <a class="card" href="replay_viewer.html?replay=replay_gps_coverage.json">
+            <div class="card-top">
+                <div class="card-icon">&#128225;</div>
+                <div class="card-badge badge-replay">Replay</div>
+            </div>
+            <h3>GPS Coverage</h3>
+            <p>6 GPS satellites, ground receivers, tracking stations. Constellation propagation (no combat).</p>
+            <div class="card-tags">
+                <span class="tag">11 entities</span>
+                <span class="tag">GPS</span>
+                <span class="tag">MEO</span>
+            </div>
+        </a>
+
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 4: STANDALONE SIMS & VISUALIZATIONS
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon cyan">&#127760;</div>
+        <div class="section-title">Standalone Sims &amp; Visualizations</div>
+        <div class="section-count">(16)</div>
+        <div class="section-line"></div>
+    </div>
+
+    <!-- Sub-section: Orbital Mechanics -->
+    <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; color: #3a4a60; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 4px;">Orbital Mechanics</div>
+        <div class="grid grid-compact">
+
+            <a class="card" href="geo_sim_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9678;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>GEO Rendezvous Sim</h3>
+                <p>Interactive GEO rendezvous with Newton-Raphson intercept targeting. Plan and execute transfers in real time.</p>
+                <div class="card-tags">
+                    <span class="tag">GEO</span>
+                    <span class="tag">Intercept</span>
+                </div>
+            </a>
+
+            <a class="card" href="orbit_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#127760;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>Orbit Viewer</h3>
+                <p>TLE-based orbit visualization with animated ground tracks, orbital elements display, and 3D globe rendering.</p>
+                <div class="card-tags">
+                    <span class="tag">TLE</span>
+                    <span class="tag">Ground Track</span>
+                </div>
+            </a>
+
+            <a class="card" href="all_sats_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#10022;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>All Satellites (SATCAT)</h3>
+                <p>Full satellite catalog visualization. Every tracked object rendered on the globe, color-coded by regime (LEO/MEO/GEO).</p>
+                <div class="card-tags">
+                    <span class="tag">Catalog</span>
+                    <span class="tag">572 sats</span>
+                </div>
+            </a>
+
+            <a class="card" href="sat_tour_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128752;</div>
+                    <div class="card-badge badge-viz">Tour</div>
+                </div>
+                <h3>Satellite Tour</h3>
+                <p>Animated 3D tour through satellite constellations. Camera flies between orbital regimes showcasing mission types.</p>
+                <div class="card-tags">
+                    <span class="tag">Tour</span>
+                    <span class="tag">Constellations</span>
+                </div>
+            </a>
+
+            <a class="card" href="launch_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128640;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>Launch Trajectory</h3>
+                <p>Gravity turn rocket launch with multiple scenario demos. Multi-stage separation, trajectory from pad to orbit.</p>
+                <div class="card-tags">
+                    <span class="tag">Gravity Turn</span>
+                    <span class="tag">Multi-stage</span>
+                </div>
+            </a>
+
+            <a class="card" href="geo_rendezvous_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#8693;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>GEO Rendezvous</h3>
+                <p>Pre-computed GEO rendezvous trajectory. Transfer orbit from parking to GEO with phasing maneuvers.</p>
+                <div class="card-tags">
+                    <span class="tag">GEO</span>
+                    <span class="tag">Transfer</span>
+                </div>
+            </a>
+
+            <a class="card" href="lunar_return_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9789;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>Lunar Return</h3>
+                <p>Lunar return trajectory with aerobraking. Multi-body gravity of Earth-Moon transfer and atmospheric capture.</p>
+                <div class="card-tags">
+                    <span class="tag">Multi-body</span>
+                    <span class="tag">Aerobraking</span>
+                </div>
+            </a>
+
+            <a class="card" href="collision_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128165;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>GEO Collision</h3>
+                <p>GEO satellite collision and debris cloud propagation. Kessler-style fragment dispersal over time.</p>
+                <div class="card-tags">
+                    <span class="tag">Debris</span>
+                    <span class="tag">Kessler</span>
+                </div>
+            </a>
+
         </div>
+    </div>
 
-        <!-- Sensors & Analysis -->
-        <div class="category">
-            <div class="category-header">
-                <h2>Sensors &amp; Analysis</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="iads_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128225;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>IADS Engagement</h3>
-                    <p>Integrated Air Defense System with EW/tracking/fire-control radars, SAM engagement, and F2T2EA kill chain. All comms routed through GEO SATCOM.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">F2T2EA</span>
-                            <span class="tag">SATCOM</span>
-                            <span class="tag">SAM</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+    <!-- Sub-section: Interplanetary -->
+    <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; color: #3a4a60; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 4px;">Interplanetary</div>
+        <div class="grid grid-compact">
 
-                <a class="card" href="leo_imagers_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128225;</div>
-                        <div class="card-badge analysis">Analysis</div>
-                    </div>
-                    <h3>LEO Imagers</h3>
-                    <p>LEO imaging constellation with dual-sensor visualization. Revisit coverage analysis over areas of interest.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">LEO</span>
-                            <span class="tag">Imaging</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+            <a class="card" href="solar_system_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9788;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>Solar System</h3>
+                <p>Heliocentric 3D viewer with all 8 planet orbits, real-time Meeus ephemeris, transfer arcs, time warp. WebGL float32-safe scaling.</p>
+                <div class="card-tags">
+                    <span class="tag">Heliocentric</span>
+                    <span class="tag">Ephemeris</span>
+                    <span class="tag">Transfers</span>
+                </div>
+            </a>
 
-                <a class="card" href="sensor_revisit_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128337;</div>
-                        <div class="card-badge analysis">Analysis</div>
-                    </div>
-                    <h3>Sensor Revisit</h3>
-                    <p>Sensor revisit rate analysis over target areas. Heat map of coverage gaps and access windows for constellation design.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Revisit</span>
-                            <span class="tag">Coverage</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+            <a class="card" href="porkchop_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9673;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>Porkchop Plot</h3>
+                <p>Interplanetary transfer analysis with C3 and delta-V contour plots. Click to inspect individual transfers with geometry inset.</p>
+                <div class="card-tags">
+                    <span class="tag">C3</span>
+                    <span class="tag">Lambert</span>
+                    <span class="tag">Contour</span>
+                </div>
+            </a>
 
-                <a class="card" href="sensor_intercept_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#127919;</div>
-                        <div class="card-badge analysis">Analysis</div>
-                    </div>
-                    <h3>GEO Intercept Sensor</h3>
-                    <p>Sensor perspective of a GEO intercept scenario. 3D satellite models with sensor cone visualization.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GEO</span>
-                            <span class="tag">Sensor FOV</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="gps_pdop_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128225;</div>
-                        <div class="card-badge analysis">Analysis</div>
-                    </div>
-                    <h3>GPS PDOP</h3>
-                    <p>Position Dilution of Precision grid calculator. Visualizes GPS accuracy variations across the globe as a color-coded overlay.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">GPS</span>
-                            <span class="tag">PDOP</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="sensor_debug_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128736;</div>
-                        <div class="card-badge">Debug</div>
-                    </div>
-                    <h3>Sensor Debug</h3>
-                    <p>Debug viewer for sensor geometry validation. Inspect sensor cones, access intervals, and ground intersection math.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Debug</span>
-                            <span class="tag">Geometry</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="radar_horizon.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128225;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>Radar Horizon Calculator</h3>
-                    <p>Line-of-sight analysis with Earth curvature and atmospheric refraction (k=4/3). Multi-radar coverage visualization, AN/FPS-132, AN/TPY-2, SPY-1 presets.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">LOS</span>
-                            <span class="tag">Refraction</span>
-                            <span class="tag">Coverage</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-
-                <a class="card" href="link_budget.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#128246;</div>
-                        <div class="card-badge interactive">Interactive</div>
-                    </div>
-                    <h3>RF Link Budget Analyzer</h3>
-                    <p>Compute FSPL, atmospheric attenuation, Eb/N0, and link margin for satellite comms. LEO, GPS, GEO, deep space presets with waterfall and range charts.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">RF</span>
-                            <span class="tag">FSPL</span>
-                            <span class="tag">Link Margin</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
         </div>
+    </div>
 
-        <!-- Air & Navigation -->
-        <div class="category">
-            <div class="category-header">
-                <h2>Air &amp; Navigation</h2>
-                <div class="category-line"></div>
-            </div>
-            <div class="grid">
-                <a class="card" href="dogfight_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9876;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>Dogfight (4v4)</h3>
-                    <p>4-versus-4 air combat visualization over Indiana. Pre-computed engagement with missile tracks and kill assessments.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">BVR</span>
-                            <span class="tag">4v4</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+    <!-- Sub-section: Sensors, Defense & Nuclear -->
+    <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; color: #3a4a60; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 4px;">Sensors, Defense &amp; Nuclear Effects</div>
+        <div class="grid grid-compact">
 
-                <a class="card" href="flight_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#9992;</div>
-                        <div class="card-badge">Visualization</div>
-                    </div>
-                    <h3>ORD-JFK Flight</h3>
-                    <p>Commercial flight path visualization from Chicago O'Hare to JFK. Great-circle routing with altitude profile on Cesium globe.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Airline</span>
-                            <span class="tag">Great Circle</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
+            <a class="card" href="iads_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128225;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>IADS Engagement</h3>
+                <p>Integrated Air Defense System with EW/tracking/fire-control radars, SAM engagement, F2T2EA kill chain via GEO SATCOM.</p>
+                <div class="card-tags">
+                    <span class="tag">F2T2EA</span>
+                    <span class="tag">SATCOM</span>
+                    <span class="tag">SAM</span>
+                </div>
+            </a>
 
-                <a class="card" href="cities_viewer.html">
-                    <div class="card-top">
-                        <div class="card-icon">&#127961;</div>
-                        <div class="card-badge">Reference</div>
-                    </div>
-                    <h3>World Cities</h3>
-                    <p>1,000 largest cities plotted on the Cesium globe. Population-scaled markers with city information overlays.</p>
-                    <div class="card-footer">
-                        <div class="card-tags">
-                            <span class="tag">Geodata</span>
-                            <span class="tag">1000 Cities</span>
-                        </div>
-                        <div class="launch-arrow">&#8594;</div>
-                    </div>
-                </a>
-            </div>
+            <a class="card" href="van_allen_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9762;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>Van Allen Belts</h3>
+                <p>Radiation belt visualization with 6 satellites tracking real-time particle flux. Trigger Starfish Prime nuclear detonation.</p>
+                <div class="card-tags">
+                    <span class="tag">Radiation</span>
+                    <span class="tag">Starfish Prime</span>
+                    <span class="tag">AP-8</span>
+                </div>
+            </a>
+
+            <a class="card" href="nuclear_detonation_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9889;</div>
+                    <div class="card-badge badge-interactive">Interactive</div>
+                </div>
+                <h3>Nuclear Detonation</h3>
+                <p>Configurable high-altitude nuclear detonation. Set altitude, location, yield. Physics computes L-shell injection, trapping fraction, belt decay.</p>
+                <div class="card-tags">
+                    <span class="tag">EMP</span>
+                    <span class="tag">L-shell</span>
+                    <span class="tag">Configurable</span>
+                </div>
+            </a>
+
+            <a class="card" href="telescope_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128301;</div>
+                    <div class="card-badge badge-analysis">Analysis</div>
+                </div>
+                <h3>Telescope Coverage</h3>
+                <p>OneWeb 7-day coverage analysis. Ground station contacts, collection statistics, pie/bar charts, animated playback.</p>
+                <div class="card-tags">
+                    <span class="tag">OneWeb</span>
+                    <span class="tag">Coverage</span>
+                    <span class="tag">Charts</span>
+                </div>
+            </a>
+
         </div>
+    </div>
 
-        <!-- Build instructions -->
-        <div class="build-info">
-            <h4>C++ Engine &amp; MC Server</h4>
-            Build: <code>cd build && cmake .. && ninja mc_engine</code><br>
-            Serve: <code>cd visualization/cesium && python3 serve.py 8000</code><br>
-            MC Server: <code>node mc_server.js 8001</code> (enables C++ MC from the Scenario Builder)<br>
-            Replay: <code>./bin/mc_engine --replay --scenario &lt;path&gt; --seed 42 --max-time 600 --output replay.json</code><br>
-            Batch MC: <code>./bin/mc_engine --scenario &lt;path&gt; --runs 1000 --seed 42 --output results.json</code>
+    <!-- Sub-section: Sensor Analysis -->
+    <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; color: #3a4a60; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 4px;">Sensor Analysis</div>
+        <div class="grid grid-compact">
+
+            <a class="card" href="leo_imagers_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128247;</div>
+                    <div class="card-badge badge-analysis">Analysis</div>
+                </div>
+                <h3>LEO Imagers</h3>
+                <p>LEO imaging constellation with dual-sensor visualization. Revisit coverage analysis over areas of interest.</p>
+                <div class="card-tags">
+                    <span class="tag">LEO</span>
+                    <span class="tag">Imaging</span>
+                </div>
+            </a>
+
+            <a class="card" href="sensor_revisit_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128337;</div>
+                    <div class="card-badge badge-analysis">Analysis</div>
+                </div>
+                <h3>Sensor Revisit</h3>
+                <p>Revisit rate analysis over target areas. Heat map of coverage gaps and access windows for constellation design.</p>
+                <div class="card-tags">
+                    <span class="tag">Revisit</span>
+                    <span class="tag">Heat Map</span>
+                </div>
+            </a>
+
+            <a class="card" href="sensor_intercept_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#127919;</div>
+                    <div class="card-badge badge-analysis">Analysis</div>
+                </div>
+                <h3>GEO Intercept Sensor</h3>
+                <p>Sensor perspective of a GEO intercept scenario. 3D satellite models with sensor cone visualization.</p>
+                <div class="card-tags">
+                    <span class="tag">GEO</span>
+                    <span class="tag">Sensor FOV</span>
+                </div>
+            </a>
+
+            <a class="card" href="gps_pdop_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#128225;</div>
+                    <div class="card-badge badge-analysis">Analysis</div>
+                </div>
+                <h3>GPS PDOP</h3>
+                <p>Position Dilution of Precision grid calculator. GPS accuracy variations across the globe as color-coded overlay.</p>
+                <div class="card-tags">
+                    <span class="tag">GPS</span>
+                    <span class="tag">PDOP</span>
+                </div>
+            </a>
+
         </div>
-    </main>
+    </div>
 
-    <script>
-        // Keyboard shortcut: number keys launch featured sims
-        const quickLaunch = {
-            '0': 'scenario_builder.html',
-            '1': 'spaceplane_viewer.html',
-            '2': 'fighter_sim_viewer.html',
-            '3': 'replay_viewer.html?replay=replay_iads.json',
-            '4': 'geo_sim_viewer.html',
-            '5': 'solar_system_viewer.html',
-            '6': 'porkchop_viewer.html',
-            '7': 'intercept_planner.html',
-            '8': 'ballistic_planner.html',
-            '9': 'maneuver_planner.html',
-        };
+    <!-- Sub-section: Air & Reference -->
+    <div>
+        <div style="font-size: 11px; color: #3a4a60; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 4px;">Air &amp; Reference</div>
+        <div class="grid grid-compact">
 
-        document.addEventListener('keydown', (e) => {
-            if (quickLaunch[e.key]) {
-                window.location.href = quickLaunch[e.key];
+            <a class="card" href="dogfight_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9876;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>Dogfight (4v4)</h3>
+                <p>4-versus-4 air combat visualization over Indiana. Pre-computed engagement with missile tracks and kill assessments.</p>
+                <div class="card-tags">
+                    <span class="tag">BVR</span>
+                    <span class="tag">4v4</span>
+                </div>
+            </a>
+
+            <a class="card" href="flight_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#9992;</div>
+                    <div class="card-badge badge-viz">Viewer</div>
+                </div>
+                <h3>ORD-JFK Flight</h3>
+                <p>Commercial flight path from Chicago O'Hare to JFK. Great-circle routing with altitude profile.</p>
+                <div class="card-tags">
+                    <span class="tag">Airline</span>
+                    <span class="tag">Great Circle</span>
+                </div>
+            </a>
+
+            <a class="card" href="cities_viewer.html">
+                <div class="card-top">
+                    <div class="card-icon">&#127961;</div>
+                    <div class="card-badge badge-reference">Reference</div>
+                </div>
+                <h3>World Cities</h3>
+                <p>1,000 largest cities plotted on the Cesium globe. Population-scaled markers with city information overlays.</p>
+                <div class="card-tags">
+                    <span class="tag">Geodata</span>
+                    <span class="tag">1000 Cities</span>
+                </div>
+            </a>
+
+        </div>
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 5: DEVELOPER TOOLS
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon red">&#128736;</div>
+        <div class="section-title">Developer Tools</div>
+        <div class="section-line"></div>
+    </div>
+
+    <div class="grid grid-compact" style="margin-bottom: 14px;">
+        <a class="card" href="sensor_debug_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#128736;</div>
+                <div class="card-badge badge-engine">Debug</div>
+            </div>
+            <h3>Sensor Debug Viewer</h3>
+            <p>Debug viewer for sensor geometry validation. Inspect sensor cones, access intervals, ground intersection math.</p>
+            <div class="card-tags">
+                <span class="tag">Debug</span>
+                <span class="tag">Geometry</span>
+            </div>
+        </a>
+
+        <a class="card" href="scenario_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#9654;</div>
+                <div class="card-badge badge-engine">Engine</div>
+            </div>
+            <h3>Scenario Viewer</h3>
+            <p>Lightweight scenario runner with live ECS physics. Loads exported scenario JSON and runs the full component pipeline.</p>
+            <div class="card-tags">
+                <span class="tag">ECS</span>
+                <span class="tag">Live Physics</span>
+            </div>
+        </a>
+
+        <a class="card" href="model_viewer.html">
+            <div class="card-top">
+                <div class="card-icon">&#128196;</div>
+                <div class="card-badge badge-engine">Engine</div>
+            </div>
+            <h3>Model Viewer (CZML)</h3>
+            <p>CZML rapid-playback viewer. Native Cesium interpolation, zero JS physics. Pre-baked trajectory data.</p>
+            <div class="card-tags">
+                <span class="tag">CZML</span>
+                <span class="tag">Pre-baked</span>
+            </div>
+        </a>
+    </div>
+
+    <div class="dev-grid">
+        <div class="dev-box">
+            <h4>C++ Build &amp; MC Engine</h4>
+            <pre><span class="comment"># Build the C++ Monte Carlo engine</span>
+<code>cd build && cmake .. && ninja mc_engine</code>
+
+<span class="comment"># Generate a replay for Cesium playback</span>
+<code>./bin/mc_engine --replay \
+    --scenario ../visualization/cesium/scenarios/demo_iads_engagement.json \
+    --seed 42 --max-time 600 --sample-interval 2 \
+    --output replay.json --verbose</code>
+
+<span class="comment"># Run 1000 Monte Carlo batch simulations</span>
+<code>./bin/mc_engine --scenario &lt;path&gt; \
+    --runs 1000 --seed 42 --output results.json</code></pre>
+        </div>
+        <div class="dev-box">
+            <h4>Servers</h4>
+            <pre><span class="comment"># Python HTTP server (serves files + proxies MC)</span>
+<code>cd visualization/cesium
+python3 serve.py 8000</code>
+
+<span class="comment"># Node.js MC bridge (spawns C++ engine, job queue)</span>
+<code>node mc_server.js</code>
+
+<span class="comment"># Offline mode (download assets once)</span>
+<code>./setup_offline.sh</code>
+<span class="comment"># Then add ?offline=true to any URL</span>
+
+<span class="comment"># Open hub page</span>
+<code>open http://localhost:8000/</code></pre>
+        </div>
+    </div>
+</div>
+
+</main>
+
+<!-- ========== FOOTER ========== -->
+<footer>
+    All-Domain Simulation &mdash; Earth, Air, Space &mdash; Cesium 3D + C++ MC Engine
+</footer>
+
+<!-- ========== SCRIPTS ========== -->
+<script>
+    // Keyboard quick-launch: number keys
+    const quickLaunch = {
+        '0': 'scenario_builder.html',
+        '1': 'spaceplane_viewer.html',
+        '2': 'fighter_sim_viewer.html',
+        '3': 'replay_viewer.html?replay=replay_iads.json',
+        '4': 'geo_sim_viewer.html',
+        '5': 'solar_system_viewer.html',
+        '6': 'porkchop_viewer.html',
+        '7': 'intercept_planner.html',
+        '8': 'ballistic_planner.html',
+        '9': 'maneuver_planner.html',
+    };
+
+    document.addEventListener('keydown', (e) => {
+        // Don't trigger if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (quickLaunch[e.key]) {
+            window.location.href = quickLaunch[e.key];
+        }
+    });
+
+    // Check MC server status
+    fetch('/api/mc/status')
+        .then(r => r.json())
+        .then(data => {
+            const dot = document.getElementById('mcServerDot');
+            const text = document.getElementById('mcServerStatus');
+            if (data.ready) {
+                dot.className = 'status-dot';
+                text.textContent = 'MC Server: ready';
+            } else {
+                dot.className = 'status-dot amber';
+                text.textContent = 'MC Server: engine not found';
             }
+        })
+        .catch(() => {
+            const dot = document.getElementById('mcServerDot');
+            const text = document.getElementById('mcServerStatus');
+            dot.className = 'status-dot off';
+            text.textContent = 'MC Server: not running';
         });
-
-        // Check MC server status
-        fetch('/api/mc/status')
-            .then(r => r.json())
-            .then(data => {
-                const dot = document.getElementById('mcServerDot');
-                const text = document.getElementById('mcServerStatus');
-                if (data.ready) {
-                    dot.style.background = '#2ecc71';
-                    dot.style.boxShadow = '0 0 6px rgba(46, 204, 113, 0.4)';
-                    text.textContent = 'MC Server: ready';
-                } else {
-                    dot.style.background = '#f39c12';
-                    dot.style.boxShadow = '0 0 6px rgba(243, 156, 18, 0.4)';
-                    text.textContent = 'MC Server: engine not found';
-                }
-            })
-            .catch(() => {
-                const dot = document.getElementById('mcServerDot');
-                const text = document.getElementById('mcServerStatus');
-                dot.style.background = '#666';
-                text.textContent = 'MC Server: not running';
-            });
-    </script>
+</script>
 </body>
 </html>

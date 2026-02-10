@@ -1147,6 +1147,15 @@
                 SpaceplaneHUD.render(hudCanvas, aircraftState, simElapsed);
             }
         } else {
+            // Attach fuel/propulsion metadata for HUD fuel gauge & delta-V display
+            aircraftState._fuelCapacity = SPACEPLANE_CONFIG.fuel_capacity;
+            aircraftState._dryMass = SPACEPLANE_CONFIG.mass_empty;
+            aircraftState._propName = aircraftState.forcedPropMode || 'AIR';
+            var _spMode = aircraftState.forcedPropMode || 'AIR';
+            if (_spMode === 'ROCKET') aircraftState._currentThrust = SPACEPLANE_CONFIG.thrust_rocket || 5000000;
+            else if (_spMode === 'HYPERSONIC') aircraftState._currentThrust = SPACEPLANE_CONFIG.thrust_hypersonic || 800000;
+            else aircraftState._currentThrust = SPACEPLANE_CONFIG.thrust_ab || 160000;
+
             // Render cockpit HUD (with space adaptations)
             FighterHUD.render(aircraftState, autopilotState, null, null, simElapsed);
 

@@ -1,11 +1,23 @@
 /**
- * Orbital2Body — Keplerian 2-body orbital propagation physics component.
+ * Orbital2Body — Keplerian 2-body orbital propagation physics component
+ * with optional J2 oblateness secular perturbations.
  *
  * Propagates satellites using analytical Kepler equation solving.
+ * When J2 is enabled (default), applies secular drift to RAAN and argument
+ * of perigee per Brouwer theory, plus J2-corrected mean motion.
+ *
  * Supports initialization from:
  *   - TLE data (source: 'tle', tle_line1, tle_line2)
  *   - Geodetic state (source: 'state', uses entity lat/lon/alt/speed/heading/gamma)
  *   - Classical elements (source: 'elements', sma, ecc, inc, raan, argPerigee, meanAnomaly)
+ *
+ * Config options:
+ *   - j2: boolean (default true) — enable J2 secular perturbations on RAAN/argPe/M
+ *
+ * J2 secular effects:
+ *   - RAAN regression: ~-7 deg/day for ISS-like orbit (400km, 51.6deg)
+ *   - Arg of perigee advance: ~+3.5 deg/day for ISS-like orbit
+ *   - Sun-synchronous orbits (inc ~98deg) maintain constant RAAN-to-Sun angle
  *
  * Updates entity state: lat, lon, alt (geodetic, radians), speed,
  * and stores ECI state in _eci_pos, _eci_vel, _orbital for visual component.
@@ -17,6 +29,8 @@
 
     var MU = 3.986004418e14;
     var R_EARTH = 6371000;
+    var R_EQ = 6378137;            // Earth equatorial radius (m) for J2
+    var J2 = 1.08263e-3;           // Earth J2 oblateness coefficient
     var OMEGA_EARTH = 7.2921159e-5;
     var DEG = Math.PI / 180;
     var TWO_PI = 2 * Math.PI;
@@ -29,6 +43,10 @@
             this._orbitalElements = null;
             this._updateCounter = 0;
             this._pendingDt = 0;
+            // J2 secular perturbation: ON by default, disable with "j2": false in config
+            this._useJ2 = (config.j2 !== false);
+            // Osculating elements for J2 propagation (set during init)
+            this._oscElements = null;
         }
 
         init(world) {
@@ -52,6 +70,11 @@
 
             // Compute initial orbital elements
             this._computeOrbitalElements();
+
+            // Extract osculating elements for J2 propagation
+            if (this._useJ2) {
+                this._oscElements = this._extractElements(this._eciPos, this._eciVel);
+            }
 
             // Store in entity state for visual component
             state._eci_pos = this._eciPos;
@@ -77,10 +100,16 @@
             var propagateDt = this._pendingDt;
             this._pendingDt = 0;
 
-            // Analytical Kepler propagation
-            var result = TLEParser.propagateKepler(this._eciPos, this._eciVel, propagateDt);
-            this._eciPos = result.pos;
-            this._eciVel = result.vel;
+            // Analytical propagation: J2 secular perturbations or pure Kepler
+            if (this._useJ2 && this._oscElements) {
+                var result = this._stepKeplerJ2(propagateDt);
+                this._eciPos = result.pos;
+                this._eciVel = result.vel;
+            } else {
+                var result = TLEParser.propagateKepler(this._eciPos, this._eciVel, propagateDt);
+                this._eciPos = result.pos;
+                this._eciVel = result.vel;
+            }
 
             // ECI → geodetic
             var gmst = OMEGA_EARTH * world.simTime;
@@ -105,6 +134,204 @@
             state._eci_vel = this._eciVel;
             state._orbital = this._orbitalElements;
             state._simTime = world.simTime;
+        }
+
+        // ---------------------------------------------------------------
+        // J2 Secular Perturbation Propagation
+        // ---------------------------------------------------------------
+
+        /**
+         * Extract classical orbital elements from ECI state vector.
+         * Returns null for degenerate/hyperbolic orbits.
+         *
+         * @param {number[]} pos  ECI position [x,y,z] (m)
+         * @param {number[]} vel  ECI velocity [vx,vy,vz] (m/s)
+         * @returns {object|null} { sma, ecc, inc, raan, argPe, M, n } (all radians)
+         */
+        _extractElements(pos, vel) {
+            var rMag = Math.sqrt(pos[0] * pos[0] + pos[1] * pos[1] + pos[2] * pos[2]);
+            var vMag = Math.sqrt(vel[0] * vel[0] + vel[1] * vel[1] + vel[2] * vel[2]);
+
+            if (rMag < 1000 || vMag < 0.1) return null;
+
+            var energy = 0.5 * vMag * vMag - MU / rMag;
+            var sma = -MU / (2 * energy);
+
+            if (!isFinite(sma) || sma <= 0) return null;
+
+            // Angular momentum
+            var hx = pos[1] * vel[2] - pos[2] * vel[1];
+            var hy = pos[2] * vel[0] - pos[0] * vel[2];
+            var hz = pos[0] * vel[1] - pos[1] * vel[0];
+            var hMag = Math.sqrt(hx * hx + hy * hy + hz * hz);
+
+            if (hMag < 1e3) return null;
+
+            // Eccentricity vector
+            var rdotv = pos[0] * vel[0] + pos[1] * vel[1] + pos[2] * vel[2];
+            var c1 = vMag * vMag - MU / rMag;
+            var ex = (c1 * pos[0] - rdotv * vel[0]) / MU;
+            var ey = (c1 * pos[1] - rdotv * vel[1]) / MU;
+            var ez = (c1 * pos[2] - rdotv * vel[2]) / MU;
+            var ecc = Math.sqrt(ex * ex + ey * ey + ez * ez);
+
+            if (ecc >= 1.0) return null;
+
+            // Inclination
+            var cosI = Math.min(1, Math.max(-1, hz / hMag));
+            var inc = Math.acos(cosI);
+
+            // Node vector
+            var nx = -hy;
+            var ny = hx;
+            var nMag = Math.sqrt(nx * nx + ny * ny);
+
+            // RAAN
+            var raan = 0;
+            if (nMag > 1e-6) {
+                raan = Math.acos(Math.min(1, Math.max(-1, nx / nMag)));
+                if (ny < 0) raan = TWO_PI - raan;
+            }
+
+            // Argument of perigee
+            var argPe = 0;
+            if (nMag > 1e-6 && ecc > 1e-6) {
+                var ndotE = (nx * ex + ny * ey) / (nMag * ecc);
+                argPe = Math.acos(Math.min(1, Math.max(-1, ndotE)));
+                if (ez < 0) argPe = TWO_PI - argPe;
+            }
+
+            // True anomaly
+            var trueAnom = 0;
+            if (ecc > 1e-6) {
+                var edotR = (ex * pos[0] + ey * pos[1] + ez * pos[2]) / (ecc * rMag);
+                trueAnom = Math.acos(Math.min(1, Math.max(-1, edotR)));
+                if (rdotv < 0) trueAnom = TWO_PI - trueAnom;
+            }
+
+            // Eccentric anomaly and mean anomaly
+            var cosTA = Math.cos(trueAnom);
+            var sinTA = Math.sin(trueAnom);
+            var E0 = Math.atan2(Math.sqrt(1 - ecc * ecc) * sinTA, ecc + cosTA);
+            var M = E0 - ecc * Math.sin(E0);
+            if (M < 0) M += TWO_PI;
+
+            // Mean motion
+            var n = Math.sqrt(MU / (sma * sma * sma));
+
+            return {
+                sma: sma,
+                ecc: ecc,
+                inc: inc,
+                raan: raan,
+                argPe: argPe,
+                M: M,
+                n: n
+            };
+        }
+
+        /**
+         * Propagate one timestep using Kepler + J2 secular perturbations.
+         *
+         * J2 secular rates (Brouwer theory):
+         *   dRaan/dt  = -1.5 * n * J2 * (R_eq/p)^2 * cos(i)
+         *   dArgPe/dt =  1.5 * n * J2 * (R_eq/p)^2 * (2 - 2.5*sin^2(i))
+         *   dM/dt     =  n * (1 + 1.5*J2*(R_eq/a)^2 * (1 - 1.5*sin^2(i)) / (1-e^2)^1.5)
+         *
+         * Where p = a*(1-e^2) is the semi-latus rectum.
+         *
+         * @param {number} dt  timestep in seconds
+         * @returns {{ pos: number[], vel: number[] }} new ECI state
+         */
+        _stepKeplerJ2(dt) {
+            var el = this._oscElements;
+
+            var sma = el.sma;
+            var ecc = el.ecc;
+            var inc = el.inc;
+            var n = el.n;
+
+            // Semi-latus rectum
+            var p = sma * (1 - ecc * ecc);
+
+            // Guard: p must be positive and finite
+            if (!isFinite(p) || p < 1000) {
+                // Fall back to pure Kepler
+                var fb = TLEParser.propagateKepler(this._eciPos, this._eciVel, dt);
+                return fb;
+            }
+
+            var sinI = Math.sin(inc);
+            var cosI = Math.cos(inc);
+            var sin2I = sinI * sinI;
+
+            // J2 geometric factor: (R_eq / p)^2
+            var rp2 = (R_EQ / p) * (R_EQ / p);
+
+            // Secular drift rates (rad/s)
+            var dRaan_dt  = -1.5 * n * J2 * rp2 * cosI;
+            var dArgPe_dt =  1.5 * n * J2 * rp2 * (2.0 - 2.5 * sin2I);
+
+            // J2-corrected mean motion for mean anomaly advance
+            var oneMinusE2_32 = Math.pow(1 - ecc * ecc, 1.5);
+            var n_j2 = n * (1.0 + 1.5 * J2 * (R_EQ / sma) * (R_EQ / sma) *
+                            (1.0 - 1.5 * sin2I) / oneMinusE2_32);
+
+            // Advance elements
+            el.raan  = (el.raan  + dRaan_dt  * dt) % TWO_PI;
+            el.argPe = (el.argPe + dArgPe_dt * dt) % TWO_PI;
+            el.M     = (el.M     + n_j2      * dt) % TWO_PI;
+
+            // Normalize to [0, 2*PI)
+            if (el.raan < 0)  el.raan += TWO_PI;
+            if (el.argPe < 0) el.argPe += TWO_PI;
+            if (el.M < 0)     el.M += TWO_PI;
+
+            // Solve Kepler's equation: M = E - e*sin(E)
+            var M = el.M;
+            var E = M;
+            for (var iter = 0; iter < 20; iter++) {
+                var dE = (E - ecc * Math.sin(E) - M) / (1 - ecc * Math.cos(E));
+                E -= dE;
+                if (Math.abs(dE) < 1e-12) break;
+            }
+
+            // True anomaly
+            var cosE = Math.cos(E);
+            var sinE = Math.sin(E);
+            var nu = Math.atan2(Math.sqrt(1 - ecc * ecc) * sinE, cosE - ecc);
+
+            // Radius
+            var r = sma * (1 - ecc * cosE);
+
+            // Perifocal coordinates
+            var xP = r * Math.cos(nu);
+            var yP = r * Math.sin(nu);
+
+            // Perifocal velocity
+            var vCoeff = Math.sqrt(MU / p);
+            var vxP = -vCoeff * Math.sin(nu);
+            var vyP = vCoeff * (ecc + Math.cos(nu));
+
+            // Perifocal → ECI rotation using current (drifted) RAAN and argPe
+            var w = el.argPe;
+            var raan = el.raan;
+
+            var cosW = Math.cos(w),  sinW = Math.sin(w);
+            var cosIn = Math.cos(inc), sinIn = Math.sin(inc);
+            var cosO = Math.cos(raan), sinO = Math.sin(raan);
+
+            var Px = cosO * cosW - sinO * sinW * cosIn;
+            var Py = sinO * cosW + cosO * sinW * cosIn;
+            var Pz = sinW * sinIn;
+            var Qx = -cosO * sinW - sinO * cosW * cosIn;
+            var Qy = -sinO * sinW + cosO * cosW * cosIn;
+            var Qz = cosW * sinIn;
+
+            return {
+                pos: [Px * xP + Qx * yP, Py * xP + Qy * yP, Pz * xP + Qz * yP],
+                vel: [Px * vxP + Qx * vyP, Py * vxP + Qy * vyP, Pz * vxP + Qz * vyP]
+            };
         }
 
         // ---------------------------------------------------------------

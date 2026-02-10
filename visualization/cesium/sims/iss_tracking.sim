@@ -1,0 +1,134 @@
+{
+  "metadata": {
+    "name": "ISS Tracking Network",
+    "description": "International Space Station in a 408km circular orbit at 51.6 degree inclination, tracked by three ground stations: Houston (NASA JSC), Moscow (TsUP), and Tanegashima (JAXA). Ground stations have long-range radar for pass detection.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "iss",
+      "name": "ISS",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6778000,
+          "ecc": 0.0002,
+          "inc": 51.6,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc00",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "ISS"
+        }
+      }
+    },
+    {
+      "id": "houston",
+      "name": "Houston (JSC)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 29.5594,
+        "lon": -95.0894,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "HOUSTON",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "moscow",
+      "name": "Moscow (TsUP)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 55.7558,
+        "lon": 37.6173,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "MOSCOW",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    },
+    {
+      "id": "tanegashima",
+      "name": "Tanegashima (JAXA)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 30.4,
+        "lon": 131.0,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.88
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "TANEGASHIMA",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 20000000
+  }
+}

@@ -1,0 +1,231 @@
+{
+  "metadata": {
+    "name": "GPS Constellation",
+    "description": "6 GPS satellites in 3 orbital planes (RAAN 0/120/240 degrees, 2 satellites per plane spaced 180 degrees in mean anomaly) at MEO altitude (26,571 km SMA, 55 degree inclination). Two ground receivers at Colorado Springs and Diego Garcia for coverage analysis.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "gps_a1",
+      "name": "GPS IIR-A1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS A1"
+        }
+      }
+    },
+    {
+      "id": "gps_a2",
+      "name": "GPS IIR-A2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS A2"
+        }
+      }
+    },
+    {
+      "id": "gps_b1",
+      "name": "GPS IIF-B1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 60
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS B1"
+        }
+      }
+    },
+    {
+      "id": "gps_b2",
+      "name": "GPS IIF-B2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 240
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS B2"
+        }
+      }
+    },
+    {
+      "id": "gps_c1",
+      "name": "GPS III-C1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 240,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#88ff44",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS C1"
+        }
+      }
+    },
+    {
+      "id": "gps_c2",
+      "name": "GPS III-C2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 240,
+          "argPerigee": 0,
+          "meanAnomaly": 300
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#88ff44",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS C2"
+        }
+      }
+    },
+    {
+      "id": "rx_colorado",
+      "name": "GPS Master Control (Schriever)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 38.8,
+        "lon": -104.53,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "MCS",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(68,255,68,0.04)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      }
+    },
+    {
+      "id": "rx_diego_garcia",
+      "name": "GPS Monitor (Diego Garcia)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": -7.32,
+        "lon": 72.42,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "DGS",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(68,255,68,0.04)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 50000000
+  }
+}

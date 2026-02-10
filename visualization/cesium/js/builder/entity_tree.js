@@ -128,10 +128,16 @@ var EntityTree = (function() {
             _filterInput.value = '';
         }
         _applyFilter();
-        // Restore the original empty message text
+        // Restore the original empty message with guidance
         var emptyEl = document.getElementById('treeEmptyMsg');
         if (emptyEl) {
-            emptyEl.textContent = 'No entities in scenario. Use the Object Palette to add entities.';
+            emptyEl.innerHTML =
+                '<div class="empty-state-guidance">' +
+                '<div class="empty-state-title">No entities in scenario</div>' +
+                '<div class="empty-state-step">1. Click an entity from the palette on the left, then click the globe to place it.</div>' +
+                '<div class="empty-state-step">2. Or load a template from the <b>Demo</b> menu above.</div>' +
+                '<div class="empty-state-tip">Tip: Right-click entities for options (focus, duplicate, delete).</div>' +
+                '</div>';
         }
     }
 

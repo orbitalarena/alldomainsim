@@ -135,6 +135,78 @@
             height: 24px; background: rgba(0,0,0,0.75); border: 1px solid #333;
             border-radius: 4px; cursor: pointer; pointer-events: auto;
         }
+
+        /* Entity hover tooltip */
+        #entityTooltip {
+            position: fixed; z-index: 200; pointer-events: none;
+            background: rgba(10,10,18,0.96); border: 1px solid #444; border-radius: 6px;
+            padding: 10px 14px; color: #ddd; font-size: 11px; min-width: 200px; max-width: 280px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5); display: none;
+            backdrop-filter: blur(4px);
+        }
+        #entityTooltip .tt-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        #entityTooltip .tt-row { display: flex; justify-content: space-between; margin: 2px 0; gap: 12px; }
+        #entityTooltip .tt-label { color: #666; white-space: nowrap; }
+        #entityTooltip .tt-value { color: #ccc; text-align: right; }
+        #entityTooltip .tt-divider { border-top: 1px solid #333; margin: 5px 0; }
+        #entityTooltip .tt-status-alive { color: #2ecc71; font-weight: 600; }
+        #entityTooltip .tt-status-dead { color: #ff4444; font-weight: 600; }
+
+        /* Entity filter bar */
+        #entityFilterBar {
+            margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #222;
+        }
+        #entityFilterInput {
+            width: 100%; background: #111; border: 1px solid #333; border-radius: 4px;
+            color: #ccc; padding: 4px 8px; font-size: 11px; font-family: 'Consolas', monospace;
+            outline: none; margin-bottom: 6px; transition: border-color 0.2s;
+        }
+        #entityFilterInput:focus { border-color: #4DA6FF; }
+        #entityFilterInput::placeholder { color: #444; }
+        #teamFilterBtns {
+            display: flex; gap: 4px; margin-bottom: 4px;
+        }
+        #teamFilterBtns button {
+            flex: 1; background: #181818; color: #777; border: 1px solid #333; border-radius: 3px;
+            padding: 2px 0; font-size: 10px; cursor: pointer; transition: all 0.15s;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        #teamFilterBtns button:hover { background: #222; color: #aaa; }
+        #teamFilterBtns button.active { background: #1a3a5c; color: #4DA6FF; border-color: #2a6090; }
+        #teamFilterBtns button.active-red { background: #3a1a1a; color: #FF4444; border-color: #902a2a; }
+        #teamFilterBtns button.active-neutral { background: #2a2a2a; color: #aaa; border-color: #555; }
+        #entityFilterCount {
+            font-size: 10px; color: #444; text-align: right;
+        }
+
+        /* Enhanced entity list items with team-color border */
+        .entity-item {
+            padding: 4px 8px; cursor: pointer; border-radius: 4px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px;
+            border-left: 3px solid transparent; margin: 1px 0;
+            transition: background 0.15s, opacity 0.3s, border-color 0.15s;
+        }
+        .entity-item.team-blue { border-left-color: #4DA6FF; }
+        .entity-item.team-red { border-left-color: #FF4444; }
+        .entity-item.team-neutral { border-left-color: #666; }
+        .entity-item:hover { background: rgba(255,255,255,0.08); }
+        .entity-item.tracked { background: rgba(74,158,255,0.15); border: 1px solid rgba(255,215,0,0.5); border-left: 3px solid #FFD700; }
+        .entity-item.dead { opacity: 0.30; }
+        .entity-item.dead .entity-name-text { text-decoration: line-through; }
+
+        /* Stats panel header gradient */
+        #statsPanel h3 {
+            font-size: 13px; color: #aaa; margin-bottom: 8px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 1px;
+            background: linear-gradient(90deg, rgba(74,158,255,0.15), transparent);
+            margin: -14px -18px 10px -18px; padding: 10px 18px;
+            border-radius: 8px 8px 0 0; border-bottom: 1px solid #222;
+        }
+        .stat-divider { margin: 6px 0; border-top: 1px solid #222; }
+        .stat-row-compact { display: flex; justify-content: space-between; margin: 2px 0; font-size: 11px; }
+        .stat-row-compact .stat-label { color: #555; }
+        .stat-row-compact .stat-value { color: #888; }
     </style>
 </head>
 <body>
@@ -157,8 +229,20 @@
 
     <div id="entityList">
         <h3>ENTITIES</h3>
+        <div id="entityFilterBar">
+            <input type="text" id="entityFilterInput" placeholder="Filter by name...">
+            <div id="teamFilterBtns">
+                <button id="filterAll" class="active">All</button>
+                <button id="filterBlue">Blue</button>
+                <button id="filterRed">Red</button>
+                <button id="filterNeutral">Other</button>
+            </div>
+            <div id="entityFilterCount"></div>
+        </div>
         <div id="entityListEntries"></div>
     </div>
+
+    <div id="entityTooltip"></div>
 
     <div id="entityDetail">
         <button class="detail-close" id="detailClose">&times;</button>
@@ -186,7 +270,10 @@
         <kbd>L</kbd> Toggle labels<br>
         <kbd>T</kbd> Toggle trails<br>
         <kbd>K</kbd> Toggle kill lines<br>
-        <kbd>Esc</kbd> Untrack entity<br>
+        <kbd>F</kbd> Focus entity filter<br>
+        <kbd>I</kbd> Toggle entity info panel<br>
+        <kbd>1</kbd>-<kbd>9</kbd> Select entity from list<br>
+        <kbd>Esc</kbd> Untrack entity / blur filter<br>
         <kbd>?</kbd> Toggle this help
     </div>
 
@@ -345,6 +432,11 @@ var trailPrimitives = [];
 var missileTrails = [];
 var rangeRingEntities = [];
 var _timelineFrameCount = 0;
+
+// Filter state
+var filterText = '';
+var filterTeam = 'all'; // 'all', 'blue', 'red', 'neutral'
+var showEntityInfoPanel = true;
 
 // -- Available replay files (populated by scanning) --
 var REPLAY_FILES = [
@@ -1054,8 +1146,8 @@ function updateStats(simTime) {
 
     // Count entities by team and type
     var counts = {
-        blue: { alive: 0, total: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 },
-        red:  { alive: 0, total: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 }
+        blue: { alive: 0, total: 0, dead: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 },
+        red:  { alive: 0, total: 0, dead: 0, aircraft: 0, aircraftAlive: 0, ground: 0, groundAlive: 0, satellite: 0, satelliteAlive: 0 }
     };
 
     for (var i = 0; i < entities.length; i++) {
@@ -1065,6 +1157,7 @@ function updateStats(simTime) {
         var alive = ent.deathTime === null || simTime < ent.deathTime;
         counts[team].total++;
         if (alive) counts[team].alive++;
+        else counts[team].dead++;
 
         var type = ent.type || 'unknown';
         if (type === 'aircraft') {
@@ -1079,20 +1172,47 @@ function updateStats(simTime) {
         }
     }
 
-    // Count events
+    // Count events and compute engagement stats
     var kills = 0, launches = 0;
+    var blueKills = 0, redKills = 0;
+    var firstKillTime = null, lastKillTime = null;
+    var totalEngRange = 0, engRangeCount = 0;
+
     if (replayData) {
         for (var e = 0; e < replayData.events.length; e++) {
-            if (replayData.events[e].time > simTime) break;
-            if (replayData.events[e].type === 'KILL') kills++;
-            if (replayData.events[e].type === 'LAUNCH') launches++;
+            var evt = replayData.events[e];
+            if (evt.time > simTime) break;
+            if (evt.type === 'KILL') {
+                kills++;
+                if (firstKillTime === null) firstKillTime = evt.time;
+                lastKillTime = evt.time;
+
+                // Determine which team got the kill
+                var killer = entities.find(function(en) { return en.id === evt.sourceId; });
+                if (killer) {
+                    if (killer.team === 'blue') blueKills++;
+                    else if (killer.team === 'red') redKills++;
+                }
+            }
+            if (evt.type === 'LAUNCH') {
+                launches++;
+                // Compute engagement range
+                if (evt.sourcePosition && evt.targetPosition) {
+                    var dx = evt.targetPosition[0] - evt.sourcePosition[0];
+                    var dy = evt.targetPosition[1] - evt.sourcePosition[1];
+                    var dz = evt.targetPosition[2] - evt.sourcePosition[2];
+                    var range = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    totalEngRange += range;
+                    engRangeCount++;
+                }
+            }
         }
     }
 
     // Build HTML
     var html = '<div class="stat-row"><span class="stat-label">Time</span><span class="stat-value">' + timeStr + '</span></div>';
 
-    function teamRow(label, teamData, cssClass) {
+    function teamRow(label, teamData, cssClass, teamKills) {
         var parts = [];
         if (teamData.aircraft > 0) parts.push(teamData.aircraftAlive + '/' + teamData.aircraft + ' air');
         if (teamData.ground > 0) parts.push(teamData.groundAlive + '/' + teamData.ground + ' gnd');
@@ -1101,19 +1221,55 @@ function updateStats(simTime) {
         if (parts.length === 0) return '';
 
         var detail = parts.join(', ');
+        // K/D ratio
+        var kd = teamData.dead > 0 ? (teamKills / teamData.dead).toFixed(1) : (teamKills > 0 ? '\u221E' : '0');
+
         return '<div class="stat-row"><span class="stat-label">' + label + '</span>' +
-               '<span class="stat-value ' + cssClass + '">' + teamData.alive + '/' + teamData.total + '</span></div>' +
+               '<span class="stat-value ' + cssClass + '">' + teamData.alive + '/' + teamData.total +
+               ' <span style="font-size:10px;color:#555">(K/D ' + kd + ')</span></span></div>' +
                '<div class="stat-row" style="margin-top:-2px"><span class="stat-label"></span>' +
                '<span style="color:#555;font-size:10px">' + detail + '</span></div>';
     }
 
-    html += teamRow('Blue', counts.blue, 'stat-blue');
-    html += teamRow('Red', counts.red, 'stat-red');
+    html += teamRow('Blue', counts.blue, 'stat-blue', blueKills);
+    html += teamRow('Red', counts.red, 'stat-red', redKills);
 
     html += '<div class="stat-section">';
     html += '<div class="stat-row"><span class="stat-label">Kills</span><span class="stat-value stat-gold">' + kills + '</span></div>';
     html += '<div class="stat-row"><span class="stat-label">Launches</span><span class="stat-value">' + launches + '</span></div>';
+
+    // Hit rate
+    if (launches > 0) {
+        var hitRate = ((kills / launches) * 100).toFixed(0);
+        html += '<div class="stat-row-compact"><span class="stat-label">Hit rate</span><span class="stat-value">' + hitRate + '%</span></div>';
+    }
     html += '</div>';
+
+    // Engagement details section
+    var hasEngDetails = firstKillTime !== null || engRangeCount > 0;
+    if (hasEngDetails) {
+        html += '<div class="stat-section">';
+
+        if (firstKillTime !== null) {
+            var fMin = Math.floor(firstKillTime / 60);
+            var fSec = Math.floor(firstKillTime % 60);
+            html += '<div class="stat-row-compact"><span class="stat-label">First kill</span><span class="stat-value">T+' +
+                    fMin + ':' + String(fSec).padStart(2, '0') + '</span></div>';
+        }
+        if (lastKillTime !== null && kills > 1) {
+            var lMin = Math.floor(lastKillTime / 60);
+            var lSec = Math.floor(lastKillTime % 60);
+            html += '<div class="stat-row-compact"><span class="stat-label">Last kill</span><span class="stat-value">T+' +
+                    lMin + ':' + String(lSec).padStart(2, '0') + '</span></div>';
+        }
+        if (engRangeCount > 0) {
+            var avgRange = totalEngRange / engRangeCount;
+            var rangeStr = avgRange >= 1000 ? (avgRange / 1000).toFixed(1) + ' km' : avgRange.toFixed(0) + ' m';
+            html += '<div class="stat-row-compact"><span class="stat-label">Avg eng range</span><span class="stat-value">' + rangeStr + '</span></div>';
+        }
+
+        html += '</div>';
+    }
 
     html += '<div style="margin-top:6px;font-size:10px;color:#444">' +
             entities.length + ' entities | ' + scenarioType + '</div>';
@@ -1151,15 +1307,44 @@ function addEventLogEntry(evt) {
 
 // -- Entity list --
 function buildEntityList() {
+    renderFilteredEntityList();
+}
+
+function renderFilteredEntityList() {
     var div = document.getElementById('entityListEntries');
     div.innerHTML = '';
 
-    var blueEnts = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
-                           .filter(function(e) { return e.team === 'blue'; });
-    var redEnts  = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
-                           .filter(function(e) { return e.team === 'red'; });
-    var otherEnts = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); })
-                            .filter(function(e) { return e.team !== 'blue' && e.team !== 'red'; });
+    var allIndexed = entities.map(function(e, i) { return Object.assign({}, e, {idx: i}); });
+
+    // Apply text filter
+    var filtered = allIndexed;
+    if (filterText) {
+        var lowerFilter = filterText.toLowerCase();
+        filtered = filtered.filter(function(e) {
+            return e.name.toLowerCase().indexOf(lowerFilter) !== -1 ||
+                   e.id.toLowerCase().indexOf(lowerFilter) !== -1;
+        });
+    }
+
+    // Apply team filter
+    if (filterTeam !== 'all') {
+        if (filterTeam === 'neutral') {
+            filtered = filtered.filter(function(e) { return e.team !== 'blue' && e.team !== 'red'; });
+        } else {
+            filtered = filtered.filter(function(e) { return e.team === filterTeam; });
+        }
+    }
+
+    // Update count
+    document.getElementById('entityFilterCount').textContent =
+        'Showing ' + filtered.length + ' / ' + entities.length + ' entities';
+
+    // Group by team
+    var blueEnts = filtered.filter(function(e) { return e.team === 'blue'; });
+    var redEnts  = filtered.filter(function(e) { return e.team === 'red'; });
+    var otherEnts = filtered.filter(function(e) { return e.team !== 'blue' && e.team !== 'red'; });
+
+    var visibleIndex = 0; // running count for 1-9 quick select
 
     function addGroup(label, ents) {
         if (ents.length === 0) return;
@@ -1170,16 +1355,38 @@ function buildEntityList() {
 
         for (var i = 0; i < ents.length; i++) {
             var ent = ents[i];
+            visibleIndex++;
             var item = document.createElement('div');
-            item.className = 'entity-item';
+            var teamClass = ent.team === 'blue' ? 'team-blue' :
+                            ent.team === 'red' ? 'team-red' : 'team-neutral';
+            item.className = 'entity-item ' + teamClass;
             item.id = 'entity-item-' + ent.idx;
+            item.setAttribute('data-entity-idx', ent.idx);
+            item.setAttribute('data-visible-index', visibleIndex);
+
+            // Mark dead items
+            if (ent.deathTime !== null) {
+                // Will be updated dynamically, but set initial state
+            }
+            if (trackedEntityIdx === ent.idx) {
+                item.classList.add('tracked');
+            }
 
             var dot = document.createElement('span');
             dot.className = 'entity-dot';
             dot.style.backgroundColor = ent.cssColor;
 
             var nameSpan = document.createElement('span');
+            nameSpan.className = 'entity-name-text';
             nameSpan.textContent = ent.name;
+
+            // Quick-select number badge (1-9)
+            if (visibleIndex <= 9) {
+                var badge = document.createElement('span');
+                badge.style.cssText = 'font-size:9px; color:#444; margin-left:2px; flex-shrink:0;';
+                badge.textContent = visibleIndex;
+                nameSpan.appendChild(badge);
+            }
 
             var typeTag = document.createElement('span');
             typeTag.className = 'entity-type-tag';
@@ -1188,9 +1395,18 @@ function buildEntityList() {
             item.appendChild(dot);
             item.appendChild(nameSpan);
             item.appendChild(typeTag);
+
+            // Click to track
             item.addEventListener('click', (function(idx) {
                 return function() { trackEntity(idx); };
             })(ent.idx));
+
+            // Tooltip on hover
+            item.addEventListener('mouseenter', (function(idx) {
+                return function(e) { showEntityTooltip(idx, e); };
+            })(ent.idx));
+            item.addEventListener('mousemove', function(e) { moveEntityTooltip(e); });
+            item.addEventListener('mouseleave', hideEntityTooltip);
 
             div.appendChild(item);
         }
@@ -1199,6 +1415,114 @@ function buildEntityList() {
     addGroup('Blue', blueEnts);
     addGroup('Red', redEnts);
     addGroup('Other', otherEnts);
+}
+
+// -- Entity hover tooltip --
+function showEntityTooltip(idx, mouseEvt) {
+    var tooltip = document.getElementById('entityTooltip');
+    var ent = entities[idx];
+    if (!ent) return;
+
+    // Get current sim time
+    var simTime = 0;
+    if (replayData) {
+        simTime = Cesium.JulianDate.secondsDifference(viewer.clock.currentTime, viewer.clock.startTime);
+    }
+
+    var alive = ent.deathTime === null || simTime < ent.deathTime;
+    var statusClass = alive ? 'tt-status-alive' : 'tt-status-dead';
+    var statusText = alive ? 'ACTIVE' : 'DESTROYED';
+
+    // Position info
+    var posHtml = '';
+    var point = entityPoints[idx];
+    if (point && point.position) {
+        try {
+            var carto = Cesium.Cartographic.fromCartesian(point.position);
+            var lat = Cesium.Math.toDegrees(carto.latitude).toFixed(3);
+            var lon = Cesium.Math.toDegrees(carto.longitude).toFixed(3);
+            var altKm = (carto.height / 1000).toFixed(1);
+            posHtml = '<div class="tt-divider"></div>' +
+                '<div class="tt-row"><span class="tt-label">Lat</span><span class="tt-value">' + lat + '\u00B0</span></div>' +
+                '<div class="tt-row"><span class="tt-label">Lon</span><span class="tt-value">' + lon + '\u00B0</span></div>' +
+                '<div class="tt-row"><span class="tt-label">Alt</span><span class="tt-value">' + altKm + ' km</span></div>';
+        } catch(e) { /* ignore position errors */ }
+    }
+
+    // Death time
+    var deathHtml = '';
+    if (ent.deathTime !== null) {
+        var dMin = Math.floor(ent.deathTime / 60);
+        var dSec = Math.floor(ent.deathTime % 60);
+        deathHtml = '<div class="tt-row"><span class="tt-label">Death</span><span class="tt-value">T+' +
+            dMin + ':' + String(dSec).padStart(2, '0') + '</span></div>';
+    }
+
+    // Role info
+    var roleHtml = ent.role ?
+        '<div class="tt-row"><span class="tt-label">Role</span><span class="tt-value">' + ent.role + '</span></div>' : '';
+
+    // Weapon/maxRange info from raw replay data
+    var weaponHtml = '';
+    if (replayData) {
+        var rawEnt = replayData.entities.find(function(e) { return e.id === ent.id; });
+        if (rawEnt && rawEnt.maxRange) {
+            var rangeKm = (rawEnt.maxRange / 1000).toFixed(0);
+            weaponHtml = '<div class="tt-row"><span class="tt-label">Range</span><span class="tt-value">' + rangeKm + ' km</span></div>';
+        }
+    }
+
+    // Engagement count for this entity
+    var killCount = 0, launchCount = 0, hitByCount = 0;
+    if (replayData) {
+        for (var e = 0; e < replayData.events.length; e++) {
+            var evt = replayData.events[e];
+            if (evt.time > simTime) break;
+            if (evt.sourceId === ent.id && evt.type === 'KILL') killCount++;
+            if (evt.sourceId === ent.id && evt.type === 'LAUNCH') launchCount++;
+            if (evt.targetId === ent.id && evt.type === 'KILL') hitByCount++;
+        }
+    }
+    var engHtml = '';
+    if (launchCount > 0 || killCount > 0 || hitByCount > 0) {
+        engHtml = '<div class="tt-divider"></div>';
+        if (launchCount > 0) engHtml += '<div class="tt-row"><span class="tt-label">Launches</span><span class="tt-value">' + launchCount + '</span></div>';
+        if (killCount > 0) engHtml += '<div class="tt-row"><span class="tt-label">Kills</span><span class="tt-value" style="color:#FFD700">' + killCount + '</span></div>';
+        if (hitByCount > 0) engHtml += '<div class="tt-row"><span class="tt-label">Hit by</span><span class="tt-value" style="color:#FF4444">' + hitByCount + '</span></div>';
+    }
+
+    tooltip.innerHTML =
+        '<div class="tt-name" style="color:' + ent.cssColor + '">' + ent.name + '</div>' +
+        '<div class="tt-row"><span class="tt-label">Type</span><span class="tt-value">' + ent.type + '</span></div>' +
+        '<div class="tt-row"><span class="tt-label">Team</span><span class="tt-value" style="color:' + ent.cssColor + '">' + ent.team + '</span></div>' +
+        roleHtml + weaponHtml +
+        '<div class="tt-row"><span class="tt-label">Status</span><span class="' + statusClass + '">' + statusText + '</span></div>' +
+        deathHtml + posHtml + engHtml;
+
+    tooltip.style.display = 'block';
+    moveEntityTooltip(mouseEvt);
+}
+
+function moveEntityTooltip(e) {
+    var tooltip = document.getElementById('entityTooltip');
+    if (tooltip.style.display === 'none') return;
+
+    var x = e.clientX + 16;
+    var y = e.clientY - 10;
+
+    // Keep tooltip on screen
+    var tw = tooltip.offsetWidth;
+    var th = tooltip.offsetHeight;
+    if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 16;
+    if (y + th > window.innerHeight - 10) y = window.innerHeight - th - 10;
+    if (y < 10) y = 10;
+
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+}
+
+function hideEntityTooltip() {
+    document.getElementById('entityTooltip').style.display = 'none';
 }
 
 function updateEntityListItem(idx, alive) {
@@ -1233,6 +1557,7 @@ function trackEntity(idx) {
 
 // -- Entity detail panel --
 function showEntityDetail(idx) {
+    if (!showEntityInfoPanel) return;
     var ent = entities[idx];
     var panel = document.getElementById('entityDetail');
     document.getElementById('detailName').textContent = ent.name;
@@ -1338,6 +1663,42 @@ document.getElementById('detailClose').addEventListener('click', function() {
     document.getElementById('entityDetail').style.display = 'none';
 });
 
+// -- Entity filter handlers --
+document.getElementById('entityFilterInput').addEventListener('input', function(e) {
+    filterText = e.target.value;
+    renderFilteredEntityList();
+});
+
+// Prevent space/keyboard shortcuts from firing when typing in filter
+document.getElementById('entityFilterInput').addEventListener('keydown', function(e) {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+        e.target.value = '';
+        filterText = '';
+        renderFilteredEntityList();
+        e.target.blur();
+    }
+});
+
+function setTeamFilter(team) {
+    filterTeam = team;
+    // Update button active states
+    var btns = document.getElementById('teamFilterBtns').querySelectorAll('button');
+    btns.forEach(function(btn) {
+        btn.className = '';
+    });
+    if (team === 'all') document.getElementById('filterAll').className = 'active';
+    else if (team === 'blue') document.getElementById('filterBlue').className = 'active';
+    else if (team === 'red') document.getElementById('filterRed').className = 'active-red';
+    else if (team === 'neutral') document.getElementById('filterNeutral').className = 'active-neutral';
+    renderFilteredEntityList();
+}
+
+document.getElementById('filterAll').addEventListener('click', function() { setTeamFilter('all'); });
+document.getElementById('filterBlue').addEventListener('click', function() { setTeamFilter('blue'); });
+document.getElementById('filterRed').addEventListener('click', function() { setTeamFilter('red'); });
+document.getElementById('filterNeutral').addEventListener('click', function() { setTeamFilter('neutral'); });
+
 // -- Engagement timeline click-to-scrub --
 document.getElementById('engagementTimeline').addEventListener('click', function(e) {
     if (!replayData) return;
@@ -1379,6 +1740,21 @@ document.addEventListener('keydown', function(e) {
         case 'K':
             document.getElementById('chkLines').click();
             break;
+        case 'f':
+        case 'F':
+            e.preventDefault();
+            document.getElementById('entityFilterInput').focus();
+            break;
+        case 'i':
+        case 'I':
+            showEntityInfoPanel = !showEntityInfoPanel;
+            var detailPanel = document.getElementById('entityDetail');
+            if (showEntityInfoPanel && trackedEntityIdx >= 0) {
+                showEntityDetail(trackedEntityIdx);
+            } else {
+                detailPanel.style.display = 'none';
+            }
+            break;
         case '?':
             document.getElementById('btnHelp').click();
             break;
@@ -1387,6 +1763,16 @@ document.addEventListener('keydown', function(e) {
                 trackEntity(trackedEntityIdx); // toggle off
             }
             document.getElementById('entityDetail').style.display = 'none';
+            break;
+        case '1': case '2': case '3': case '4': case '5':
+        case '6': case '7': case '8': case '9':
+            // Quick-select entity by visible index
+            var targetVisIdx = parseInt(e.key);
+            var items = document.querySelectorAll('.entity-item[data-visible-index="' + targetVisIdx + '"]');
+            if (items.length > 0) {
+                var entIdx = parseInt(items[0].getAttribute('data-entity-idx'));
+                trackEntity(entIdx);
+            }
             break;
     }
 });

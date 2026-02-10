@@ -430,6 +430,17 @@
             width: 150px;
         }
 
+        .inspector-validation-warning {
+            font-size: 10px;
+            color: #ccaa44;
+            padding: 2px 0 2px 64px;
+            line-height: 1.3;
+            display: none;
+        }
+        .inspector-validation-warning.visible {
+            display: block;
+        }
+
         .inspector-select {
             background: rgba(8, 14, 26, 0.9);
             border: 1px solid #1a2a44;
@@ -687,6 +698,35 @@
             color: #3a5070;
             font-size: 12px;
             font-style: italic;
+        }
+        .empty-state-guidance {
+            text-align: left;
+            padding: 12px 20px;
+        }
+        .empty-state-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #506880;
+            margin-bottom: 8px;
+            font-style: normal;
+        }
+        .empty-state-step {
+            font-size: 11px;
+            color: #3a5a78;
+            margin-bottom: 4px;
+            padding-left: 4px;
+            font-style: normal;
+        }
+        .empty-state-step b {
+            color: #5588bb;
+        }
+        .empty-state-tip {
+            font-size: 10px;
+            color: #334a60;
+            margin-top: 8px;
+            padding-left: 4px;
+            border-top: 1px solid #1a2a44;
+            padding-top: 6px;
         }
 
         /* Entity Tree Filter Bar */
@@ -1013,12 +1053,14 @@
             display: none;
             position: absolute;
             top: 100%;
-            left: 0;
+            right: 0;
             margin-top: 4px;
             background: rgba(12, 18, 30, 0.98);
             border: 1px solid #1a2a44;
             border-radius: 6px;
-            min-width: 260px;
+            min-width: 360px;
+            max-height: 80vh;
+            overflow-y: auto;
             z-index: 100;
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
             padding: 4px 0;
@@ -1056,6 +1098,46 @@
             height: 1px;
             background: #1a2a44;
             margin: 4px 0;
+        }
+        .demo-section-label {
+            padding: 6px 14px 2px;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: #3a5a7a;
+            user-select: none;
+        }
+        .demo-item-meta {
+            font-size: 9px;
+            color: #3a5a7a;
+            margin-top: 2px;
+            font-style: italic;
+        }
+        .demo-difficulty {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-left: 6px;
+            letter-spacing: 0.3px;
+            vertical-align: middle;
+        }
+        .demo-difficulty.beginner {
+            background: rgba(68, 200, 68, 0.15);
+            color: #55cc55;
+            border: 1px solid rgba(68, 200, 68, 0.3);
+        }
+        .demo-difficulty.intermediate {
+            background: rgba(255, 180, 40, 0.15);
+            color: #ffbb44;
+            border: 1px solid rgba(255, 180, 40, 0.3);
+        }
+        .demo-difficulty.advanced {
+            background: rgba(255, 80, 80, 0.15);
+            color: #ff6666;
+            border: 1px solid rgba(255, 80, 80, 0.3);
         }
 
         /* ================================================================
@@ -1680,47 +1762,62 @@
             <div class="demo-dropdown">
                 <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
                 <div class="demo-dropdown-menu" id="demoDropdownMenu">
-                    <button class="demo-dropdown-item" data-scenario="demo_multi_domain">
-                        <div class="demo-item-name">Multi-Domain Awareness</div>
-                        <div class="demo-item-desc">LEO/MEO/GEO sats, ground stations, aircraft</div>
-                    </button>
-                    <button class="demo-dropdown-item" data-scenario="demo_iads_engagement">
-                        <div class="demo-item-name">IADS Engagement</div>
-                        <div class="demo-item-desc">Blue strike vs red SAM network, AI patrol, kill chain</div>
-                    </button>
+                    <div class="demo-section-label">Tutorials</div>
                     <button class="demo-dropdown-item" data-scenario="demo_lax_launch">
-                        <div class="demo-item-name">LAX Runway Launch</div>
-                        <div class="demo-item-desc">Guided taxi-to-takeoff tutorial at LAX</div>
+                        <div class="demo-item-name">LAX Runway Launch <span class="demo-difficulty beginner">Beginner</span></div>
+                        <div class="demo-item-desc">Guided taxi-to-takeoff tutorial at LAX. Learn throttle, rotation, and climb-out.</div>
+                        <div class="demo-item-meta">1 entity &middot; ~2 min &middot; Tip: Follow the on-screen prompts</div>
                     </button>
                     <button class="demo-dropdown-item" data-scenario="demo_lax_landing">
-                        <div class="demo-item-name">LAX Landing Practice</div>
-                        <div class="demo-item-desc">Guided approach and landing at LAX</div>
+                        <div class="demo-item-name">LAX Landing Practice <span class="demo-difficulty beginner">Beginner</span></div>
+                        <div class="demo-item-desc">Guided ILS approach and landing at LAX. Practice speed management and flare.</div>
+                        <div class="demo-item-meta">1 entity &middot; ~3 min &middot; Tip: Maintain 140 kts on approach</div>
                     </button>
                     <div class="demo-dropdown-sep"></div>
+                    <div class="demo-section-label">Multi-Domain Scenarios</div>
+                    <button class="demo-dropdown-item" data-scenario="demo_multi_domain">
+                        <div class="demo-item-name">Multi-Domain Awareness <span class="demo-difficulty beginner">Beginner</span></div>
+                        <div class="demo-item-desc">Overview of air, space, and ground domains. LEO/MEO/GEO satellites, ground stations, and patrol aircraft operating together.</div>
+                        <div class="demo-item-meta">9 entities &middot; ~5 min &middot; Tip: Zoom out to see all orbital regimes</div>
+                    </button>
+                    <button class="demo-dropdown-item" data-scenario="demo_iads_engagement">
+                        <div class="demo-item-name">IADS Engagement <span class="demo-difficulty intermediate">Intermediate</span></div>
+                        <div class="demo-item-desc">Blue strike aircraft vs red integrated air defense network. Demonstrates AI patrol patterns, radar detection, F2T2EA kill chain, and SAM engagement.</div>
+                        <div class="demo-item-meta">10 entities &middot; ~8 min &middot; Tip: Watch the SAM kill chain states in the event log</div>
+                    </button>
+                    <div class="demo-dropdown-sep"></div>
+                    <div class="demo-section-label">Templates</div>
                     <button class="demo-dropdown-item" data-scenario="template_gps_coverage">
-                        <div class="demo-item-name">GPS Coverage Analysis</div>
-                        <div class="demo-item-desc">6 GPS sats, 3 receivers, DOP analysis</div>
+                        <div class="demo-item-name">GPS Coverage Analysis <span class="demo-difficulty beginner">Beginner</span></div>
+                        <div class="demo-item-desc">Analyze GPS satellite visibility and position dilution of precision (PDOP). 6 GPS satellites with 3 ground receivers at different latitudes.</div>
+                        <div class="demo-item-meta">10 entities &middot; ~10 min &middot; Tip: Time-warp to see coverage gaps</div>
                     </button>
                     <button class="demo-dropdown-item" data-scenario="template_contested_orbit">
-                        <div class="demo-item-name">Contested Orbit</div>
-                        <div class="demo-item-desc">SSA scenario: co-orbital threats, GEO inspector</div>
+                        <div class="demo-item-name">Contested Orbit <span class="demo-difficulty intermediate">Intermediate</span></div>
+                        <div class="demo-item-desc">Space situational awareness scenario with co-orbital threats approaching a GEO asset. Inspector satellite for proximity operations.</div>
+                        <div class="demo-item-meta">7 entities &middot; ~10 min &middot; Tip: Track the inspector satellite to watch rendezvous</div>
                     </button>
                     <button class="demo-dropdown-item" data-scenario="template_strike_package">
-                        <div class="demo-item-name">Strike Package</div>
-                        <div class="demo-item-desc">Middle East theater: F-16s vs SA-20 IADS</div>
+                        <div class="demo-item-name">Strike Package <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Middle East theater strike mission. F-16 strike aircraft with escort vs SA-20 IADS with EW radar and SHORAD. Full kill chain with SAM engagement zones.</div>
+                        <div class="demo-item-meta">8 entities &middot; ~10 min &middot; Tip: SAM goes weapons-free on radar detect -- watch range rings</div>
                     </button>
                     <div class="demo-dropdown-sep"></div>
+                    <div class="demo-section-label">Orbital Arena (Combat)</div>
+                    <button class="demo-dropdown-item" data-scenario="__orbital_arena_small">
+                        <div class="demo-item-name">Orbital Arena Small <span class="demo-difficulty intermediate">Intermediate</span></div>
+                        <div class="demo-item-desc">GEO kinetic kill vehicle combat in a 30-degree arc. Good starting point for orbital combat scenarios.</div>
+                        <div class="demo-item-meta">100 entities &middot; ~5 min &middot; Tip: Use C++ Replay export for best performance</div>
+                    </button>
                     <button class="demo-dropdown-item" data-scenario="__orbital_arena_v1">
-                        <div class="demo-item-name">Orbital Arena v1</div>
-                        <div class="demo-item-desc">500v500 GEO kinetic kill space combat</div>
+                        <div class="demo-item-name">Orbital Arena v1 <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Large-scale GEO kinetic kill space combat. 500 blue vs 500 red with HVA, defenders, attackers, escorts, and sweep roles.</div>
+                        <div class="demo-item-meta">1000 entities &middot; ~10 min &middot; Tip: Use MC analysis to study force composition effects</div>
                     </button>
                     <button class="demo-dropdown-item" data-scenario="__orbital_arena_large">
-                        <div class="demo-item-name">Orbital Arena Large</div>
-                        <div class="demo-item-desc">850v850 multi-orbit (GEO+LEO+GTO+Lunar)</div>
-                    </button>
-                    <button class="demo-dropdown-item" data-scenario="__orbital_arena_small">
-                        <div class="demo-item-name">Orbital Arena Small</div>
-                        <div class="demo-item-desc">50v50 GEO combat in 30° arc</div>
+                        <div class="demo-item-name">Orbital Arena Large <span class="demo-difficulty advanced">Advanced</span></div>
+                        <div class="demo-item-desc">Massive multi-orbit battle across LEO sun-synch, GTO, GEO, and Lunar orbit. Stress tests the simulation engine.</div>
+                        <div class="demo-item-meta">1700 entities &middot; ~15 min &middot; Tip: Export C++ Replay -- browser sim may be slow at this scale</div>
                     </button>
                 </div>
             </div>
@@ -1777,140 +1874,140 @@
                 <span class="chevron">&#9654;</span>
             </div>
             <div class="palette-section-body open" id="paletteSectionAircraft">
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="f16" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f16" data-team="blue" title="4th gen multirole fighter. Air-breathing engine, 120km radar, AIM-9X/AIM-120C missiles. Good all-around platform for strike and air superiority.">
                     <div class="palette-dot team-blue"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">F-16C Fighting Falcon</div>
                         <div class="palette-item-desc">Multi-role fighter, 9G capable</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="f15" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f15" data-team="blue" title="Twin-engine multirole fighter. 150km radar, 6x AIM-120C + 2x AIM-9X. Heavy payload capacity for deep strike missions.">
                     <div class="palette-dot" style="background-color: #4488ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">F-15E Strike Eagle</div>
                         <div class="palette-item-desc">Twin-engine multirole, heavy payload</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="f22" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f22" data-team="blue" title="5th-gen stealth air superiority fighter. 200km AESA radar, supercruise capable. Highest detection probability (0.92) and longest-range missiles.">
                     <div class="palette-dot" style="background-color: #6644ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">F-22A Raptor</div>
                         <div class="palette-item-desc">5th-gen stealth, supercruise</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="f35" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f35" data-team="blue" title="5th-gen stealth multirole with advanced sensor fusion. 170km radar, internal weapons bay. Balanced stealth and payload.">
                     <div class="palette-dot" style="background-color: #5566ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">F-35A Lightning II</div>
                         <div class="palette-item-desc">5th-gen stealth multirole</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="f18" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="f18" data-team="blue" title="Carrier-based multirole fighter. 130km radar, AIM-9X/AIM-120C missiles. Versatile for carrier strike group operations.">
                     <div class="palette-dot" style="background-color: #3388ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">F/A-18E Super Hornet</div>
                         <div class="palette-item-desc">Carrier-based multirole</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="a10" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="a10" data-team="blue" title="Dedicated close air support aircraft. GAU-8 Avenger 30mm cannon. Low and slow -- vulnerable to SAMs but devastating against ground targets.">
                     <div class="palette-dot" style="background-color: #448844;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">A-10C Thunderbolt II</div>
                         <div class="palette-item-desc">Close air support, GAU-8</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="b2" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="b2" data-team="blue" title="Stealth strategic bomber. Subsonic, high-altitude penetration. AI waypoint patrol -- good for strike mission scenarios.">
                     <div class="palette-dot" style="background-color: #4444aa;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">B-2A Spirit</div>
                         <div class="palette-item-desc">Stealth strategic bomber</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="b1b" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="b1b" data-team="blue" title="Supersonic swing-wing strategic bomber. Fast penetration at low altitude. AI waypoint patrol with high speed.">
                     <div class="palette-dot" style="background-color: #5555bb;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">B-1B Lancer</div>
                         <div class="palette-item-desc">Supersonic strategic bomber</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="e3_awacs" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="e3_awacs" data-team="blue" title="Airborne early warning and control. 400km 360-degree radar. Provides wide-area air surveillance -- place behind friendly lines for coverage.">
                     <div class="palette-dot" style="background-color: #00aaff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">E-3G Sentry AWACS</div>
                         <div class="palette-item-desc">Airborne early warning, 400km</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="c130" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="c130" data-team="blue" title="Tactical airlift transport. 4-engine turboprop, moderate speed. AI waypoint patrol for logistics and airlift scenarios.">
                     <div class="palette-dot" style="background-color: #88aa88;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">C-130J Super Hercules</div>
                         <div class="palette-item-desc">Tactical airlift, turboprop</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="mq9" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="mq9" data-team="blue" title="Armed medium-altitude long-endurance UAV. 50km radar, ISR and precision strike. Slow but persistent surveillance.">
                     <div class="palette-dot" style="background-color: #44aacc;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">MQ-9A Reaper</div>
                         <div class="palette-item-desc">Armed MALE UAV, ISR/strike</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="rq4" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="rq4" data-team="blue" title="High-altitude long-endurance ISR drone. 200km 360-degree radar at 60,000ft. Wide-area persistent surveillance platform.">
                     <div class="palette-dot" style="background-color: #44ccee;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">RQ-4B Global Hawk</div>
                         <div class="palette-item-desc">HALE ISR drone, 60,000ft</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="mig29" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="mig29" data-team="red" title="Russian air superiority fighter. Similar performance to F-16. 100km radar, R-73/R-77 missiles. Default red team fighter.">
                     <div class="palette-dot team-red"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">MiG-29 Fulcrum</div>
                         <div class="palette-item-desc">Air superiority fighter, 9G</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="su27" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su27" data-team="red" title="Heavy air superiority interceptor. 120km radar, 4x R-73 + 4x R-27R. Long-range BVR capability with large missile load.">
                     <div class="palette-dot" style="background-color: #ff4444;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Su-27S Flanker</div>
                         <div class="palette-item-desc">Heavy air superiority interceptor</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="su35" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su35" data-team="red" title="4++ gen with thrust vectoring and IRBIS-E PESA radar (160km). Advanced R-73M/R-77-1 missiles. Near-5th-gen capability.">
                     <div class="palette-dot" style="background-color: #ff6644;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Su-35S Flanker-E</div>
                         <div class="palette-item-desc">4++ gen, thrust vectoring</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="su57" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="su57" data-team="red" title="5th-gen stealth fighter with N036 AESA radar (200km). R-74M/R-77M missiles. Red team's most capable air platform.">
                     <div class="palette-dot" style="background-color: #ff2266;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Su-57 Felon</div>
                         <div class="palette-item-desc">5th-gen stealth fighter</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu160" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu160" data-team="red" title="Supersonic strategic bomber with swing-wing. AI waypoint patrol. Fast high-altitude penetration platform.">
                     <div class="palette-dot" style="background-color: #cc4444;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Tu-160 Blackjack</div>
                         <div class="palette-item-desc">Supersonic strategic bomber</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu22m" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tu22m" data-team="red" title="Long-range supersonic bomber and maritime strike. AI waypoint patrol. Used for anti-ship and deep strike missions.">
                     <div class="palette-dot" style="background-color: #cc5555;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Tu-22M3 Backfire</div>
                         <div class="palette-item-desc">Long-range bomber/maritime</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="tb2" data-team="red">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="tb2" data-team="red" title="Armed tactical UCAV. 40km radar, ISR and precision strike. Low-cost persistent ISR for red team scenarios.">
                     <div class="palette-dot" style="background-color: #cc8844;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Bayraktar TB2</div>
                         <div class="palette-item-desc">Armed tactical UCAV</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="aircraft" data-subtype="spaceplane" data-team="blue">
+                <div class="palette-item" data-entity-type="aircraft" data-subtype="spaceplane" data-team="blue" title="Reusable spaceplane capable of runway takeoff to orbital insertion. Three propulsion modes: Air (160kN), Hypersonic (800kN), Rocket (5MN). Press P to cycle modes.">
                     <div class="palette-dot" style="background-color: #44ffff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">X-37S Spaceplane</div>
@@ -1927,63 +2024,63 @@
                 <span class="chevron">&#9654;</span>
             </div>
             <div class="palette-section-body open" id="paletteSectionSpacecraft">
-                <div class="palette-item" data-entity-type="satellite" data-subtype="leo_sat" data-team="blue">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="leo_sat" data-team="blue" title="Low Earth Orbit satellite (400km altitude, 51.6 deg inclination). Fast orbital period (~92 min). Keplerian 2-body propagation with orbit path and ground track.">
                     <div class="palette-dot" style="background-color: #88aaff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">LEO Satellite</div>
                         <div class="palette-item-desc">Low Earth orbit, 400km alt</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="sat_inspector" data-team="blue">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="sat_inspector" data-team="blue" title="Proximity operations inspector satellite in LEO. Used for co-orbital inspection and rendezvous scenarios. Blue team asset.">
                     <div class="palette-dot" style="background-color: #88ccff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Satellite Inspector</div>
                         <div class="palette-item-desc">Proximity operations inspector</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="img_sat" data-team="blue">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="img_sat" data-team="blue" title="LEO electro-optical reconnaissance satellite (500km altitude). Imaging payload for ground observation and ISR missions.">
                     <div class="palette-dot" style="background-color: #aaddff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Imaging Satellite</div>
                         <div class="palette-item-desc">LEO electro-optical recon</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="gps_sat" data-team="neutral">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="gps_sat" data-team="neutral" title="Medium Earth Orbit navigation satellite (20,200km altitude, 55 deg inclination). ~12 hour orbital period. Use 6+ for GPS coverage analysis.">
                     <div class="palette-dot" style="background-color: #ffdd44;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">GPS Satellite</div>
                         <div class="palette-item-desc">MEO navigation, 20200km alt</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="geo_comms" data-team="neutral">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="geo_comms" data-team="neutral" title="Geostationary orbit (35,786km altitude, 0 deg inclination). Appears stationary over a point on the equator. ~24 hour period.">
                     <div class="palette-dot" style="background-color: #ff88ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">GEO Comms Sat</div>
                         <div class="palette-item-desc">Geostationary communications</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="sso_weather" data-team="neutral">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="sso_weather" data-team="neutral" title="Sun-synchronous polar orbit (700km, 98 deg inclination). Consistent sun angle for weather imaging. Full global coverage over time.">
                     <div class="palette-dot" style="background-color: #88ff88;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">SSO Weather Sat</div>
                         <div class="palette-item-desc">Sun-synchronous polar orbit</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="molniya_sat" data-team="neutral">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="molniya_sat" data-team="neutral" title="Highly elliptical orbit with long dwell time over high latitudes. Provides Arctic/polar coverage where GEO satellites cannot reach.">
                     <div class="palette-dot" style="background-color: #ffaa88;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Molniya Orbit Sat</div>
                         <div class="palette-item-desc">Highly elliptical, Arctic</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="kosmos_sat" data-team="red">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="kosmos_sat" data-team="red" title="LEO radar reconnaissance satellite (350km). Red team space-based surveillance asset for ground target tracking.">
                     <div class="palette-dot" style="background-color: #ff8888;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Kosmos Radar Sat</div>
                         <div class="palette-item-desc">LEO radar reconnaissance</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="satellite" data-subtype="asat" data-team="red">
+                <div class="palette-item" data-entity-type="satellite" data-subtype="asat" data-team="red" title="Co-orbital anti-satellite interceptor. Maneuvers to approach and destroy target satellites. Red team counter-space weapon.">
                     <div class="palette-dot" style="background-color: #ff4466;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Co-Orbital ASAT</div>
@@ -2000,98 +2097,98 @@
                 <span class="chevron">&#9654;</span>
             </div>
             <div class="palette-section-body open" id="paletteSectionGround">
-                <div class="palette-item" data-entity-type="ground" data-subtype="ground_station" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ground_station" data-team="blue" title="Fixed ground sensor platform with 150km 360-degree radar. Tracks and communicates with satellites and aircraft. TT&C facility.">
                     <div class="palette-dot" style="background-color: #44ff88;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Ground Station</div>
                         <div class="palette-item-desc">TT&amp;C with radar + sensor cone</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="m1a2" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="m1a2" data-team="blue" title="Main battle tank with 120mm smoothbore gun. Static ground unit for force composition. No active sensors or weapons in sim.">
                     <div class="palette-dot" style="background-color: #668844;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">M1A2 Abrams</div>
                         <div class="palette-item-desc">Main battle tank, 120mm</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="hmmwv" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="hmmwv" data-team="blue" title="Light tactical vehicle for scouting. Static ground unit for force composition scenarios.">
                     <div class="palette-dot" style="background-color: #889966;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">HMMWV</div>
                         <div class="palette-item-desc">Light tactical vehicle, scout</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="patriot" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="patriot" data-team="blue" title="MIM-104 Patriot PAC-3 air defense battery. 160km radar, 100km engagement range. F2T2EA kill chain with active SAM engagement.">
                     <div class="palette-dot" style="background-color: #2288ff;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Patriot Battery</div>
                         <div class="palette-item-desc">MIM-104 PAC-3, medium-range AD</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="thaad" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="thaad" data-team="blue" title="Terminal High Altitude Area Defense. 500km radar, 200km engagement range. Designed for ballistic missile defense at high altitude.">
                     <div class="palette-dot" style="background-color: #3366cc;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">THAAD Battery</div>
                         <div class="palette-item-desc">Terminal High Altitude Area Defense</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="avenger" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="avenger" data-team="blue" title="AN/TWQ-1 short-range air defense with Stinger missiles. 20km radar, 8km engagement range. Point defense for high-value assets.">
                     <div class="palette-dot" style="background-color: #44aa44;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Avenger SHORAD</div>
                         <div class="palette-item-desc">Short-range air defense, Stinger</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="cmd_post" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="cmd_post" data-team="blue" title="Tactical operations center and C2 node. 50km radar for local area surveillance. Command and control hub for ground forces.">
                     <div class="palette-dot" style="background-color: #4488cc;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Command Post</div>
                         <div class="palette-item-desc">Tactical operations center, C2</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="sam_battery" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="sam_battery" data-team="red" title="Surface-to-air missile system with 200km radar and 150km engagement range. F2T2EA kill chain: Detect, Track, Target, Engage, Assess. Active SAM combat.">
                     <div class="palette-dot team-red"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">SAM Battery</div>
                         <div class="palette-item-desc">SA-20 radar + kill chain + missiles</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="ew_radar" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ew_radar" data-team="red" title="Early warning radar with 300km detection range. Sensor only -- no weapons. Provides long-range surveillance and cueing for SAM batteries.">
                     <div class="palette-dot" style="background-color: #ff8800;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">EW Radar</div>
                         <div class="palette-item-desc">Early warning, 300km range</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="t90" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="t90" data-team="red" title="Main battle tank with 125mm smoothbore gun. Static ground unit for red team force composition.">
                     <div class="palette-dot" style="background-color: #884444;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">T-90 MBT</div>
                         <div class="palette-item-desc">Main battle tank, 125mm</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="s400" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="s400" data-team="red" title="SA-21 Growler long-range strategic air defense. 400km radar, 250km engagement range. One of the most capable SAM systems in the sim.">
                     <div class="palette-dot" style="background-color: #ff2200;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">S-400 Triumf</div>
                         <div class="palette-item-desc">SA-21 strategic long-range AD</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="pantsir" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="pantsir" data-team="red" title="SA-22 Greyhound combined gun/missile SHORAD. 36km radar, 20km missile range. Short-range point defense for SAM sites and HVAs.">
                     <div class="palette-dot" style="background-color: #ff6600;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Pantsir-S1</div>
                         <div class="palette-item-desc">SA-22 gun/missile SHORAD</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="tor_m2" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="tor_m2" data-team="red" title="SA-15 Gauntlet mobile tactical SAM. 25km radar, 15km engagement range. Fast-reacting short-range air defense system.">
                     <div class="palette-dot" style="background-color: #ff4400;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Tor-M2</div>
                         <div class="palette-item-desc">SA-15 mobile tactical SAM</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="gps_receiver" data-team="neutral">
+                <div class="palette-item" data-entity-type="ground" data-subtype="gps_receiver" data-team="neutral" title="GPS ground receiver for position dilution of precision (DOP) analysis. Place multiple at different locations to analyze GPS coverage quality.">
                     <div class="palette-dot team-neutral"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">GPS Receiver</div>
@@ -2108,63 +2205,63 @@
                 <span class="chevron">&#9654;</span>
             </div>
             <div class="palette-section-body open" id="paletteSectionNaval">
-                <div class="palette-item" data-entity-type="ground" data-subtype="cvn_nimitz" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="cvn_nimitz" data-team="blue" title="Nuclear-powered aircraft carrier with embarked air wing. 200km radar. Centerpiece of a carrier strike group.">
                     <div class="palette-dot" style="background-color: #4466aa;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">CVN Nimitz Carrier</div>
                         <div class="palette-item-desc">Nuclear carrier, air wing</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="ddg_burke" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ddg_burke" data-team="blue" title="Aegis guided missile destroyer with SPY-1D radar (350km). SM-2/SM-3 SAMs with 170km engagement range. Primary fleet air defense.">
                     <div class="palette-dot" style="background-color: #3355aa;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">DDG Arleigh Burke</div>
                         <div class="palette-item-desc">Aegis destroyer, SPY-1D</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="ssn_virginia" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ssn_virginia" data-team="blue" title="Nuclear attack submarine. 40km passive sonar, Tomahawk cruise missile capable. Stealthy subsurface platform.">
                     <div class="palette-dot" style="background-color: #224488;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">SSN Virginia</div>
                         <div class="palette-item-desc">Nuclear attack submarine</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="ffg_const" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="ffg_const" data-team="blue" title="Multi-mission frigate with EASR radar (200km). 50km SAM range. Versatile escort and patrol vessel.">
                     <div class="palette-dot" style="background-color: #5577aa;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">FFG Constellation</div>
                         <div class="palette-item-desc">Multi-mission frigate</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="lhd_wasp" data-team="blue">
+                <div class="palette-item" data-entity-type="ground" data-subtype="lhd_wasp" data-team="blue" title="Amphibious assault ship. 100km radar. Can operate helicopters and F-35B STOVL fighters for expeditionary operations.">
                     <div class="palette-dot" style="background-color: #668899;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">LHD Wasp</div>
                         <div class="palette-item-desc">Amphibious assault ship</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="kirov" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="kirov" data-team="red" title="Nuclear-powered battlecruiser with S-300F SAM (150km) and P-700 anti-ship missiles. 300km radar. Heavily armed capital ship.">
                     <div class="palette-dot" style="background-color: #aa3333;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Kirov Battlecruiser</div>
                         <div class="palette-item-desc">Nuclear battlecruiser, S-300F</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="kuznetsov" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="kuznetsov" data-team="red" title="Aircraft carrier with Su-33 embarked air wing. 200km radar. Red team's primary naval aviation platform.">
                     <div class="palette-dot" style="background-color: #993333;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Adm. Kuznetsov</div>
                         <div class="palette-item-desc">Aircraft carrier, Su-33</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="kilo_sub" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="kilo_sub" data-team="red" title="Diesel-electric attack submarine. 30km passive sonar. Extremely quiet when running on battery -- hard to detect.">
                     <div class="palette-dot" style="background-color: #882222;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Kilo-class Submarine</div>
                         <div class="palette-item-desc">Diesel-electric submarine</div>
                     </div>
                 </div>
-                <div class="palette-item" data-entity-type="ground" data-subtype="slava" data-team="red">
+                <div class="palette-item" data-entity-type="ground" data-subtype="slava" data-team="red" title="Guided missile cruiser with S-300F SAM (120km) and P-500 anti-ship missiles. 250km radar. Surface action group leader.">
                     <div class="palette-dot" style="background-color: #bb4444;"></div>
                     <div class="palette-item-info">
                         <div class="palette-item-name">Slava-class Cruiser</div>
@@ -2193,7 +2290,12 @@
         </div>
 
         <!-- Empty state -->
-        <div id="inspectorEmpty">Select an entity to edit properties</div>
+        <div id="inspectorEmpty">
+            <div style="text-align:center;">
+                <div style="color:#506880; font-size:12px; margin-bottom:6px;">No entity selected</div>
+                <div style="color:#3a5070; font-size:11px; font-style:italic;">Click an entity on the globe or in the entity tree below to view and edit its properties.</div>
+            </div>
+        </div>
 
         <!-- Content (shown when entity selected) -->
         <div id="inspectorContent">
@@ -2243,6 +2345,7 @@
                     <input type="number" class="inspector-input" id="inspAlt" step="100" placeholder="0">
                     <span style="color:#506880; font-size:10px; margin-left:4px;">m</span>
                 </div>
+                <div class="inspector-validation-warning" id="inspAltWarning"></div>
             </div>
 
             <!-- STATE section -->
@@ -2254,6 +2357,7 @@
                     <input type="number" class="inspector-input" id="inspSpeed" step="10" placeholder="0">
                     <span style="color:#506880; font-size:10px; margin-left:4px;">m/s</span>
                 </div>
+                <div class="inspector-validation-warning" id="inspSpeedWarning"></div>
                 <div class="inspector-row">
                     <span class="inspector-label">Heading</span>
                     <input type="number" class="inspector-input" id="inspHeading" step="1" min="0" max="360" placeholder="0">
@@ -2311,7 +2415,12 @@
             </div>
             <div id="entityTreeTable">
                 <div class="tree-empty-msg" id="treeEmptyMsg">
-                    No entities in scenario. Use the Object Palette to add entities.
+                    <div class="empty-state-guidance">
+                        <div class="empty-state-title">No entities in scenario</div>
+                        <div class="empty-state-step">1. Click an entity from the palette on the left, then click the globe to place it.</div>
+                        <div class="empty-state-step">2. Or load a template from the <b>Demo</b> menu above.</div>
+                        <div class="empty-state-tip">Tip: Right-click entities for options (focus, duplicate, delete).</div>
+                    </div>
                 </div>
                 <!-- Entity rows are populated dynamically by entity_tree.js -->
             </div>
@@ -2422,6 +2531,7 @@
 <script src="js/components/ai/waypoint_patrol.js"></script>
 <script src="js/components/ai/intercept.js"></script>
 <script src="js/components/ai/orbital_combat.js"></script>
+<script src="js/components/ai/formation.js"></script>
 
 <!-- Components: Sensors -->
 <script src="js/components/sensors/radar.js"></script>

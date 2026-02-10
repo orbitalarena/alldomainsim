@@ -1,0 +1,245 @@
+{
+  "metadata": {
+    "name": "Sun-Synchronous Imaging Constellation",
+    "description": "Six Earth observation satellites in three sun-synchronous orbital planes at 700km altitude. Two satellites per plane with 180-degree mean anomaly separation provide global revisit coverage. Svalbard and McMurdo polar ground stations track all passes.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 128
+  },
+  "entities": [
+    {
+      "id": "eo_sat_a1",
+      "name": "EO-SAT A1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT A1"
+        }
+      }
+    },
+    {
+      "id": "eo_sat_a2",
+      "name": "EO-SAT A2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT A2"
+        }
+      }
+    },
+    {
+      "id": "eo_sat_b1",
+      "name": "EO-SAT B1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 60,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT B1"
+        }
+      }
+    },
+    {
+      "id": "eo_sat_b2",
+      "name": "EO-SAT B2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 60,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT B2"
+        }
+      }
+    },
+    {
+      "id": "eo_sat_c1",
+      "name": "EO-SAT C1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT C1"
+        }
+      }
+    },
+    {
+      "id": "eo_sat_c2",
+      "name": "EO-SAT C2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 98.2,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#aaddff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "EO-SAT C2"
+        }
+      }
+    },
+    {
+      "id": "gs_svalbard",
+      "name": "Svalbard SvalSat",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 78.23,
+        "lon": 15.39,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff88",
+          "label": "SVALBARD",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(68,255,136,0.03)",
+          "sensorOutlineColor": "#44ff88"
+        }
+      }
+    },
+    {
+      "id": "gs_mcmurdo",
+      "name": "McMurdo Station",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": -77.85,
+        "lon": 166.67,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.93
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff88",
+          "label": "MCMURDO",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(68,255,136,0.03)",
+          "sensorOutlineColor": "#44ff88"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 25000000
+  }
+}

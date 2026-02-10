@@ -1,0 +1,278 @@
+{
+  "metadata": {
+    "name": "Contested LEO",
+    "description": "10v10 LEO orbital engagement. Blue constellation at 500km altitude, 45 degree inclination. Red constellation at 520km, 46 degree inclination with slightly offset RAAN. All satellites equipped with orbital combat AI and kinetic kill vehicles for close-range engagements.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "blue_leo_01",
+      "name": "BLUE SAT-01",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 0, "argPerigee": 0, "meanAnomaly": 0 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-01" }
+      }
+    },
+    {
+      "id": "blue_leo_02",
+      "name": "BLUE SAT-02",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 0, "argPerigee": 0, "meanAnomaly": 36 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-02" }
+      }
+    },
+    {
+      "id": "blue_leo_03",
+      "name": "BLUE SAT-03",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 0, "argPerigee": 0, "meanAnomaly": 72 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-03" }
+      }
+    },
+    {
+      "id": "blue_leo_04",
+      "name": "BLUE SAT-04",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 0, "argPerigee": 0, "meanAnomaly": 108 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-04" }
+      }
+    },
+    {
+      "id": "blue_leo_05",
+      "name": "BLUE SAT-05",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 0, "argPerigee": 0, "meanAnomaly": 144 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-05" }
+      }
+    },
+    {
+      "id": "blue_leo_06",
+      "name": "BLUE SAT-06",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 180, "argPerigee": 0, "meanAnomaly": 18 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-06" }
+      }
+    },
+    {
+      "id": "blue_leo_07",
+      "name": "BLUE SAT-07",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 180, "argPerigee": 0, "meanAnomaly": 90 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-07" }
+      }
+    },
+    {
+      "id": "blue_leo_08",
+      "name": "BLUE SAT-08",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 180, "argPerigee": 0, "meanAnomaly": 162 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-08" }
+      }
+    },
+    {
+      "id": "blue_leo_09",
+      "name": "BLUE SAT-09",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 180, "argPerigee": 0, "meanAnomaly": 234 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-09" }
+      }
+    },
+    {
+      "id": "blue_leo_10",
+      "name": "BLUE SAT-10",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6871000, "ecc": 0.001, "inc": 45, "raan": 180, "argPerigee": 0, "meanAnomaly": 306 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 30.0, "killRange": 30000, "scanInterval": 2.0 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.65, "killRange": 30000, "cooldown": 8.0 },
+        "visual": { "type": "satellite", "color": "#4488ff", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "BLUE-10" }
+      }
+    },
+    {
+      "id": "red_leo_01",
+      "name": "RED SAT-01",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 5, "argPerigee": 0, "meanAnomaly": 15 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-01" }
+      }
+    },
+    {
+      "id": "red_leo_02",
+      "name": "RED SAT-02",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 5, "argPerigee": 0, "meanAnomaly": 51 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-02" }
+      }
+    },
+    {
+      "id": "red_leo_03",
+      "name": "RED SAT-03",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 5, "argPerigee": 0, "meanAnomaly": 87 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-03" }
+      }
+    },
+    {
+      "id": "red_leo_04",
+      "name": "RED SAT-04",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 5, "argPerigee": 0, "meanAnomaly": 123 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-04" }
+      }
+    },
+    {
+      "id": "red_leo_05",
+      "name": "RED SAT-05",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 5, "argPerigee": 0, "meanAnomaly": 159 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-05" }
+      }
+    },
+    {
+      "id": "red_leo_06",
+      "name": "RED SAT-06",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 185, "argPerigee": 0, "meanAnomaly": 30 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-06" }
+      }
+    },
+    {
+      "id": "red_leo_07",
+      "name": "RED SAT-07",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 185, "argPerigee": 0, "meanAnomaly": 102 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-07" }
+      }
+    },
+    {
+      "id": "red_leo_08",
+      "name": "RED SAT-08",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 185, "argPerigee": 0, "meanAnomaly": 174 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-08" }
+      }
+    },
+    {
+      "id": "red_leo_09",
+      "name": "RED SAT-09",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 185, "argPerigee": 0, "meanAnomaly": 246 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-09" }
+      }
+    },
+    {
+      "id": "red_leo_10",
+      "name": "RED SAT-10",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {},
+      "components": {
+        "physics": { "type": "orbital_2body", "source": "elements", "sma": 6891000, "ecc": 0.001, "inc": 46, "raan": 185, "argPerigee": 0, "meanAnomaly": 318 },
+        "ai": { "type": "orbital_combat", "role": "attacker", "sensorRange": 500000, "defenseRadius": 200000, "maxAccel": 28.0, "killRange": 25000, "scanInterval": 2.5 },
+        "weapons": { "type": "kinetic_kill", "Pk": 0.60, "killRange": 25000, "cooldown": 10.0 },
+        "visual": { "type": "satellite", "color": "#ff4444", "pixelSize": 8, "orbitPath": true, "groundTrack": false, "apPeMarkers": false, "label": "RED-10" }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 15000000
+  }
+}

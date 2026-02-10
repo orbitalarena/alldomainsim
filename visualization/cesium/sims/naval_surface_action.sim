@@ -1,0 +1,222 @@
+{
+  "metadata": {
+    "name": "Naval Surface Action Group",
+    "description": "Blue destroyer task force in formation near Hawaii engages a red surface group approaching from the west. Blue AWACS provides overhead radar coverage from 10km altitude. Pearl Harbor ground station monitors the battlespace.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 32
+  },
+  "entities": [
+    {
+      "id": "ddg_71",
+      "name": "DDG-71 Ross",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 21.0,
+        "lon": -158.0,
+        "alt": 0,
+        "speed": 15,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "naval" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 21.0, "lon": -156.5, "alt": 0, "speed": 15 },
+          { "lat": 21.3, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 20.7, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 21.0, "lon": -156.5, "alt": 0, "speed": 15 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.85 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 14, "trail": true, "label": "DDG-71 ROSS" }
+      }
+    },
+    {
+      "id": "ddg_75",
+      "name": "DDG-75 Donald Cook",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 21.05,
+        "lon": -158.05,
+        "alt": 0,
+        "speed": 15,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "naval" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 21.05, "lon": -156.5, "alt": 0, "speed": 15 },
+          { "lat": 21.35, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 20.75, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 21.05, "lon": -156.5, "alt": 0, "speed": 15 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.85 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 14, "trail": true, "label": "DDG-75 D.COOK" }
+      }
+    },
+    {
+      "id": "ddg_78",
+      "name": "DDG-78 Porter",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 20.95,
+        "lon": -158.05,
+        "alt": 0,
+        "speed": 15,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "naval" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.95, "lon": -156.5, "alt": 0, "speed": 15 },
+          { "lat": 21.25, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 20.65, "lon": -155.5, "alt": 0, "speed": 15 },
+          { "lat": 20.95, "lon": -156.5, "alt": 0, "speed": 15 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.85 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 14, "trail": true, "label": "DDG-78 PORTER" }
+      }
+    },
+    {
+      "id": "red_ddg_1",
+      "name": "HOSTILE DDG-1",
+      "type": "naval",
+      "team": "red",
+      "initialState": {
+        "lat": 21.1,
+        "lon": -163.5,
+        "alt": 0,
+        "speed": 20,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "naval" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 21.1, "lon": -160.0, "alt": 0, "speed": 20 },
+          { "lat": 21.0, "lon": -158.5, "alt": 0, "speed": 20 },
+          { "lat": 21.2, "lon": -157.0, "alt": 0, "speed": 20 },
+          { "lat": 21.1, "lon": -160.0, "alt": 0, "speed": 20 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.80 },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 14, "trail": true, "label": "HOSTILE DDG-1" }
+      }
+    },
+    {
+      "id": "red_ddg_2",
+      "name": "HOSTILE DDG-2",
+      "type": "naval",
+      "team": "red",
+      "initialState": {
+        "lat": 20.9,
+        "lon": -163.5,
+        "alt": 0,
+        "speed": 20,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "naval" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 20.9, "lon": -160.0, "alt": 0, "speed": 20 },
+          { "lat": 20.8, "lon": -158.5, "alt": 0, "speed": 20 },
+          { "lat": 21.0, "lon": -157.0, "alt": 0, "speed": 20 },
+          { "lat": 20.9, "lon": -160.0, "alt": 0, "speed": 20 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 30, "detectionProbability": 0.80 },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 14, "trail": true, "label": "HOSTILE DDG-2" }
+      }
+    },
+    {
+      "id": "awacs_1",
+      "name": "SENTRY 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 21.0,
+        "lon": -158.5,
+        "alt": 10000,
+        "speed": 180,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "awacs" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 21.0, "lon": -159.5, "alt": 10000, "speed": 180 },
+          { "lat": 21.5, "lon": -157.5, "alt": 10000, "speed": 180 },
+          { "lat": 20.5, "lon": -157.5, "alt": 10000, "speed": 180 },
+          { "lat": 21.0, "lon": -159.5, "alt": 10000, "speed": 180 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 20, "detectionProbability": 0.92 },
+        "visual": { "type": "point", "color": "#88ccff", "pixelSize": 10, "trail": true, "label": "SENTRY 1" }
+      }
+    },
+    {
+      "id": "pearl_harbor",
+      "name": "Pearl Harbor",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 21.35,
+        "lon": -157.97,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "PEARL HARBOR",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(0,255,136,0.03)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 1500000
+  }
+}

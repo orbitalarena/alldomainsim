@@ -12,11 +12,14 @@
  *   "su27"       — Su-27S Flanker
  *   "su35"       — Su-35S Flanker-E (thrust vectoring)
  *   "su57"       — Su-57 Felon (stealth)
- *   "bomber"     — Subsonic heavy bomber (B-2/Tu-22M class)
+ *   "bomber"     — Subsonic stealth bomber (B-2A Spirit)
+ *   "b2"         — B-2A Spirit (alias for "bomber")
  *   "bomber_fast"— Supersonic bomber (B-1B/Tu-160 class)
- *   "transport"  — Heavy transport (C-130 class)
+ *   "transport"  — Tactical transport (C-130 class)
+ *   "c17"        — C-17A Globemaster III (strategic jet transport)
  *   "awacs"      — Airborne radar platform (E-3/E-2 class)
- *   "drone_male" — MALE UAV (MQ-9/TB2 class)
+ *   "drone_male" — MALE UAV (MQ-9A Reaper)
+ *   "mq9"        — MQ-9A Reaper (alias for "drone_male")
  *   "drone_hale" — HALE UAV (RQ-4 class)
  *   "spaceplane" — X-37S runway-to-orbit
  *
@@ -54,15 +57,7 @@
             max_g: 9.0, max_aoa: 30 * DEG
         }),
 
-        f22: Object.assign({}, F16, {
-            name: 'F-22A Raptor',
-            mass_empty: 19700, mass_loaded: 29300, fuel_capacity: 8200,
-            thrust_mil: 230000, thrust_ab: 312000,
-            wing_area: 78.04, wing_span: 13.56, aspect_ratio: 2.36,
-            cd0: 0.014, oswald: 0.80,
-            cl_max: 1.4, cl_alpha: 0.075,
-            max_g: 9.0, max_aoa: 60 * DEG
-        }),
+        f22: FighterSimEngine.F22_CONFIG,
 
         f35: Object.assign({}, F16, {
             name: 'F-35A Lightning II',
@@ -116,27 +111,10 @@
             max_g: 9.0, max_aoa: 30 * DEG
         }),
 
-        su57: Object.assign({}, F16, {
-            name: 'Su-57 Felon',
-            mass_empty: 18000, mass_loaded: 25000, fuel_capacity: 10300,
-            thrust_mil: 176000, thrust_ab: 300000,
-            wing_area: 78.8, wing_span: 14.1, aspect_ratio: 2.52,
-            cd0: 0.015, oswald: 0.80,
-            cl_max: 1.4, cl_alpha: 0.075,
-            max_g: 9.0, max_aoa: 60 * DEG
-        }),
+        su57: FighterSimEngine.SU57_CONFIG,
 
         // --- Bombers ---
-        bomber: Object.assign({}, F16, {
-            name: 'Heavy Bomber (subsonic)',
-            mass_empty: 71700, mass_loaded: 152600, fuel_capacity: 75750,
-            thrust_mil: 310000, thrust_ab: 310000,  // no afterburner
-            tsfc_mil: 0.018, tsfc_ab: 0.018,
-            wing_area: 478.0, wing_span: 52.4, aspect_ratio: 5.74,
-            cd0: 0.012, cd0_gear: 0.030, oswald: 0.90,
-            cl_max: 1.2, cl_alpha: 0.06,
-            max_g: 2.5, min_g: -1.0, max_aoa: 15 * DEG
-        }),
+        bomber: FighterSimEngine.B2_CONFIG,
 
         bomber_fast: Object.assign({}, F16, {
             name: 'Supersonic Bomber',
@@ -161,6 +139,8 @@
             max_g: 2.5, min_g: -1.0, max_aoa: 15 * DEG
         }),
 
+        c17: FighterSimEngine.C17_CONFIG,
+
         awacs: Object.assign({}, F16, {
             name: 'Airborne Early Warning',
             mass_empty: 77000, mass_loaded: 147000, fuel_capacity: 65000,
@@ -173,16 +153,7 @@
         }),
 
         // --- Drones ---
-        drone_male: Object.assign({}, F16, {
-            name: 'MALE UAV',
-            mass_empty: 2200, mass_loaded: 4760, fuel_capacity: 1800,
-            thrust_mil: 6700, thrust_ab: 6700,  // turboprop, no AB
-            tsfc_mil: 0.012, tsfc_ab: 0.012,
-            wing_area: 38.5, wing_span: 20.0, aspect_ratio: 10.4,
-            cd0: 0.020, cd0_gear: 0.035, oswald: 0.88,
-            cl_max: 1.6, cl_alpha: 0.09,
-            max_g: 3.0, min_g: -1.5, max_aoa: 15 * DEG
-        }),
+        drone_male: FighterSimEngine.MQ9_CONFIG,
 
         drone_hale: Object.assign({}, F16, {
             name: 'HALE UAV',
@@ -193,7 +164,11 @@
             cd0: 0.015, cd0_gear: 0.030, oswald: 0.92,
             cl_max: 1.5, cl_alpha: 0.10,
             max_g: 2.0, min_g: -0.5, max_aoa: 12 * DEG
-        })
+        }),
+
+        // --- Standalone config aliases (for direct reference by name) ---
+        mq9: FighterSimEngine.MQ9_CONFIG,
+        b2: FighterSimEngine.B2_CONFIG
     };
 
     class Flight3DOF extends ECS.Component {

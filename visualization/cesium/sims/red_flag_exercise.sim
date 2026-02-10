@@ -1,0 +1,460 @@
+{
+  "metadata": {
+    "name": "Red Flag Exercise",
+    "description": "Large force-on-force air combat exercise over the Nevada Test and Training Range near Nellis AFB. Blue team: 2x F-22 Raptor CAP, 2x F-15E Strike Eagle, 2x F-16 SEAD, 1 E-3 AWACS. Red team: 2x MiG-29 Fulcrum, 2x Su-27 Flanker, 2x S-300 SAM batteries. Convergent geometry with weapons free ROE.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "raptor_1",
+      "name": "RAPTOR 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.25,
+        "lon": -115.8,
+        "alt": 12000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.25, "lon": -114.8, "alt": 12000, "speed": 300 },
+          { "lat": 36.6, "lon": -114.0, "alt": 12500, "speed": 310 },
+          { "lat": 35.9, "lon": -114.0, "alt": 12000, "speed": 300 },
+          { "lat": 36.25, "lon": -114.8, "alt": 12000, "speed": 290 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.92 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.90, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120D", "count": 6, "minRange": 2000, "maxRange": 120000, "seekerFOV": 360, "Pk": 0.80, "speed": 1400, "flightTime": 50 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "RAPTOR 1" }
+      }
+    },
+    {
+      "id": "raptor_2",
+      "name": "RAPTOR 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.15,
+        "lon": -115.8,
+        "alt": 12000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.15, "lon": -114.8, "alt": 12000, "speed": 300 },
+          { "lat": 36.5, "lon": -114.0, "alt": 12500, "speed": 310 },
+          { "lat": 35.8, "lon": -114.0, "alt": 12000, "speed": 300 },
+          { "lat": 36.15, "lon": -114.8, "alt": 12000, "speed": 290 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.92 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.90, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120D", "count": 6, "minRange": 2000, "maxRange": 120000, "seekerFOV": 360, "Pk": 0.80, "speed": 1400, "flightTime": 50 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "RAPTOR 2" }
+      }
+    },
+    {
+      "id": "strike_1",
+      "name": "STRIKE 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.0,
+        "lon": -115.6,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f15" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.0, "lon": -114.5, "alt": 8000, "speed": 260 },
+          { "lat": 36.3, "lon": -113.8, "alt": 7500, "speed": 270 },
+          { "lat": 35.7, "lon": -113.8, "alt": 8000, "speed": 260 },
+          { "lat": 36.0, "lon": -114.5, "alt": 8000, "speed": 250 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 150000, "fov_deg": 120, "scanRate_dps": 50, "detectionProbability": 0.87 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 4, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "STRIKE 1" }
+      }
+    },
+    {
+      "id": "strike_2",
+      "name": "STRIKE 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.9,
+        "lon": -115.6,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f15" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.9, "lon": -114.5, "alt": 8000, "speed": 260 },
+          { "lat": 36.2, "lon": -113.8, "alt": 7500, "speed": 270 },
+          { "lat": 35.6, "lon": -113.8, "alt": 8000, "speed": 260 },
+          { "lat": 35.9, "lon": -114.5, "alt": 8000, "speed": 250 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 150000, "fov_deg": 120, "scanRate_dps": 50, "detectionProbability": 0.87 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 4, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "STRIKE 2" }
+      }
+    },
+    {
+      "id": "sead_1",
+      "name": "WEASEL 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.4,
+        "lon": -115.4,
+        "alt": 6000,
+        "speed": 230,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.4, "lon": -114.3, "alt": 6000, "speed": 250 },
+          { "lat": 36.7, "lon": -113.5, "alt": 5500, "speed": 260 },
+          { "lat": 36.1, "lon": -113.5, "alt": 6000, "speed": 250 },
+          { "lat": 36.4, "lon": -114.3, "alt": 6000, "speed": 240 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 2, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "WEASEL 1" }
+      }
+    },
+    {
+      "id": "sead_2",
+      "name": "WEASEL 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.3,
+        "lon": -115.4,
+        "alt": 6000,
+        "speed": 230,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.3, "lon": -114.3, "alt": 6000, "speed": 250 },
+          { "lat": 36.6, "lon": -113.5, "alt": 5500, "speed": 260 },
+          { "lat": 36.0, "lon": -113.5, "alt": 6000, "speed": 250 },
+          { "lat": 36.3, "lon": -114.3, "alt": 6000, "speed": 240 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "AIM-9X", "count": 2, "minRange": 500, "maxRange": 18000, "seekerFOV": 90, "Pk": 0.85, "speed": 900, "flightTime": 20 },
+          { "type": "AIM-120C", "count": 2, "minRange": 2000, "maxRange": 80000, "seekerFOV": 360, "Pk": 0.75, "speed": 1200, "flightTime": 40 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "WEASEL 2" }
+      }
+    },
+    {
+      "id": "awacs_blue",
+      "name": "OVERLORD",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.2,
+        "lon": -116.5,
+        "alt": 10000,
+        "speed": 180,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "awacs" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.2, "lon": -117.0, "alt": 10000, "speed": 180 },
+          { "lat": 36.6, "lon": -116.0, "alt": 10000, "speed": 180 },
+          { "lat": 35.8, "lon": -116.0, "alt": 10000, "speed": 180 },
+          { "lat": 36.2, "lon": -117.0, "alt": 10000, "speed": 180 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 400000, "fov_deg": 360, "scanRate_dps": 15, "detectionProbability": 0.95 },
+        "visual": { "type": "point", "color": "#88ccff", "pixelSize": 10, "trail": true, "label": "OVERLORD" }
+      }
+    },
+    {
+      "id": "fulcrum_1",
+      "name": "FULCRUM 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 36.3,
+        "lon": -113.2,
+        "alt": 9000,
+        "speed": 270,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.3, "lon": -114.5, "alt": 9000, "speed": 280 },
+          { "lat": 36.6, "lon": -115.5, "alt": 9500, "speed": 290 },
+          { "lat": 36.0, "lon": -115.5, "alt": 9000, "speed": 280 },
+          { "lat": 36.3, "lon": -114.5, "alt": 9000, "speed": 270 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 120, "scanRate_dps": 50, "detectionProbability": 0.80 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "R-73", "count": 2, "minRange": 500, "maxRange": 20000, "seekerFOV": 90, "Pk": 0.80, "speed": 900, "flightTime": 22 },
+          { "type": "R-77", "count": 4, "minRange": 2000, "maxRange": 70000, "seekerFOV": 360, "Pk": 0.70, "speed": 1100, "flightTime": 38 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true, "label": "FULCRUM 1" }
+      }
+    },
+    {
+      "id": "fulcrum_2",
+      "name": "FULCRUM 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 36.2,
+        "lon": -113.2,
+        "alt": 9000,
+        "speed": 270,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.2, "lon": -114.5, "alt": 9000, "speed": 280 },
+          { "lat": 36.5, "lon": -115.5, "alt": 9500, "speed": 290 },
+          { "lat": 35.9, "lon": -115.5, "alt": 9000, "speed": 280 },
+          { "lat": 36.2, "lon": -114.5, "alt": 9000, "speed": 270 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 120, "scanRate_dps": 50, "detectionProbability": 0.80 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "R-73", "count": 2, "minRange": 500, "maxRange": 20000, "seekerFOV": 90, "Pk": 0.80, "speed": 900, "flightTime": 22 },
+          { "type": "R-77", "count": 4, "minRange": 2000, "maxRange": 70000, "seekerFOV": 360, "Pk": 0.70, "speed": 1100, "flightTime": 38 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true, "label": "FULCRUM 2" }
+      }
+    },
+    {
+      "id": "flanker_1",
+      "name": "FLANKER 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 36.1,
+        "lon": -113.0,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f15" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.1, "lon": -114.3, "alt": 10000, "speed": 290 },
+          { "lat": 36.4, "lon": -115.3, "alt": 10500, "speed": 300 },
+          { "lat": 35.8, "lon": -115.3, "alt": 10000, "speed": 290 },
+          { "lat": 36.1, "lon": -114.3, "alt": 10000, "speed": 280 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 130000, "fov_deg": 120, "scanRate_dps": 45, "detectionProbability": 0.83 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "R-73", "count": 4, "minRange": 500, "maxRange": 20000, "seekerFOV": 90, "Pk": 0.80, "speed": 900, "flightTime": 22 },
+          { "type": "R-27ER", "count": 4, "minRange": 2000, "maxRange": 90000, "seekerFOV": 360, "Pk": 0.65, "speed": 1300, "flightTime": 45 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true, "label": "FLANKER 1" }
+      }
+    },
+    {
+      "id": "flanker_2",
+      "name": "FLANKER 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 36.0,
+        "lon": -113.0,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f15" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.0, "lon": -114.3, "alt": 10000, "speed": 290 },
+          { "lat": 36.3, "lon": -115.3, "alt": 10500, "speed": 300 },
+          { "lat": 35.7, "lon": -115.3, "alt": 10000, "speed": 290 },
+          { "lat": 36.0, "lon": -114.3, "alt": 10000, "speed": 280 }
+        ], "loopMode": "cycle" },
+        "sensors": { "type": "radar", "maxRange_m": 130000, "fov_deg": 120, "scanRate_dps": 45, "detectionProbability": 0.83 },
+        "weapons": { "type": "a2a_missile", "loadout": [
+          { "type": "R-73", "count": 4, "minRange": 500, "maxRange": 20000, "seekerFOV": 90, "Pk": 0.80, "speed": 900, "flightTime": 22 },
+          { "type": "R-27ER", "count": 4, "minRange": 2000, "maxRange": 90000, "seekerFOV": 360, "Pk": 0.65, "speed": 1300, "flightTime": 45 }
+        ], "engagementRules": "weapons_free" },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": true, "label": "FLANKER 2" }
+      }
+    },
+    {
+      "id": "sam_north",
+      "name": "SA-20 NORTH",
+      "type": "sam",
+      "team": "red",
+      "initialState": {
+        "lat": 36.5,
+        "lon": -113.8,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 5000,
+          "maxAltitude_m": 30000,
+          "salvoSize": 2,
+          "reloadTime_s": 8,
+          "missileCount": 12,
+          "Pk": 0.75,
+          "missileSpeed": 1800,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "SA-20 NORTH",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,68,68,0.04)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "sam_south",
+      "name": "SA-20 SOUTH",
+      "type": "sam",
+      "team": "red",
+      "initialState": {
+        "lat": 35.8,
+        "lon": -113.5,
+        "alt": 0,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.90
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 5000,
+          "maxAltitude_m": 30000,
+          "salvoSize": 2,
+          "reloadTime_s": 8,
+          "missileCount": 12,
+          "Pk": 0.75,
+          "missileSpeed": 1800,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "SA-20 SOUTH",
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,68,68,0.04)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}

@@ -1383,8 +1383,14 @@
         <div id="questProgress" style="color:#886600; font-size:10px; margin-top:6px; border-top:1px solid #664400; padding-top:4px;">---</div>
     </div>
 
+    <!-- Keyboard Help Overlay -->
+    <div id="keyboardHelpOverlay" style="display:none;"></div>
+
     <!-- Temporary Message Overlay -->
     <div id="msgOverlay"></div>
+
+    <!-- Tactical Minimap Canvas -->
+    <canvas id="minimapCanvas" width="256" height="256"></canvas>
 
     <!-- Scripts: Cesium config -->
     <script src="cesium_config.js"></script>
@@ -1422,6 +1428,7 @@
     <script src="js/components/ai/waypoint_patrol.js"></script>
     <script src="js/components/ai/intercept.js"></script>
     <script src="js/components/ai/orbital_combat.js"></script>
+    <script src="js/components/ai/formation.js"></script>
     <script src="js/components/sensors/radar.js"></script>
     <script src="js/components/weapons/sam_battery.js"></script>
     <script src="js/components/weapons/fighter_loadout.js"></script>
@@ -1440,6 +1447,12 @@
     <script src="js/ew_system.js"></script>
     <script src="js/weather_system.js"></script>
     <script src="js/naval_physics.js"></script>
+
+    <!-- Scripts: Keyboard Help Overlay -->
+    <script src="js/keyboard_help.js"></script>
+
+    <!-- Scripts: Tactical Minimap -->
+    <script src="js/minimap.js"></script>
 
     <!-- Scripts: Live Sim Engine -->
     <script src="js/live_sim_engine.js"></script>

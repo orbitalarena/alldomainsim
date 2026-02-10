@@ -28,7 +28,7 @@ const FighterHUD = (function() {
         pitchLadder: true,  // Pitch ladder lines
         fpm: true,          // Flight path marker + waterline
         gMeter: true,       // G-load meter
-        engineFuel: true,   // Throttle + fuel gauge
+        engineFuel: true,   // Throttle + fuel gauge + delta-V budget
         weapons: true,      // Weapons status + target reticle + steer cue
         warnings: true,     // Warnings + phase indicator + regime
         orbital: true,      // Orbital markers + navball
@@ -106,6 +106,8 @@ const FighterHUD = (function() {
         if (_toggles.fpm)         drawWaterline(scale);
         if (_toggles.gMeter)      drawGMeter(state, scale);
         if (_toggles.engineFuel)  drawThrottleFuel(state, scale);
+        if (_toggles.engineFuel)  drawFuelGauge(state, scale);
+        if (_toggles.engineFuel)  drawDeltaVBudget(state, scale);
         if (_toggles.weapons)     drawWeaponsStatus(state, weapons, scale);
         if (_toggles.weapons)     drawTargetReticle(state, target, scale);
         if (_toggles.weapons)     drawTargetSteerCue(state, target, scale);
@@ -608,7 +610,7 @@ const FighterHUD = (function() {
     }
 
     /**
-     * Draw throttle and fuel gauge (bottom-right)
+     * Draw throttle, fuel, and propulsion info (bottom-right area)
      */
     function drawThrottleFuel(state, scale) {
         const x = width - 130 * scale;
@@ -618,48 +620,260 @@ const FighterHUD = (function() {
         ctx.font = `${12 * scale}px 'Courier New', monospace`;
         ctx.textAlign = 'left';
 
-        // Throttle
+        // --- Propulsion mode indicator (engine name + thrust) ---
+        var propName = state._propName || state.forcedPropMode || state.propulsionMode || 'AIR';
+        var thrustN = state._currentThrust || 0;
+        var thrustLabel = '';
+        if (thrustN > 0) {
+            if (thrustN >= 1e6) thrustLabel = ' ' + (thrustN / 1e6).toFixed(1) + 'MN';
+            else if (thrustN >= 1000) thrustLabel = ' ' + (thrustN / 1000).toFixed(0) + 'kN';
+            else thrustLabel = ' ' + thrustN.toFixed(0) + 'N';
+        }
+        var modeColor = propName === 'AIR' || propName === 'TAXI' ? HUD_GREEN :
+                        propName === 'HYPERSONIC' ? HUD_WARN : HUD_ALERT;
+        ctx.fillStyle = state.engineOn ? modeColor : HUD_DIM;
+        ctx.font = `bold ${11 * scale}px 'Courier New', monospace`;
+        ctx.fillText(propName + thrustLabel, x, y - 14 * scale);
+        ctx.font = `${12 * scale}px 'Courier New', monospace`;
+
+        // --- Throttle ---
         const thr = Math.round(state.throttle * 100);
         const abOn = state.throttle > 0.85;
         ctx.fillStyle = abOn ? HUD_WARN : HUD_GREEN;
-        ctx.fillText(`THR ${thr}%${abOn ? ' AB' : ''}`, x, y);
+        ctx.fillText('THR', x, y);
 
-        // Throttle bar
+        // Throttle bar with tick marks
         const barW = 80 * scale;
         const barH = 8 * scale;
+        const barX = x + 30 * scale;
         ctx.strokeStyle = HUD_GREEN;
-        ctx.strokeRect(x, y + 5 * scale, barW, barH);
+        ctx.lineWidth = 1 * scale;
+        ctx.strokeRect(barX, y + 5 * scale, barW, barH);
         ctx.fillStyle = abOn ? HUD_WARN : HUD_GREEN;
-        ctx.fillRect(x, y + 5 * scale, barW * state.throttle, barH);
+        ctx.fillRect(barX, y + 5 * scale, barW * state.throttle, barH);
 
-        // Fuel
-        const fuelPct = state.fuel / FighterSimEngine.F16_CONFIG.fuel_capacity * 100;
-        const fuelLbs = state.fuel * 2.205;
-        ctx.fillStyle = fuelPct < 15 ? HUD_ALERT : fuelPct < 30 ? HUD_WARN : HUD_GREEN;
-        ctx.fillText(`FUEL ${Math.round(fuelLbs)} LB (${Math.round(fuelPct)}%)`, x, y + 30 * scale);
-
-        // Fuel bar
-        ctx.strokeStyle = HUD_GREEN;
-        ctx.strokeRect(x, y + 35 * scale, barW, barH);
-        ctx.fillStyle = fuelPct < 15 ? HUD_ALERT : fuelPct < 30 ? HUD_WARN : HUD_GREEN;
-        ctx.fillRect(x, y + 35 * scale, barW * (fuelPct / 100), barH);
-
-        // Fuel burn rate + time remaining
-        if (_lastFuel >= 0 && state.fuel < _lastFuel) {
-            var rawRate = (_lastFuel - state.fuel) * 60; // per-frame delta scaled to ~per-second (assumes 60fps)
-            _fuelBurnRate = _fuelBurnRate * 0.95 + rawRate * 0.05; // EMA smooth
+        // Tick marks at 25%, 50%, 75%, 100%
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 0.8 * scale;
+        for (var ti = 1; ti <= 4; ti++) {
+            var tickX = barX + barW * (ti * 0.25);
+            ctx.beginPath();
+            ctx.moveTo(tickX, y + 5 * scale);
+            ctx.lineTo(tickX, y + 5 * scale + barH);
+            ctx.stroke();
         }
-        _lastFuel = state.fuel;
 
-        if (_fuelBurnRate > 0.01 && state.fuel > 0) {
-            var timeRemSec = state.fuel / _fuelBurnRate;
-            var trMin = Math.floor(timeRemSec / 60);
-            var trSec = Math.floor(timeRemSec % 60);
-            var timeStr = trMin > 99 ? (trMin + 'm') : (trMin + ':' + (trSec < 10 ? '0' : '') + trSec);
-            ctx.fillStyle = timeRemSec < 120 ? HUD_ALERT : timeRemSec < 300 ? HUD_WARN : HUD_DIM;
+        // Numeric percentage next to bar
+        ctx.fillStyle = abOn ? HUD_WARN : HUD_GREEN;
+        ctx.font = `${11 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillText(thr + '%' + (abOn ? ' AB' : ''), x + 30 * scale + barW + 35 * scale, y + 5 * scale + barH / 2 + 1);
+        ctx.textAlign = 'left';
+
+        // --- Fuel (use _fuelCapacity if available, fallback to F16_CONFIG) ---
+        var fuelCap = state._fuelCapacity;
+        if (fuelCap === undefined || fuelCap === null) {
+            fuelCap = FighterSimEngine.F16_CONFIG.fuel_capacity;
+        }
+        var hasFuel = isFinite(state.fuel) && isFinite(fuelCap) && fuelCap > 0;
+
+        if (hasFuel) {
+            var fuelPct = (state.fuel / fuelCap) * 100;
+            var fuelLbs = state.fuel * 2.205;
+            ctx.font = `${12 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = fuelPct < 15 ? HUD_ALERT : fuelPct < 30 ? HUD_WARN : HUD_GREEN;
+            ctx.fillText('FUEL ' + Math.round(fuelLbs) + ' LB (' + Math.round(fuelPct) + '%)', x, y + 25 * scale);
+
+            // Fuel bar
+            ctx.strokeStyle = HUD_GREEN;
+            ctx.lineWidth = 1 * scale;
+            ctx.strokeRect(barX, y + 30 * scale, barW, barH);
+            ctx.fillStyle = fuelPct < 15 ? HUD_ALERT : fuelPct < 30 ? HUD_WARN : HUD_GREEN;
+            ctx.fillRect(barX, y + 30 * scale, barW * Math.min(fuelPct / 100, 1), barH);
+
+            // Fuel burn rate + time remaining
+            if (_lastFuel >= 0 && state.fuel < _lastFuel) {
+                var rawRate = (_lastFuel - state.fuel) * 60; // per-frame delta scaled to ~per-second (assumes 60fps)
+                _fuelBurnRate = _fuelBurnRate * 0.95 + rawRate * 0.05; // EMA smooth
+            }
+            _lastFuel = state.fuel;
+
+            if (_fuelBurnRate > 0.01 && state.fuel > 0) {
+                var timeRemSec = state.fuel / _fuelBurnRate;
+                var trMin = Math.floor(timeRemSec / 60);
+                var trSec = Math.floor(timeRemSec % 60);
+                var timeStr = trMin > 99 ? (trMin + 'm') : (trMin + ':' + (trSec < 10 ? '0' : '') + trSec);
+                ctx.fillStyle = timeRemSec < 120 ? HUD_ALERT : timeRemSec < 300 ? HUD_WARN : HUD_DIM;
+                ctx.font = `${11 * scale}px 'Courier New', monospace`;
+                ctx.fillText('BURN ' + _fuelBurnRate.toFixed(1) + ' kg/s  T-' + timeStr, x, y + 45 * scale);
+            }
+        } else {
+            // Infinite fuel indicator
+            ctx.fillStyle = HUD_DIM;
             ctx.font = `${11 * scale}px 'Courier New', monospace`;
-            ctx.fillText(`BURN ${_fuelBurnRate.toFixed(1)} kg/s  T-${timeStr}`, x, y + 50 * scale);
+            ctx.fillText('FUEL INF', x, y + 25 * scale);
+            _lastFuel = -1;
+            _fuelBurnRate = 0;
         }
+    }
+
+    /**
+     * Draw vertical fuel gauge (left side, below speed tape)
+     * Only shown when fuel is finite (custom platforms may have finite fuel;
+     * default spaceplane has infinite fuel).
+     */
+    function drawFuelGauge(state, scale) {
+        var fuelCap = state._fuelCapacity;
+        if (fuelCap === undefined || fuelCap === null) {
+            fuelCap = FighterSimEngine.F16_CONFIG.fuel_capacity;
+        }
+        if (!isFinite(state.fuel) || !isFinite(fuelCap) || fuelCap <= 0) return;
+
+        var fuelPct = Math.max(0, Math.min(1, state.fuel / fuelCap));
+        var fuelKg = state.fuel;
+
+        // Position: left side, below speed tape area
+        var gx = 30 * scale;           // left margin
+        var gy = cy + 150 * scale;     // below speed tape center
+        var gw = 14 * scale;           // bar width
+        var gh = 120 * scale;          // bar height
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.fillRect(gx - 2 * scale, gy - 2 * scale, gw + 4 * scale, gh + 4 * scale);
+
+        // Outline
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.strokeRect(gx, gy, gw, gh);
+
+        // Color based on fuel level
+        var barColor;
+        if (fuelPct > 0.50) barColor = HUD_GREEN;
+        else if (fuelPct > 0.20) barColor = HUD_WARN;
+        else barColor = HUD_ALERT;
+
+        // Fill from bottom up
+        var fillH = gh * fuelPct;
+        ctx.fillStyle = barColor;
+        ctx.fillRect(gx, gy + gh - fillH, gw, fillH);
+
+        // Tick marks at 25%, 50%, 75%
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 0.8 * scale;
+        for (var ti = 1; ti <= 3; ti++) {
+            var tickY = gy + gh * (1 - ti * 0.25);
+            ctx.beginPath();
+            ctx.moveTo(gx, tickY);
+            ctx.lineTo(gx + gw, tickY);
+            ctx.stroke();
+        }
+
+        // Fuel mass label below gauge
+        var fuelStr;
+        if (fuelKg >= 10000) fuelStr = (fuelKg / 1000).toFixed(1) + 't';
+        else if (fuelKg >= 1000) fuelStr = (fuelKg / 1000).toFixed(2) + 't';
+        else fuelStr = Math.round(fuelKg) + 'kg';
+
+        ctx.font = `${10 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = barColor;
+        ctx.fillText(fuelStr, gx + gw / 2, gy + gh + 14 * scale);
+
+        // "FUEL" label above gauge
+        ctx.fillStyle = HUD_DIM;
+        ctx.font = `${9 * scale}px 'Courier New', monospace`;
+        ctx.fillText('FUEL', gx + gw / 2, gy - 8 * scale);
+
+        // Percentage on the bar
+        ctx.font = `bold ${10 * scale}px 'Courier New', monospace`;
+        ctx.fillStyle = barColor;
+        ctx.fillText(Math.round(fuelPct * 100) + '%', gx + gw / 2, gy + gh / 2);
+    }
+
+    /**
+     * Draw delta-V budget display (right side, near orbital info)
+     * Uses Tsiolkovsky rocket equation: dv = Ve * ln(m0/mf)
+     * Only shown above 30km altitude (orbital context).
+     */
+    function drawDeltaVBudget(state, scale) {
+        if (!state || state.alt < 30000) return;
+
+        // Isp values by propulsion mode (seconds)
+        var ISP_TABLE = {
+            'ROCKET': 350,
+            'HYPERSONIC': 1200,
+            'AIR': 3000,
+        };
+        // Named engine Isp overrides
+        var NAMED_ISP = {
+            'ION 0.5N': 3000,
+            'HALL 5N': 1800,
+            'Cold Gas 50N': 70,
+            'RCS 500N': 220,
+            'OMS 25kN': 316,
+            'AJ10 100kN': 319,
+            '1G ACCEL 147kN': 450,
+            'NERVA 350kN': 900,
+            'RL10 500kN': 462,
+            'Raptor 2.2MN': 363,
+            'RS25 5MN': 452,
+            'TORCH 50MN': 100000,
+        };
+
+        var G0 = 9.80665;
+        var propMode = state.forcedPropMode || state.propulsionMode || 'AIR';
+        var propName = state._propName || propMode;
+
+        // Get Isp
+        var isp = NAMED_ISP[propName];
+        if (!isp) isp = ISP_TABLE[propMode] || ISP_TABLE['ROCKET'];
+        var Ve = isp * G0;   // exhaust velocity m/s
+
+        // Get masses
+        var dryMass = state._dryMass || 8570;
+        var weaponMass = state.weaponMass || 0;
+        var fuelMass = isFinite(state.fuel) ? state.fuel : 0;
+        var m0 = dryMass + weaponMass + fuelMass;   // current wet mass
+        var mf = dryMass + weaponMass;               // empty (dry) mass
+
+        // Delta-V remaining
+        var dv = 0;
+        if (m0 > mf && mf > 0 && fuelMass > 0) {
+            dv = Ve * Math.log(m0 / mf);
+        }
+
+        // Position: right side, below regime indicator
+        var dvX = width - 20 * scale;
+        var dvY = 68 * scale;
+
+        // Only show if fuel is finite (infinite fuel = infinite dV, not useful)
+        if (!isFinite(state.fuel)) {
+            ctx.font = `${11 * scale}px 'Courier New', monospace`;
+            ctx.textAlign = 'right';
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('\u0394V: INF', dvX, dvY);
+            return;
+        }
+
+        // Delta-V value
+        var dvStr;
+        if (dv >= 10000) dvStr = (dv / 1000).toFixed(1) + ' km/s';
+        else if (dv >= 100) dvStr = Math.round(dv) + ' m/s';
+        else dvStr = dv.toFixed(1) + ' m/s';
+
+        ctx.font = `bold ${12 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = HUD_CYAN;
+        ctx.fillText('\u0394V: ' + dvStr, dvX, dvY);
+
+        // Isp line
+        ctx.font = `${10 * scale}px 'Courier New', monospace`;
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('Isp ' + isp + 's  Ve ' + (Ve >= 10000 ? (Ve / 1000).toFixed(1) + 'km/s' : Math.round(Ve) + 'm/s'), dvX, dvY + 14 * scale);
+
+        // Mass breakdown
+        ctx.fillText('m0 ' + (m0 / 1000).toFixed(1) + 't  mf ' + (mf / 1000).toFixed(1) + 't', dvX, dvY + 26 * scale);
     }
 
     /**
@@ -934,8 +1148,10 @@ const FighterHUD = (function() {
         if (state.alt < 300 && state.gamma < -5 * DEG && state.phase === 'FLIGHT') {
             warnings.push({ text: 'PULL UP', color: HUD_ALERT });
         }
-        if (state.fuel <= 0) warnings.push({ text: 'FUEL OUT', color: HUD_ALERT });
-        if (state.fuel / FighterSimEngine.F16_CONFIG.fuel_capacity < 0.1 && state.fuel > 0) {
+        if (isFinite(state.fuel) && state.fuel <= 0) warnings.push({ text: 'FUEL OUT', color: HUD_ALERT });
+        var _wFuelCap = state._fuelCapacity || FighterSimEngine.F16_CONFIG.fuel_capacity;
+        if (isFinite(state.fuel) && isFinite(_wFuelCap) && _wFuelCap > 0 &&
+            state.fuel / _wFuelCap < 0.1 && state.fuel > 0) {
             warnings.push({ text: 'LOW FUEL', color: HUD_WARN });
         }
         if (!state.gearDown && state.alt < 500 && state.speed < 100 && state.phase === 'FLIGHT') {

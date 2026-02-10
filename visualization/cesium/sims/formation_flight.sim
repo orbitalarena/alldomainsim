@@ -1,0 +1,111 @@
+{
+  "metadata": {
+    "name": "Finger-Four Formation Flight",
+    "description": "4-ship F-16 finger-four formation over the Mojave Desert. Lead (EAGLE 1) is player-controlled. Wingmen 2-4 use formation AI to maintain positions relative to the leader. Classic WWII-era finger-four tactical formation adapted for modern jet fighters.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 8
+  },
+  "entities": [
+    {
+      "id": "eagle_1",
+      "name": "EAGLE 1 (Lead)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.9,
+        "lon": -117.9,
+        "alt": 5000,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input" },
+        "visual": { "type": "point", "color": "#44ff44", "pixelSize": 14, "trail": true, "label": "EAGLE 1" }
+      }
+    },
+    {
+      "id": "eagle_2",
+      "name": "EAGLE 2 (Wing)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.8955,
+        "lon": -117.906,
+        "alt": 5000,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "formation", "leaderId": "eagle_1", "position": "finger_four_2", "spacing": 500, "stackOffset": 0 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "EAGLE 2" }
+      }
+    },
+    {
+      "id": "eagle_3",
+      "name": "EAGLE 3 (Wing)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.9045,
+        "lon": -117.909,
+        "alt": 5000,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "formation", "leaderId": "eagle_1", "position": "finger_four_3", "spacing": 500, "stackOffset": 0 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "EAGLE 3" }
+      }
+    },
+    {
+      "id": "eagle_4",
+      "name": "EAGLE 4 (Trail)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.897,
+        "lon": -117.91,
+        "alt": 5000,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "formation", "leaderId": "eagle_1", "position": "finger_four_4", "spacing": 500, "stackOffset": 0 },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 12, "trail": true, "label": "EAGLE 4" }
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 5000
+  }
+}

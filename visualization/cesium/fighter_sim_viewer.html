@@ -958,6 +958,12 @@
             inRange: weaponsState.inRange,
         } : null;
 
+        // Attach fuel/propulsion metadata for HUD fuel gauge & delta-V display
+        aircraftState._fuelCapacity = FighterSimEngine.F16_CONFIG.fuel_capacity;
+        aircraftState._dryMass = FighterSimEngine.F16_CONFIG.mass_empty;
+        aircraftState._propName = aircraftState.forcedPropMode || 'AIR';
+        aircraftState._currentThrust = FighterSimEngine.F16_CONFIG.thrust_ab || 127000;
+
         FighterHUD.render(aircraftState, autopilotState, hudWeapons, hudTarget);
 
         // 10. Update UI panels

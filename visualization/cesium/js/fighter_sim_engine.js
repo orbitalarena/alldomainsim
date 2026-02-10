@@ -103,6 +103,191 @@ const FighterSimEngine = (function() {
         isSpaceplane: true,
     };
 
+    // F-22A Raptor configuration (stealth air superiority)
+    const F22_CONFIG = {
+        name: 'F-22A Raptor',
+        mass_empty: 19700,       // kg
+        mass_loaded: 29300,      // kg
+        fuel_capacity: 8200,     // kg internal
+        wing_area: 78.0,         // m²
+        wing_span: 13.56,        // m
+        aspect_ratio: 2.36,
+        cd0: 0.015,              // stealth shaping, low drag
+        cd0_gear: 0.032,
+        cd0_flaps: 0.012,
+        cd0_speedbrake: 0.035,
+        oswald: 0.80,
+        cl_max: 1.4,
+        cl_max_flaps: 1.8,
+        cl_alpha: 0.075,         // per degree
+        thrust_mil: 156000,      // N (2x F119, military)
+        thrust_ab: 312000,       // N (2x F119, afterburner)
+        tsfc_mil: 0.0210,
+        tsfc_ab: 0.0560,
+        max_g: 9.0,
+        min_g: -3.0,
+        max_roll_rate: 300 * DEG,
+        max_pitch_rate: 40 * DEG,
+        max_aoa: 60 * DEG,        // supermaneuverability
+        corner_speed: 200,
+        service_ceiling: 19812,   // m (65,000 ft)
+        v_rotate: 85,
+        v_approach: 78,
+        gear_transition_time: 3,
+        brake_decel: 6.0,
+        ground_friction: 0.03,
+        idle_thrust_frac: 0.05,
+        max_mach: 2.25,
+    };
+
+    // B-2A Spirit configuration (stealth strategic bomber)
+    const B2_CONFIG = {
+        name: 'B-2A Spirit',
+        mass_empty: 71700,       // kg
+        mass_loaded: 152600,     // kg (max takeoff weight)
+        fuel_capacity: 75750,    // kg
+        wing_area: 478.0,        // m² (flying wing)
+        wing_span: 52.4,         // m
+        aspect_ratio: 5.74,
+        cd0: 0.018,              // stealth shaping
+        cd0_gear: 0.035,
+        cd0_flaps: 0.020,
+        cd0_speedbrake: 0.040,
+        oswald: 0.90,            // efficient flying wing
+        cl_max: 1.2,
+        cl_max_flaps: 1.6,
+        cl_alpha: 0.06,
+        thrust_mil: 340000,      // N (4x F118-GE-100)
+        thrust_ab: 340000,       // no afterburner
+        tsfc_mil: 0.0180,
+        tsfc_ab: 0.0180,
+        max_g: 2.5,
+        min_g: -1.0,
+        max_roll_rate: 60 * DEG,
+        max_pitch_rate: 10 * DEG,
+        max_aoa: 15 * DEG,
+        corner_speed: 180,
+        service_ceiling: 15240,   // m (50,000 ft)
+        v_rotate: 90,
+        v_approach: 80,
+        gear_transition_time: 5,
+        brake_decel: 5.0,
+        ground_friction: 0.03,
+        idle_thrust_frac: 0.04,
+        max_mach: 0.95,
+    };
+
+    // C-17A Globemaster III configuration (strategic transport)
+    const C17_CONFIG = {
+        name: 'C-17A Globemaster III',
+        mass_empty: 128100,      // kg
+        mass_loaded: 265350,     // kg (max takeoff weight)
+        fuel_capacity: 110000,   // kg
+        wing_area: 353.0,        // m²
+        wing_span: 51.7,         // m
+        aspect_ratio: 7.57,
+        cd0: 0.022,
+        cd0_gear: 0.042,
+        cd0_flaps: 0.025,
+        cd0_speedbrake: 0.045,
+        oswald: 0.82,
+        cl_max: 1.8,
+        cl_max_flaps: 2.5,       // blown flaps, externally-blown
+        cl_alpha: 0.085,
+        thrust_mil: 480000,      // N (4x F117-PW-100)
+        thrust_ab: 480000,       // no afterburner
+        tsfc_mil: 0.0170,
+        tsfc_ab: 0.0170,
+        max_g: 2.5,
+        min_g: -1.0,
+        max_roll_rate: 45 * DEG,
+        max_pitch_rate: 8 * DEG,
+        max_aoa: 15 * DEG,
+        corner_speed: 150,
+        service_ceiling: 13716,   // m (45,000 ft)
+        v_rotate: 75,
+        v_approach: 65,           // STOL capable
+        gear_transition_time: 6,
+        brake_decel: 5.0,
+        ground_friction: 0.03,
+        idle_thrust_frac: 0.04,
+        max_mach: 0.77,
+    };
+
+    // MQ-9A Reaper configuration (MALE UAV)
+    const MQ9_CONFIG = {
+        name: 'MQ-9A Reaper',
+        mass_empty: 2223,        // kg
+        mass_loaded: 4760,       // kg (max takeoff weight)
+        fuel_capacity: 1800,     // kg
+        wing_area: 38.0,         // m²
+        wing_span: 20.0,         // m
+        aspect_ratio: 10.53,
+        cd0: 0.020,
+        cd0_gear: 0.035,
+        cd0_flaps: 0.015,
+        cd0_speedbrake: 0.030,
+        oswald: 0.88,            // high aspect ratio
+        cl_max: 1.6,
+        cl_max_flaps: 2.0,
+        cl_alpha: 0.09,
+        thrust_mil: 6700,        // N (TPE331-10 turboprop)
+        thrust_ab: 6700,         // no afterburner
+        tsfc_mil: 0.0120,        // low fuel consumption
+        tsfc_ab: 0.0120,
+        max_g: 3.0,
+        min_g: -1.5,
+        max_roll_rate: 60 * DEG,
+        max_pitch_rate: 10 * DEG,
+        max_aoa: 15 * DEG,
+        corner_speed: 70,
+        service_ceiling: 15240,   // m (50,000 ft)
+        v_rotate: 40,
+        v_approach: 42,
+        gear_transition_time: 4,
+        brake_decel: 4.0,
+        ground_friction: 0.03,
+        idle_thrust_frac: 0.06,
+        max_mach: 0.35,           // ~120 m/s / 340 m/s
+    };
+
+    // Su-57 Felon configuration (5th-gen stealth fighter)
+    const SU57_CONFIG = {
+        name: 'Su-57 Felon',
+        mass_empty: 18000,       // kg
+        mass_loaded: 25000,      // kg
+        fuel_capacity: 10300,    // kg
+        wing_area: 78.8,         // m²
+        wing_span: 14.1,         // m
+        aspect_ratio: 2.52,
+        cd0: 0.015,              // stealth shaping
+        cd0_gear: 0.032,
+        cd0_flaps: 0.012,
+        cd0_speedbrake: 0.035,
+        oswald: 0.80,
+        cl_max: 1.4,
+        cl_max_flaps: 1.8,
+        cl_alpha: 0.075,
+        thrust_mil: 176000,      // N (2x AL-41F1, military)
+        thrust_ab: 360000,       // N (2x AL-41F1, afterburner)
+        tsfc_mil: 0.0220,
+        tsfc_ab: 0.0580,
+        max_g: 9.0,
+        min_g: -3.0,
+        max_roll_rate: 270 * DEG,
+        max_pitch_rate: 35 * DEG,
+        max_aoa: 60 * DEG,        // supermaneuverability
+        corner_speed: 190,
+        service_ceiling: 20000,   // m (~65,600 ft)
+        v_rotate: 82,
+        v_approach: 78,
+        gear_transition_time: 3,
+        brake_decel: 6.0,
+        ground_friction: 0.03,
+        idle_thrust_frac: 0.05,
+        max_mach: 2.0,
+    };
+
     // Edwards AFB runway
     const EDWARDS = {
         lat: 34.9054 * DEG,
@@ -1041,6 +1226,11 @@ const FighterSimEngine = (function() {
     return {
         Phase,
         F16_CONFIG,
+        F22_CONFIG,
+        B2_CONFIG,
+        C17_CONFIG,
+        MQ9_CONFIG,
+        SU57_CONFIG,
         SPACEPLANE_CONFIG,
         PROP_MODES,
         EDWARDS,
