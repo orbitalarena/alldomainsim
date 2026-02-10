@@ -42,15 +42,14 @@ const Systems = (function() {
             if (!phys.enabled) continue;
 
             // Sub-stepping: max 0.05s per physics tick (matches FighterSimEngine)
+            // Uncapped substeps to prevent physics loss at high time warp
             const maxStep = 0.05;
             let remaining = dt;
-            const maxSubSteps = 500;
-            let steps = 0;
-            while (remaining > 0 && steps < maxSubSteps) {
+            const numSteps = Math.ceil(remaining / maxStep);
+            for (let s = 0; s < numSteps; s++) {
                 const subDt = Math.min(remaining, maxStep);
                 phys.update(subDt, world);
                 remaining -= subDt;
-                steps++;
             }
         }
     }
@@ -59,13 +58,33 @@ const Systems = (function() {
     // 3. VisualizationSystem
     //    Updates Cesium entities (position, orientation, trails, labels).
     // -------------------------------------------------------------------
+    var _vizFrameCounter = 0;
     function VisualizationSystem(dt, world) {
+        _vizFrameCounter++;
         const entities = world.entitiesWith('visual');
-        for (let i = 0; i < entities.length; i++) {
-            const e = entities[i];
-            const vis = e.getComponent('visual');
-            if (vis.enabled) {
-                vis.update(dt, world);
+        const entityCount = entities.length;
+
+        // For large entity counts (>200), stagger visual updates:
+        // divide entities into 4 groups, update one group per frame
+        // (player entity and search-highlighted entities always update)
+        if (entityCount > 200) {
+            const group = _vizFrameCounter % 4;
+            for (let i = 0; i < entityCount; i++) {
+                const e = entities[i];
+                const vis = e.getComponent('visual');
+                if (!vis.enabled) continue;
+                // Always update: player, highlighted, or this frame's group
+                if (e === world._playerEntity || e.state._searchHighlight || (i % 4) === group) {
+                    vis.update(dt, world);
+                }
+            }
+        } else {
+            for (let i = 0; i < entityCount; i++) {
+                const e = entities[i];
+                const vis = e.getComponent('visual');
+                if (vis.enabled) {
+                    vis.update(dt, world);
+                }
             }
         }
     }
@@ -89,7 +108,13 @@ const Systems = (function() {
     // 5. UISystem
     //    Updates DOM panels (flight data, systems status, time display).
     // -------------------------------------------------------------------
+    var _uiLastUpdate = 0;
     function UISystem(dt, world) {
+        // Throttle DOM updates to 4Hz
+        var now = Date.now();
+        if (now - _uiLastUpdate < 250) return;
+        _uiLastUpdate = now;
+
         // Update status bar time
         const simTimeEl = document.getElementById('scenarioSimTime');
         if (simTimeEl) {

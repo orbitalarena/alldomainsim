@@ -1,0 +1,975 @@
+{
+  "metadata": {
+    "name": "Baltic Air Policing",
+    "version": "2.0",
+    "description": "NATO Quick Reaction Alert: Intercept unidentified aircraft approaching Baltic airspace. Two pairs of Eurofighter Typhoons scramble from Amari AB, Estonia to intercept Russian Tu-95 Bear bombers with Su-35 escort approaching from Kaliningrad.",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "typhoon_1",
+      "name": "BALTIC 11",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 59.26,
+        "lon": 24.21,
+        "alt": 8000,
+        "speed": 280,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 58.5,
+              "lon": 23.5,
+              "alt": 8500,
+              "speed": 290
+            },
+            {
+              "lat": 57.5,
+              "lon": 22.5,
+              "alt": 9000,
+              "speed": 300
+            },
+            {
+              "lat": 57.0,
+              "lon": 22.0,
+              "alt": 9000,
+              "speed": 300
+            },
+            {
+              "lat": 57.5,
+              "lon": 23.0,
+              "alt": 8500,
+              "speed": 290
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "IRIS-T",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 25000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 22
+            },
+            {
+              "type": "AMRAAM",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "BALTIC 11"
+        }
+      }
+    },
+    {
+      "id": "typhoon_2",
+      "name": "BALTIC 12",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 59.26,
+        "lon": 24.22,
+        "alt": 8000,
+        "speed": 280,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 58.5,
+              "lon": 23.6,
+              "alt": 8500,
+              "speed": 290
+            },
+            {
+              "lat": 57.5,
+              "lon": 22.6,
+              "alt": 9000,
+              "speed": 300
+            },
+            {
+              "lat": 57.0,
+              "lon": 22.1,
+              "alt": 9000,
+              "speed": 300
+            },
+            {
+              "lat": 57.5,
+              "lon": 23.1,
+              "alt": 8500,
+              "speed": 290
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "IRIS-T",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 25000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 22
+            },
+            {
+              "type": "AMRAAM",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "BALTIC 12"
+        }
+      }
+    },
+    {
+      "id": "typhoon_3",
+      "name": "BALTIC 21",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 59.26,
+        "lon": 24.23,
+        "alt": 8200,
+        "speed": 280,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 58.4,
+              "lon": 23.3,
+              "alt": 8800,
+              "speed": 290
+            },
+            {
+              "lat": 57.4,
+              "lon": 22.3,
+              "alt": 9200,
+              "speed": 300
+            },
+            {
+              "lat": 56.9,
+              "lon": 21.8,
+              "alt": 9200,
+              "speed": 300
+            },
+            {
+              "lat": 57.4,
+              "lon": 22.8,
+              "alt": 8800,
+              "speed": 290
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "IRIS-T",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 25000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 22
+            },
+            {
+              "type": "AMRAAM",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "BALTIC 21"
+        }
+      }
+    },
+    {
+      "id": "typhoon_4",
+      "name": "BALTIC 22",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 59.26,
+        "lon": 24.24,
+        "alt": 8200,
+        "speed": 280,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 58.4,
+              "lon": 23.4,
+              "alt": 8800,
+              "speed": 290
+            },
+            {
+              "lat": 57.4,
+              "lon": 22.4,
+              "alt": 9200,
+              "speed": 300
+            },
+            {
+              "lat": 56.9,
+              "lon": 21.9,
+              "alt": 9200,
+              "speed": 300
+            },
+            {
+              "lat": 57.4,
+              "lon": 22.9,
+              "alt": 8800,
+              "speed": 290
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "IRIS-T",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 25000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 22
+            },
+            {
+              "type": "AMRAAM",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "BALTIC 22"
+        }
+      }
+    },
+    {
+      "id": "awacs_nato",
+      "name": "MAGIC 01 (AWACS)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 58.0,
+        "lon": 23.0,
+        "alt": 9000,
+        "speed": 180,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "awacs"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 58.0,
+              "lon": 22.0,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 57.5,
+              "lon": 21.5,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 57.5,
+              "lon": 24.0,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 58.0,
+              "lon": 24.0,
+              "alt": 9000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88ccff",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "MAGIC 01 (AWACS)"
+        }
+      }
+    },
+    {
+      "id": "amari_tower",
+      "name": "AMARI AB",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 59.26,
+        "lon": 24.21,
+        "alt": 65,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.9
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "AMARI AB",
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      }
+    },
+    {
+      "id": "bear_1",
+      "name": "BEAR 01 (Tu-95)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 55.0,
+        "lon": 20.5,
+        "alt": 8500,
+        "speed": 220,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.65,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "bomber"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 56.0,
+              "lon": 21.0,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.0,
+              "lon": 22.0,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.5,
+              "lon": 22.5,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.0,
+              "lon": 21.5,
+              "alt": 8500,
+              "speed": 220
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.75
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 14,
+          "trail": true,
+          "label": "BEAR 01 (Tu-95)"
+        }
+      }
+    },
+    {
+      "id": "bear_2",
+      "name": "BEAR 02 (Tu-95)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 55.05,
+        "lon": 20.6,
+        "alt": 8500,
+        "speed": 220,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.65,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "bomber"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 56.05,
+              "lon": 21.1,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.05,
+              "lon": 22.1,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.55,
+              "lon": 22.6,
+              "alt": 8500,
+              "speed": 220
+            },
+            {
+              "lat": 57.05,
+              "lon": 21.6,
+              "alt": 8500,
+              "speed": 220
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.75
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 14,
+          "trail": true,
+          "label": "BEAR 02 (Tu-95)"
+        }
+      }
+    },
+    {
+      "id": "flanker_1",
+      "name": "FLANKER 01 (Su-35)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 55.2,
+        "lon": 20.3,
+        "alt": 10000,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 56.0,
+              "lon": 20.8,
+              "alt": 10000,
+              "speed": 310
+            },
+            {
+              "lat": 57.0,
+              "lon": 21.5,
+              "alt": 10500,
+              "speed": 320
+            },
+            {
+              "lat": 57.5,
+              "lon": 22.0,
+              "alt": 10500,
+              "speed": 320
+            },
+            {
+              "lat": 56.5,
+              "lon": 21.0,
+              "alt": 10000,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.86
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "R-73",
+              "count": 4,
+              "minRange": 300,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 800,
+              "flightTime": 18
+            },
+            {
+              "type": "R-77",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 80000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1200,
+              "flightTime": 35
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "FLANKER 01 (Su-35)"
+        }
+      }
+    },
+    {
+      "id": "flanker_2",
+      "name": "FLANKER 02 (Su-35)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 55.25,
+        "lon": 20.4,
+        "alt": 10000,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 56.05,
+              "lon": 20.9,
+              "alt": 10000,
+              "speed": 310
+            },
+            {
+              "lat": 57.05,
+              "lon": 21.6,
+              "alt": 10500,
+              "speed": 320
+            },
+            {
+              "lat": 57.55,
+              "lon": 22.1,
+              "alt": 10500,
+              "speed": 320
+            },
+            {
+              "lat": 56.55,
+              "lon": 21.1,
+              "alt": 10000,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.86
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "R-73",
+              "count": 4,
+              "minRange": 300,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 800,
+              "flightTime": 18
+            },
+            {
+              "type": "R-77",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 80000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1200,
+              "flightTime": 35
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "FLANKER 02 (Su-35)"
+        }
+      }
+    },
+    {
+      "id": "kaliningrad_radar",
+      "name": "KALININGRAD RADAR",
+      "type": "ground_station",
+      "team": "red",
+      "initialState": {
+        "lat": 54.71,
+        "lon": 20.51,
+        "alt": 30,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.93
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "KALININGRAD RADAR",
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(255,68,68,0.03)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    },
+    {
+      "id": "s400_kaliningrad",
+      "name": "S-400 KALININGRAD",
+      "type": "sam",
+      "team": "red",
+      "initialState": {
+        "lat": 54.8,
+        "lon": 20.6,
+        "alt": 30,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 600000,
+          "fov_deg": 360,
+          "scanRate_dps": 25,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 400000,
+          "minRange_m": 5000,
+          "maxAlt_m": 30000,
+          "salvoSize": 2,
+          "reloadTime_s": 10,
+          "killProbability": 0.85,
+          "missileSpeed_mps": 2400,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "S-400 KALININGRAD",
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(255,68,68,0.04)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_qra_scramble",
+      "type": "timed",
+      "time": 15,
+      "action": {
+        "type": "message",
+        "text": "NATO QRA scrambled. Two pairs airborne from Amari."
+      },
+      "description": "QRA launch"
+    },
+    {
+      "id": "evt_awacs_contact",
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "MAGIC 01 reports two fast-movers and two heavy contacts bearing 210."
+      },
+      "description": "AWACS detects intruders"
+    },
+    {
+      "id": "evt_visual_contact",
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "BALTIC 11: Visual contact. Two Bear bombers with fighter escort."
+      },
+      "description": "Visual ID of Russian formation"
+    },
+    {
+      "id": "evt_bears_turn",
+      "type": "timed",
+      "time": 240,
+      "action": {
+        "type": "message",
+        "text": "BALTIC 11: Bears have turned south. Maintaining escort."
+      },
+      "description": "Bombers change course"
+    },
+    {
+      "id": "evt_rtb_authorized",
+      "type": "timed",
+      "time": 360,
+      "action": {
+        "type": "message",
+        "text": "MAGIC 01: Contacts departing NATO airspace. RTB authorized."
+      },
+      "description": "Intruders depart"
+    }
+  ],
+  "regions": [
+    {
+      "name": "Baltic ADIZ",
+      "type": "adiz",
+      "shape": "polygon",
+      "points": [
+        [59.5, 19.0],
+        [59.5, 28.0],
+        [55.5, 28.0],
+        [55.5, 21.0],
+        [56.5, 19.0]
+      ]
+    },
+    {
+      "name": "Russian Airspace",
+      "type": "exclusion",
+      "shape": "polygon",
+      "points": [
+        [55.5, 19.5],
+        [55.5, 22.0],
+        [54.0, 22.0],
+        [54.0, 19.5]
+      ]
+    },
+    {
+      "name": "Intercept Box",
+      "type": "engagement",
+      "shape": "circle",
+      "center": [57.0, 22.0],
+      "radius": 100000
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 57.0,
+    "lon": 22.0,
+    "range": 2000000,
+    "heading": 0,
+    "pitch": -45
+  }
+}

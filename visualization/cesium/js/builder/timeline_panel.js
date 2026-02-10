@@ -33,6 +33,21 @@ var TimelinePanel = (function() {
     var C_BAR = { blue: '#2244aa', red: '#aa2222', neutral: '#227722' };
     var C_INACTIVE = '#1a2030';
 
+    // Mission phase colors
+    var C_PHASE = {
+        'planning':  { bg: 'rgba(100,100,200,0.25)', border: '#6666cc', label: '#aaaaff' },
+        'ingress':   { bg: 'rgba(200,150,50,0.25)',  border: '#cc9933', label: '#ffcc66' },
+        'strike':    { bg: 'rgba(255,50,50,0.25)',   border: '#ff3333', label: '#ff6666' },
+        'egress':    { bg: 'rgba(50,200,100,0.25)',  border: '#33cc66', label: '#66ff99' },
+        'loiter':    { bg: 'rgba(100,200,255,0.25)', border: '#66ccff', label: '#88ddff' },
+        'refuel':    { bg: 'rgba(200,200,50,0.25)',  border: '#cccc33', label: '#ffff66' },
+        'transit':   { bg: 'rgba(150,150,150,0.25)', border: '#999999', label: '#cccccc' },
+        'combat':    { bg: 'rgba(255,100,0,0.25)',   border: '#ff6600', label: '#ff8844' },
+        'defend':    { bg: 'rgba(50,100,255,0.25)',  border: '#3366ff', label: '#6699ff' },
+        'patrol':    { bg: 'rgba(0,200,200,0.25)',   border: '#00cccc', label: '#44ffff' }
+    };
+    var PHASE_H = 20;  // Height of mission phase band
+
     // ---- Helpers ----
 
     function _pad2(n) { return n < 10 ? '0' + n : '' + n; }
@@ -96,6 +111,65 @@ var TimelinePanel = (function() {
         return markers;
     }
 
+    function _getMissionPhases() {
+        // Get phases from scenario data or world
+        var src = _scenarioData || (_world && _world._scenarioData) || {};
+        var phases = src.missionPhases || src.mission_phases || [];
+        if (!phases.length && src.events) {
+            // Auto-derive phases from timed events with phase annotations
+            for (var i = 0; i < src.events.length; i++) {
+                var evt = src.events[i];
+                if (evt.phase) {
+                    phases.push({
+                        name: evt.phase,
+                        startTime: evt.trigger && evt.trigger.time ? evt.trigger.time : 0,
+                        endTime: evt.endTime || (evt.trigger && evt.trigger.time ? evt.trigger.time + 60 : 60)
+                    });
+                }
+            }
+        }
+        return phases;
+    }
+
+    function _drawMissionPhases() {
+        var phases = _getMissionPhases();
+        if (!phases.length) return 0; // Return 0 height used
+        var y = HDR_H + AXIS_H;
+        // Draw phase background band
+        _ctx.fillStyle = 'rgba(10,15,25,0.5)';
+        _ctx.fillRect(LBL_W, y, _canvas.width - LBL_W - R_PAD, PHASE_H);
+        // Label
+        _ctx.fillStyle = C_TEXT; _ctx.font = '9px sans-serif';
+        _ctx.textAlign = 'right'; _ctx.textBaseline = 'middle';
+        _ctx.fillText('PHASES', LBL_W - 6, y + PHASE_H / 2);
+        // Draw each phase
+        for (var i = 0; i < phases.length; i++) {
+            var phase = phases[i];
+            var x1 = _timeToX(phase.startTime || 0);
+            var x2 = _timeToX(phase.endTime || phase.startTime + 60);
+            if (x2 < LBL_W || x1 > _canvas.width - R_PAD) continue;
+            x1 = Math.max(x1, LBL_W);
+            x2 = Math.min(x2, _canvas.width - R_PAD);
+            var phaseName = (phase.name || 'unknown').toLowerCase();
+            var colors = C_PHASE[phaseName] || C_PHASE.transit;
+            // Phase box
+            _ctx.fillStyle = colors.bg;
+            _ctx.fillRect(x1, y + 1, x2 - x1, PHASE_H - 2);
+            _ctx.strokeStyle = colors.border;
+            _ctx.lineWidth = 1;
+            _ctx.strokeRect(x1, y + 1, x2 - x1, PHASE_H - 2);
+            // Phase label
+            if (x2 - x1 > 30) {
+                _ctx.fillStyle = colors.label;
+                _ctx.font = 'bold 9px sans-serif';
+                _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
+                var label = phase.name || phaseName;
+                _ctx.fillText(_clip(label.toUpperCase(), 12), (x1 + x2) / 2, y + PHASE_H / 2);
+            }
+        }
+        return PHASE_H + 2; // Return height used
+    }
+
     function _evtColor(evt) {
         if (!evt || !evt.action) return C_EV_BLUE;
         if (evt.action.type === 'destroy') return C_EV_RED;
@@ -138,8 +212,8 @@ var TimelinePanel = (function() {
         }
     }
 
-    function _drawEntityBars() {
-        var ents = _getEntities(), startY = HDR_H + AXIS_H;
+    function _drawEntityBars(phaseOffset) {
+        var ents = _getEntities(), startY = HDR_H + AXIS_H + (phaseOffset || 0);
         _ctx.font = '10px sans-serif';
         _ctx.textBaseline = 'middle';
         for (var i = 0; i < ents.length; i++) {
@@ -176,10 +250,10 @@ var TimelinePanel = (function() {
         }
     }
 
-    function _drawEventMarkers() {
+    function _drawEventMarkers(phaseOffset) {
         var events = _getEvents();
         if (!events || !events.length) return;
-        var mY = HDR_H + AXIS_H + _getEntities().length * (ROW_H + ROW_GAP) + 8;
+        var mY = HDR_H + AXIS_H + (phaseOffset || 0) + _getEntities().length * (ROW_H + ROW_GAP) + 8;
         for (var i = 0; i < events.length; i++) {
             var evt = events[i], t = null;
             if (evt.trigger && evt.trigger.type === 'time') {
@@ -204,10 +278,10 @@ var TimelinePanel = (function() {
         }
     }
 
-    function _drawEngagementMarkers() {
+    function _drawEngagementMarkers(phaseOffset) {
         var engs = _getEngagements();
         if (!engs.length) return;
-        var baseY = HDR_H + AXIS_H + _getEntities().length * (ROW_H + ROW_GAP) + 30;
+        var baseY = HDR_H + AXIS_H + (phaseOffset || 0) + _getEntities().length * (ROW_H + ROW_GAP) + 30;
         for (var i = 0; i < engs.length; i++) {
             var eng = engs[i], x = _timeToX(eng.time);
             if (x < LBL_W || x > _canvas.width - R_PAD) continue;
@@ -335,8 +409,10 @@ var TimelinePanel = (function() {
         }
         _ctx.fillStyle = C_BG;
         _ctx.fillRect(0, 0, _canvas.width, _canvas.height);
-        _drawHeader(); _drawAxis(); _drawEntityBars();
-        _drawEventMarkers(); _drawEngagementMarkers();
+        _drawHeader(); _drawAxis();
+        var phaseOffset = _drawMissionPhases();
+        _drawEntityBars(phaseOffset);
+        _drawEventMarkers(phaseOffset); _drawEngagementMarkers(phaseOffset);
         _drawPlayhead(); _drawZoomIndicator();
     }
 

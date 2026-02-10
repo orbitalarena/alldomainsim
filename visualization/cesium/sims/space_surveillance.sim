@@ -1,0 +1,909 @@
+{
+  "metadata": {
+    "name": "Space Surveillance Network",
+    "description": "Space Situational Awareness (SSA) scenario featuring US Space Command assets vs adversary counter-space threats. Blue force operates 3 SBSS (Space-Based Space Surveillance) satellites in sun-synchronous LEO across 3 orbital planes, 2 GSSAP inspector satellites in near-GEO, ground-based radars at Cavalier AFS and Cape Cod AFS, an optical telescope at Diego Garcia, and a WGS GEO comms relay. Red force fields 2 co-orbital ASAT threats in LEO, a Kosmos radar reconnaissance satellite, a GEO inspector maneuvering near the WGS relay, a ground-based laser ASAT facility, and a cyber operations center. Networks include a blue SATCOM mesh linking ground stations to space assets and a red C2 star network. Observe sensor detections, comm routing, and cyber intrusion attempts across the space domain.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "sbss_1",
+      "name": "SBSS-1",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7050000,
+          "ecc": 0.001,
+          "inc": 98.0,
+          "raan": 30,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88,
+          "updateInterval": 3.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.7,
+          "patchLevel": 0.65,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 9,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "SBSS-1"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Space Surveillance Radar", "range_km": 2000, "fov_deg": 120 }
+        ],
+        "notes": "Space-Based Space Surveillance satellite - Plane 1 (RAAN 30). Sun-synchronous orbit for persistent LEO surveillance coverage."
+      }
+    },
+    {
+      "id": "sbss_2",
+      "name": "SBSS-2",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7050000,
+          "ecc": 0.001,
+          "inc": 98.0,
+          "raan": 150,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88,
+          "updateInterval": 3.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.7,
+          "patchLevel": 0.65,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 9,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "SBSS-2"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Space Surveillance Radar", "range_km": 2000, "fov_deg": 120 }
+        ],
+        "notes": "Space-Based Space Surveillance satellite - Plane 2 (RAAN 150). Offset 120 deg in mean anomaly from SBSS-1."
+      }
+    },
+    {
+      "id": "sbss_3",
+      "name": "SBSS-3",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7050000,
+          "ecc": 0.001,
+          "inc": 98.0,
+          "raan": 270,
+          "argPerigee": 0,
+          "meanAnomaly": 240
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88,
+          "updateInterval": 3.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.7,
+          "patchLevel": 0.65,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 9,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "SBSS-3"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Space Surveillance Radar", "range_km": 2000, "fov_deg": 120 }
+        ],
+        "notes": "Space-Based Space Surveillance satellite - Plane 3 (RAAN 270). Offset 240 deg in mean anomaly from SBSS-1."
+      }
+    },
+    {
+      "id": "gssap_1",
+      "name": "GSSAP-1",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42200000,
+          "ecc": 0.0001,
+          "inc": 0.5,
+          "raan": 60,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 5000000,
+          "fov_deg": 60,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.92,
+          "updateInterval": 5.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.75,
+          "patchLevel": 0.7,
+          "firewallRating": 0.65,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GSSAP-1"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "optical", "name": "GEO Surveillance Telescope", "range_km": 5000, "fov_deg": 60 },
+          { "type": "ir", "name": "IR Surveillance Sensor", "range_km": 3000, "fov_deg": 40 }
+        ],
+        "notes": "Geosynchronous Space Situational Awareness Program satellite - inspects GEO belt objects. Near-GEO orbit allows close approach to objects of interest."
+      }
+    },
+    {
+      "id": "gssap_2",
+      "name": "GSSAP-2",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42200000,
+          "ecc": 0.0001,
+          "inc": 0.5,
+          "raan": 240,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 5000000,
+          "fov_deg": 60,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.92,
+          "updateInterval": 5.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.75,
+          "patchLevel": 0.7,
+          "firewallRating": 0.65,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GSSAP-2"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "optical", "name": "GEO Surveillance Telescope", "range_km": 5000, "fov_deg": 60 },
+          { "type": "ir", "name": "IR Surveillance Sensor", "range_km": 3000, "fov_deg": 40 }
+        ],
+        "notes": "Geosynchronous Space Situational Awareness Program satellite - paired with GSSAP-1 for stereo coverage of GEO belt. RAAN offset 180 deg from GSSAP-1."
+      }
+    },
+    {
+      "id": "wgs_comms",
+      "name": "WGS-11",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.1,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 90
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.8,
+          "patchLevel": 0.75,
+          "firewallRating": 0.7,
+          "hackableSubsystems": [
+            "comms",
+            "navigation"
+          ]
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#00ff88",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "WGS-11"
+        }
+      },
+      "_custom": {
+        "notes": "Wideband Global SATCOM relay in GEO. High-bandwidth Ka/X-band comms backbone for blue space surveillance network. Primary target for red GEO inspector."
+      }
+    },
+    {
+      "id": "cavalier_radar",
+      "name": "CAVALIER AFS RADAR",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 48.7,
+        "lon": -97.9,
+        "alt": 450,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 180,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.8,
+          "patchLevel": 0.75,
+          "firewallRating": 0.7,
+          "hackableSubsystems": [
+            "sensors",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.7,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ccff",
+          "pixelSize": 14
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "PARCS Phased Array", "range_km": 500, "fov_deg": 360 }
+        ],
+        "notes": "Cavalier Air Force Station, North Dakota. Perimeter Acquisition Radar Characterization System (PARCS) - primary ICBM warning and space surveillance radar."
+      }
+    },
+    {
+      "id": "capecod_radar",
+      "name": "CAPE COD AFS RADAR",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 41.75,
+        "lon": -70.53,
+        "alt": 40,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 240,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.93,
+          "updateInterval": 1.5
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.78,
+          "patchLevel": 0.72,
+          "firewallRating": 0.68,
+          "hackableSubsystems": [
+            "sensors",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.68,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ccff",
+          "pixelSize": 13
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "PAVE PAWS Phased Array", "range_km": 400, "fov_deg": 240 }
+        ],
+        "notes": "Cape Cod Air Force Station, Massachusetts. PAVE PAWS (Precision Acquisition Vehicle Entry Phased Array Warning System) - space surveillance and SLBM warning radar."
+      }
+    },
+    {
+      "id": "diego_garcia_optical",
+      "name": "DIEGO GARCIA GEODSS",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": -7.3,
+        "lon": 72.4,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 100000,
+          "fov_deg": 180,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.85,
+          "updateInterval": 5.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.72,
+          "patchLevel": 0.68,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.6,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#88ccff",
+          "pixelSize": 12
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "optical", "name": "GEODSS Telescope Array", "range_km": 100, "fov_deg": 180 }
+        ],
+        "notes": "Diego Garcia, British Indian Ocean Territory. Ground-Based Electro-Optical Deep Space Surveillance (GEODSS) site - tracks deep space objects (GEO and beyond) using optical telescopes. Weather-dependent, nighttime only."
+      }
+    },
+    {
+      "id": "red_asat_1",
+      "name": "ASAT-1 (COSMOS)",
+      "type": "satellite",
+      "team": "red",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7000000,
+          "ecc": 0.001,
+          "inc": 65,
+          "raan": 45,
+          "argPerigee": 0,
+          "meanAnomaly": 30
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "sensorRange": 500000,
+          "defenseRadius": 100000,
+          "maxAccel": 25.0,
+          "killRange": 20000,
+          "scanInterval": 3.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.55,
+          "killRange": 20000,
+          "cooldown": 12.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 90,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.75,
+          "updateInterval": 4.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "ASAT-1"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 0.5,
+        "sensors": [
+          { "type": "radar", "name": "Target Acquisition Radar", "range_km": 500, "fov_deg": 90 }
+        ],
+        "notes": "Co-orbital anti-satellite weapon. Nudal-type kinetic kill vehicle carrier. Low RCS to avoid early detection by SSN. Paired with ASAT-2 for coordinated attack."
+      }
+    },
+    {
+      "id": "red_asat_2",
+      "name": "ASAT-2 (COSMOS)",
+      "type": "satellite",
+      "team": "red",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7000000,
+          "ecc": 0.001,
+          "inc": 65,
+          "raan": 45,
+          "argPerigee": 0,
+          "meanAnomaly": 35
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "sensorRange": 500000,
+          "defenseRadius": 100000,
+          "maxAccel": 25.0,
+          "killRange": 20000,
+          "scanInterval": 3.0
+        },
+        "weapons": {
+          "type": "kinetic_kill",
+          "Pk": 0.55,
+          "killRange": 20000,
+          "cooldown": 12.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 90,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.75,
+          "updateInterval": 4.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "ASAT-2"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 0.5,
+        "sensors": [
+          { "type": "radar", "name": "Target Acquisition Radar", "range_km": 500, "fov_deg": 90 }
+        ],
+        "notes": "Co-orbital anti-satellite weapon. Close formation with ASAT-1 (5 deg MA separation). Designed for coordinated salvo attack on SBSS constellation."
+      }
+    },
+    {
+      "id": "red_kosmos_recon",
+      "name": "KOSMOS-2570 RECON",
+      "type": "satellite",
+      "team": "red",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6750000,
+          "ecc": 0.002,
+          "inc": 82,
+          "raan": 180,
+          "argPerigee": 0,
+          "meanAnomaly": 90
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 1000000,
+          "fov_deg": 180,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.82,
+          "updateInterval": 2.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff6644",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "KOSMOS-2570"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 2.0,
+        "sensors": [
+          { "type": "radar", "name": "Side-Looking Radar", "range_km": 1000, "fov_deg": 180 },
+          { "type": "sigint", "name": "SIGINT Receiver", "range_km": 2000 }
+        ],
+        "notes": "Kosmos-series radar reconnaissance satellite. High-inclination orbit for polar ground coverage. SIGINT payload intercepts ground-based SSN radar emissions to map blue sensor coverage."
+      }
+    },
+    {
+      "id": "red_geo_inspector",
+      "name": "LUCH INSPECTOR",
+      "type": "satellite",
+      "team": "red",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42170000,
+          "ecc": 0.001,
+          "inc": 0.3,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 88
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "sweep",
+          "sensorRange": 1000000,
+          "defenseRadius": 50000,
+          "maxAccel": 5.0,
+          "killRange": 10000,
+          "scanInterval": 5.0
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 1000000,
+          "fov_deg": 90,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.9,
+          "updateInterval": 5.0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff8844",
+          "pixelSize": 9,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "LUCH INSPECTOR"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 1.0,
+        "sensors": [
+          { "type": "optical", "name": "Close-Range Inspection Camera", "range_km": 100, "fov_deg": 30 },
+          { "type": "sigint", "name": "RF Intercept Payload", "range_km": 1000 }
+        ],
+        "notes": "Luch/Olymp-type GEO inspector satellite. Positioned 2 deg MA from WGS-11 for close-proximity inspection and SIGINT collection. Capable of rendezvous and proximity operations (RPO)."
+      }
+    },
+    {
+      "id": "red_laser_asat",
+      "name": "GROUND LASER ASAT",
+      "type": "ground_station",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 40.0,
+        "lon": 100.0,
+        "alt": 1500,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 800000,
+          "fov_deg": 180,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.7,
+          "patchLevel": 0.6,
+          "firewallRating": 0.55,
+          "hackableSubsystems": [
+            "sensors",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "pixelSize": 13
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Target Tracking Radar", "range_km": 800, "fov_deg": 180 },
+          { "type": "optical", "name": "Laser Designator Telescope", "range_km": 600, "fov_deg": 10 }
+        ],
+        "notes": "Ground-based directed-energy ASAT facility. High-power laser capable of dazzling or damaging LEO satellite sensors during overflight. Located in Gansu Province, western China. Tracking radar acquires targets, telescope refines pointing for laser engagement."
+      }
+    },
+    {
+      "id": "red_cyber_ops",
+      "name": "RED CYBER OPS CENTER",
+      "type": "ground_station",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 39.0,
+        "lon": 117.0,
+        "alt": 20,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "ai_cyber": {
+          "type": "cyber_ops",
+          "preferredAttack": "all",
+          "scanInterval": 10,
+          "baseExploitTime": 20,
+          "baseProbability": 0.65,
+          "cooldownTime": 25,
+          "maxSimultaneous": 3,
+          "aggressiveness": 0.7,
+          "stealthLevel": 0.8,
+          "lateralMovement": true
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.95,
+          "patchLevel": 0.95,
+          "firewallRating": 0.9,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.9,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#aa00ff",
+          "pixelSize": 13
+        }
+      },
+      "_custom": {
+        "notes": "Strategic cyber operations center targeting blue space surveillance network. Autonomous cyber_ops AI scans blue satellite and ground station computers, exploits vulnerabilities to disable sensors, corrupt tracking data, and degrade SATCOM links. Located in Tianjin."
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_satcom_mesh",
+      "name": "Blue SSN SATCOM Mesh",
+      "type": "mesh",
+      "members": [
+        "sbss_1",
+        "sbss_2",
+        "sbss_3",
+        "gssap_1",
+        "gssap_2",
+        "wgs_comms",
+        "cavalier_radar",
+        "capecod_radar",
+        "diego_garcia_optical"
+      ],
+      "rfConfig": {
+        "preset": "satcom_ka",
+        "freq_ghz": 26.5,
+        "bandwidth_hz": 500000000,
+        "txPower_dbw": 15,
+        "txGain_dbi": 30,
+        "rxGain_dbi": 30,
+        "noiseFigure_db": 3,
+        "requiredSNR_db": 8,
+        "dataRate_bps": 100000000,
+        "linkType": "rf",
+        "encryption": "aes256"
+      }
+    },
+    {
+      "id": "blue_ground_fiber",
+      "name": "Blue Ground Fiber Backbone",
+      "type": "mesh",
+      "members": [
+        "cavalier_radar",
+        "capecod_radar"
+      ],
+      "rfConfig": {
+        "preset": "fiber",
+        "freq_ghz": 0,
+        "bandwidth_hz": 10000000000,
+        "txPower_dbw": 0,
+        "txGain_dbi": 0,
+        "rxGain_dbi": 0,
+        "noiseFigure_db": 0,
+        "requiredSNR_db": 0,
+        "dataRate_bps": 10000000000,
+        "linkType": "fiber",
+        "encryption": "aes256"
+      }
+    },
+    {
+      "id": "red_c2_star",
+      "name": "Red C2 Star Network",
+      "type": "star",
+      "hub": "red_cyber_ops",
+      "members": [
+        "red_cyber_ops",
+        "red_laser_asat",
+        "red_asat_1",
+        "red_asat_2",
+        "red_kosmos_recon",
+        "red_geo_inspector"
+      ],
+      "rfConfig": {
+        "preset": "uhf_military",
+        "freq_ghz": 0.35,
+        "bandwidth_hz": 25000000,
+        "txPower_dbw": 18,
+        "txGain_dbi": 5,
+        "rxGain_dbi": 5,
+        "noiseFigure_db": 5,
+        "requiredSNR_db": 12,
+        "dataRate_bps": 10000000,
+        "linkType": "rf",
+        "encryption": "aes256"
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "free",
+    "range": 20000000
+  }
+}

@@ -1,0 +1,1389 @@
+{
+  "metadata": {
+    "name": "Taiwan Air Defense",
+    "version": "2.0",
+    "description": "ROCAF scramble: F-16V Vipers intercept PLAAF formation entering Taiwan ADIZ from the southwest. Four F-16V from Chiayi AB vs eight J-16 Flankers with KJ-500 AWACS support.",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "viper_1",
+      "name": "TIGER 11",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.46,
+        "lon": 120.38,
+        "alt": 6000,
+        "speed": 280,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 23.0,
+              "lon": 119.8,
+              "alt": 7000,
+              "speed": 300
+            },
+            {
+              "lat": 22.5,
+              "lon": 119.3,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 22.8,
+              "lon": 119.0,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 23.3,
+              "lon": 119.5,
+              "alt": 7000,
+              "speed": 300
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120C",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "TIGER 11"
+        }
+      }
+    },
+    {
+      "id": "viper_2",
+      "name": "TIGER 12",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.47,
+        "lon": 120.39,
+        "alt": 6000,
+        "speed": 280,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 23.05,
+              "lon": 119.85,
+              "alt": 7000,
+              "speed": 300
+            },
+            {
+              "lat": 22.55,
+              "lon": 119.35,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 22.85,
+              "lon": 119.05,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 23.35,
+              "lon": 119.55,
+              "alt": 7000,
+              "speed": 300
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120C",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "TIGER 12"
+        }
+      }
+    },
+    {
+      "id": "viper_3",
+      "name": "TIGER 13",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.45,
+        "lon": 120.37,
+        "alt": 6200,
+        "speed": 280,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.95,
+              "lon": 119.75,
+              "alt": 7000,
+              "speed": 300
+            },
+            {
+              "lat": 22.45,
+              "lon": 119.25,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 22.75,
+              "lon": 118.95,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 23.25,
+              "lon": 119.45,
+              "alt": 7000,
+              "speed": 300
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120C",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "TIGER 13"
+        }
+      }
+    },
+    {
+      "id": "viper_4",
+      "name": "TIGER 14",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.44,
+        "lon": 120.36,
+        "alt": 6200,
+        "speed": 280,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.85,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.9,
+              "lon": 119.7,
+              "alt": 7000,
+              "speed": 300
+            },
+            {
+              "lat": 22.4,
+              "lon": 119.2,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 22.7,
+              "lon": 118.9,
+              "alt": 7500,
+              "speed": 310
+            },
+            {
+              "lat": 23.2,
+              "lon": 119.4,
+              "alt": 7000,
+              "speed": 300
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.88,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120C",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1300,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "TIGER 14"
+        }
+      }
+    },
+    {
+      "id": "rocaf_awacs",
+      "name": "BROADWORD (E-2K)",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.8,
+        "lon": 121.5,
+        "alt": 9000,
+        "speed": 160,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.55,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "awacs"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.0,
+              "lon": 121.0,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 23.5,
+              "lon": 120.8,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 23.5,
+              "lon": 121.8,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 24.0,
+              "lon": 121.8,
+              "alt": 9000,
+              "speed": 160
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88ccff",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "BROADWORD (E-2K)"
+        }
+      }
+    },
+    {
+      "id": "chiayi_ab",
+      "name": "CHIAYI AB",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 23.46,
+        "lon": 120.38,
+        "alt": 25,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.88
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "CHIAYI AB",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      }
+    },
+    {
+      "id": "skyguard_south",
+      "name": "SKYGUARD BATTERY",
+      "type": "sam",
+      "team": "blue",
+      "initialState": {
+        "lat": 22.75,
+        "lon": 120.35,
+        "alt": 10,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 40000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 30000,
+          "minRange_m": 500,
+          "maxAlt_m": 5000,
+          "salvoSize": 2,
+          "reloadTime_s": 4,
+          "killProbability": 0.65,
+          "missileSpeed_mps": 900,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "SKYGUARD BATTERY",
+          "sensorRange_m": 30000,
+          "sensorColor": "rgba(68,136,255,0.06)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "patriot_taipei",
+      "name": "PATRIOT TAIPEI",
+      "type": "sam",
+      "team": "blue",
+      "initialState": {
+        "lat": 25.03,
+        "lon": 121.52,
+        "alt": 20,
+        "speed": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.93
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 160000,
+          "minRange_m": 3000,
+          "maxAlt_m": 25000,
+          "salvoSize": 2,
+          "reloadTime_s": 8,
+          "killProbability": 0.82,
+          "missileSpeed_mps": 1700,
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "PATRIOT TAIPEI",
+          "sensorRange_m": 160000,
+          "sensorColor": "rgba(68,136,255,0.04)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      }
+    },
+    {
+      "id": "j16_1",
+      "name": "DRAGON 01",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.0,
+        "lon": 118.0,
+        "alt": 8000,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.5,
+              "lon": 118.5,
+              "alt": 8500,
+              "speed": 310
+            },
+            {
+              "lat": 23.0,
+              "lon": 119.0,
+              "alt": 9000,
+              "speed": 320
+            },
+            {
+              "lat": 23.2,
+              "lon": 119.5,
+              "alt": 9000,
+              "speed": 320
+            },
+            {
+              "lat": 22.7,
+              "lon": 119.0,
+              "alt": 8500,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 01"
+        }
+      }
+    },
+    {
+      "id": "j16_2",
+      "name": "DRAGON 02",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.05,
+        "lon": 118.1,
+        "alt": 8000,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.55,
+              "lon": 118.6,
+              "alt": 8500,
+              "speed": 310
+            },
+            {
+              "lat": 23.05,
+              "lon": 119.1,
+              "alt": 9000,
+              "speed": 320
+            },
+            {
+              "lat": 23.25,
+              "lon": 119.6,
+              "alt": 9000,
+              "speed": 320
+            },
+            {
+              "lat": 22.75,
+              "lon": 119.1,
+              "alt": 8500,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 02"
+        }
+      }
+    },
+    {
+      "id": "j16_3",
+      "name": "DRAGON 03",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 21.95,
+        "lon": 117.9,
+        "alt": 8200,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.45,
+              "lon": 118.4,
+              "alt": 8700,
+              "speed": 310
+            },
+            {
+              "lat": 22.95,
+              "lon": 118.9,
+              "alt": 9200,
+              "speed": 320
+            },
+            {
+              "lat": 23.15,
+              "lon": 119.4,
+              "alt": 9200,
+              "speed": 320
+            },
+            {
+              "lat": 22.65,
+              "lon": 118.9,
+              "alt": 8700,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 03"
+        }
+      }
+    },
+    {
+      "id": "j16_4",
+      "name": "DRAGON 04",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.1,
+        "lon": 118.15,
+        "alt": 8200,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.6,
+              "lon": 118.65,
+              "alt": 8700,
+              "speed": 310
+            },
+            {
+              "lat": 23.1,
+              "lon": 119.15,
+              "alt": 9200,
+              "speed": 320
+            },
+            {
+              "lat": 23.3,
+              "lon": 119.65,
+              "alt": 9200,
+              "speed": 320
+            },
+            {
+              "lat": 22.8,
+              "lon": 119.15,
+              "alt": 8700,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 04"
+        }
+      }
+    },
+    {
+      "id": "j16_5",
+      "name": "DRAGON 05",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.2,
+        "lon": 117.8,
+        "alt": 8500,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.7,
+              "lon": 118.3,
+              "alt": 9000,
+              "speed": 310
+            },
+            {
+              "lat": 23.2,
+              "lon": 118.8,
+              "alt": 9500,
+              "speed": 320
+            },
+            {
+              "lat": 23.4,
+              "lon": 119.3,
+              "alt": 9500,
+              "speed": 320
+            },
+            {
+              "lat": 22.9,
+              "lon": 118.8,
+              "alt": 9000,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 05"
+        }
+      }
+    },
+    {
+      "id": "j16_6",
+      "name": "DRAGON 06",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.25,
+        "lon": 117.9,
+        "alt": 8500,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.75,
+              "lon": 118.4,
+              "alt": 9000,
+              "speed": 310
+            },
+            {
+              "lat": 23.25,
+              "lon": 118.9,
+              "alt": 9500,
+              "speed": 320
+            },
+            {
+              "lat": 23.45,
+              "lon": 119.4,
+              "alt": 9500,
+              "speed": 320
+            },
+            {
+              "lat": 22.95,
+              "lon": 118.9,
+              "alt": 9000,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 06"
+        }
+      }
+    },
+    {
+      "id": "j16_7",
+      "name": "DRAGON 07",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 22.15,
+        "lon": 117.75,
+        "alt": 8800,
+        "speed": 300,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "mig29"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.65,
+              "lon": 118.25,
+              "alt": 9300,
+              "speed": 310
+            },
+            {
+              "lat": 23.15,
+              "lon": 118.75,
+              "alt": 9800,
+              "speed": 320
+            },
+            {
+              "lat": 23.35,
+              "lon": 119.25,
+              "alt": 9800,
+              "speed": 320
+            },
+            {
+              "lat": 22.85,
+              "lon": 118.75,
+              "alt": 9300,
+              "speed": 310
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.84
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-10",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 20000,
+              "seekerFOV": 90,
+              "Pk": 0.82,
+              "speed": 850,
+              "flightTime": 20
+            },
+            {
+              "type": "PL-15",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.72,
+              "speed": 1400,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_free"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 12,
+          "trail": true,
+          "label": "DRAGON 07"
+        }
+      }
+    },
+    {
+      "id": "kj500",
+      "name": "REDCROWN (KJ-500)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 21.5,
+        "lon": 117.5,
+        "alt": 9000,
+        "speed": 180,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "awacs"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 21.8,
+              "lon": 117.8,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 22.0,
+              "lon": 118.3,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 21.5,
+              "lon": 118.3,
+              "alt": 9000,
+              "speed": 180
+            },
+            {
+              "lat": 21.3,
+              "lon": 117.8,
+              "alt": 9000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 450000,
+          "fov_deg": 360,
+          "scanRate_dps": 12,
+          "detectionProbability": 0.93
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff8844",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "REDCROWN (KJ-500)"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_qra_scramble",
+      "type": "timed",
+      "time": 10,
+      "action": {
+        "type": "message",
+        "text": "CHIAYI: QRA scrambled. TIGER flight airborne."
+      },
+      "description": "ROCAF QRA launch"
+    },
+    {
+      "id": "evt_awacs_contact",
+      "type": "timed",
+      "time": 45,
+      "action": {
+        "type": "message",
+        "text": "BROADWORD: Multiple bogeys bearing 225, range 200nm. Classify hostile."
+      },
+      "description": "E-2K detects PLAAF formation"
+    },
+    {
+      "id": "evt_tally",
+      "type": "timed",
+      "time": 90,
+      "action": {
+        "type": "message",
+        "text": "TIGER 11: Tally, 7 bandits with AWACS support. Engaging."
+      },
+      "description": "Visual contact with PLAAF"
+    },
+    {
+      "id": "evt_fox3",
+      "type": "timed",
+      "time": 180,
+      "action": {
+        "type": "message",
+        "text": "TIGER 11: Fox 3! AIM-120 away!"
+      },
+      "description": "First missile launch"
+    },
+    {
+      "id": "evt_disengage",
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "BROADWORD: Hostile formation disengaging. PLAAF returning to mainland."
+      },
+      "description": "PLAAF withdraws"
+    }
+  ],
+  "regions": [
+    {
+      "name": "Taiwan ADIZ",
+      "type": "adiz",
+      "shape": "polygon",
+      "points": [
+        [29.0, 117.0],
+        [29.0, 123.0],
+        [21.0, 123.0],
+        [21.0, 119.0],
+        [24.0, 117.0]
+      ]
+    },
+    {
+      "name": "PLAAF Staging Area",
+      "type": "engagement",
+      "shape": "circle",
+      "center": [22.0, 118.0],
+      "radius": 200000
+    },
+    {
+      "name": "Taiwan Strait",
+      "type": "exclusion",
+      "shape": "polygon",
+      "points": [
+        [25.5, 119.0],
+        [25.5, 120.5],
+        [22.0, 120.5],
+        [22.0, 117.5],
+        [23.5, 117.5],
+        [25.5, 119.0]
+      ]
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 23.0,
+    "lon": 119.5,
+    "range": 1500000,
+    "heading": 0,
+    "pitch": -45
+  }
+}

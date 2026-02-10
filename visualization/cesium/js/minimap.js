@@ -306,6 +306,29 @@ var Minimap = (function() {
                     }
                 }
 
+                // Collect weapon/sensor range data for threat rings
+                var weaponRange = 0;
+                var sensorRange = 0;
+                var isWeaponsFree = false;
+
+                if (ent.getComponent) {
+                    // Check for SAM weapon component
+                    var samComp = ent.getComponent('weapons');
+                    if (samComp && samComp._maxRange) {
+                        weaponRange = samComp._maxRange;
+                        isWeaponsFree = samComp._rules === 'weapons_free' ||
+                            (samComp._engagements && samComp._engagements.length > 0);
+                    }
+                    // Check for radar sensor component
+                    var radarComp = ent.getComponent('sensors');
+                    if (radarComp && radarComp._maxRange) {
+                        sensorRange = radarComp._maxRange;
+                    }
+                }
+                // Fallback: check entity state for ranges
+                if (!weaponRange && ent.state._maxRange) weaponRange = ent.state._maxRange;
+                if (!sensorRange && ent.state._sensorRange) sensorRange = ent.state._sensorRange;
+
                 entities.push({
                     id: ent.id,
                     dx: dx,
@@ -316,7 +339,10 @@ var Minimap = (function() {
                     type: ent.type || 'unknown',
                     isGround: isGround,
                     active: ent.active !== false,
-                    cyber: cyberFlags
+                    cyber: cyberFlags,
+                    weaponRange: weaponRange,
+                    sensorRange: sensorRange,
+                    isWeaponsFree: isWeaponsFree
                 });
             });
         }
@@ -333,6 +359,9 @@ var Minimap = (function() {
 
         // --- Draw entities ---
         var pixelScale = (_halfSize - 4) / _rangeM;
+
+        // --- Threat rings (SAM weapon range, radar detection range) ---
+        _drawThreatRings(ctx, entities, pixelScale, cx, cy, rotAngle, simTime);
 
         // Build screen-position lookup for cyber attack lines (by entity ID)
         var screenPos = {};  // entityId -> { sx, sy, visible }
@@ -381,13 +410,37 @@ var Minimap = (function() {
 
             ctx.fillStyle = color;
 
-            if (e.isGround) {
+            // Draw entity shape by type
+            var eType = (e.type || '').toLowerCase();
+            if (eType === 'naval') {
+                // Naval: diamond
+                ctx.beginPath();
+                ctx.moveTo(sx, sy - 4);
+                ctx.lineTo(sx + 3.5, sy);
+                ctx.lineTo(sx, sy + 4);
+                ctx.lineTo(sx - 3.5, sy);
+                ctx.closePath();
+                ctx.fill();
+            } else if (eType === 'satellite') {
+                // Satellite: small circle with ring
+                ctx.beginPath();
+                ctx.arc(sx, sy, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (e.isGround) {
                 // Ground entities: small square
                 ctx.fillRect(sx - 2.5, sy - 2.5, 5, 5);
             } else {
-                // Air/space entities: circle
+                // Aircraft: triangle pointing in heading direction
                 ctx.beginPath();
-                ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+                ctx.moveTo(sx, sy - 4);
+                ctx.lineTo(sx + 3, sy + 3);
+                ctx.lineTo(sx - 3, sy + 3);
+                ctx.closePath();
                 ctx.fill();
             }
 
@@ -489,6 +542,96 @@ var Minimap = (function() {
         ctx.beginPath();
         ctx.arc(cx, cy, _halfSize - 1, 0, Math.PI * 2);
         ctx.stroke();
+    }
+
+    // ===================== THREAT RANGE RING DRAWING =====================
+
+    /**
+     * Draw SAM weapon range rings and radar detection range rings for ground entities.
+     * Weapon ranges are solid-ish circles, sensor ranges are dotted circles.
+     * Drawn BEFORE entity dots so dots appear on top.
+     */
+    function _drawThreatRings(ctx, entities, pixelScale, cx, cy, rotAngle, simTime) {
+        var t = simTime || 0;
+
+        for (var i = 0; i < entities.length; i++) {
+            var e = entities[i];
+            if (!e.isGround) continue;
+            if (!e.active) continue;
+            if (e.weaponRange <= 0 && e.sensorRange <= 0) continue;
+
+            // Transform entity position to screen
+            var ex = e.dx * pixelScale;
+            var ey = -e.dy * pixelScale;
+            if (rotAngle !== 0) {
+                var cosR = Math.cos(rotAngle);
+                var sinR = Math.sin(rotAngle);
+                var rx = ex * cosR - ey * sinR;
+                var ry = ex * sinR + ey * cosR;
+                ex = rx;
+                ey = ry;
+            }
+            var sx = cx + ex;
+            var sy = cy + ey;
+
+            // Skip if entity center is way outside the display
+            var screenDist = Math.sqrt(ex * ex + ey * ey);
+            if (screenDist > _halfSize * 2) continue;
+
+            // Sensor range ring (dotted, faint)
+            if (e.sensorRange > 0) {
+                var sensorPixels = e.sensorRange * pixelScale;
+                if (sensorPixels > 3) {
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, sensorPixels, 0, Math.PI * 2);
+                    ctx.strokeStyle = e.team === 'red' ? 'rgba(255,100,100,0.15)' : 'rgba(100,200,255,0.15)';
+                    ctx.lineWidth = 0.7;
+                    ctx.setLineDash([2, 3]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Fill with very faint color
+                    ctx.fillStyle = e.team === 'red' ? 'rgba(255,50,50,0.03)' : 'rgba(50,150,255,0.03)';
+                    ctx.fill();
+                }
+            }
+
+            // Weapon range ring (solid, slightly brighter)
+            if (e.weaponRange > 0) {
+                var weapPixels = e.weaponRange * pixelScale;
+                if (weapPixels > 3) {
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, weapPixels, 0, Math.PI * 2);
+
+                    // Pulsing effect when weapons free or actively engaging
+                    var alpha = 0.2;
+                    if (e.isWeaponsFree) {
+                        alpha = 0.15 + 0.15 * Math.sin(t * 3);
+                    }
+
+                    if (e.team === 'red') {
+                        ctx.strokeStyle = 'rgba(255,80,80,' + (alpha + 0.1) + ')';
+                        ctx.fillStyle = 'rgba(255,40,40,' + (alpha * 0.3) + ')';
+                    } else {
+                        ctx.strokeStyle = 'rgba(80,140,255,' + (alpha + 0.1) + ')';
+                        ctx.fillStyle = 'rgba(40,100,255,' + (alpha * 0.3) + ')';
+                    }
+                    ctx.lineWidth = 1.0;
+                    ctx.setLineDash([]);
+                    ctx.stroke();
+                    ctx.fill();
+
+                    // "WEP" label if weapons free and ring is large enough
+                    if (e.isWeaponsFree && weapPixels > 20) {
+                        ctx.font = '7px "Courier New", monospace';
+                        ctx.fillStyle = e.team === 'red' ? 'rgba(255,100,100,0.6)' : 'rgba(100,180,255,0.6)';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('WEP', sx, sy - weapPixels - 5);
+                    }
+                }
+            }
+        }
     }
 
     // ===================== CYBER TERRAIN DRAWING =====================

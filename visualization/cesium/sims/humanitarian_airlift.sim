@@ -1,0 +1,503 @@
+{
+  "metadata": {
+    "name": "Humanitarian Airlift — Typhoon Relief Southeast Asia",
+    "description": "Operation Pacific Relief: C-17 Globemaster III humanitarian airlift from Yokota Air Base, Japan to Tacloban, Philippines via Clark Air Base. Deliver critical supplies to typhoon-devastated regions. Multiple USAF and allied transport aircraft supporting the relief corridor.",
+    "version": "1.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "weather": "overcast",
+    "maxTimeWarp": 128
+  },
+  "entities": [
+    {
+      "id": "player",
+      "name": "REACH 840",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.75,
+        "lon": 139.35,
+        "alt": 0,
+        "speed": 0,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0,
+        "engineOn": false,
+        "gearDown": true,
+        "brakesOn": true,
+        "flapsDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "control": {
+          "type": "player_input",
+          "config": "fighter"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 14,
+          "trail": true,
+          "trailColor": "#4488ff88",
+          "label": "REACH 840"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "taxi": true,
+          "air": true
+        },
+        "notes": "C-17 Globemaster III, 62nd Airlift Wing. Yokota AB to Tacloban via Clark AB. Loaded with 35 tons of emergency relief supplies: water purification systems, medical kits, MREs, tents, and portable generators."
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "groundAlt": 141,
+        "routeAlt": 170,
+        "initialMsg": "YOKOTA TOWER: REACH 840 Heavy, cleared for takeoff runway 18. Wind 190 at 8. Altimeter 29.92. Contact Yokota Departure on 363.8 when airborne.",
+        "initialHint": "Press E to start engines. Hold B to brake. Use P to switch to AIR mode before takeoff.",
+        "waypoints": [
+          {
+            "lat": 35.74,
+            "lon": 139.35,
+            "radius": 500,
+            "name": "RWY 18",
+            "msg": "Lined up runway 18. Four F117-PW-100 turbofans ready.",
+            "hint": "Switch to AIR mode (P), full throttle (W), release brakes."
+          },
+          {
+            "lat": 35.70,
+            "lon": 139.35,
+            "radius": 1000,
+            "name": "YOKOTA DEP",
+            "msg": "Airborne! Contact Yokota Departure. Climb to FL300.",
+            "hint": "Retract gear, maintain positive climb rate. Turn south toward Philippine Sea."
+          }
+        ],
+        "milestones": [
+          {
+            "type": "engine",
+            "msg": "ENGINE START — Four Pratt & Whitney F117-PW-100 turbofans spooling up. 180,000 lbs of cargo onboard."
+          },
+          {
+            "type": "speed",
+            "value": 65,
+            "msg": "V1 — COMMIT TO TAKEOFF. Decision speed reached."
+          },
+          {
+            "type": "speed",
+            "value": 72,
+            "msg": "ROTATE — Pull back gently. VR reached at 72 m/s."
+          },
+          {
+            "type": "alt",
+            "value": 450,
+            "msg": "Gear up! Passing 1,000ft AGL. Positive rate of climb confirmed."
+          },
+          {
+            "type": "alt",
+            "value": 9200,
+            "msg": "Reaching FL300. Cruise altitude for Pacific transit. Set cruise power and trim for level flight."
+          }
+        ]
+      }
+    },
+    {
+      "id": "reach_842",
+      "name": "REACH 842",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 27.5,
+        "lon": 129.0,
+        "alt": 9100,
+        "speed": 240,
+        "heading": 210,
+        "gamma": 0,
+        "throttle": 0.80,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 27.5,
+              "lon": 129.0,
+              "alt": 9100,
+              "speed": 240
+            },
+            {
+              "lat": 24.0,
+              "lon": 126.0,
+              "alt": 9100,
+              "speed": 240
+            },
+            {
+              "lat": 20.0,
+              "lon": 123.0,
+              "alt": 9100,
+              "speed": 240
+            },
+            {
+              "lat": 17.0,
+              "lon": 121.5,
+              "alt": 7600,
+              "speed": 220
+            },
+            {
+              "lat": 15.19,
+              "lon": 120.56,
+              "alt": 3000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#66aaff",
+          "pixelSize": 12,
+          "trail": true,
+          "trailColor": "#66aaff66",
+          "label": "REACH 842"
+        }
+      },
+      "_custom": {
+        "notes": "C-17 Globemaster III, Kadena AB (Okinawa) to Clark AB. Carrying field hospital equipment and surgical supplies."
+      }
+    },
+    {
+      "id": "herky_55",
+      "name": "HERKY 55",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 15.19,
+        "lon": 120.56,
+        "alt": 7600,
+        "speed": 160,
+        "heading": 130,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 15.19,
+              "lon": 120.56,
+              "alt": 7600,
+              "speed": 160
+            },
+            {
+              "lat": 14.0,
+              "lon": 122.0,
+              "alt": 7600,
+              "speed": 160
+            },
+            {
+              "lat": 12.5,
+              "lon": 123.5,
+              "alt": 7600,
+              "speed": 160
+            },
+            {
+              "lat": 11.5,
+              "lon": 124.5,
+              "alt": 5000,
+              "speed": 140
+            },
+            {
+              "lat": 11.23,
+              "lon": 125.03,
+              "alt": 1500,
+              "speed": 120
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#44cc88",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#44cc8866",
+          "label": "HERKY 55"
+        }
+      },
+      "_custom": {
+        "notes": "C-130J Super Hercules, Clark AB to Tacloban. Carrying water purification units and portable shelters. C-130 can operate from shorter austere runways at Tacloban."
+      }
+    },
+    {
+      "id": "shell_71",
+      "name": "SHELL 71",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 22.0,
+        "lon": 130.0,
+        "alt": 8500,
+        "speed": 230,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.78,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 22.0,
+              "lon": 130.0,
+              "alt": 8500,
+              "speed": 230
+            },
+            {
+              "lat": 20.0,
+              "lon": 128.0,
+              "alt": 8500,
+              "speed": 230
+            },
+            {
+              "lat": 18.0,
+              "lon": 130.0,
+              "alt": 8500,
+              "speed": 230
+            },
+            {
+              "lat": 20.0,
+              "lon": 132.0,
+              "alt": 8500,
+              "speed": 230
+            },
+            {
+              "lat": 22.0,
+              "lon": 130.0,
+              "alt": 8500,
+              "speed": 230
+            }
+          ],
+          "loopMode": "loop"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ffaa44",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#ffaa4466",
+          "label": "SHELL 71"
+        }
+      },
+      "_custom": {
+        "notes": "KC-135 Stratotanker, Kadena-based. Orbiting Philippine Sea tanker track AR-15. Available for aerial refueling of relief aircraft transiting the corridor."
+      }
+    },
+    {
+      "id": "yokota_tower",
+      "name": "YOKOTA TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.75,
+        "lon": 139.35,
+        "alt": 141,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "YOKOTA",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "Yokota Air Base, 374th Airlift Wing. Hub for Western Pacific airlift operations. ASR-11 radar. RAPCON approach control."
+      }
+    },
+    {
+      "id": "clark_tower",
+      "name": "CLARK TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 15.19,
+        "lon": 120.56,
+        "alt": 150,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 100000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "CLARK",
+          "sensorRange_m": 100000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "Clark International Airport (formerly Clark Air Base). Forward staging base for Operation Pacific Relief. Cargo marshaling area and aircraft parking for C-17 turnaround."
+      }
+    },
+    {
+      "id": "tacloban_field",
+      "name": "TACLOBAN FIELD",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 11.23,
+        "lon": 125.03,
+        "alt": 3,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 40000,
+          "fov_deg": 360,
+          "scanRate_dps": 12,
+          "detectionProbability": 0.75
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffcc44",
+          "label": "TACLOBAN",
+          "sensorRange_m": 40000,
+          "sensorColor": "rgba(255,204,68,0.03)",
+          "sensorOutlineColor": "#ffcc44"
+        }
+      },
+      "_custom": {
+        "notes": "Daniel Z. Romualdez Airport, Tacloban City. Austere field — runway damaged by typhoon, limited ATC capability. Portable radar deployed by USAF combat controllers. Single runway operations only."
+      }
+    },
+    {
+      "id": "tacloban_relief_hq",
+      "name": "RELIEF COORD CENTER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 11.25,
+        "lon": 125.00,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "RELIEF HQ",
+          "sensorRange_m": 0,
+          "sensorColor": "rgba(0,0,0,0)",
+          "sensorOutlineColor": "rgba(0,0,0,0)"
+        }
+      },
+      "_custom": {
+        "notes": "Joint Humanitarian Assistance Coordination Center (JHACC). Combined USAID, Philippine Red Cross, and UN OCHA coordination. Manages aid distribution priorities, tracks incoming flights, and coordinates ground logistics to devastated areas."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "YOKOTA TOWER: REACH 840 Heavy, cleared for takeoff runway 18. Wind 190 at 8 gusting 15. Altimeter 29.88. Typhoon remnants south of route. Contact Yokota Departure on 363.8 when airborne. Good luck on the relief mission."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "YOKOTA DEPARTURE: REACH 840, radar contact. Climb and maintain FL300. Cleared direct OCEAN intersection. Traffic: REACH 842, C-17, your 7 o'clock, 400 miles, FL300 southbound for Clark."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "TOKYO CONTROL: REACH 840 Heavy, contact Tokyo Control on 132.9. Cleared to flight level 300. Expect direct routing to Manila FIR boundary. Relief corridor ALPHA is active — priority handling for all REACH and HERKY callsigns."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1800,
+      "action": {
+        "type": "message",
+        "text": "MANILA CONTROL: REACH 840 Heavy, entering Philippine FIR. Radar contact. Cleared direct Clark via humanitarian corridor ALPHA. Tanker SHELL 71 orbiting AR-15 at your 10 o'clock, 200 miles, FL280, available if needed. HERKY 55 departed Clark 30 minutes ago for Tacloban."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 3600,
+      "action": {
+        "type": "message",
+        "text": "MANILA CONTROL: REACH 840, weather advisory. Typhoon remnant low-pressure system centered at 13N 123E, moving northwest. Expect turbulence and heavy precipitation below FL200 in the Visayan region. Clark weather: overcast 2,500 broken, visibility 5 miles in rain showers. Wind 160 at 12."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 5400,
+      "action": {
+        "type": "message",
+        "text": "RELIEF COORD: All stations, RELIEF COORD Tacloban. Humanitarian corridor BRAVO between Clark and Tacloban is active. Tacloban runway 36 in use, single-runway ops. Field conditions: wet runway, partial lighting, portable TACAN on field. C-130s and C-17s cleared for maximum-effort short-field approaches. Over 50,000 displaced civilians awaiting supplies."
+      }
+    }
+  ],
+  "camera": {
+    "mode": "chase"
+  }
+}

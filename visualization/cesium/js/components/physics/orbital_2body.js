@@ -85,17 +85,42 @@
             var cfg = this.config;
             var simTime = world.simTime || 0;
 
-            if (cfg.source === 'tle' && cfg.tle_line1 && cfg.tle_line2) {
+            var initMode = cfg.source || cfg.mode || null;
+            if ((initMode === 'tle' || (!initMode && cfg.tle_line1)) && cfg.tle_line1 && cfg.tle_line2) {
                 // ---- Initialize from TLE data ----
                 this._initFromTLE(state, cfg, simTime);
-            } else if (cfg.source === 'elements') {
+            } else if (initMode === 'elements' || cfg.elements || cfg.sma) {
                 // ---- Initialize from classical orbital elements ----
-                this._initFromElements(state, cfg, simTime);
+                // Support nested cfg.elements or flat cfg.sma/ecc/inc
+                var elemCfg = cfg.elements ? Object.assign({}, cfg, cfg.elements) : cfg;
+                // Also check initialState for COE (scenario shorthand)
+                var initState = entity.def && entity.def.initialState;
+                if (!elemCfg.sma && initState && initState.semiMajorAxis) {
+                    elemCfg.sma = initState.semiMajorAxis * 1000; // km → m
+                    if (initState.eccentricity != null) elemCfg.ecc = initState.eccentricity;
+                    if (initState.inclination != null) elemCfg.inc = initState.inclination;
+                    if (initState.raan != null) elemCfg.raan = initState.raan;
+                    if (initState.argPerigee != null) elemCfg.argPerigee = initState.argPerigee;
+                    if (initState.meanAnomaly != null) elemCfg.meanAnomaly = initState.meanAnomaly;
+                }
+                this._initFromElements(state, elemCfg, simTime);
             } else {
-                // ---- Initialize from geodetic state (default) ----
-                console.warn('[Orbital2Body] ' + entity.id + ': fallback to _initFromState' +
-                    ' (source=' + cfg.source + ', tle_line1=' + !!cfg.tle_line1 + ')');
-                this._initFromState(state, simTime);
+                // Check if initialState has COE fields (e.g. semiMajorAxis)
+                var initState2 = entity.def && entity.def.initialState;
+                if (initState2 && initState2.semiMajorAxis) {
+                    var elemCfg2 = {
+                        sma: initState2.semiMajorAxis * 1000, // km → m
+                        ecc: initState2.eccentricity != null ? initState2.eccentricity : 0.001,
+                        inc: initState2.inclination != null ? initState2.inclination : 0,
+                        raan: initState2.raan != null ? initState2.raan : 0,
+                        argPerigee: initState2.argPerigee != null ? initState2.argPerigee : 0,
+                        meanAnomaly: initState2.meanAnomaly != null ? initState2.meanAnomaly : 0
+                    };
+                    this._initFromElements(state, elemCfg2, simTime);
+                } else {
+                    // ---- Initialize from geodetic state (default) ----
+                    this._initFromState(state, simTime);
+                }
             }
 
             // Compute initial orbital elements

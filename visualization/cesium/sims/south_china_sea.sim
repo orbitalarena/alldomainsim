@@ -1,0 +1,1020 @@
+{
+  "metadata": {
+    "name": "South China Sea - Multi-Domain Confrontation",
+    "description": "Comprehensive South China Sea scenario featuring US CSG-11 (USS Nimitz) operating in contested waters against PLAN forces including the Liaoning carrier group, shore-based A2/AD on Spratly Islands artificial reefs (Fiery Cross, Subi, Mischief), Type 055 destroyer, and reconnaissance satellites. Blue force includes F/A-18E CAP, E-2D AEW, P-8A ASW, DDG escort, and LEO SSO recon satellite. Multi-domain escalation from surveillance to active tracking to potential engagement.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "cvn68_nimitz",
+      "name": "CVN-68 USS NIMITZ",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 15.5,
+        "lon": 116.5,
+        "alt": 0,
+        "speed": 15,
+        "heading": 315
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "cvn_nimitz"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4466cc",
+          "label": "CVN-68 NIMITZ",
+          "pixelSize": 16,
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,102,204,0.03)",
+          "sensorOutlineColor": "#4466cc"
+        }
+      },
+      "_custom": {
+        "notes": "CVN-68 USS Nimitz, flagship of CSG-11. Nimitz-class nuclear carrier. SPS-48E 3D air search radar, SPS-49 2D long range search. Embarked CVW-11 with F/A-18E/F and E-2D.",
+        "sensors": [
+          { "type": "radar", "name": "SPS-48E 3D", "range_km": 200, "fov_deg": 360 },
+          { "type": "radar", "name": "SPS-49 2D", "range_km": 460, "fov_deg": 360 }
+        ],
+        "rcs_m2": 50000
+      }
+    },
+    {
+      "id": "blue_hornet_1",
+      "name": "MUSTANG 101 (CAP)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 15.8,
+        "lon": 116.8,
+        "alt": 8000,
+        "speed": 200,
+        "heading": 240
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f18"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 15.8, "lon": 117.2, "alt": 8000 },
+            { "lat": 16.3, "lon": 117.0, "alt": 8500 },
+            { "lat": 16.3, "lon": 116.0, "alt": 8000 },
+            { "lat": 15.8, "lon": 116.2, "alt": 8500 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88,
+          "updateInterval": 1.5
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.85,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120D",
+              "count": 6,
+              "minRange": 2000,
+              "maxRange": 160000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1400,
+              "flightTime": 60
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#3388ff",
+          "pixelSize": 10,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "F/A-18E Super Hornet, VFA-14 Tophatters. CAP station east of carrier. APG-79 AESA radar, 6x AIM-120D + 2x AIM-9X. Operating in weapons hold pending ROE change.",
+        "sensors": [
+          { "type": "radar", "name": "APG-79 AESA", "range_km": 150, "fov_deg": 120 },
+          { "type": "ir", "name": "ATFLIR", "range_km": 60, "fov_deg": 3.5 }
+        ],
+        "payloads": ["a2a_missile"],
+        "rcs_m2": 1.0
+      }
+    },
+    {
+      "id": "blue_hornet_2",
+      "name": "MUSTANG 102 (CAP)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 15.3,
+        "lon": 116.2,
+        "alt": 8000,
+        "speed": 200,
+        "heading": 300
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f18"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 15.3, "lon": 115.8, "alt": 8000 },
+            { "lat": 15.8, "lon": 115.8, "alt": 8500 },
+            { "lat": 15.8, "lon": 116.6, "alt": 8000 },
+            { "lat": 15.3, "lon": 116.6, "alt": 8500 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88,
+          "updateInterval": 1.5
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 18000,
+              "seekerFOV": 90,
+              "Pk": 0.85,
+              "speed": 900,
+              "flightTime": 20
+            },
+            {
+              "type": "AIM-120D",
+              "count": 6,
+              "minRange": 2000,
+              "maxRange": 160000,
+              "seekerFOV": 360,
+              "Pk": 0.78,
+              "speed": 1400,
+              "flightTime": 60
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#3388ff",
+          "pixelSize": 10,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "F/A-18E Super Hornet, VFA-14 Tophatters. CAP station west of carrier, covering Spratly approach vector. APG-79 AESA radar, 6x AIM-120D + 2x AIM-9X.",
+        "sensors": [
+          { "type": "radar", "name": "APG-79 AESA", "range_km": 150, "fov_deg": 120 },
+          { "type": "ir", "name": "ATFLIR", "range_km": 60, "fov_deg": 3.5 }
+        ],
+        "payloads": ["a2a_missile"],
+        "rcs_m2": 1.0
+      }
+    },
+    {
+      "id": "blue_hawkeye",
+      "name": "TIGERTAIL 600 (AEW)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 15.6,
+        "lon": 117.0,
+        "alt": 10000,
+        "speed": 150,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "awacs"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 16.2, "lon": 117.2, "alt": 10000 },
+            { "lat": 16.2, "lon": 115.8, "alt": 10000 },
+            { "lat": 15.0, "lon": 115.8, "alt": 10000 },
+            { "lat": 15.0, "lon": 117.2, "alt": 10000 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.94,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "point",
+          "color": "#00bbff",
+          "pixelSize": 12,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "E-2D Advanced Hawkeye, VAW-117 Wallbangers. AN/APY-9 UHF-band AESA radar, 400km detection range. CEC data link to Aegis escorts. Primary theater air picture manager.",
+        "sensors": [
+          { "type": "radar", "name": "AN/APY-9 AESA", "range_km": 400, "fov_deg": 360 },
+          { "type": "sigint", "name": "ALQ-217 ESM", "range_km": 500 }
+        ],
+        "rcs_m2": 12.0
+      }
+    },
+    {
+      "id": "blue_poseidon",
+      "name": "TRIDENT 71 (ASW)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 14.8,
+        "lon": 115.8,
+        "alt": 5000,
+        "speed": 120,
+        "heading": 180
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 14.2, "lon": 115.5, "alt": 5000 },
+            { "lat": 13.5, "lon": 116.0, "alt": 3000 },
+            { "lat": 14.0, "lon": 116.8, "alt": 5000 },
+            { "lat": 15.0, "lon": 116.5, "alt": 5000 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 24,
+          "detectionProbability": 0.86,
+          "updateInterval": 2.0
+        },
+        "visual": {
+          "type": "point",
+          "color": "#22aadd",
+          "pixelSize": 10,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "P-8A Poseidon, VP-47 Golden Swordsmen. ASW patrol south of CSG. AN/APY-10 maritime surveillance radar, sonobuoys, Mk 54 torpedoes. Monitoring southern approach and submarine threat.",
+        "sensors": [
+          { "type": "radar", "name": "AN/APY-10", "range_km": 250, "fov_deg": 360 },
+          { "type": "ir", "name": "MX-20HD EO/IR", "range_km": 40, "fov_deg": 5 },
+          { "type": "sigint", "name": "ALQ-240 ESM", "range_km": 400 }
+        ],
+        "payloads": ["torpedo", "sonobuoy"],
+        "rcs_m2": 15.0
+      }
+    },
+    {
+      "id": "ddg97_halsey",
+      "name": "DDG-97 USS HALSEY",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 15.6,
+        "lon": 116.35,
+        "alt": 0,
+        "speed": 15,
+        "heading": 315
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "ddg_arleigh_burke"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 370000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.93,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 170000,
+          "minRange_m": 3500,
+          "maxAlt_m": 33000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.82,
+          "engagementRules": "weapons_hold",
+          "salvoSize": 2,
+          "maxSimultaneous": 6
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#3355bb",
+          "label": "DDG-97 HALSEY",
+          "pixelSize": 12,
+          "sensorRange_m": 370000,
+          "sensorColor": "rgba(51,85,187,0.03)",
+          "sensorOutlineColor": "#3355bb"
+        }
+      },
+      "_custom": {
+        "notes": "DDG-97 USS Halsey, Arleigh Burke Flight IIA. AEGIS AN/SPY-1D(V) phased array radar, SM-2 Block IIIA/SM-6 SAMs, 96-cell VLS. Plane guard and screen commander for CVN-68.",
+        "sensors": [
+          { "type": "radar", "name": "AN/SPY-1D(V) AEGIS", "range_km": 370, "fov_deg": 360 },
+          { "type": "radar", "name": "AN/SPG-62 Illuminator", "range_km": 180, "fov_deg": 3 }
+        ],
+        "payloads": ["sam_battery"],
+        "rcs_m2": 2500
+      }
+    },
+    {
+      "id": "blue_recon_sat",
+      "name": "USA-338 (RECON)",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Satellite",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 7078000,
+          "ecc": 0.001,
+          "inc": 97.4,
+          "raan": 110,
+          "argPerigee": 0,
+          "meanAnomaly": 45
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ccff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "USA-338"
+        }
+      },
+      "_custom": {
+        "notes": "USA-338, LEO sun-synchronous reconnaissance satellite (NRO). 700km SSO orbit at 97.4° inclination for optimal South China Sea coverage. EO/SAR dual-mode imaging payload.",
+        "sensors": [
+          { "type": "optical", "name": "KH-class EO", "gsd_m": 0.3, "swath_km": 15 },
+          { "type": "sar", "name": "Lacrosse SAR", "resolution_m": 1.0, "swath_km": 25 }
+        ]
+      }
+    },
+
+
+    {
+      "id": "cv16_liaoning",
+      "name": "CV-16 LIAONING",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 18.0,
+        "lon": 112.0,
+        "alt": 0,
+        "speed": 12,
+        "heading": 135
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "cv_liaoning"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88,
+          "updateInterval": 1.5
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc2222",
+          "label": "CV-16 LIAONING",
+          "pixelSize": 16,
+          "sensorRange_m": 250000,
+          "sensorColor": "rgba(204,34,34,0.03)",
+          "sensorOutlineColor": "#cc2222"
+        }
+      },
+      "_custom": {
+        "notes": "CV-16 Liaoning, Type 001 carrier (ex-Varyag). PLAN Northern Theater Navy. Type 346 (Sea Star) AESA radar. Ski-jump launch with J-15 Flying Sharks. Heading SE from Hainan toward Spratlys.",
+        "sensors": [
+          { "type": "radar", "name": "Type 346 Sea Star", "range_km": 250, "fov_deg": 360 },
+          { "type": "radar", "name": "Type 364 Surface Search", "range_km": 150, "fov_deg": 360 }
+        ],
+        "rcs_m2": 45000
+      }
+    },
+    {
+      "id": "red_j15_1",
+      "name": "FLYING SHARK 01",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 18.2,
+        "lon": 112.3,
+        "alt": 8000,
+        "speed": 220,
+        "heading": 135
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "su27"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 17.8, "lon": 112.6, "alt": 8000 },
+            { "lat": 17.3, "lon": 112.8, "alt": 8500 },
+            { "lat": 17.3, "lon": 111.6, "alt": 8000 },
+            { "lat": 17.8, "lon": 111.4, "alt": 8500 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.82,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-8",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 16000,
+              "seekerFOV": 90,
+              "Pk": 0.80,
+              "speed": 880,
+              "flightTime": 18
+            },
+            {
+              "type": "PL-12",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.70,
+              "speed": 1200,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 10,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "J-15 Flying Shark (Flanker-D derivative), PLAN Naval Aviation. Carrier-based CAP from Liaoning. Type 1493 pulse-Doppler radar, PL-12 BVR + PL-8 WVR missiles.",
+        "sensors": [
+          { "type": "radar", "name": "Type 1493", "range_km": 130, "fov_deg": 120 }
+        ],
+        "payloads": ["a2a_missile"],
+        "rcs_m2": 5.0
+      }
+    },
+    {
+      "id": "red_j15_2",
+      "name": "FLYING SHARK 02",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 17.9,
+        "lon": 111.8,
+        "alt": 8000,
+        "speed": 220,
+        "heading": 150
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "su27"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 17.5, "lon": 112.1, "alt": 8000 },
+            { "lat": 17.0, "lon": 112.3, "alt": 8500 },
+            { "lat": 17.0, "lon": 111.3, "alt": 8000 },
+            { "lat": 17.5, "lon": 111.1, "alt": 8500 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 130000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.82,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "PL-8",
+              "count": 2,
+              "minRange": 500,
+              "maxRange": 16000,
+              "seekerFOV": 90,
+              "Pk": 0.80,
+              "speed": 880,
+              "flightTime": 18
+            },
+            {
+              "type": "PL-12",
+              "count": 4,
+              "minRange": 2000,
+              "maxRange": 100000,
+              "seekerFOV": 360,
+              "Pk": 0.70,
+              "speed": 1200,
+              "flightTime": 45
+            }
+          ],
+          "engagementRules": "weapons_hold"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 10,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "J-15 Flying Shark #02, PLAN Naval Aviation. Wingman to FLYING SHARK 01. Covering Liaoning carrier's southwest approach.",
+        "sensors": [
+          { "type": "radar", "name": "Type 1493", "range_km": 130, "fov_deg": 120 }
+        ],
+        "payloads": ["a2a_missile"],
+        "rcs_m2": 5.0
+      }
+    },
+    {
+      "id": "red_kj500",
+      "name": "BALANCE BEAM 01 (AEW)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Aircraft",
+      "initialState": {
+        "lat": 17.0,
+        "lon": 111.5,
+        "alt": 9000,
+        "speed": 130,
+        "heading": 180
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "awacs"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 16.5, "lon": 111.0, "alt": 9000 },
+            { "lat": 15.5, "lon": 112.0, "alt": 9000 },
+            { "lat": 16.0, "lon": 113.0, "alt": 9000 },
+            { "lat": 17.0, "lon": 112.0, "alt": 9000 }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 20,
+          "detectionProbability": 0.90,
+          "updateInterval": 1.5
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6600",
+          "pixelSize": 12,
+          "trail": true
+        }
+      },
+      "_custom": {
+        "notes": "KJ-500, PLAN airborne early warning. AESA dorsal radar array, 350km detection range. Provides air picture and fighter control for Liaoning CSG and Spratly A2/AD network.",
+        "sensors": [
+          { "type": "radar", "name": "AESA AEW Array", "range_km": 350, "fov_deg": 360 },
+          { "type": "sigint", "name": "Passive ESM", "range_km": 450 }
+        ],
+        "rcs_m2": 18.0
+      }
+    },
+    {
+      "id": "red_fiery_cross",
+      "name": "FIERY CROSS REEF (HQ-9)",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 9.55,
+        "lon": 112.9,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 250000,
+          "minRange_m": 5000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1300,
+          "killProbability": 0.78,
+          "engagementRules": "weapons_hold",
+          "salvoSize": 2,
+          "maxSimultaneous": 4
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2200",
+          "label": "FIERY CROSS",
+          "pixelSize": 14,
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(255,34,0,0.04)",
+          "sensorOutlineColor": "#ff2200"
+        }
+      },
+      "_custom": {
+        "notes": "Fiery Cross Reef (Yongshu Jiao), largest Spratly artificial island. 3km airstrip, hangars, HQ-9B SAM battery, Type 305B engagement radar, CIWS, anti-ship missile launchers. Key A2/AD node.",
+        "sensors": [
+          { "type": "radar", "name": "Type 305B Track/Engage", "range_km": 300, "fov_deg": 360 },
+          { "type": "radar", "name": "YLC-8B Long Range", "range_km": 500, "fov_deg": 360 }
+        ],
+        "payloads": ["sam_battery", "cruise_missile"]
+      }
+    },
+    {
+      "id": "red_subi_reef",
+      "name": "SUBI REEF (HQ-9)",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 10.92,
+        "lon": 114.08,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 250000,
+          "minRange_m": 5000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1300,
+          "killProbability": 0.78,
+          "engagementRules": "weapons_hold",
+          "salvoSize": 2,
+          "maxSimultaneous": 4
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2200",
+          "label": "SUBI REEF",
+          "pixelSize": 14,
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(255,34,0,0.04)",
+          "sensorOutlineColor": "#ff2200"
+        }
+      },
+      "_custom": {
+        "notes": "Subi Reef (Zhubi Jiao), artificial island with HQ-9B SAM system, Type 305B radar, CIWS, 3km runway capable. Northeast Spratly A2/AD coverage, overlapping fires with Fiery Cross.",
+        "sensors": [
+          { "type": "radar", "name": "Type 305B Track/Engage", "range_km": 300, "fov_deg": 360 },
+          { "type": "radar", "name": "JY-27A VHF", "range_km": 400, "fov_deg": 360 }
+        ],
+        "payloads": ["sam_battery"]
+      }
+    },
+    {
+      "id": "red_mischief_reef",
+      "name": "MISCHIEF REEF (ISR)",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 9.9,
+        "lon": 115.53,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 24,
+          "detectionProbability": 0.90,
+          "updateInterval": 1.5
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#dd4400",
+          "label": "MISCHIEF REEF",
+          "pixelSize": 12,
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(221,68,0,0.03)",
+          "sensorOutlineColor": "#dd4400"
+        }
+      },
+      "_custom": {
+        "notes": "Mischief Reef (Meiji Jiao), artificial island. Primary ISR/EW role — no offensive SAM but hosts YLC-8B VHF radar, JY-27A anti-stealth radar, and SIGINT/ELINT collection. Radar picket for eastern approach.",
+        "sensors": [
+          { "type": "radar", "name": "YLC-8B VHF Long Range", "range_km": 500, "fov_deg": 360 },
+          { "type": "radar", "name": "JY-27A Anti-Stealth", "range_km": 400, "fov_deg": 360 },
+          { "type": "sigint", "name": "ELINT Collection", "range_km": 600 }
+        ]
+      }
+    },
+    {
+      "id": "red_type055",
+      "name": "TYPE 055 NANCHANG",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 16.0,
+        "lon": 113.0,
+        "alt": 0,
+        "speed": 10,
+        "heading": 90
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "ddg_type055"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 4000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1250,
+          "killProbability": 0.80,
+          "engagementRules": "weapons_hold",
+          "salvoSize": 2,
+          "maxSimultaneous": 6
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc3333",
+          "label": "TYPE 055 NANCHANG",
+          "pixelSize": 14,
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(204,51,51,0.03)",
+          "sensorOutlineColor": "#cc3333"
+        }
+      },
+      "_custom": {
+        "notes": "Type 055 DDG Nanchang (101). 12,000-ton cruiser-class. Type 346B S-band AESA (Chinese Aegis), 112-cell VLS with HHQ-9B SAM + YJ-18A AShM. Most capable PLAN surface combatant. Screening Liaoning's southern approach.",
+        "sensors": [
+          { "type": "radar", "name": "Type 346B S-band AESA", "range_km": 400, "fov_deg": 360 },
+          { "type": "radar", "name": "Type 518L L-band", "range_km": 500, "fov_deg": 360 }
+        ],
+        "payloads": ["sam_battery", "cruise_missile"],
+        "rcs_m2": 3000
+      }
+    },
+    {
+      "id": "red_yaogan_sat",
+      "name": "YAOGAN-35 (ELINT)",
+      "type": "satellite",
+      "team": "red",
+      "vizCategory": "Satellite",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6878000,
+          "ecc": 0.002,
+          "inc": 63.0,
+          "raan": 95,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff6688",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": false,
+          "label": "YAOGAN-35"
+        }
+      },
+      "_custom": {
+        "notes": "Yaogan-35 series ELINT/ocean surveillance satellite. 500km LEO at 63° inclination for South China Sea coverage. Triplet formation for ELINT geolocation. Feeds PLAN OTH targeting for DF-21D/DF-26 anti-ship ballistic missiles.",
+        "sensors": [
+          { "type": "sigint", "name": "ELINT Payload", "range_km": 1500 },
+          { "type": "radar", "name": "SAR", "resolution_m": 3.0, "swath_km": 40 }
+        ]
+      }
+    }
+  ],
+
+  "events": [
+    {
+      "id": "evt_situation",
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "SOUTH CHINA SEA SITUATION: Multiple naval and air assets in contested waters. CSG-11 (CVN-68 Nimitz) operating east of Spratlys. PLAN CV-16 Liaoning group detected departing Hainan area."
+      },
+      "description": "Initial situation report"
+    },
+    {
+      "id": "evt_intel_carrier",
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "INTELLIGENCE: PLAN carrier group centered on CV-16 Liaoning detected heading southeast from Hainan. Escorted by Type 055 DDG and multiple frigates. Course suggests transit to Spratly operating area."
+      },
+      "description": "PLAN carrier group detected"
+    },
+    {
+      "id": "evt_j15_launch",
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "ALERT: J-15 Flying Shark fighters launched from Liaoning. Two-ship CAP formation established. AWACS KJ-500 also airborne providing fighter control."
+      },
+      "description": "J-15 CAP launch"
+    },
+    {
+      "id": "evt_fiery_cross_active",
+      "type": "timed",
+      "time": 240,
+      "action": {
+        "type": "message",
+        "text": "WARNING: Fiery Cross Reef radar active — Type 305B engagement radar in tracking mode. HQ-9B battery assessed weapons-ready. All aircraft maintain 250km standoff from reef positions."
+      },
+      "description": "Fiery Cross radar active"
+    },
+    {
+      "id": "evt_surface_contacts",
+      "type": "timed",
+      "time": 480,
+      "action": {
+        "type": "message",
+        "text": "UPDATE: E-2D TIGERTAIL 600 reports multiple surface contacts converging. Type 055 Nanchang on easterly heading, Liaoning group closing from northwest. Possible pincer movement toward CSG operating area."
+      },
+      "description": "Surface contacts converging"
+    },
+    {
+      "id": "evt_adiz_intercept",
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "ESCALATION: ADIZ intercept initiated. J-15 pair altered course toward CSG CAP station. MUSTANG flight vectored for intercept. All units condition MODIFIED WEAPONS FREE — engage only if hostile act observed."
+      },
+      "description": "ADIZ intercept"
+    }
+  ],
+
+  "regions": [
+    {
+      "name": "US CSG Patrol Zone",
+      "type": "operational",
+      "shape": "circle",
+      "center": [15.5, 116.5],
+      "radius": 300000
+    },
+    {
+      "name": "PLAN ADIZ",
+      "type": "engagement",
+      "shape": "circle",
+      "center": [15.0, 113.0],
+      "radius": 600000
+    },
+    {
+      "name": "Spratly Islands",
+      "type": "objective",
+      "shape": "circle",
+      "center": [10.0, 114.0],
+      "radius": 200000
+    },
+    {
+      "name": "Taiwan Strait",
+      "type": "objective",
+      "shape": "circle",
+      "center": [24.0, 120.0],
+      "radius": 200000
+    }
+  ],
+
+  "camera": {
+    "mode": "free",
+    "lat": 14,
+    "lon": 114,
+    "range": 3000000
+  }
+}

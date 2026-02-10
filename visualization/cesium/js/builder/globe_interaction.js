@@ -214,6 +214,12 @@ const GlobeInteraction = (function() {
 
         var latLon = _cartesianToLatLon(cartesian);
 
+        // Formation template — spawn multiple entities at offsets
+        if (template._isFormation && template._formationEntities) {
+            _placeFormation(latLon, template);
+            return;
+        }
+
         // Check explicit placement mode (from custom platform dropdown)
         var placementMode = template._placementMode;
         if (placementMode === 'ground') {
@@ -386,6 +392,101 @@ const GlobeInteraction = (function() {
         var newId = BuilderApp.addEntity(entityDef);
         BuilderApp.selectEntity(newId);
         BuilderApp.cancelPlacement();
+    }
+
+    /**
+     * Place a formation of entities (multiple aircraft in specified formation).
+     */
+    function _placeFormation(latLon, template) {
+        var fmtEntities = template._formationEntities;
+        var baseName = template.name.replace(/\s*\(.*\)/, ''); // Strip parenthetical
+        var groupId = 'fm_' + Date.now();
+        var leadId = null;
+        var ids = [];
+
+        for (var i = 0; i < fmtEntities.length; i++) {
+            var slot = fmtEntities[i];
+            var entityLat = latLon.lat + (slot.offset ? slot.offset[0] : 0);
+            var entityLon = latLon.lon + (slot.offset ? slot.offset[1] : 0);
+            var entityId = groupId + '_' + i;
+            var defs = template.defaults || {};
+            var config = slot.config || (template.components && template.components.physics && template.components.physics.config) || 'f16';
+
+            var components = {};
+            // Physics
+            components.physics = { type: 'flight3dof', config: config };
+
+            // Visual — use template visual or default
+            if (template.components && template.components.visual) {
+                components.visual = Object.assign({}, template.components.visual);
+            } else {
+                components.visual = { type: 'point', color: template.icon || '#4488ff', pixelSize: 12, trail: true };
+            }
+
+            // Sensors — from template or skip for non-lead
+            if (template.components && template.components.sensors) {
+                components.sensors = Object.assign({}, template.components.sensors);
+            }
+
+            // Weapons — from template
+            if (template.components && template.components.weapons) {
+                components.weapons = JSON.parse(JSON.stringify(template.components.weapons));
+            }
+
+            // AI: lead gets waypoint patrol, wingmen get formation
+            if (i === 0) {
+                // Lead gets player_input + waypoint patrol fallback
+                components.control = { type: 'player_input', config: 'fighter' };
+                components.ai = { type: 'waypoint_patrol', waypoints: [], loopMode: 'cycle' };
+                leadId = entityId;
+            } else if (slot.formation && leadId) {
+                // Wingmen get formation AI
+                components.ai = {
+                    type: 'formation',
+                    leaderId: leadId,
+                    position: slot.formation.position || 'right_wing',
+                    separation: slot.formation.separation || 1852
+                };
+            }
+
+            // Special case: AWACS lead
+            if (slot.isAwacs) {
+                components.sensors = { type: 'radar', maxRange_m: 400000, fov_deg: 360, scanRate_dps: 20, detectionProbability: 0.92 };
+                delete components.weapons;
+            }
+
+            var entityDef = {
+                id: entityId,
+                name: baseName + ' ' + slot.suffix,
+                type: template.type || 'aircraft',
+                team: template.team || 'blue',
+                initialState: {
+                    lat: entityLat,
+                    lon: entityLon,
+                    alt: defs.alt || 6000,
+                    speed: defs.speed || 220,
+                    heading: defs.heading || 90,
+                    gamma: defs.gamma || 0,
+                    throttle: defs.throttle || 0.7,
+                    engineOn: defs.engineOn !== undefined ? defs.engineOn : true,
+                    gearDown: defs.gearDown || false,
+                    infiniteFuel: defs.infiniteFuel !== undefined ? defs.infiniteFuel : true
+                },
+                components: components
+            };
+
+            if (template._custom) {
+                entityDef._custom = template._custom;
+            }
+
+            var newId = BuilderApp.addEntity(entityDef);
+            ids.push(newId);
+        }
+
+        // Select lead entity
+        if (ids.length > 0) BuilderApp.selectEntity(ids[0]);
+        BuilderApp.cancelPlacement();
+        BuilderApp.showMessage('Placed ' + ids.length + '-ship formation: ' + baseName);
     }
 
     // -------------------------------------------------------------------

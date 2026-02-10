@@ -33,9 +33,12 @@ const FighterHUD = (function() {
         warnings: true,     // Warnings + phase indicator + regime
         orbital: true,      // Orbital markers + navball
         minimap: true,      // Radar minimap scope
+        rwr: true,          // Radar Warning Receiver diamond display
+        radar: true,        // B-scope radar display + target designation bracket
         coordinates: true,  // Lat/lon/alt readout
         warpIndicator: true,// Time warp indicator
-        approachAids: true  // Landing approach aids
+        approachAids: true, // Landing approach aids
+        weather: true       // Weather info (wind, visibility, turbulence)
     };
 
     // Fuel burn tracking for time-remaining calculation
@@ -102,6 +105,7 @@ const FighterHUD = (function() {
         if (_toggles.speedTape)   drawAirspeedTape(state, scale);
         if (_toggles.altTape)     drawAltitudeTape(state, scale);
         if (_toggles.heading)     drawHeadingTape(state, scale, target);
+        if (_toggles.warnings)    drawWindIndicator(state, scale);
         if (_toggles.fpm)         drawFlightPathMarker(state, scale);
         if (_toggles.fpm)         drawWaterline(scale);
         if (_toggles.gMeter)      drawGMeter(state, scale);
@@ -119,12 +123,24 @@ const FighterHUD = (function() {
         if (_toggles.altTape)     drawVerticalSpeed(state, scale);
         if (_toggles.warnings)    drawRegimeIndicator(state, scale);
         if (_toggles.warnings)    drawPointingIndicator(state, scale);
+        if (_toggles.warnings)    drawDisplayModeIndicator(state, scale);
         if (_toggles.orbital)     drawCompactNavball(state, scale, simTime);
         if (_toggles.minimap)     drawMinimap(state, scale);
+        if (_toggles.rwr)        drawRWR(state, scale);
+        if (_toggles.radar)      drawRadarScope(state, scale, simTime);
+        if (_toggles.radar)      drawTargetBracket(state, scale, simTime);
         if (_toggles.coordinates) drawCoordinates(state, scale);
         if (_toggles.warpIndicator) drawTimeWarp(state, scale);
         if (_toggles.approachAids) drawApproachAids(state, scale);
+        if (_toggles.approachAids) drawILSGuidance(state, scale);
+        if (_toggles.weather)     drawWeatherInfo(state, scale, simTime);
+        drawWaypointCue(state, scale);
         drawSensorReticle(state, scale);
+        drawMissileWarning(state, scale);
+        drawFormationStatus(state, scale);
+        if (_toggles.warnings)    drawTCAS(state, scale);
+        if (_toggles.warnings)    drawGPWS(state, scale);
+        if (_toggles.warnings)    drawTerrainProfile(state, scale);
 
         ctx.restore();
     }
@@ -590,6 +606,129 @@ const FighterHUD = (function() {
     }
 
     /**
+     * Draw wind direction/speed indicator below the heading tape.
+     * Shows wind barb arrow, WIND readout, headwind/tailwind and crosswind
+     * components, and turbulence warning for strong winds.
+     * Data source: state._wind = { direction_deg, speed_mps }
+     */
+    function drawWindIndicator(state, scale) {
+        var wind = state._wind;
+        if (!wind || wind.speed_mps == null || wind.speed_mps < 0.1) return;
+
+        var windDirDeg = ((wind.direction_deg || 0) + 360) % 360;
+        var windSpdMps = wind.speed_mps;
+        var windSpdKts = windSpdMps * MPS_TO_KNOTS;
+
+        // Heading tape center Y (must match drawHeadingTape)
+        var headingTapeY = 50 * scale;
+        // Position below heading readout and target bearing line
+        var baseY = headingTapeY + 55 * scale;
+
+        var isStrong = windSpdKts > 30;
+        var normalColor = HUD_GREEN;
+        var warnColor = HUD_WARN;
+
+        ctx.save();
+
+        // --- Wind arrow/barb ---
+        // Arrow shows direction wind is coming FROM, relative to screen up=north
+        // Position it to the left of center text block
+        var arrowCx = cx - 80 * scale;
+        var arrowCy = baseY + 8 * scale;
+        var arrowLen = 14 * scale;
+        // Meteorological: direction_deg is where wind comes FROM (0=N, 90=E)
+        // Arrow points FROM that direction toward center (i.e., into the wind)
+        // We draw the arrow shaft pointing in the wind-from direction (screen coords)
+        var windFromRad = windDirDeg * DEG;  // radians, 0=up on screen
+        // Tip of the arrow (the "from" end) is at the outer end
+        var tipX = arrowCx + arrowLen * Math.sin(windFromRad);
+        var tipY = arrowCy - arrowLen * Math.cos(windFromRad);
+        // Tail toward center
+        var tailX = arrowCx - arrowLen * Math.sin(windFromRad);
+        var tailY = arrowCy + arrowLen * Math.cos(windFromRad);
+
+        ctx.strokeStyle = isStrong ? warnColor : normalColor;
+        ctx.lineWidth = 2 * scale;
+        ctx.beginPath();
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+
+        // Arrowhead at tip (wind-from end)
+        var headLen = 5 * scale;
+        var headAngle = 0.45; // ~25 degrees
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(
+            tipX - headLen * Math.sin(windFromRad - headAngle),
+            tipY + headLen * Math.cos(windFromRad - headAngle)
+        );
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(
+            tipX - headLen * Math.sin(windFromRad + headAngle),
+            tipY + headLen * Math.cos(windFromRad + headAngle)
+        );
+        ctx.stroke();
+
+        // --- Wind readout text: "WIND 270/25" ---
+        ctx.font = `${12 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = isStrong ? warnColor : normalColor;
+        var dirStr = Math.round(windDirDeg).toString().padStart(3, '0');
+        var spdStr = Math.round(windSpdKts).toString();
+        ctx.fillText('WIND ' + dirStr + '/' + spdStr, cx, baseY);
+
+        // --- Headwind/tailwind and crosswind components ---
+        // Aircraft nose heading (use nose heading = heading + yawOffset)
+        var noseHdg = (state.heading || 0) + (state.yawOffset || 0);
+        // Relative wind angle: wind FROM direction minus aircraft heading
+        // Positive = wind from right of nose
+        var relWindRad = (windDirDeg * DEG) - noseHdg;
+        // Headwind component: positive = headwind (wind opposing motion)
+        var headwindMps = windSpdMps * Math.cos(relWindRad);
+        var crosswindMps = windSpdMps * Math.sin(relWindRad);
+
+        var headwindKts = Math.abs(headwindMps * MPS_TO_KNOTS);
+        var crosswindKts = Math.abs(crosswindMps * MPS_TO_KNOTS);
+
+        var compY = baseY + 15 * scale;
+        ctx.font = `${11 * scale}px 'Courier New', monospace`;
+
+        // Headwind/tailwind readout
+        var hwLabel;
+        if (headwindMps > 0.5) {
+            hwLabel = 'HW ' + Math.round(headwindKts) + 'KT';
+        } else if (headwindMps < -0.5) {
+            hwLabel = 'TW ' + Math.round(headwindKts) + 'KT';
+        } else {
+            hwLabel = 'HW 0KT';
+        }
+
+        // Crosswind readout
+        var xwLabel;
+        if (crosswindMps > 0.5) {
+            xwLabel = 'XW R' + Math.round(crosswindKts) + 'KT';
+        } else if (crosswindMps < -0.5) {
+            xwLabel = 'XW L' + Math.round(crosswindKts) + 'KT';
+        } else {
+            xwLabel = 'XW 0KT';
+        }
+
+        ctx.fillStyle = isStrong ? warnColor : normalColor;
+        ctx.textAlign = 'center';
+        ctx.fillText(hwLabel + '  ' + xwLabel, cx, compY);
+
+        // --- Turbulence warning for strong winds ---
+        if (isStrong) {
+            ctx.font = `bold ${13 * scale}px 'Courier New', monospace`;
+            ctx.fillStyle = warnColor;
+            ctx.fillText('TURB', cx, compY + 15 * scale);
+        }
+
+        ctx.restore();
+    }
+
+    /**
      * Draw G meter (bottom-left)
      */
     function drawGMeter(state, scale) {
@@ -707,6 +846,17 @@ const FighterHUD = (function() {
                 ctx.fillStyle = timeRemSec < 120 ? HUD_ALERT : timeRemSec < 300 ? HUD_WARN : HUD_DIM;
                 ctx.font = `${11 * scale}px 'Courier New', monospace`;
                 ctx.fillText('BURN ' + _fuelBurnRate.toFixed(1) + ' kg/s  T-' + timeStr, x, y + 45 * scale);
+
+                // Range estimation (distance at current speed before fuel exhaustion)
+                if (state.speed > 10) {
+                    var rangeM = timeRemSec * state.speed;
+                    var rangeNm = rangeM / 1852;
+                    var rangeStr = rangeNm >= 1000 ? Math.round(rangeNm) + ' NM' :
+                                   rangeNm >= 100 ? Math.round(rangeNm) + ' NM' :
+                                   rangeNm.toFixed(0) + ' NM';
+                    ctx.fillStyle = rangeNm < 50 ? HUD_ALERT : rangeNm < 150 ? HUD_WARN : HUD_DIM;
+                    ctx.fillText('RNG ' + rangeStr, x, y + 57 * scale);
+                }
             }
         } else {
             // Infinite fuel indicator
@@ -1437,6 +1587,45 @@ const FighterHUD = (function() {
     }
 
     /**
+     * Draw display mode indicator (NVG / FLIR) at top-left
+     */
+    function drawDisplayModeIndicator(state, scale) {
+        if (!state || !state._displayMode) return;
+
+        var label = state._displayMode;  // 'NVG' or 'FLIR'
+        var x = 20 * scale;
+        var y = 80 * scale;  // Below phase indicator area
+
+        ctx.font = `bold ${13 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'left';
+
+        if (label === 'NVG') {
+            ctx.fillStyle = '#00ff44';  // Bright green for NVG
+        } else if (label === 'FLIR') {
+            ctx.fillStyle = '#ffffff';  // White for FLIR
+        } else {
+            ctx.fillStyle = HUD_GREEN;
+        }
+
+        // Background box for readability
+        var tw = ctx.measureText(label).width + 10 * scale;
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fillRect(x - 4 * scale, y - 10 * scale, tw, 16 * scale);
+        ctx.restore();
+
+        // Draw the label
+        if (label === 'NVG') {
+            ctx.fillStyle = '#00ff44';
+        } else if (label === 'FLIR') {
+            ctx.fillStyle = '#ffffff';
+        } else {
+            ctx.fillStyle = HUD_GREEN;
+        }
+        ctx.fillText(label, x, y);
+    }
+
+    /**
      * Draw sensor reticle crosshair when sensor view is active
      */
     function drawSensorReticle(state, scale) {
@@ -2108,6 +2297,685 @@ const FighterHUD = (function() {
     }
 
     // -----------------------------------------------------------------
+    // Radar Warning Receiver (RWR) diamond display
+    // Shows bearing/range of detected radar emitters relative to ownship
+    // Data: state._rwr or state._detectedBy — array of {bearing, type, range_norm, label}
+    //   bearing: degrees clockwise from nose (0 = ahead, 90 = right, 180 = behind)
+    //   type: 'search' | 'track' | 'lock'
+    //   range_norm: 0-1 normalized (0 = closest, 1 = at max detection range)
+    //   label: emitter name (e.g. 'SA-20', 'MIG-29')
+    // -----------------------------------------------------------------
+    var _rwrFlashPhase = 0; // for lock warning border flash
+
+    function drawRWR(state, scale) {
+        // Get RWR threat data from state
+        var threats = state._rwr || state._detectedBy;
+        if (!threats && !state._radarContacts) {
+            // Even with no threats, draw the empty scope
+        }
+
+        var size = 60 * scale;           // half-width of diamond (120px effective at scale=1)
+        var rwrCx = 110 * scale;         // center X (bottom-left area)
+        var rwrCy = height - 200 * scale; // center Y (above G-meter)
+
+        // Check for any lock threats (for border flash)
+        var hasLock = false;
+        if (threats) {
+            for (var ti = 0; ti < threats.length; ti++) {
+                if (threats[ti].type === 'lock') { hasLock = true; break; }
+            }
+        }
+
+        // Update flash phase
+        _rwrFlashPhase += 0.15;
+
+        ctx.save();
+
+        // --- Background diamond (rotated 45-degree square) ---
+        ctx.fillStyle = 'rgba(0, 10, 0, 0.45)';
+        ctx.beginPath();
+        ctx.moveTo(rwrCx, rwrCy - size);          // top
+        ctx.lineTo(rwrCx + size, rwrCy);           // right
+        ctx.lineTo(rwrCx, rwrCy + size);           // bottom
+        ctx.lineTo(rwrCx - size, rwrCy);           // left
+        ctx.closePath();
+        ctx.fill();
+
+        // Border — red flash when lock, green otherwise
+        if (hasLock && Math.sin(_rwrFlashPhase * 4) > 0) {
+            ctx.strokeStyle = HUD_ALERT;
+            ctx.lineWidth = 3 * scale;
+        } else {
+            ctx.strokeStyle = HUD_GREEN;
+            ctx.lineWidth = 1.5 * scale;
+        }
+        ctx.beginPath();
+        ctx.moveTo(rwrCx, rwrCy - size);
+        ctx.lineTo(rwrCx + size, rwrCy);
+        ctx.lineTo(rwrCx, rwrCy + size);
+        ctx.lineTo(rwrCx - size, rwrCy);
+        ctx.closePath();
+        ctx.stroke();
+
+        // --- Range rings at 50% and 100% inside the diamond ---
+        // Clip to diamond shape for clean rings
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(rwrCx, rwrCy - size);
+        ctx.lineTo(rwrCx + size, rwrCy);
+        ctx.lineTo(rwrCx, rwrCy + size);
+        ctx.lineTo(rwrCx - size, rwrCy);
+        ctx.closePath();
+        ctx.clip();
+
+        ctx.strokeStyle = 'rgba(0, 170, 0, 0.3)';
+        ctx.lineWidth = 0.8 * scale;
+
+        // 50% range ring
+        ctx.beginPath();
+        ctx.arc(rwrCx, rwrCy, size * 0.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 100% range ring (inscribed circle of diamond)
+        // The inscribed circle of a square rotated 45deg with half-diagonal=size
+        // has radius = size * cos(45) = size * 0.707
+        ctx.beginPath();
+        ctx.arc(rwrCx, rwrCy, size * 0.707, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Cross hairs (N/S/E/W lines)
+        ctx.strokeStyle = 'rgba(0, 170, 0, 0.2)';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.beginPath();
+        ctx.moveTo(rwrCx - size, rwrCy);
+        ctx.lineTo(rwrCx + size, rwrCy);
+        ctx.moveTo(rwrCx, rwrCy - size);
+        ctx.lineTo(rwrCx, rwrCy + size);
+        ctx.stroke();
+
+        // --- Cardinal direction labels ---
+        ctx.font = `${8 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(0, 170, 0, 0.5)';
+        ctx.fillText('12', rwrCx, rwrCy - size * 0.82);
+        ctx.fillText('6', rwrCx, rwrCy + size * 0.82);
+        ctx.fillText('3', rwrCx + size * 0.82, rwrCy);
+        ctx.fillText('9', rwrCx - size * 0.82, rwrCy);
+
+        // --- Center ownship marker (small triangle pointing up) ---
+        ctx.strokeStyle = HUD_GREEN;
+        ctx.lineWidth = 1.5 * scale;
+        var ownR = 5 * scale;
+        ctx.beginPath();
+        ctx.moveTo(rwrCx, rwrCy - ownR);
+        ctx.lineTo(rwrCx + ownR * 0.7, rwrCy + ownR * 0.5);
+        ctx.lineTo(rwrCx - ownR * 0.7, rwrCy + ownR * 0.5);
+        ctx.closePath();
+        ctx.stroke();
+
+        // --- Plot threats ---
+        if (threats && threats.length > 0) {
+            for (var i = 0; i < threats.length; i++) {
+                var t = threats[i];
+                var brgDeg = t.bearing || 0;    // degrees from nose, clockwise
+                var rangeN = t.range_norm != null ? t.range_norm : 0.7; // default 70% out
+                var tType = t.type || 'search';
+                var label = t.label || '';
+
+                // Convert bearing to canvas angle (0=up, CW positive)
+                // Canvas: 0 rad = right, so bearing 0 (ahead/up) = -PI/2
+                var brgRad = brgDeg * DEG;
+
+                // Position within diamond: use range_norm to scale distance from center
+                // Max usable radius inside diamond varies with angle.
+                // For a diamond, the max radius at angle theta from top is:
+                //   r_max = size / max(|cos(theta)| + |sin(theta)|)  — L1 norm
+                // But simpler: just scale by size and clamp to diamond boundary
+                var dx = Math.sin(brgRad);  // right is positive
+                var dy = -Math.cos(brgRad); // up is negative in canvas
+
+                // Diamond boundary distance at this angle: size / (|dx| + |dy|) per unit
+                // L1 distance of unit vector (dx,dy) from origin to diamond edge
+                var l1 = Math.abs(dx) + Math.abs(dy);
+                if (l1 < 0.001) l1 = 1;
+                var maxDist = size / l1;
+
+                var dist = rangeN * maxDist * 0.9; // 0.9 to keep symbols inside
+                var tx = rwrCx + dx * dist;
+                var ty = rwrCy + dy * dist;
+
+                // --- Draw threat symbol ---
+                var symbolSize = 5 * scale;
+
+                if (tType === 'lock') {
+                    // Filled diamond — red, flashing
+                    var lockAlpha = 0.6 + 0.4 * Math.abs(Math.sin(_rwrFlashPhase * 3));
+                    ctx.globalAlpha = lockAlpha;
+                    ctx.fillStyle = HUD_ALERT;
+                    ctx.strokeStyle = HUD_ALERT;
+                    ctx.lineWidth = 1.5 * scale;
+                    ctx.beginPath();
+                    ctx.moveTo(tx, ty - symbolSize);
+                    ctx.lineTo(tx + symbolSize, ty);
+                    ctx.lineTo(tx, ty + symbolSize);
+                    ctx.lineTo(tx - symbolSize, ty);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                } else if (tType === 'track') {
+                    // Filled diamond — red, solid
+                    ctx.fillStyle = HUD_ALERT;
+                    ctx.strokeStyle = HUD_ALERT;
+                    ctx.lineWidth = 1.5 * scale;
+                    ctx.beginPath();
+                    ctx.moveTo(tx, ty - symbolSize);
+                    ctx.lineTo(tx + symbolSize, ty);
+                    ctx.lineTo(tx, ty + symbolSize);
+                    ctx.lineTo(tx - symbolSize, ty);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                } else {
+                    // Search — open circle, yellow
+                    ctx.strokeStyle = HUD_WARN;
+                    ctx.lineWidth = 1.5 * scale;
+                    ctx.beginPath();
+                    ctx.arc(tx, ty, symbolSize, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // --- Bearing line from center toward threat (faint) ---
+                ctx.strokeStyle = tType === 'search' ? 'rgba(255,255,0,0.2)' : 'rgba(255,50,50,0.3)';
+                ctx.lineWidth = 0.8 * scale;
+                ctx.beginPath();
+                ctx.moveTo(rwrCx, rwrCy);
+                ctx.lineTo(tx, ty);
+                ctx.stroke();
+
+                // --- Threat label (short, near symbol) ---
+                if (label) {
+                    ctx.font = `${7 * scale}px 'Courier New', monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillStyle = tType === 'search' ? HUD_WARN : HUD_ALERT;
+                    ctx.fillText(label, tx, ty - symbolSize - 2 * scale);
+                }
+            }
+        }
+
+        ctx.restore(); // undo diamond clip
+
+        // --- RWR label ---
+        ctx.font = `${9 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('RWR', rwrCx, rwrCy + size + 4 * scale);
+        ctx.textBaseline = 'middle'; // reset
+
+        // --- Lock warning text (flashing, below diamond) ---
+        if (hasLock) {
+            if (Math.sin(_rwrFlashPhase * 4) > 0) {
+                ctx.font = `bold ${11 * scale}px 'Courier New', monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = HUD_ALERT;
+                ctx.fillText('LOCK', rwrCx, rwrCy + size + 16 * scale);
+            }
+        }
+
+        // --- Threat count summary ---
+        if (threats && threats.length > 0) {
+            var nSearch = 0, nTrack = 0, nLock = 0;
+            for (var ci = 0; ci < threats.length; ci++) {
+                var ct = threats[ci].type || 'search';
+                if (ct === 'lock') nLock++;
+                else if (ct === 'track') nTrack++;
+                else nSearch++;
+            }
+            ctx.font = `${8 * scale}px 'Courier New', monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = HUD_DIM;
+            var countStr = '';
+            if (nSearch > 0) countStr += 'S:' + nSearch + ' ';
+            if (nTrack > 0)  countStr += 'T:' + nTrack + ' ';
+            if (nLock > 0)   countStr += 'L:' + nLock;
+            if (countStr) {
+                ctx.fillText(countStr.trim(), rwrCx, rwrCy - size - 6 * scale);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Missile Warning System (MWS) — flashing warning when missiles inbound
+    // Data: state._mws — array of {type, bearing, range, label, tof}
+    // -----------------------------------------------------------------
+    var _mwsFlashPhase = 0;
+
+    function drawMissileWarning(state, scale) {
+        var missiles = state._mws;
+        if (!missiles || missiles.length === 0) return;
+
+        _mwsFlashPhase += 0.2;
+        var flashOn = Math.sin(_mwsFlashPhase * 5) > 0;
+
+        // Large flashing MISSILE warning at top center
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        var warnY = 60 * scale;
+        var warnX = cx;
+
+        // Flash red background bar
+        if (flashOn) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.35)';
+            var barW = 200 * scale;
+            ctx.fillRect(warnX - barW / 2, warnY - 12 * scale, barW, 24 * scale);
+        }
+
+        // MISSILE text
+        ctx.font = `bold ${16 * scale}px 'Courier New', monospace`;
+        ctx.fillStyle = flashOn ? '#ff2222' : '#ff6644';
+        ctx.fillText('MISSILE', warnX, warnY);
+
+        // Count and closest
+        ctx.font = `${10 * scale}px 'Courier New', monospace`;
+        ctx.fillStyle = '#ffaa44';
+        var closest = missiles[0];
+        for (var i = 1; i < missiles.length; i++) {
+            if (missiles[i].range < closest.range) closest = missiles[i];
+        }
+        var distNm = (closest.range / 1852).toFixed(0);
+        var infoStr = missiles.length + ' INBOUND | ' + closest.type + ' ' + distNm + 'NM';
+        ctx.fillText(infoStr, warnX, warnY + 14 * scale);
+
+        // Bearing arrows around center for each missile
+        var arrowR = 35 * scale;
+        var playerHdg = (state.heading || 0) * (180 / Math.PI);
+        for (var mi = 0; mi < missiles.length; mi++) {
+            var m = missiles[mi];
+            // bearing is absolute, convert to relative
+            var relBearing = m.bearing - playerHdg;
+            var relRad = relBearing * Math.PI / 180;
+            // Arrow tip position
+            var ax = warnX + Math.sin(relRad) * arrowR;
+            var ay = (warnY + 35 * scale) - Math.cos(relRad) * arrowR;
+
+            ctx.beginPath();
+            ctx.fillStyle = flashOn ? '#ff0000' : '#ff4400';
+            // Draw small triangle pointing inward
+            var tipAngle = relRad + Math.PI; // point toward center
+            var triSize = 5 * scale;
+            ctx.moveTo(ax + Math.sin(tipAngle) * triSize, ay - Math.cos(tipAngle) * triSize);
+            ctx.lineTo(ax + Math.sin(tipAngle + 2.3) * triSize * 0.7, ay - Math.cos(tipAngle + 2.3) * triSize * 0.7);
+            ctx.lineTo(ax + Math.sin(tipAngle - 2.3) * triSize * 0.7, ay - Math.cos(tipAngle - 2.3) * triSize * 0.7);
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // Formation Status — wingman callsigns, positions, status
+    // Data: state._formation — array of {name, bearing, range, altDiff, status, formation}
+    // -----------------------------------------------------------------
+    function drawFormationStatus(state, scale) {
+        var wingmen = state._formation;
+        if (!wingmen || wingmen.length === 0) return;
+
+        ctx.save();
+        var fmX = width - 145 * scale;
+        var fmY = 165 * scale;
+
+        // Header
+        ctx.font = `bold ${9 * scale}px 'Courier New', monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = HUD_GREEN;
+        ctx.fillText('FORMATION', fmX, fmY);
+        fmY += 12 * scale;
+
+        ctx.font = `${8 * scale}px 'Courier New', monospace`;
+
+        for (var i = 0; i < wingmen.length && i < 4; i++) {
+            var w = wingmen[i];
+            // Color by status
+            var sColor = HUD_GREEN;
+            if (w.status === 'REJOINING') sColor = '#ffaa00';
+            if (w.status === 'LOST') sColor = '#ff4444';
+
+            // Callsign and status
+            ctx.fillStyle = sColor;
+            var nm = (w.range / 1852).toFixed(1);
+            var brg = w.bearing.toFixed(0);
+            var altFt = (w.altDiff * 3.28084).toFixed(0);
+            var altStr = w.altDiff >= 0 ? ('+' + altFt) : altFt;
+            ctx.fillText(w.name, fmX, fmY);
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText(brg + '\u00B0 ' + nm + 'nm ' + altStr + 'ft', fmX, fmY + 9 * scale);
+
+            // Status badge
+            ctx.fillStyle = sColor;
+            ctx.textAlign = 'right';
+            ctx.fillText(w.status, fmX + 135 * scale, fmY);
+            ctx.textAlign = 'left';
+
+            fmY += 22 * scale;
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // B-Scope Radar Display (azimuth vs range)
+    // Shows detected entities from state._radarContacts or state._detectedEntities
+    // Each contact: { bearing, range, team, id, name }
+    //   bearing: degrees relative to player heading (negative=left, positive=right)
+    //   range: distance in meters
+    // -----------------------------------------------------------------
+    var _radarSweepPhase = 0; // sweep line oscillation phase
+
+    function drawRadarScope(state, scale, simTime) {
+        var scopeW = 180 * scale;
+        var scopeH = 140 * scale;
+        var scopeX = width - scopeW - 10 * scale;  // top-right with 10px margin
+        var scopeY = 270 * scale;                   // below the minimap
+
+        // Radar FOV half-angle (degrees)
+        var azHalf = 60;
+        // Max display range (meters) — use radar maxRange or default 200km
+        var maxRange = 200000;
+        if (state._radarMaxRange) maxRange = state._radarMaxRange;
+
+        // Get contacts
+        var contacts = state._radarContacts || state._detectedEntities || [];
+
+        // --- Background ---
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 8, 0, 0.55)';
+        ctx.fillRect(scopeX, scopeY, scopeW, scopeH);
+
+        // --- Border ---
+        ctx.strokeStyle = HUD_GREEN;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.strokeRect(scopeX, scopeY, scopeW, scopeH);
+
+        // --- Clip to scope area ---
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(scopeX, scopeY, scopeW, scopeH);
+        ctx.clip();
+
+        // --- Range rings at 25%, 50%, 75% ---
+        ctx.strokeStyle = 'rgba(0, 170, 0, 0.25)';
+        ctx.lineWidth = 0.7 * scale;
+        ctx.setLineDash([3 * scale, 3 * scale]);
+        for (var ri = 1; ri <= 3; ri++) {
+            var ringY = scopeY + scopeH * (1 - ri * 0.25);
+            ctx.beginPath();
+            ctx.moveTo(scopeX, ringY);
+            ctx.lineTo(scopeX + scopeW, ringY);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // --- Center line (0 azimuth) ---
+        ctx.strokeStyle = 'rgba(0, 170, 0, 0.3)';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.beginPath();
+        ctx.moveTo(scopeX + scopeW / 2, scopeY);
+        ctx.lineTo(scopeX + scopeW / 2, scopeY + scopeH);
+        ctx.stroke();
+
+        // --- Scan sweep line (oscillates left-right) ---
+        var sweepTime = simTime || (Date.now() / 1000);
+        // 3-second full sweep cycle (left → right → left)
+        var sweepNorm = Math.sin(sweepTime * 1.047);  // ~3s period (2*PI/6 ≈ 1.047)
+        var sweepX = scopeX + scopeW / 2 + sweepNorm * (scopeW / 2 - 4 * scale);
+
+        // Sweep line glow
+        var sweepGrad = ctx.createLinearGradient(sweepX - 8 * scale, 0, sweepX + 8 * scale, 0);
+        sweepGrad.addColorStop(0, 'rgba(0, 255, 0, 0)');
+        sweepGrad.addColorStop(0.5, 'rgba(0, 255, 0, 0.35)');
+        sweepGrad.addColorStop(1, 'rgba(0, 255, 0, 0)');
+        ctx.fillStyle = sweepGrad;
+        ctx.fillRect(sweepX - 8 * scale, scopeY, 16 * scale, scopeH);
+
+        // Sweep line
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+        ctx.lineWidth = 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(sweepX, scopeY);
+        ctx.lineTo(sweepX, scopeY + scopeH);
+        ctx.stroke();
+
+        // --- Plot contacts ---
+        if (contacts && contacts.length > 0) {
+            for (var ci = 0; ci < contacts.length; ci++) {
+                var c = contacts[ci];
+                var bearing = c.bearing || 0;   // degrees from nose, signed (- = left, + = right)
+                var range = c.range || 0;       // meters
+
+                // Skip contacts outside FOV
+                if (Math.abs(bearing) > azHalf) continue;
+                // Skip contacts beyond max range
+                if (range > maxRange || range <= 0) continue;
+
+                // Map bearing to X position: -azHalf → left edge, +azHalf → right edge
+                var bx = scopeX + ((bearing + azHalf) / (2 * azHalf)) * scopeW;
+                // Map range to Y position: 0 → bottom, maxRange → top
+                var by = scopeY + scopeH * (1 - range / maxRange);
+
+                // --- Persistence brightness based on proximity to sweep line ---
+                // How far is this blip from the sweep line (in X)?
+                var sweepDist = Math.abs(bx - sweepX);
+                var maxFade = scopeW * 0.4;  // fade over 40% of scope width
+                var brightness = 1.0 - Math.min(sweepDist / maxFade, 1.0);
+                brightness = 0.25 + brightness * 0.75;  // min 25% brightness, max 100%
+
+                // Color by team
+                var blipR, blipG, blipB;
+                if (c.team === 'blue') {
+                    blipR = 68; blipG = 136; blipB = 255;   // friendly blue
+                } else if (c.team === 'red') {
+                    blipR = 255; blipG = 60; blipB = 60;    // hostile red
+                } else {
+                    blipR = 255; blipG = 255; blipB = 0;    // unknown yellow
+                }
+
+                ctx.fillStyle = 'rgba(' + blipR + ',' + blipG + ',' + blipB + ',' + brightness.toFixed(2) + ')';
+                ctx.beginPath();
+                ctx.arc(bx, by, 3 * scale, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Brighter blips near sweep get a glow
+                if (brightness > 0.7) {
+                    ctx.fillStyle = 'rgba(' + blipR + ',' + blipG + ',' + blipB + ',' + (brightness * 0.3).toFixed(2) + ')';
+                    ctx.beginPath();
+                    ctx.arc(bx, by, 6 * scale, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        ctx.restore(); // undo clip
+
+        // --- Azimuth labels along bottom edge ---
+        ctx.font = (8 * scale) + 'px \'Courier New\', monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('-60', scopeX + 2 * scale, scopeY + scopeH + 2 * scale);
+        ctx.fillText('-30', scopeX + scopeW * 0.25, scopeY + scopeH + 2 * scale);
+        ctx.fillText('0', scopeX + scopeW * 0.5, scopeY + scopeH + 2 * scale);
+        ctx.fillText('30', scopeX + scopeW * 0.75, scopeY + scopeH + 2 * scale);
+        ctx.fillText('60', scopeX + scopeW - 2 * scale, scopeY + scopeH + 2 * scale);
+
+        // --- Range labels along left edge ---
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = HUD_DIM;
+        var rangeKm = maxRange / 1000;
+        ctx.fillText((rangeKm * 0.25).toFixed(0), scopeX - 3 * scale, scopeY + scopeH * 0.75);
+        ctx.fillText((rangeKm * 0.50).toFixed(0), scopeX - 3 * scale, scopeY + scopeH * 0.50);
+        ctx.fillText((rangeKm * 0.75).toFixed(0), scopeX - 3 * scale, scopeY + scopeH * 0.25);
+        ctx.fillText(rangeKm.toFixed(0) + 'km', scopeX - 3 * scale, scopeY + 2 * scale);
+
+        // --- Title ---
+        ctx.font = 'bold ' + (10 * scale) + 'px \'Courier New\', monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = HUD_GREEN;
+        ctx.fillText('RADAR', scopeX + scopeW / 2, scopeY - 3 * scale);
+
+        // --- Contact count ---
+        var nContacts = contacts ? contacts.length : 0;
+        if (nContacts > 0) {
+            ctx.font = (8 * scale) + 'px \'Courier New\', monospace';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('TGT: ' + nContacts, scopeX + scopeW, scopeY - 3 * scale);
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // Target Designation (TD) Bracket
+    // Draws a targeting bracket around the selected target with info readout
+    // Data: state._selectedTarget — { screenX, screenY, range, name, aspect,
+    //        closureRate, team }
+    // -----------------------------------------------------------------
+    function drawTargetBracket(state, scale, simTime) {
+        var tgt = state._selectedTarget;
+        if (!tgt) return;
+
+        var tx = tgt.screenX;
+        var ty = tgt.screenY;
+
+        // If no screen coordinates, skip drawing the bracket
+        if (tx == null || ty == null) return;
+
+        // Clamp to screen bounds with margin
+        var margin = 30 * scale;
+        tx = Math.max(margin, Math.min(width - margin, tx));
+        ty = Math.max(margin, Math.min(height - margin, ty));
+
+        // --- Bracket size with pulse ---
+        var pulseTime = simTime || (Date.now() / 1000);
+        var pulse = 1.0 + 0.08 * Math.sin(pulseTime * 4.0); // subtle scale oscillation
+        var bracketSize = 20 * scale * pulse;  // half-size of bracket (40px total at scale=1)
+        var cornerLen = 10 * scale * pulse;    // length of each corner line
+
+        // --- Bracket color: green=friendly, red=hostile ---
+        var isHostile = tgt.team === 'red';
+        var bracketColor = isHostile ? HUD_ALERT : HUD_GREEN;
+        var bracketGlow = isHostile ? 'rgba(255, 50, 50, 0.25)' : 'rgba(0, 255, 0, 0.25)';
+
+        ctx.save();
+
+        // --- Subtle glow behind bracket ---
+        ctx.fillStyle = bracketGlow;
+        ctx.beginPath();
+        ctx.arc(tx, ty, bracketSize * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- Draw 4 corner brackets ---
+        ctx.strokeStyle = bracketColor;
+        ctx.lineWidth = 2 * scale;
+        ctx.lineCap = 'square';
+
+        // Top-left corner
+        ctx.beginPath();
+        ctx.moveTo(tx - bracketSize, ty - bracketSize + cornerLen);
+        ctx.lineTo(tx - bracketSize, ty - bracketSize);
+        ctx.lineTo(tx - bracketSize + cornerLen, ty - bracketSize);
+        ctx.stroke();
+
+        // Top-right corner
+        ctx.beginPath();
+        ctx.moveTo(tx + bracketSize - cornerLen, ty - bracketSize);
+        ctx.lineTo(tx + bracketSize, ty - bracketSize);
+        ctx.lineTo(tx + bracketSize, ty - bracketSize + cornerLen);
+        ctx.stroke();
+
+        // Bottom-left corner
+        ctx.beginPath();
+        ctx.moveTo(tx - bracketSize, ty + bracketSize - cornerLen);
+        ctx.lineTo(tx - bracketSize, ty + bracketSize);
+        ctx.lineTo(tx - bracketSize + cornerLen, ty + bracketSize);
+        ctx.stroke();
+
+        // Bottom-right corner
+        ctx.beginPath();
+        ctx.moveTo(tx + bracketSize - cornerLen, ty + bracketSize);
+        ctx.lineTo(tx + bracketSize, ty + bracketSize);
+        ctx.lineTo(tx + bracketSize, ty + bracketSize - cornerLen);
+        ctx.stroke();
+
+        // --- Small center diamond (aim point) ---
+        ctx.strokeStyle = bracketColor;
+        ctx.lineWidth = 1 * scale;
+        var dSize = 3 * scale;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty - dSize);
+        ctx.lineTo(tx + dSize, ty);
+        ctx.lineTo(tx, ty + dSize);
+        ctx.lineTo(tx - dSize, ty);
+        ctx.closePath();
+        ctx.stroke();
+
+        // --- Target info text block (below bracket) ---
+        var infoX = tx;
+        var infoY = ty + bracketSize + 8 * scale;
+
+        ctx.font = 'bold ' + (10 * scale) + 'px \'Courier New\', monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = bracketColor;
+
+        // Line 1: Target name
+        var tgtName = tgt.name || 'UNKNOWN';
+        if (tgtName.length > 12) tgtName = tgtName.substring(0, 12);
+        ctx.fillText(tgtName, infoX, infoY);
+
+        // Line 2: Range in nautical miles
+        ctx.font = (9 * scale) + 'px \'Courier New\', monospace';
+        var rangeNm = 0;
+        if (tgt.range) {
+            rangeNm = tgt.range / 1852;  // meters to nautical miles
+        }
+        var rangeTxt = 'R: ' + rangeNm.toFixed(1) + ' nm';
+        ctx.fillText(rangeTxt, infoX, infoY + 12 * scale);
+
+        // Line 3: Aspect angle + closure rate
+        var line3 = '';
+        if (tgt.aspect != null) {
+            var aspDeg = tgt.aspect;
+            // Classify aspect: HOT (0-30), FLANK (30-70), BEAM (70-110), DRAG (110-180)
+            var aspLabel;
+            var absAsp = Math.abs(aspDeg);
+            if (absAsp <= 30) aspLabel = 'HOT';
+            else if (absAsp <= 70) aspLabel = 'FLANK';
+            else if (absAsp <= 110) aspLabel = 'BEAM';
+            else aspLabel = 'DRAG';
+            line3 = aspLabel + ' ' + Math.round(absAsp) + '\u00b0';
+        }
+        if (tgt.closureRate != null) {
+            var closureKts = tgt.closureRate * MPS_TO_KNOTS;
+            var closSign = closureKts >= 0 ? '+' : '';
+            line3 += (line3 ? '  ' : '') + 'Vc' + closSign + Math.round(closureKts);
+        }
+        if (line3) {
+            ctx.fillText(line3, infoX, infoY + 23 * scale);
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
     // Lat/Lon/Alt coordinates readout
     // -----------------------------------------------------------------
     function drawCoordinates(state, scale) {
@@ -2121,13 +2989,27 @@ const FighterHUD = (function() {
                      altKm >= 1 ? altKm.toFixed(1) + ' km' :
                      (state.alt).toFixed(0) + ' m';
 
+        // Local time from sim epoch + elapsed + longitude offset
+        var timeStr = '';
+        if (state._simEpochJD && state._simElapsed != null) {
+            var jd = state._simEpochJD + state._simElapsed / 86400;
+            // JD to Unix ms: (jd - 2440587.5) * 86400000
+            var utcMs = (jd - 2440587.5) * 86400000;
+            // Local offset: 1 hour per 15 degrees longitude
+            var localMs = utcMs + lonDeg * 240000; // 240000 ms per degree = 4 min/deg
+            var d = new Date(localMs);
+            var hh = d.getUTCHours().toString().padStart(2, '0');
+            var mm = d.getUTCMinutes().toString().padStart(2, '0');
+            timeStr = '  LT ' + hh + ':' + mm;
+        }
+
         var x = 20 * scale;
         var y = height - 30 * scale;
 
         ctx.font = `${11 * scale}px 'Courier New', monospace`;
         ctx.textAlign = 'left';
         ctx.fillStyle = HUD_DIM;
-        ctx.fillText(latStr + '  ' + lonStr + '  ' + altStr, x, y);
+        ctx.fillText(latStr + '  ' + lonStr + '  ' + altStr + timeStr, x, y);
     }
 
     // -----------------------------------------------------------------
@@ -2244,9 +3126,667 @@ const FighterHUD = (function() {
         ctx.fillText(tgtSpd, gsX, gsY + 110 * scale);
     }
 
+    // -----------------------------------------------------------------------
+    // Weather Info Display — lower-left, shows wind/vis/turb/precip from WeatherSystem
+    // -----------------------------------------------------------------------
+    function drawWeatherInfo(state, scale, simTime) {
+        if (typeof WeatherSystem === 'undefined') return;
+        var alt = state.alt || 0;
+
+        var wind = WeatherSystem.getWind(alt);
+        var vis = WeatherSystem.getVisibility(alt);
+        var turb = WeatherSystem.getTurbulence(alt, state.speed || 0);
+        var cloud = WeatherSystem.getCloudLayer(alt);
+
+        // Skip if calm + clear + no turbulence
+        if (wind.speed_ms < 0.5 && vis > 49 && turb.intensity < 0.1 && !cloud.inCloud) return;
+
+        var w = canvas.width;
+        var h = canvas.height;
+        var x0 = 15 * scale;
+        var y0 = h - 180 * scale;
+        var lineH = 14 * scale;
+
+        ctx.save();
+        ctx.font = (11 * scale) + 'px monospace';
+
+        // Background box
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.strokeStyle = 'rgba(0,255,0,0.3)';
+        ctx.lineWidth = 1;
+        var boxW = 150 * scale;
+        var boxH = 100 * scale;
+        ctx.fillRect(x0, y0, boxW, boxH);
+        ctx.strokeRect(x0, y0, boxW, boxH);
+
+        // Title
+        ctx.fillStyle = '#0a0';
+        ctx.textAlign = 'left';
+        ctx.fillText('WX', x0 + 5 * scale, y0 + lineH);
+
+        // Wind arrow + speed
+        var windSpd = wind.speed_ms + wind.gust_ms;
+        var windKts = (windSpd * 1.94384).toFixed(0);
+        var windDirDeg = ((wind.heading_rad * 180 / Math.PI) + 360) % 360;
+
+        ctx.fillStyle = windSpd > 15 ? '#ff8800' : (windSpd > 5 ? '#ffff00' : '#00ff00');
+        ctx.fillText('WIND ' + windDirDeg.toFixed(0).padStart(3, '0') + '\u00B0/' + windKts + 'KT', x0 + 25 * scale, y0 + lineH);
+
+        // Draw small wind arrow
+        var arrowX = x0 + 138 * scale;
+        var arrowY = y0 + lineH - 4 * scale;
+        var arrowLen = 8 * scale;
+        var windAngle = wind.heading_rad + Math.PI; // direction wind blows TO
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX + arrowLen * Math.sin(windAngle), arrowY - arrowLen * Math.cos(windAngle));
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = 2 * scale;
+        ctx.stroke();
+
+        // Crosswind component relative to heading
+        var xwindAngle = wind.heading_rad - (state.heading || 0);
+        var xwind = windSpd * Math.sin(xwindAngle);
+        var xwindKts = Math.abs(xwind * 1.94384).toFixed(0);
+        ctx.fillStyle = Math.abs(xwind) > 10 ? '#ff4444' : '#00ff00';
+        ctx.fillText('XWIND ' + xwindKts + 'KT ' + (xwind > 0.5 ? 'R' : (xwind < -0.5 ? 'L' : '')), x0 + 5 * scale, y0 + lineH * 2);
+
+        // Visibility
+        ctx.fillStyle = vis < 3 ? '#ff4444' : (vis < 10 ? '#ffff00' : '#00ff00');
+        ctx.fillText('VIS ' + (vis < 1 ? vis.toFixed(1) : vis.toFixed(0)) + ' KM', x0 + 5 * scale, y0 + lineH * 3);
+
+        // Precipitation
+        var precip = cloud.inCloud ? 'IN CLOUD' : '';
+        if (!precip) {
+            // Check general weather precip
+            var cond = wind; // WeatherSystem doesn't expose _conditions directly
+            // Use visibility as proxy: <5km = probably precip, <2km = heavy
+            if (vis < 2) precip = 'PRECIP HVY';
+            else if (vis < 5) precip = 'PRECIP LT';
+        }
+        if (precip) {
+            ctx.fillStyle = '#ff8800';
+            ctx.fillText(precip, x0 + 80 * scale, y0 + lineH * 3);
+        }
+
+        // Turbulence
+        var turbLabels = ['SMOOTH', 'LIGHT', 'MODERATE', 'SEVERE'];
+        var turbIdx = Math.min(3, Math.floor(turb.intensity));
+        var turbLabel = turbLabels[turbIdx];
+        ctx.fillStyle = turbIdx >= 3 ? '#ff0000' : (turbIdx >= 2 ? '#ff8800' : (turbIdx >= 1 ? '#ffff00' : '#00ff00'));
+        ctx.fillText('TURB ' + turbLabel, x0 + 5 * scale, y0 + lineH * 4);
+
+        // G-load variation from turbulence
+        if (turb.gLoad_variation > 0.05) {
+            ctx.fillStyle = turb.gLoad_variation > 0.5 ? '#ff4444' : '#ffff00';
+            ctx.fillText('\u00B1' + turb.gLoad_variation.toFixed(1) + 'G', x0 + 100 * scale, y0 + lineH * 4);
+        }
+
+        // Cloud info
+        if (cloud.inCloud) {
+            ctx.fillStyle = '#ff8800';
+            ctx.fillText('\u2601 IN CLOUD', x0 + 5 * scale, y0 + lineH * 5);
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------------
+    // Waypoint Steering Cue — shows bearing/distance/ETA to next mission waypoint
+    // -----------------------------------------------------------------------
+    function drawWaypointCue(state, scale) {
+        if (!state._waypointInfo || state._waypointInfo.length === 0) return;
+
+        var w = canvas.width;
+        var h = canvas.height;
+        var x0 = w - 165 * scale;
+        var y0 = h - 120 * scale;
+        var lineH = 13 * scale;
+
+        ctx.save();
+        ctx.font = (10 * scale) + 'px monospace';
+        ctx.textAlign = 'left';
+
+        // Background
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.strokeStyle = 'rgba(0,255,170,0.3)';
+        ctx.lineWidth = 1;
+        var boxH = Math.min(state._waypointInfo.length, 4) * lineH + 18 * scale;
+        ctx.fillRect(x0, y0, 155 * scale, boxH);
+        ctx.strokeRect(x0, y0, 155 * scale, boxH);
+
+        ctx.fillStyle = '#00ffaa';
+        ctx.fillText('WAYPOINTS', x0 + 5 * scale, y0 + 12 * scale);
+
+        var maxShow = Math.min(state._waypointInfo.length, 4);
+        for (var i = 0; i < maxShow; i++) {
+            var wp = state._waypointInfo[i];
+            var brgDeg = ((wp.bearing_rad * 180 / Math.PI) + 360) % 360;
+            var distNm = (wp.dist_m / 1852).toFixed(1);
+            var etaStr = wp.eta_s < 9999 ? (wp.eta_s / 60).toFixed(0) + 'm' : '--';
+
+            ctx.fillStyle = i === 0 ? '#00ffaa' : '#008855';
+            ctx.fillText(
+                wp.name + ' ' + brgDeg.toFixed(0).padStart(3, '0') + '\u00B0 ' + distNm + 'nm ' + etaStr,
+                x0 + 5 * scale,
+                y0 + (18 + i * lineH) * scale / scale * scale
+            );
+        }
+
+        // Steer cue: small arrow on heading tape direction
+        var nextWp = state._waypointInfo[0];
+        if (nextWp) {
+            var heading = state.heading || 0;
+            var brgRad = nextWp.bearing_rad;
+            var diff = brgRad - heading;
+            while (diff > Math.PI) diff -= 2 * Math.PI;
+            while (diff < -Math.PI) diff += 2 * Math.PI;
+
+            // Draw steer-to caret at bottom center (below heading tape)
+            var cx = w / 2 + diff * 200 * scale;
+            cx = Math.max(w / 2 - 120 * scale, Math.min(w / 2 + 120 * scale, cx));
+            var cy = 55 * scale;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx - 6 * scale, cy - 10 * scale);
+            ctx.lineTo(cx + 6 * scale, cy - 10 * scale);
+            ctx.closePath();
+            ctx.fillStyle = '#00ffaa';
+            ctx.fill();
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------------
+    // ILS Approach Guidance — glideslope, localizer, distance, decision height
+    // -----------------------------------------------------------------------
+    function drawILSGuidance(state, scale) {
+        if (!state._ilsData) return;
+        var ils = state._ilsData;
+
+        var w = canvas.width;
+        var h = canvas.height;
+
+        // Only show when below 5000ft and within 30nm of runway
+        if ((state.alt || 0) > 1525 || !ils.distNm || ils.distNm > 30) return;
+
+        ctx.save();
+
+        // --- Glideslope (right side vertical scale) ---
+        var gsX = w * 0.82;
+        var gsY = h * 0.5;
+        var gsH = 120 * scale;
+
+        // Scale: 2 dots = full deflection
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 1 * scale;
+
+        // Reference dots
+        for (var d = -2; d <= 2; d++) {
+            if (d === 0) continue;
+            var dotY = gsY + d * (gsH / 4);
+            ctx.beginPath();
+            ctx.arc(gsX, dotY, 2 * scale, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        // Center line
+        ctx.beginPath();
+        ctx.moveTo(gsX - 8 * scale, gsY);
+        ctx.lineTo(gsX + 8 * scale, gsY);
+        ctx.stroke();
+
+        // GS deviation diamond (clamped to +/-2 dots)
+        var gsDevDeg = ils.gsDeviation || 0;  // degrees above/below glidepath
+        var gsDots = Math.max(-2, Math.min(2, gsDevDeg / 0.35));  // 0.35 deg per dot
+        var diamondY = gsY + gsDots * (gsH / 4);
+
+        ctx.fillStyle = Math.abs(gsDots) > 1 ? '#ffff00' : '#00ff88';
+        ctx.beginPath();
+        ctx.moveTo(gsX, diamondY - 5 * scale);
+        ctx.lineTo(gsX + 4 * scale, diamondY);
+        ctx.lineTo(gsX, diamondY + 5 * scale);
+        ctx.lineTo(gsX - 4 * scale, diamondY);
+        ctx.closePath();
+        ctx.fill();
+
+        // "GS" label
+        ctx.font = (9 * scale) + 'px monospace';
+        ctx.fillStyle = '#00aa66';
+        ctx.textAlign = 'center';
+        ctx.fillText('GS', gsX, gsY - gsH/2 - 8 * scale);
+
+        // --- Localizer (bottom horizontal scale) ---
+        var locX = w * 0.5;
+        var locY = h * 0.72;
+        var locW = 120 * scale;
+
+        // Reference dots
+        for (var ld = -2; ld <= 2; ld++) {
+            if (ld === 0) continue;
+            var dotX = locX + ld * (locW / 4);
+            ctx.strokeStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.arc(dotX, locY, 2 * scale, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        // Center line
+        ctx.beginPath();
+        ctx.moveTo(locX, locY - 8 * scale);
+        ctx.lineTo(locX, locY + 8 * scale);
+        ctx.stroke();
+
+        // LOC deviation diamond
+        var locDevDeg = ils.locDeviation || 0;  // degrees left/right of centerline
+        var locDots = Math.max(-2, Math.min(2, locDevDeg / 1.0));  // 1 deg per dot
+        var diamondX = locX + locDots * (locW / 4);
+
+        ctx.fillStyle = Math.abs(locDots) > 1 ? '#ffff00' : '#00ff88';
+        ctx.beginPath();
+        ctx.moveTo(diamondX, locY - 5 * scale);
+        ctx.lineTo(diamondX + 4 * scale, locY);
+        ctx.lineTo(diamondX, locY + 5 * scale);
+        ctx.lineTo(diamondX - 4 * scale, locY);
+        ctx.closePath();
+        ctx.fill();
+
+        // "LOC" label
+        ctx.fillStyle = '#00aa66';
+        ctx.fillText('LOC', locX - locW/2 - 15 * scale, locY);
+
+        // --- Distance and altitude readout ---
+        var infoX = w * 0.82;
+        var infoY = gsY + gsH/2 + 15 * scale;
+        ctx.font = (10 * scale) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText(ils.distNm.toFixed(1) + ' NM', infoX, infoY);
+
+        // Runway identifier
+        if (ils.rwyId) {
+            ctx.fillText('RWY ' + ils.rwyId, infoX, infoY + 12 * scale);
+        }
+
+        // --- Decision Height warning ---
+        var agl = (state.alt || 0) - (ils.rwyAlt || 0);
+        if (agl < 70 && agl > 0) {  // ~200ft AGL
+            ctx.font = 'bold ' + (16 * scale) + 'px monospace';
+            ctx.fillStyle = '#ffff00';
+            ctx.textAlign = 'center';
+            var flashOn = Math.floor(Date.now() / 500) % 2 === 0;
+            if (flashOn) {
+                ctx.fillText('DECISION HEIGHT', w/2, h * 0.62);
+            }
+        }
+        // Minimums callout
+        if (agl < 30 && agl > 0) {
+            ctx.font = 'bold ' + (18 * scale) + 'px monospace';
+            ctx.fillStyle = '#ff4444';
+            ctx.textAlign = 'center';
+            ctx.fillText('MINIMUMS', w/2, h * 0.58);
+        }
+
+        ctx.restore();
+    }
+
+    // -----------------------------------------------------------------
+    // TCAS — Traffic Collision Avoidance System
+    // Shows traffic diamonds on altitude tape + center screen warnings
+    // -----------------------------------------------------------------
+    function drawTCAS(state, scale) {
+        if (!state._nearby || state._nearby.length === 0) return;
+        if (state.alt < 30) return; // don't show on ground
+
+        var altFt = state.alt * M_TO_FT;
+        var tapeX = width - 80 * scale;
+        var pxPerFt = 0.15 * scale;
+        var tapeH = 250 * scale;
+
+        var pLat = state.lat;
+        var pLon = state.lon;
+        var pAlt = state.alt;
+
+        var tcasAlerts = [];
+
+        for (var i = 0; i < state._nearby.length; i++) {
+            var ent = state._nearby[i];
+            if (!ent || ent.alt == null || ent.lat == null) continue;
+            if (ent.type === 'ground_station' || ent.type === 'ground' || ent.type === 'static') continue;
+
+            // Compute range
+            var dLat = pLat - ent.lat;
+            var dLon = pLon - ent.lon;
+            var rangeM = Math.sqrt(dLat * dLat + dLon * dLon) * 6371000;
+            var dAltM = Math.abs(pAlt - ent.alt);
+
+            // TCAS thresholds
+            var threat = 'none';
+            if (rangeM < 2000 && dAltM < 300) threat = 'ra';       // Resolution Advisory
+            else if (rangeM < 5000 && dAltM < 500) threat = 'ta';  // Traffic Advisory
+            else if (rangeM < 10000 && dAltM < 1000) threat = 'prox'; // Proximity
+
+            if (threat === 'none') continue;
+
+            // Draw diamond on altitude tape
+            var entAltFt = ent.alt * M_TO_FT;
+            var dy = cy - (entAltFt - altFt) * pxPerFt;
+
+            if (Math.abs(dy - cy) < tapeH / 2) {
+                var dSize = 5 * scale;
+                var dX = tapeX - 12 * scale;
+
+                var dColor = threat === 'ra' ? HUD_ALERT : threat === 'ta' ? HUD_WARN : '#00aa00';
+
+                ctx.fillStyle = dColor;
+                ctx.beginPath();
+                ctx.moveTo(dX, dy - dSize);
+                ctx.lineTo(dX + dSize, dy);
+                ctx.lineTo(dX, dy + dSize);
+                ctx.lineTo(dX - dSize, dy);
+                ctx.closePath();
+                ctx.fill();
+
+                // +/- indicator for above/below
+                ctx.font = (8 * scale) + 'px monospace';
+                ctx.textAlign = 'right';
+                ctx.fillStyle = dColor;
+                var relAlt = Math.round((entAltFt - altFt) / 100);
+                var relStr = (relAlt >= 0 ? '+' : '') + relAlt;
+                ctx.fillText(relStr, dX - dSize - 2 * scale, dy + 3 * scale);
+            }
+
+            if (threat === 'ra' || threat === 'ta') {
+                tcasAlerts.push({ threat: threat, range: rangeM, dAlt: ent.alt - pAlt, name: ent.name || '' });
+            }
+        }
+
+        // Center screen TCAS warning
+        if (tcasAlerts.length > 0) {
+            var worst = tcasAlerts[0];
+            for (var j = 1; j < tcasAlerts.length; j++) {
+                if (tcasAlerts[j].threat === 'ra' && worst.threat !== 'ra') worst = tcasAlerts[j];
+                else if (tcasAlerts[j].range < worst.range) worst = tcasAlerts[j];
+            }
+
+            var flashOn = Math.floor(Date.now() / 400) % 2 === 0;
+            if (worst.threat === 'ra') {
+                if (flashOn) {
+                    ctx.font = 'bold ' + (18 * scale) + 'px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = HUD_ALERT;
+                    ctx.fillText('TRAFFIC', cx, cy + 95 * scale);
+                    // Resolution advisory
+                    var raText = worst.dAlt > 0 ? 'DESCEND' : 'CLIMB';
+                    ctx.font = 'bold ' + (14 * scale) + 'px monospace';
+                    ctx.fillText(raText, cx, cy + 112 * scale);
+                }
+            } else if (worst.threat === 'ta') {
+                ctx.font = (14 * scale) + 'px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = HUD_WARN;
+                ctx.fillText('TRAFFIC  ' + (worst.range / 1852).toFixed(1) + 'NM', cx, cy + 95 * scale);
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // GPWS — Ground Proximity Warning System
+    // Enhanced terrain proximity warnings beyond basic PULL UP
+    // -----------------------------------------------------------------
+    var _prevAlt = -1;
+    var _descentRate = 0;
+    function drawGPWS(state, scale) {
+        if (!state || state.phase !== 'FLIGHT') return;
+        if (state.alt > 800) { _prevAlt = state.alt; _descentRate = 0; return; }
+
+        // Compute descent rate (m/s, smoothed)
+        if (_prevAlt > 0) {
+            var rawRate = (_prevAlt - state.alt) * 60; // approx m/s (assumes 60fps)
+            _descentRate = _descentRate * 0.9 + rawRate * 0.1;
+        }
+        _prevAlt = state.alt;
+
+        var altAGL = state.alt - (state.groundAlt || 0);
+        var warnings = [];
+
+        // Mode 1: Excessive descent rate
+        if (_descentRate > 15 && altAGL < 600) {
+            warnings.push({ text: 'SINK RATE', color: HUD_WARN, priority: 2 });
+        }
+        if (_descentRate > 30 && altAGL < 400) {
+            warnings.push({ text: 'PULL UP', color: HUD_ALERT, priority: 1 });
+        }
+
+        // Mode 2: Terrain closure rate (descending + low)
+        if (state.gamma < -8 * DEG && altAGL < 300) {
+            warnings.push({ text: 'TERRAIN', color: HUD_ALERT, priority: 1 });
+        }
+
+        // Mode 3: Altitude loss after takeoff (descending below 200m after being higher)
+        if (state.alt < 200 && state.gamma < -3 * DEG && state.speed > 50 && !state.gearDown) {
+            warnings.push({ text: "DON'T SINK", color: HUD_WARN, priority: 2 });
+        }
+
+        // Mode 4: Insufficient terrain clearance (too low, not configured for landing)
+        if (altAGL < 150 && !state.gearDown && state.speed > 80) {
+            warnings.push({ text: 'TOO LOW GEAR', color: HUD_WARN, priority: 2 });
+        }
+        if (altAGL < 100 && state.speed > 60) {
+            warnings.push({ text: 'TOO LOW TERRAIN', color: HUD_ALERT, priority: 1 });
+        }
+
+        if (warnings.length === 0) return;
+
+        // Show highest priority warning
+        warnings.sort(function(a, b) { return a.priority - b.priority; });
+        var w = warnings[0];
+        var flashOn = Math.floor(Date.now() / 350) % 2 === 0;
+
+        if (flashOn) {
+            ctx.font = 'bold ' + (20 * scale) + 'px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = w.color;
+            ctx.fillText(w.text, cx, cy + 145 * scale);
+        }
+
+        // GPWS altitude bar at bottom of screen
+        if (altAGL < 500) {
+            var barW = width * 0.4;
+            var barH = 4 * scale;
+            var barY = height - 15 * scale;
+            var barX = cx - barW / 2;
+            var pct = Math.max(0, Math.min(1, altAGL / 500));
+            ctx.fillStyle = pct < 0.2 ? HUD_ALERT : pct < 0.5 ? HUD_WARN : HUD_DIM;
+            ctx.fillRect(barX, barY, barW * pct, barH);
+            ctx.strokeStyle = HUD_DIM;
+            ctx.lineWidth = 1 * scale;
+            ctx.strokeRect(barX, barY, barW, barH);
+
+            ctx.font = (9 * scale) + 'px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillStyle = HUD_DIM;
+            ctx.fillText('AGL ' + Math.round(altAGL * M_TO_FT) + 'ft', barX + barW + 5 * scale, barY + barH);
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Terrain Following / Terrain Avoidance Profile
+    // Shows terrain elevation ahead, clearance line, and AGL readout
+    // -----------------------------------------------------------------
+    function drawTerrainProfile(state, scale) {
+        if (!state || !state._tfEnabled) return;
+
+        var terrainAhead = state._terrainAhead;
+        var currentAGL = state._tfAgl || 0;
+        var aglTarget = state._tfAglTarget || 150;
+        var terrainElev = state._tfTerrainElev || 0;
+        var alt = state.alt || 0;
+
+        // Profile strip dimensions — bottom-center of HUD
+        var stripW = 280 * scale;
+        var stripH = 60 * scale;
+        var stripX = cx - stripW / 2;
+        var stripY = height - 85 * scale;
+
+        // Background
+        ctx.fillStyle = 'rgba(0, 10, 0, 0.6)';
+        ctx.fillRect(stripX, stripY, stripW, stripH);
+        ctx.strokeStyle = HUD_DIM;
+        ctx.lineWidth = 1 * scale;
+        ctx.strokeRect(stripX, stripY, stripW, stripH);
+
+        // Title
+        ctx.font = (9 * scale) + 'px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = HUD_CYAN;
+        ctx.fillText('TF/TA', stripX + 3 * scale, stripY - 3 * scale);
+
+        // Build terrain points: [0m (current), 2000m, 5000m, 10000m]
+        var terrainPts = [{ dist: 0, elev: terrainElev }];
+        if (terrainAhead && terrainAhead.length > 0) {
+            for (var i = 0; i < terrainAhead.length; i++) {
+                terrainPts.push({ dist: terrainAhead[i].dist, elev: terrainAhead[i].terrainElev });
+            }
+        }
+
+        // Find min/max elevation for scaling
+        var minElev = terrainElev;
+        var maxElev = terrainElev;
+        for (var k = 0; k < terrainPts.length; k++) {
+            if (terrainPts[k].elev < minElev) minElev = terrainPts[k].elev;
+            if (terrainPts[k].elev > maxElev) maxElev = terrainPts[k].elev;
+        }
+        // Include aircraft and clearance line in scale
+        var clearanceElev = maxElev + aglTarget;
+        var displayMax = Math.max(alt, clearanceElev) + 50;
+        var displayMin = minElev - 50;
+        if (displayMax - displayMin < 200) {
+            var mid = (displayMax + displayMin) / 2;
+            displayMax = mid + 100;
+            displayMin = mid - 100;
+        }
+        var elevRange = displayMax - displayMin;
+
+        // Helper: elevation -> Y pixel
+        var margin = 4 * scale;
+        var innerH = stripH - margin * 2;
+        function elevToY(e) {
+            var pct = (e - displayMin) / elevRange;
+            return stripY + stripH - margin - pct * innerH;
+        }
+
+        // Helper: distance -> X pixel
+        var maxDist = 10000;
+        var innerW = stripW - margin * 2;
+        function distToX(d) {
+            return stripX + margin + (d / maxDist) * innerW;
+        }
+
+        // Draw terrain fill (brown/green)
+        ctx.beginPath();
+        ctx.moveTo(distToX(0), elevToY(displayMin));
+        for (var t = 0; t < terrainPts.length; t++) {
+            ctx.lineTo(distToX(terrainPts[t].dist), elevToY(terrainPts[t].elev));
+        }
+        ctx.lineTo(distToX(terrainPts[terrainPts.length - 1].dist), elevToY(displayMin));
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(80, 60, 20, 0.5)';
+        ctx.fill();
+
+        // Draw terrain line
+        ctx.beginPath();
+        for (var t2 = 0; t2 < terrainPts.length; t2++) {
+            var tx = distToX(terrainPts[t2].dist);
+            var ty = elevToY(terrainPts[t2].elev);
+            if (t2 === 0) ctx.moveTo(tx, ty);
+            else ctx.lineTo(tx, ty);
+        }
+        ctx.strokeStyle = '#886622';
+        ctx.lineWidth = 2 * scale;
+        ctx.stroke();
+
+        // Draw clearance line (terrain + AGL target) — dashed green
+        ctx.beginPath();
+        ctx.setLineDash([4 * scale, 3 * scale]);
+        for (var c = 0; c < terrainPts.length; c++) {
+            var cx2 = distToX(terrainPts[c].dist);
+            var cy2 = elevToY(terrainPts[c].elev + aglTarget);
+            if (c === 0) ctx.moveTo(cx2, cy2);
+            else ctx.lineTo(cx2, cy2);
+        }
+        ctx.strokeStyle = HUD_GREEN;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw aircraft position (small triangle at dist=0, current altitude)
+        var acX = distToX(0);
+        var acY = elevToY(alt);
+        ctx.beginPath();
+        ctx.moveTo(acX, acY - 4 * scale);
+        ctx.lineTo(acX + 5 * scale, acY + 3 * scale);
+        ctx.lineTo(acX - 5 * scale, acY + 3 * scale);
+        ctx.closePath();
+        ctx.fillStyle = HUD_GREEN;
+        ctx.fill();
+
+        // Draw desired altitude line (thin cyan line)
+        if (state._tfDesiredAlt) {
+            var desY = elevToY(state._tfDesiredAlt);
+            ctx.beginPath();
+            ctx.moveTo(stripX + margin, desY);
+            ctx.lineTo(stripX + stripW - margin, desY);
+            ctx.strokeStyle = HUD_CYAN;
+            ctx.lineWidth = 1 * scale;
+            ctx.setLineDash([2 * scale, 2 * scale]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // AGL readout — large text centered below strip
+        var aglColor = currentAGL < aglTarget * 0.5 ? HUD_ALERT :
+                       currentAGL < aglTarget * 0.8 ? HUD_WARN : HUD_GREEN;
+        ctx.font = 'bold ' + (16 * scale) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = aglColor;
+        ctx.fillText('AGL ' + Math.round(currentAGL) + 'm', cx, stripY + stripH + 14 * scale);
+
+        // Target AGL readout
+        ctx.font = (9 * scale) + 'px monospace';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('TGT ' + aglTarget + 'm', cx, stripY + stripH + 24 * scale);
+
+        // Distance scale labels
+        ctx.font = (8 * scale) + 'px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = HUD_DIM;
+        ctx.fillText('0', distToX(0), stripY + stripH + 8 * scale);
+        ctx.fillText('2k', distToX(2000), stripY + stripH + 8 * scale);
+        ctx.fillText('5k', distToX(5000), stripY + stripH + 8 * scale);
+        ctx.fillText('10k', distToX(10000), stripY + stripH + 8 * scale);
+
+        // Terrain ahead warning — flash if terrain ahead is higher than current altitude
+        if (terrainAhead && terrainAhead.length > 0) {
+            var highestAhead = 0;
+            for (var h = 0; h < terrainAhead.length; h++) {
+                if (terrainAhead[h].terrainElev > highestAhead) highestAhead = terrainAhead[h].terrainElev;
+            }
+            if (highestAhead + aglTarget * 0.5 > alt) {
+                var flashOn = Math.floor(Date.now() / 300) % 2 === 0;
+                if (flashOn) {
+                    ctx.font = 'bold ' + (12 * scale) + 'px monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillStyle = HUD_WARN;
+                    ctx.fillText('TERRAIN AHEAD', stripX + stripW - 3 * scale, stripY - 3 * scale);
+                }
+            }
+        }
+    }
+
     /**
      * Set a HUD element toggle.
-     * @param {string} key - toggle name (hud, speedTape, altTape, heading, pitchLadder, fpm, gMeter, engineFuel, weapons, warnings, orbital)
+     * @param {string} key - toggle name (hud, speedTape, altTape, heading, pitchLadder, fpm, gMeter, engineFuel, weapons, warnings, orbital, minimap, rwr, radar, coordinates, warpIndicator, approachAids, weather)
      * @param {boolean} value - true to show, false to hide
      */
     function setToggle(key, value) {

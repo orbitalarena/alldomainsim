@@ -209,6 +209,11 @@
     <div id="loadingOverlay">
         <h2>Replay Viewer</h2>
         <p id="loadingStatus">Loading replay data...</p>
+        <div id="overlaySelectorWrap" style="display:none; margin-top:18px;">
+            <select id="overlayReplaySelector" style="background:#222; color:#ccc; border:1px solid #555; border-radius:4px; padding:8px 14px; font-size:14px; min-width:320px; cursor:pointer;">
+                <option value="">— Select a Replay —</option>
+            </select>
+        </div>
     </div>
 
     <div id="statsPanel">
@@ -494,9 +499,29 @@ if (replayUrl) {
         }
     }
 } else {
-    document.getElementById('loadingStatus').textContent =
-        'Select a replay from the dropdown, or use ?replay=replay_iads.json';
+    document.getElementById('loadingStatus').textContent = 'Select a replay to begin';
     document.getElementById('loadingOverlay').classList.remove('hidden');
+    // Populate and show the overlay selector
+    var overlaySel = document.getElementById('overlayReplaySelector');
+    for (var j = 0; j < REPLAY_FILES.length; j++) {
+        var o = document.createElement('option');
+        o.value = REPLAY_FILES[j].file;
+        o.textContent = REPLAY_FILES[j].label;
+        overlaySel.appendChild(o);
+    }
+    document.getElementById('overlaySelectorWrap').style.display = 'block';
+    overlaySel.addEventListener('change', function(ev) {
+        var f = ev.target.value;
+        if (f) {
+            window.history.pushState({}, '', window.location.pathname + '?replay=' + f);
+            // Sync the control bar selector
+            var mainSel = document.getElementById('replaySelector');
+            for (var k = 0; k < mainSel.options.length; k++) {
+                if (mainSel.options[k].value === f) { mainSel.selectedIndex = k; break; }
+            }
+            loadReplay(f);
+        }
+    });
 }
 
 // Selector change handler

@@ -542,11 +542,18 @@ class BuilderHandler(http.server.SimpleHTTPRequestHandler):
                         entity_count = len(data.get('entities', []))
                 except Exception:
                     pass
+                # Extract team counts
+                teams = {}
+                for ent in data.get('entities', []):
+                    t = ent.get('team', 'neutral')
+                    teams[t] = teams.get(t, 0) + 1
                 sims.append({
                     'filename': f,
                     'path': 'sims/' + f,
                     'name': meta.get('name', f.replace('.sim', '')),
+                    'description': meta.get('description', ''),
                     'entityCount': entity_count,
+                    'teams': teams,
                     'size': stat.st_size,
                     'modified': stat.st_mtime,
                 })

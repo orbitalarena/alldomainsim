@@ -1,0 +1,394 @@
+{
+  "metadata": {
+    "name": "Shinkansen: Tokyo to Osaka",
+    "description": "Japanese Shinkansen high-speed rail along the Tokaido corridor. Player controls Nozomi 1 departing Tokyo Station. AI trains Hikari and Kodama run in parallel along the route. No weapons, no combat — pure civilian ground transportation.",
+    "version": "1.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "weather": "clear",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "nozomi_1",
+      "name": "NOZOMI 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.68,
+        "lon": 139.77,
+        "alt": 100,
+        "speed": 0,
+        "heading": 250,
+        "gamma": 0,
+        "throttle": 0,
+        "engineOn": false,
+        "gearDown": true,
+        "brakesOn": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "control": {
+          "type": "player_input"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 8,
+          "trail": true,
+          "trailColor": "#ff444488",
+          "label": "NOZOMI 1"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "groundAlt": 100,
+        "routeAlt": 100,
+        "initialMsg": "SHINKANSEN: Nozomi 1 departing Tokyo Station. Accelerate to 300km/h and follow the Tokaido route.",
+        "initialHint": "Press W to accelerate. Follow waypoints to Osaka.",
+        "waypoints": [
+          {
+            "lat": 35.51,
+            "lon": 139.62,
+            "radius": 5000,
+            "name": "SHIN-YOKOHAMA",
+            "msg": "Passing Shin-Yokohama Station. Speed target: 270 km/h.",
+            "hint": "Maintain heading ~250 degrees southwest"
+          },
+          {
+            "lat": 35.36,
+            "lon": 139.1,
+            "radius": 5000,
+            "name": "ODAWARA",
+            "msg": "Passing Odawara. Mount Fuji visible to the right!",
+            "hint": "Steer toward Nagoya (heading ~260)"
+          },
+          {
+            "lat": 35.1,
+            "lon": 138.72,
+            "radius": 8000,
+            "name": "MT. FUJI VIEW",
+            "msg": "Mount Fuji on your right — iconic Shinkansen view!",
+            "hint": "Keep cruising at ~80 m/s"
+          },
+          {
+            "lat": 34.97,
+            "lon": 138.39,
+            "radius": 5000,
+            "name": "SHIZUOKA",
+            "msg": "Passing Shizuoka Prefecture. Halfway to Nagoya.",
+            "hint": "Heading ~255 toward Nagoya"
+          },
+          {
+            "lat": 34.77,
+            "lon": 137.39,
+            "radius": 5000,
+            "name": "HAMAMATSU",
+            "msg": "Hamamatsu — Lake Hamana visible to the south.",
+            "hint": "Continue west"
+          },
+          {
+            "lat": 35.17,
+            "lon": 136.88,
+            "radius": 5000,
+            "name": "NAGOYA",
+            "msg": "Nagoya Station! Major junction of the Tokaido line.",
+            "hint": "Turn slightly south toward Kyoto (heading ~245)"
+          },
+          {
+            "lat": 34.985,
+            "lon": 135.76,
+            "radius": 5000,
+            "name": "KYOTO",
+            "msg": "Kyoto — the ancient capital. Temples and shrines on both sides.",
+            "hint": "Almost there! Shin-Osaka is the final stop."
+          },
+          {
+            "lat": 34.73,
+            "lon": 135.5,
+            "radius": 5000,
+            "name": "SHIN-OSAKA",
+            "msg": "SHIN-OSAKA STATION: Arrival! Journey complete. Welcome to Osaka!",
+            "hint": "Hold B to brake. You've completed the Tokaido Shinkansen route."
+          }
+        ],
+        "milestones": [
+          {
+            "type": "speed",
+            "value": 22,
+            "msg": "Leaving Tokyo Station — 80 km/h",
+            "hint": "Keep accelerating to cruise speed"
+          },
+          {
+            "type": "speed",
+            "value": 70,
+            "msg": "Approaching cruise speed — 250 km/h!",
+            "hint": "Target 83 m/s (300 km/h) for Nozomi service"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hikari_203",
+      "name": "HIKARI 203",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 35.17,
+        "lon": 136.88,
+        "alt": 100,
+        "speed": 70,
+        "heading": 250,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 34.985, "lon": 135.76, "alt": 100, "speed": 70 },
+            { "lat": 34.73, "lon": 135.5, "alt": 100, "speed": 70 },
+            { "lat": 34.73, "lon": 135.5, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#44cc44",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#44cc4488",
+          "label": "HIKARI 203"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "kodama_441",
+      "name": "KODAMA 441",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 35.51,
+        "lon": 139.62,
+        "alt": 100,
+        "speed": 60,
+        "heading": 250,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 35.36, "lon": 139.1, "alt": 100, "speed": 60 },
+            { "lat": 35.1, "lon": 138.72, "alt": 100, "speed": 60 },
+            { "lat": 34.97, "lon": 138.39, "alt": 100, "speed": 60 },
+            { "lat": 34.77, "lon": 137.39, "alt": 100, "speed": 60 },
+            { "lat": 35.17, "lon": 136.88, "alt": 100, "speed": 60 },
+            { "lat": 34.985, "lon": 135.76, "alt": 100, "speed": 60 },
+            { "lat": 34.73, "lon": 135.5, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ffaa44",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#ffaa4488",
+          "label": "KODAMA 441"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "stn_tokyo",
+      "name": "Tokyo Station",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 35.68,
+        "lon": 139.77,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffffff",
+          "label": "Tokyo Station"
+        }
+      }
+    },
+    {
+      "id": "stn_shin_yokohama",
+      "name": "Shin-Yokohama",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 35.51,
+        "lon": 139.62,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffffff",
+          "label": "Shin-Yokohama"
+        }
+      }
+    },
+    {
+      "id": "stn_nagoya",
+      "name": "Nagoya Station",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 35.17,
+        "lon": 136.88,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffffff",
+          "label": "Nagoya"
+        }
+      }
+    },
+    {
+      "id": "stn_kyoto",
+      "name": "Kyoto Station",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 34.985,
+        "lon": 135.76,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffffff",
+          "label": "Kyoto"
+        }
+      }
+    },
+    {
+      "id": "stn_shin_osaka",
+      "name": "Shin-Osaka Station",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 34.73,
+        "lon": 135.5,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffffff",
+          "label": "Shin-Osaka"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "TOKYO STATION: Nozomi 1 cleared for departure. Next stop: Shin-Yokohama."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "PASSING: Shin-Yokohama Station. Cruising at full speed."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "MOUNT FUJI: Look right for a view of Mt. Fuji!"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1200,
+      "action": {
+        "type": "message",
+        "text": "NAGOYA: Passing Nagoya Station. Major rail junction."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 2400,
+      "action": {
+        "type": "message",
+        "text": "KYOTO: Ancient capital on the right. Temples and shrines visible."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 3600,
+      "action": {
+        "type": "message",
+        "text": "SHIN-OSAKA: Arriving at destination. Journey time: ~2h15m. Welcome to Osaka!"
+      }
+    }
+  ],
+  "camera": {
+    "mode": "chase",
+    "range": 2000
+  }
+}

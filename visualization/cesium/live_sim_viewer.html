@@ -26,6 +26,45 @@
             z-index: 10;
         }
 
+        #weatherOverlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 6; /* above cesium, below HUD */
+            display: none;
+        }
+        #weatherOverlay.rain {
+            background: repeating-linear-gradient(
+                175deg,
+                transparent,
+                transparent 97%,
+                rgba(180,200,255,0.15) 97%,
+                rgba(180,200,255,0.15) 100%
+            );
+            background-size: 3px 30px;
+            animation: rainDrop 0.15s linear infinite;
+        }
+        #weatherOverlay.snow {
+            background: radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.5) 50%, transparent 50%),
+                        radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.4) 50%, transparent 50%),
+                        radial-gradient(1.5px 1.5px at 50% 10%, rgba(255,255,255,0.6) 50%, transparent 50%),
+                        radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.3) 50%, transparent 50%),
+                        radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,0.5) 50%, transparent 50%);
+            background-size: 100px 100px;
+            animation: snowFall 2s linear infinite;
+        }
+        #weatherOverlay.fog {
+            background: radial-gradient(ellipse at center, rgba(200,200,210,0.0) 30%, rgba(180,180,190,0.3) 80%, rgba(160,160,170,0.5) 100%);
+        }
+        @keyframes rainDrop {
+            0% { background-position: 0 0; }
+            100% { background-position: 1px 30px; }
+        }
+        @keyframes snowFall {
+            0% { background-position: 0 0; }
+            100% { background-position: 25px 100px; }
+        }
+
         .panel {
             position: absolute;
             background: rgba(10, 15, 10, 0.85);
@@ -210,6 +249,41 @@
             color: #006600;
         }
         .sim-card-meta span { margin-right: 14px; }
+        .sim-domain-tag {
+            display: inline-block;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-right: 4px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            vertical-align: middle;
+        }
+        .sim-domain-tag.air { background: rgba(68,136,255,0.2); color: #6699ff; border: 1px solid rgba(68,136,255,0.4); }
+        .sim-domain-tag.space { background: rgba(170,100,255,0.2); color: #bb88ff; border: 1px solid rgba(170,100,255,0.4); }
+        .sim-domain-tag.naval { background: rgba(0,180,200,0.2); color: #44ccdd; border: 1px solid rgba(0,180,200,0.4); }
+        .sim-domain-tag.ground { background: rgba(0,180,80,0.2); color: #44cc66; border: 1px solid rgba(0,180,80,0.4); }
+        .sim-domain-tag.cyber { background: rgba(255,100,0,0.2); color: #ff8844; border: 1px solid rgba(255,100,0,0.4); }
+        .sim-category-header {
+            width: 600px; max-width: 90vw;
+            color: #00aa66; font-size: 11px; font-weight: bold;
+            text-transform: uppercase; letter-spacing: 2px;
+            margin: 16px 0 4px 0; padding-bottom: 4px;
+            border-bottom: 1px solid #003322;
+        }
+        .sim-card-filter {
+            width: 600px; max-width: 90vw;
+            margin-bottom: 8px; display: flex; gap: 6px; flex-wrap: wrap;
+        }
+        .sim-filter-btn {
+            background: rgba(0,30,0,0.6); border: 1px solid #004400;
+            color: #00aa00; font-size: 10px; padding: 4px 10px;
+            border-radius: 4px; cursor: pointer; font-family: monospace;
+            transition: all 0.15s;
+        }
+        .sim-filter-btn:hover, .sim-filter-btn.active {
+            border-color: #00ff00; color: #00ff00; background: rgba(0,60,0,0.5);
+        }
 
         .entity-card {
             width: 600px;
@@ -808,10 +882,204 @@
             border-color: #00ff00;
             color: #00ff00;
         }
+
+        /* ===== STATUS BOARD ===== */
+        #statusBoard {
+          display:none; position:fixed; top:60px; right:10px; width:480px; max-height:70vh;
+          background:rgba(0,0,0,0.92); border:1px solid #3a3; border-radius:8px;
+          color:#0f0; font-family:'Courier New',monospace; font-size:11px; z-index:300;
+          overflow:hidden;
+        }
+        #statusBoard .sb-header {
+          display:flex; justify-content:space-between; align-items:center;
+          padding:8px 12px; border-bottom:1px solid #3a3; font-size:13px; font-weight:bold;
+        }
+        #statusBoard .sb-header span { color:#0f0; }
+        #statusBoard .sb-close { cursor:pointer; color:#888; font-size:16px; }
+        #statusBoard .sb-close:hover { color:#fff; }
+        #statusBoard .sb-filters {
+          display:flex; gap:6px; padding:6px 12px; border-bottom:1px solid #222;
+        }
+        #statusBoard .sb-filter-btn {
+          padding:2px 8px; border:1px solid #444; border-radius:3px;
+          background:transparent; color:#888; cursor:pointer; font-size:10px;
+        }
+        #statusBoard .sb-filter-btn.active { border-color:#3a3; color:#0f0; background:rgba(0,170,0,0.15); }
+        #statusBoard .sb-table-wrap {
+          overflow-y:auto; max-height:calc(70vh - 90px);
+        }
+        #statusBoard table { width:100%; border-collapse:collapse; }
+        #statusBoard th {
+          position:sticky; top:0; background:rgba(0,30,0,0.95); padding:4px 6px;
+          text-align:left; color:#0a0; font-size:10px; cursor:pointer; user-select:none;
+          border-bottom:1px solid #3a3;
+        }
+        #statusBoard th:hover { color:#0f0; }
+        #statusBoard th .sort-arrow { margin-left:3px; font-size:8px; }
+        #statusBoard td { padding:3px 6px; border-bottom:1px solid #111; white-space:nowrap; }
+        #statusBoard tr:hover { background:rgba(0,170,0,0.1); }
+        #statusBoard tr.dead { opacity:0.4; text-decoration:line-through; }
+        #statusBoard .team-blue { color:#4af; }
+        #statusBoard .team-red { color:#f44; }
+        #statusBoard .team-green { color:#4f4; }
+        #statusBoard .status-ok { color:#0f0; }
+        #statusBoard .status-damaged { color:#fa0; }
+        #statusBoard .status-dead { color:#f00; }
+
+        /* ===================== MISSION BRIEFING ===================== */
+        #missionBriefing {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 40px 20px;
+            font-family: 'Courier New', monospace;
+            overflow-y: auto;
+        }
+        #missionBriefing .mb-content {
+            max-width: 800px;
+            width: 100%;
+        }
+        #missionBriefing .mb-header {
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #335500;
+            padding-bottom: 16px;
+        }
+        #missionBriefing .mb-classification {
+            color: #ffaa00;
+            font-size: 11px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        #missionBriefing .mb-title {
+            color: #44aaff;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(68, 170, 255, 0.5);
+            margin-bottom: 6px;
+        }
+        #missionBriefing .mb-desc {
+            color: #00cc66;
+            font-size: 14px;
+            line-height: 1.5;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        #missionBriefing .mb-section {
+            margin-bottom: 20px;
+        }
+        #missionBriefing .mb-section-title {
+            color: #ffaa00;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #443300;
+            padding-bottom: 4px;
+        }
+        #missionBriefing .mb-force-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        #missionBriefing .mb-force-table th {
+            color: #00aa66;
+            text-align: left;
+            padding: 4px 10px;
+            border-bottom: 1px solid #224400;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #missionBriefing .mb-force-table td {
+            padding: 3px 10px;
+            border-bottom: 1px solid #112200;
+        }
+        #missionBriefing .mb-force-table .team-friendly { color: #44aaff; }
+        #missionBriefing .mb-force-table .team-hostile { color: #ff4444; }
+        #missionBriefing .mb-force-table .team-neutral { color: #aaaaaa; }
+        #missionBriefing .mb-force-table .type-label { color: #00aa00; }
+        #missionBriefing .mb-force-table .count-cell {
+            text-align: center;
+            font-weight: bold;
+            min-width: 50px;
+        }
+        #missionBriefing .mb-env-grid {
+            display: grid;
+            grid-template-columns: 140px 1fr;
+            gap: 3px 12px;
+            font-size: 12px;
+        }
+        #missionBriefing .mb-env-label { color: #00aa00; }
+        #missionBriefing .mb-env-value { color: #00ff00; }
+        #missionBriefing .mb-objective {
+            background: rgba(255, 170, 0, 0.08);
+            border: 1px solid #664400;
+            border-radius: 4px;
+            padding: 10px 14px;
+            color: #ffcc00;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        #missionBriefing .mb-objective-title {
+            color: #ffaa00;
+            font-weight: bold;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        #missionBriefing .mb-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px 20px;
+            font-size: 11px;
+        }
+        #missionBriefing .mb-ctrl-key { color: #00ffff; font-weight: bold; }
+        #missionBriefing .mb-ctrl-desc { color: #007744; }
+        #missionBriefing .mb-launch-row {
+            text-align: center;
+            margin-top: 28px;
+            padding-top: 20px;
+            border-top: 2px solid #335500;
+        }
+        #missionBriefing .mb-launch-btn {
+            background: rgba(0, 60, 120, 0.6);
+            border: 2px solid #44aaff;
+            color: #44aaff;
+            font-family: 'Courier New', monospace;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 14px 60px;
+            border-radius: 4px;
+            cursor: pointer;
+            letter-spacing: 3px;
+            transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        #missionBriefing .mb-launch-btn:hover {
+            background: rgba(0, 100, 200, 0.6);
+            border-color: #88ccff;
+            color: #88ccff;
+            box-shadow: 0 0 20px rgba(68, 170, 255, 0.4);
+        }
+        #missionBriefing .mb-player-info {
+            text-align: center;
+            color: #006600;
+            font-size: 11px;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <div id="cesiumContainer"></div>
+    <div id="weatherOverlay"></div>
     <canvas id="hudCanvas"></canvas>
 
     <!-- Status Bar -->
@@ -825,6 +1093,8 @@
         <span id="pointingModeDisplay" style="color:#44ccff"></span>
         <span id="regimeDisplay" style="font-weight:bold;color:#00ff00">ATMOSPHERIC</span> |
         <span id="entityCountDisplay" style="color:#888">0 ENT</span>
+        <span id="dataLinkIndicator" style="display:none;color:#00ffff;font-weight:bold;margin-left:6px">| DATALINK</span>
+        <span id="fpsDisplay" style="color:#44ff44;margin-left:8px;font-size:10px"></span>
     </div>
 
     <!-- Mode Indicator -->
@@ -1081,6 +1351,10 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Minimap Scope</span>
         </div>
+        <div class="settings-item active" data-hud="rwr">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">RWR Display</span>
+        </div>
         <div class="settings-item active" data-hud="coordinates">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Coordinates</span>
@@ -1123,9 +1397,41 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Cyber Log (Shift+C)</span>
         </div>
+        <div class="settings-item" data-panel="aar">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#00ff88;">AAR (Shift+A)</span>
+        </div>
+        <div class="settings-item" data-panel="statusboard">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#0f0;">Status Board (Shift+E)</span>
+        </div>
+        <div class="settings-item" data-panel="threats">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#ff6644;">Threat Overlay (Shift+T)</span>
+        </div>
         <div class="settings-item active" data-viz="globalComms">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Comm Links</span>
+        </div>
+        <div class="settings-item" data-panel="spread">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#cc88ff;">Spread Launch</span>
+        </div>
+        <div class="settings-item" data-panel="engTimeline">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#ff8844;">Engagement Timeline</span>
+        </div>
+        <div class="settings-item" data-panel="engagement">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#ff4466;">Combat Stats</span>
+        </div>
+        <div class="settings-item" data-panel="dataExport">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#44ffaa;">Data Export</span>
+        </div>
+        <div class="settings-item" data-panel="autopilot">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label" style="color:#00ff88;">Autopilot Panel (A)</span>
         </div>
         <div class="settings-sep"></div>
         <div class="settings-section-title">Entity Display</div>
@@ -1246,6 +1552,8 @@
                     <option value="comms">Communications</option>
                     <option value="custom">Custom Variable</option>
                 </select>
+                <button id="analyticsExportCSV" style="background:#1a3a2a;color:#44ff88;border:1px solid #2a5a3a;padding:3px 8px;font-size:10px;cursor:pointer;border-radius:3px;font-family:monospace" title="Export analytics data as CSV">CSV</button>
+                <button id="analyticsExportJSON" style="background:#1a2a3a;color:#4a9eff;border:1px solid #2a4a6a;padding:3px 8px;font-size:10px;cursor:pointer;border-radius:3px;font-family:monospace" title="Export all entity states as JSON">JSON</button>
                 <span id="analyticsClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
             </div>
         </div>
@@ -1272,6 +1580,58 @@
                 <option value="commCyberAttacks">Cyber Attacks</option>
             </select>
         </div>
+    </div>
+
+    <!-- ===================== ENGAGEMENT TIMELINE ===================== -->
+    <div id="engTimelinePanel" style="display:none;position:fixed;bottom:10px;left:250px;width:520px;max-height:60vh;overflow-y:auto;background:rgba(10,20,35,0.95);border:1px solid #ff6644;border-radius:6px;padding:12px;z-index:2000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:bold;color:#ff8844;font-size:12px">ENGAGEMENT TIMELINE</span>
+            <div style="display:flex;gap:6px;align-items:center">
+                <span id="engTimelineCount" style="color:#666;font-size:10px">0 events</span>
+                <button id="engTimelineExport" style="background:#1a3a2a;color:#44ff88;border:1px solid #2a5a3a;padding:2px 8px;font-size:10px;cursor:pointer;border-radius:3px;font-family:monospace">Export</button>
+                <span id="engTimelineClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
+            </div>
+        </div>
+        <div id="engTimelineContent" style="max-height:50vh;overflow-y:auto">
+            <div style="color:#666;text-align:center;padding:20px">No engagement events yet</div>
+        </div>
+    </div>
+
+    <!-- ===================== ENGAGEMENT STATS PANEL ===================== -->
+    <div id="engagementStatsPanel" style="display:none;position:fixed;top:80px;right:10px;width:340px;max-height:60vh;overflow-y:auto;background:rgba(10,20,35,0.95);border:1px solid #ff4466;border-radius:6px;padding:12px;z-index:2000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:bold;color:#ff4466;font-size:12px;letter-spacing:1px">ENGAGEMENT STATS</span>
+            <span id="engStatsClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
+        </div>
+        <div id="engStatsContent">
+            <div style="color:#666;text-align:center;padding:20px">No engagements yet.<br><span style="font-size:10px">Stats will appear when weapons are fired.</span></div>
+        </div>
+    </div>
+
+    <!-- ===================== DATA EXPORT PANEL ===================== -->
+    <div id="dataExportPanel" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;max-height:70vh;overflow-y:auto;background:rgba(10,20,35,0.98);border:1px solid #44ffaa;border-radius:8px;padding:16px;z-index:3000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-weight:bold;color:#44ffaa;font-size:13px;letter-spacing:1px">DATA EXPORT</span>
+            <span id="dataExportClose" style="cursor:pointer;color:#666;font-size:18px">&times;</span>
+        </div>
+        <div style="display:grid;gap:8px">
+            <button class="de-btn" id="deEntityStates" style="background:#1a2a3a;color:#4a9eff;border:1px solid #2a4a6a;padding:10px;cursor:pointer;border-radius:4px;font-family:monospace;font-size:11px;text-align:left">
+                <strong>Entity States (JSON)</strong><br><span style="color:#666;font-size:10px">Current position, velocity, team, type for all entities</span>
+            </button>
+            <button class="de-btn" id="deAnalyticsCSV" style="background:#1a3a2a;color:#44ff88;border:1px solid #2a5a3a;padding:10px;cursor:pointer;border-radius:4px;font-family:monospace;font-size:11px;text-align:left">
+                <strong>Analytics Time-Series (CSV)</strong><br><span style="color:#666;font-size:10px">Full analytics history: alive, dead, fuel, regimes, teams, altitude</span>
+            </button>
+            <button class="de-btn" id="deEngagementLog" style="background:#2a1a1a;color:#ff8844;border:1px solid #4a2a2a;padding:10px;cursor:pointer;border-radius:4px;font-family:monospace;font-size:11px;text-align:left">
+                <strong>Engagement Log (CSV)</strong><br><span style="color:#666;font-size:10px">All weapon launches, kills, and detections with timestamps</span>
+            </button>
+            <button class="de-btn" id="deScenarioJSON" style="background:#1a2a2a;color:#88ccff;border:1px solid #2a4a5a;padding:10px;cursor:pointer;border-radius:4px;font-family:monospace;font-size:11px;text-align:left">
+                <strong>Scenario Snapshot (JSON)</strong><br><span style="color:#666;font-size:10px">Current scenario state, can be reloaded to resume</span>
+            </button>
+            <button class="de-btn" id="deOrbitalElements" style="background:#2a2a1a;color:#ffcc44;border:1px solid #4a4a2a;padding:10px;cursor:pointer;border-radius:4px;font-family:monospace;font-size:11px;text-align:left">
+                <strong>Orbital Elements (CSV)</strong><br><span style="color:#666;font-size:10px">SMA, ecc, inc, RAAN, argPe, MA for all orbital entities</span>
+            </button>
+        </div>
+        <div id="deStatus" style="margin-top:10px;font-size:10px;color:#666;text-align:center"></div>
     </div>
 
     <!-- ===================== COMM PANEL ===================== -->
@@ -1330,6 +1690,46 @@
         </div>
         <div id="cyberLogContent" style="overflow-y:auto; max-height:calc(50vh - 80px); padding:4px; font-family:monospace; font-size:11px;"></div>
         <div id="cyberLogStats" style="padding:4px 12px; border-top:1px solid #333; color:#888; font-size:10px; line-height:1.4;"></div>
+    </div>
+
+    <!-- ===================== AFTER-ACTION REPORT ===================== -->
+    <div id="aarPanel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:700px; max-height:80vh; background:rgba(0,0,0,0.92); border:1px solid #00ff88; border-radius:8px; z-index:1200; overflow-y:auto; padding:20px; color:#e0e0e0; font-family:monospace;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="margin:0; color:#00ff88; font-size:16px;">AFTER-ACTION REPORT</h3>
+            <button id="aarClose" style="background:none; border:1px solid #666; color:#ccc; padding:4px 12px; cursor:pointer; border-radius:4px;">CLOSE</button>
+        </div>
+        <div id="aarContent"></div>
+    </div>
+
+    <!-- ===================== STATUS BOARD ===================== -->
+    <div id="statusBoard">
+      <div class="sb-header">
+        <span>FORCE STATUS BOARD</span>
+        <span class="sb-close" onclick="document.getElementById('statusBoard').style.display='none'">&times;</span>
+      </div>
+      <div class="sb-filters">
+        <button class="sb-filter-btn active" data-sb-filter="all">ALL</button>
+        <button class="sb-filter-btn" data-sb-filter="blue">BLUE</button>
+        <button class="sb-filter-btn" data-sb-filter="red">RED</button>
+        <button class="sb-filter-btn" data-sb-filter="aircraft">AIR</button>
+        <button class="sb-filter-btn" data-sb-filter="satellite">SPACE</button>
+        <button class="sb-filter-btn" data-sb-filter="naval">NAVAL</button>
+        <button class="sb-filter-btn" data-sb-filter="ground">GROUND</button>
+      </div>
+      <div class="sb-table-wrap">
+        <table>
+          <thead><tr>
+            <th data-sb-sort="name">NAME <span class="sort-arrow"></span></th>
+            <th data-sb-sort="team">TEAM <span class="sort-arrow"></span></th>
+            <th data-sb-sort="type">TYPE <span class="sort-arrow"></span></th>
+            <th data-sb-sort="status">STATUS <span class="sort-arrow"></span></th>
+            <th data-sb-sort="alt">ALT <span class="sort-arrow"></span></th>
+            <th data-sb-sort="speed">SPD <span class="sort-arrow"></span></th>
+            <th data-sb-sort="fuel">FUEL <span class="sort-arrow"></span></th>
+          </tr></thead>
+          <tbody id="statusBoardBody"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ===================== MANEUVER DIALOG ===================== -->
@@ -1459,6 +1859,52 @@
         <div id="loadingError"></div>
     </div>
 
+    <!-- Mission Briefing Overlay (shown before sim starts) -->
+    <div id="missionBriefing">
+        <div class="mb-content">
+            <div class="mb-header">
+                <div class="mb-classification">MISSION BRIEFING</div>
+                <div class="mb-title" id="mbTitle">---</div>
+                <div class="mb-desc" id="mbDescription"></div>
+            </div>
+
+            <div class="mb-section" id="mbForceSection">
+                <div class="mb-section-title">Force Composition</div>
+                <table class="mb-force-table" id="mbForceTable">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th style="text-align:center">Friendly</th>
+                            <th style="text-align:center">Hostile</th>
+                            <th style="text-align:center">Neutral</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mbForceBody"></tbody>
+                </table>
+            </div>
+
+            <div class="mb-section" id="mbEnvSection">
+                <div class="mb-section-title">Environment</div>
+                <div class="mb-env-grid" id="mbEnvGrid"></div>
+            </div>
+
+            <div class="mb-section" id="mbObjectiveSection" style="display:none">
+                <div class="mb-section-title">Mission Objectives</div>
+                <div class="mb-objective" id="mbObjective"></div>
+            </div>
+
+            <div class="mb-section">
+                <div class="mb-section-title">Key Controls</div>
+                <div class="mb-controls" id="mbControls"></div>
+            </div>
+
+            <div class="mb-launch-row">
+                <button class="mb-launch-btn" id="mbBeginBtn">BEGIN MISSION</button>
+                <div class="mb-player-info" id="mbPlayerInfo"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Quest/Mission Objective Panel -->
     <div id="questPanel" class="panel" style="display:none; top:70px; left:50%; transform:translateX(-50%);
          border-color:#ffaa00; min-width:320px; max-width:500px; text-align:center; z-index:25;">
@@ -1479,6 +1925,75 @@
 
     <!-- Conjunction Alert Panel (populated by conjunction.js) -->
     <div id="conjunctionPanel"></div>
+
+    <!-- ===================== AUTOPILOT CONTROL PANEL ===================== -->
+    <div id="autopilotPanel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(10,14,23,0.95); border:1px solid rgba(0,255,100,0.3); border-radius:8px; padding:16px 20px; z-index:60; min-width:320px; font-family:'Courier New',monospace; color:#00ff88;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="font-size:14px; font-weight:bold; color:#00ff88;">AUTOPILOT CONTROL</span>
+            <button id="apPanelClose" style="background:none; border:1px solid #555; color:#aaa; cursor:pointer; padding:2px 8px; border-radius:4px; font-size:14px;">&times;</button>
+        </div>
+
+        <!-- Master Enable -->
+        <div style="margin-bottom:12px; text-align:center;">
+            <button id="apMasterToggle" style="background:rgba(255,50,50,0.2); border:1px solid #ff4444; color:#ff4444; padding:6px 24px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:13px; font-weight:bold;">AP OFF</button>
+        </div>
+
+        <!-- Mode Toggles -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:center;">
+            <button id="apAltToggle" class="ap-mode-btn" data-mode="alt" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:12px;">ALT</button>
+            <button id="apHdgToggle" class="ap-mode-btn" data-mode="hdg" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:12px;">HDG</button>
+            <button id="apSpdToggle" class="ap-mode-btn" data-mode="spd" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:12px;">SPD</button>
+            <button id="apWpToggle" class="ap-mode-btn" data-mode="wp" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:12px;">WP NAV</button>
+        </div>
+
+        <!-- Target Values -->
+        <div style="display:grid; grid-template-columns: 60px 1fr 50px; gap:6px; align-items:center; margin-bottom:12px;">
+            <span style="color:#00aa66; font-size:11px;">ALT</span>
+            <input id="apAltInput" type="number" style="background:rgba(0,0,0,0.5); border:1px solid #333; color:#00ff88; padding:4px 8px; border-radius:3px; font-family:'Courier New',monospace; font-size:12px; width:100%;" value="25000">
+            <span style="color:#666; font-size:10px;">FT</span>
+
+            <span style="color:#00aa66; font-size:11px;">HDG</span>
+            <input id="apHdgInput" type="number" style="background:rgba(0,0,0,0.5); border:1px solid #333; color:#00ff88; padding:4px 8px; border-radius:3px; font-family:'Courier New',monospace; font-size:12px; width:100%;" value="270" min="0" max="360">
+            <span style="color:#666; font-size:10px;">DEG</span>
+
+            <span style="color:#00aa66; font-size:11px;">SPD</span>
+            <input id="apSpdInput" type="number" style="background:rgba(0,0,0,0.5); border:1px solid #333; color:#00ff88; padding:4px 8px; border-radius:3px; font-family:'Courier New',monospace; font-size:12px; width:100%;" value="450">
+            <span style="color:#666; font-size:10px;">KT</span>
+        </div>
+
+        <!-- Waypoint Nav Section -->
+        <div id="apWpSection" style="border-top:1px solid #333; padding-top:8px; display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="color:#00aa66; font-size:11px;">WAYPOINT NAV</span>
+                <span id="apWpInfo" style="color:#00ff88; font-size:11px;">---</span>
+            </div>
+            <div style="display:flex; gap:8px; justify-content:center;">
+                <button id="apWpPrev" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:3px 12px; border-radius:3px; cursor:pointer; font-family:'Courier New',monospace; font-size:11px;">&#9664; PREV</button>
+                <button id="apWpNext" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:3px 12px; border-radius:3px; cursor:pointer; font-family:'Courier New',monospace; font-size:11px;">NEXT &#9654;</button>
+            </div>
+        </div>
+
+        <!-- Terrain Following / Terrain Avoidance -->
+        <div style="border-top:1px solid #333; padding-top:8px; margin-top:8px;">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                <button id="apTfToggle" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:'Courier New',monospace; font-size:12px; font-weight:bold;">TF/TA</button>
+                <span style="color:#00aa66; font-size:10px;">TERRAIN FOLLOW</span>
+            </div>
+            <div id="apTfSection" style="display:none;">
+                <div style="display:grid; grid-template-columns: 60px 1fr 50px; gap:6px; align-items:center; margin-bottom:6px;">
+                    <span style="color:#00aa66; font-size:11px;">AGL</span>
+                    <input id="apTfAglInput" type="number" style="background:rgba(0,0,0,0.5); border:1px solid #333; color:#00ff88; padding:4px 8px; border-radius:3px; font-family:'Courier New',monospace; font-size:12px; width:100%;" value="150" min="30" max="2000" step="10">
+                    <span style="color:#666; font-size:10px;">M</span>
+                </div>
+                <div id="apTfAglStatus" style="color:#44ccff; font-size:10px; text-align:center;">AGL: --- | TERRAIN: ---</div>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div style="margin-top:10px; text-align:center;">
+            <span id="apPanelStatus" style="color:#666; font-size:10px;">Press A to toggle AP | Shift+A for AAR</span>
+        </div>
+    </div>
 
     <!-- Scripts: Cesium config -->
     <script src="cesium_config.js"></script>
@@ -1655,42 +2170,117 @@
                 });
         }
 
+        // Classify sim into domain categories based on name/description
+        function _classifySimDomains(sim) {
+            var domains = [];
+            var text = ((sim.name || '') + ' ' + (sim.description || '')).toLowerCase();
+            if (/f-16|f-15|f-22|f-35|mig|su-|awacs|fighter|aircraft|air\s|red flag|cap\b|intercept|typhoon|viper|eagle|falcon|bomber|patrol/.test(text)) domains.push('air');
+            if (/satellite|orbital|leo|geo|meo|heo|tle|space|gps|sbirs|hubble|iss|constellation|launch|rocket/.test(text)) domains.push('space');
+            if (/naval|maritime|carrier|destroyer|frigate|fleet|submarine|strait|blockade|cvn|ddg|ship|cruiser/.test(text)) domains.push('naval');
+            if (/ground|sam\b|s-300|s-400|patriot|thaad|radar|iads|base|airfield/.test(text)) domains.push('ground');
+            if (/cyber|comm|network|jam|hack|data link/.test(text)) domains.push('cyber');
+            if (domains.length === 0) domains.push('ground');
+            return domains;
+        }
+
+        function _domainTagsHtml(domains) {
+            var html = '';
+            for (var d = 0; d < domains.length; d++) {
+                html += '<span class="sim-domain-tag ' + domains[d] + '">' + domains[d].toUpperCase() + '</span>';
+            }
+            return html;
+        }
+
         function renderSimList(sims, container) {
             var lastSim = null;
             try { lastSim = localStorage.getItem('livesim_lastSim'); } catch(e) {}
 
-            // Sort: last used sim first
-            if (lastSim) {
-                sims.sort(function(a, b) {
-                    if (a.path === lastSim) return -1;
-                    if (b.path === lastSim) return 1;
-                    return 0;
-                });
+            // Classify each sim
+            for (var s = 0; s < sims.length; s++) {
+                sims[s]._domains = _classifySimDomains(sims[s]);
             }
 
-            var html = '';
+            // Sort: last used first, then by name
+            sims.sort(function(a, b) {
+                if (lastSim) {
+                    if (a.path === lastSim) return -1;
+                    if (b.path === lastSim) return 1;
+                }
+                return (a.name || '').localeCompare(b.name || '');
+            });
+
+            // Build filter bar
+            var filterHtml = '<div class="sim-card-filter" id="simDomainFilter">' +
+                '<div class="sim-filter-btn active" data-filter="all">ALL</div>' +
+                '<div class="sim-filter-btn" data-filter="air">AIR</div>' +
+                '<div class="sim-filter-btn" data-filter="space">SPACE</div>' +
+                '<div class="sim-filter-btn" data-filter="naval">NAVAL</div>' +
+                '<div class="sim-filter-btn" data-filter="ground">GROUND</div>' +
+                '<div class="sim-filter-btn" data-filter="cyber">CYBER</div>' +
+                '<div class="sim-filter-btn" data-filter="multi">MULTI-DOMAIN</div>' +
+                '</div>';
+
+            var cardsHtml = '';
             for (var i = 0; i < sims.length; i++) {
                 var sim = sims[i];
                 var dateStr = sim.modified ? new Date(sim.modified * 1000).toLocaleDateString() : '';
                 var sizeStr = sim.size > 1024 ? (sim.size / 1024).toFixed(0) + ' KB' : sim.size + ' B';
                 var lastTag = (sim.path === lastSim) ?
                     '<span style="color:#44aaff;font-size:9px;margin-left:6px">LAST USED</span>' : '';
-                html += '<div class="sim-card" data-path="' + sim.path + '">' +
-                    '<div class="sim-card-name">' + _escHtml(sim.name) + lastTag + '</div>' +
+                var teamStr = '';
+                if (sim.teams) {
+                    var tp = [];
+                    if (sim.teams.blue) tp.push('<span style="color:#4488ff">' + sim.teams.blue + ' blue</span>');
+                    if (sim.teams.red) tp.push('<span style="color:#ff4444">' + sim.teams.red + ' red</span>');
+                    if (sim.teams.neutral) tp.push('<span style="color:#888">' + sim.teams.neutral + ' neutral</span>');
+                    teamStr = tp.join(' / ');
+                }
+                var descStr = sim.description ? '<div style="color:#77889a;font-size:10px;margin-top:2px;line-height:1.3">' + _escHtml(sim.description).substring(0, 150) + '</div>' : '';
+                var domainTags = _domainTagsHtml(sim._domains);
+                var domainAttr = sim._domains.join(',');
+                cardsHtml += '<div class="sim-card" data-path="' + sim.path + '" data-domains="' + domainAttr + '">' +
+                    '<div class="sim-card-name">' + domainTags + ' ' + _escHtml(sim.name) + lastTag + '</div>' +
+                    descStr +
                     '<div class="sim-card-meta">' +
                         '<span>' + sim.entityCount + ' entities</span>' +
+                        (teamStr ? '<span>' + teamStr + '</span>' : '') +
                         '<span>' + sizeStr + '</span>' +
                         '<span>' + dateStr + '</span>' +
                     '</div>' +
                 '</div>';
             }
-            container.innerHTML = html + container.innerHTML;
+            container.innerHTML = filterHtml + cardsHtml + container.innerHTML;
 
-            // Bind clicks
+            // Bind filter buttons
+            var filterBtns = container.querySelectorAll('.sim-filter-btn');
+            for (var fb = 0; fb < filterBtns.length; fb++) {
+                filterBtns[fb].addEventListener('click', function() {
+                    // Toggle active state
+                    var allBtns = container.querySelectorAll('.sim-filter-btn');
+                    for (var ab = 0; ab < allBtns.length; ab++) allBtns[ab].classList.remove('active');
+                    this.classList.add('active');
+
+                    var filter = this.getAttribute('data-filter');
+                    var allCards = container.querySelectorAll('.sim-card');
+                    for (var ac = 0; ac < allCards.length; ac++) {
+                        var domains = (allCards[ac].getAttribute('data-domains') || '').split(',');
+                        if (filter === 'all') {
+                            allCards[ac].style.display = '';
+                        } else if (filter === 'multi') {
+                            allCards[ac].style.display = domains.length >= 2 ? '' : 'none';
+                        } else {
+                            allCards[ac].style.display = domains.indexOf(filter) >= 0 ? '' : 'none';
+                        }
+                    }
+                });
+            }
+
+            // Bind sim card clicks
             var cards = container.querySelectorAll('.sim-card');
             for (var j = 0; j < cards.length; j++) {
                 cards[j].addEventListener('click', function() {
                     var path = this.getAttribute('data-path');
+                    if (!path) return; // filter bar click
                     _selectedSimPath = path;
                     loadScenarioForEntityPick(path);
                 });
@@ -2244,10 +2834,13 @@
                     document.getElementById('loadingOverlay').style.display = 'none';
                     LiveSimEngine.showUI();
 
-                    // Wire up game loop
+                    // Wire up game loop (starts ticking, but sim is paused during briefing)
                     _viewer.clock.onTick.addEventListener(function() {
                         LiveSimEngine.tick();
                     });
+
+                    // Show mission briefing (pauses sim until BEGIN MISSION clicked)
+                    return LiveSimEngine.showMissionBriefing(_scenarioJson);
                 })
                 .catch(function(e) {
                     _showLoadError(e.message);

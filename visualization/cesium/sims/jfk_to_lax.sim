@@ -1,0 +1,481 @@
+{
+  "metadata": {
+    "name": "JFK to LAX — Transcontinental Flight",
+    "description": "Commercial aviation flight from John F. Kennedy International Airport (New York) to Los Angeles International Airport. Fly a Boeing 777 across the United States with realistic ATC handoffs and waypoints.",
+    "version": "1.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "weather": "overcast",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "player",
+      "name": "AAL 100",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 40.64,
+        "lon": -73.78,
+        "alt": 0,
+        "speed": 0,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0,
+        "engineOn": false,
+        "gearDown": true,
+        "brakesOn": true,
+        "flapsDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "control": {
+          "type": "player_input",
+          "config": "fighter"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 14,
+          "trail": true,
+          "trailColor": "#4488ff88",
+          "label": "AAL 100"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "taxi": true,
+          "air": true
+        },
+        "notes": "Boeing 777-300ER, American Airlines Flight 100. JFK to LAX nonstop. Cruising altitude FL350."
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "groundAlt": 4,
+        "routeAlt": 50,
+        "initialMsg": "JFK CLEARANCE: AAL 100, cleared for takeoff runway 31L. Fly heading 280, climb and maintain FL350.",
+        "initialHint": "Press E to start engines. Hold B to brake. Use P to switch to AIR mode before takeoff.",
+        "waypoints": [
+          {
+            "lat": 40.64,
+            "lon": -73.82,
+            "radius": 500,
+            "name": "RWY 31L THRESHOLD",
+            "msg": "Line up and wait runway 31L. Heading 310.",
+            "hint": "Switch to AIR mode (P) and set full throttle (W). Release brakes when ready."
+          },
+          {
+            "lat": 40.68,
+            "lon": -73.88,
+            "radius": 1000,
+            "name": "DEPARTURE FIX",
+            "msg": "Airborne! Turn left heading 280. Climb and maintain 3,000.",
+            "hint": "Retract gear. Maintain positive climb rate."
+          }
+        ],
+        "milestones": [
+          {
+            "type": "engine",
+            "msg": "ENGINE START — Engines spooling up. Release brakes when ready."
+          },
+          {
+            "type": "speed",
+            "value": 70,
+            "msg": "V1 — COMMIT TO TAKEOFF"
+          },
+          {
+            "type": "speed",
+            "value": 80,
+            "msg": "ROTATE — Pull back gently."
+          },
+          {
+            "type": "alt",
+            "value": 3000,
+            "msg": "Gear up, climbing through 3,000ft. Continue climb to FL350."
+          },
+          {
+            "type": "alt",
+            "value": 10000,
+            "msg": "Passing 10,000ft — Above transition altitude. Accelerate to cruise speed."
+          },
+          {
+            "type": "alt",
+            "value": 11000,
+            "msg": "Cruise altitude reached. Settle in for the transcontinental crossing."
+          }
+        ]
+      }
+    },
+    {
+      "id": "ual_2543",
+      "name": "UAL 2543",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 41.9,
+        "lon": -87.9,
+        "alt": 11000,
+        "speed": 250,
+        "heading": 260,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 41.9,
+              "lon": -87.9,
+              "alt": 11000,
+              "speed": 250
+            },
+            {
+              "lat": 41.2,
+              "lon": -93.5,
+              "alt": 11000,
+              "speed": 250
+            },
+            {
+              "lat": 40.8,
+              "lon": -99.0,
+              "alt": 11000,
+              "speed": 250
+            },
+            {
+              "lat": 39.86,
+              "lon": -104.67,
+              "alt": 11000,
+              "speed": 250
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88cc88",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#88cc8866",
+          "label": "UAL 2543"
+        }
+      },
+      "_custom": {
+        "notes": "United Airlines 2543, Chicago O'Hare to Denver International. Boeing 737-900ER."
+      }
+    },
+    {
+      "id": "dal_817",
+      "name": "DAL 817",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 32.9,
+        "lon": -96.8,
+        "alt": 10000,
+        "speed": 240,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 32.9,
+              "lon": -96.8,
+              "alt": 10000,
+              "speed": 240
+            },
+            {
+              "lat": 35.0,
+              "lon": -92.0,
+              "alt": 11000,
+              "speed": 245
+            },
+            {
+              "lat": 37.5,
+              "lon": -86.0,
+              "alt": 11000,
+              "speed": 245
+            },
+            {
+              "lat": 39.5,
+              "lon": -80.0,
+              "alt": 10500,
+              "speed": 240
+            },
+            {
+              "lat": 40.64,
+              "lon": -73.78,
+              "alt": 3000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#cc8888",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#cc888866",
+          "label": "DAL 817"
+        }
+      },
+      "_custom": {
+        "notes": "Delta Airlines 817, Dallas/Fort Worth to JFK. Airbus A321neo."
+      }
+    },
+    {
+      "id": "swa_1201",
+      "name": "SWA 1201",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 39.8,
+        "lon": -104.7,
+        "alt": 9000,
+        "speed": 230,
+        "heading": 200,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 39.8,
+              "lon": -104.7,
+              "alt": 9000,
+              "speed": 230
+            },
+            {
+              "lat": 38.0,
+              "lon": -107.5,
+              "alt": 10000,
+              "speed": 235
+            },
+            {
+              "lat": 36.0,
+              "lon": -110.0,
+              "alt": 10000,
+              "speed": 235
+            },
+            {
+              "lat": 33.43,
+              "lon": -112.02,
+              "alt": 3000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ccaa44",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#ccaa4466",
+          "label": "SWA 1201"
+        }
+      },
+      "_custom": {
+        "notes": "Southwest Airlines 1201, Denver to Phoenix Sky Harbor. Boeing 737 MAX 8."
+      }
+    },
+    {
+      "id": "jfk_tower",
+      "name": "JFK TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 40.64,
+        "lon": -73.78,
+        "alt": 4,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "JFK TOWER",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "John F. Kennedy International Airport tower and TRACON. ASR-11 airport surveillance radar."
+      }
+    },
+    {
+      "id": "lax_tower",
+      "name": "LAX TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 33.94,
+        "lon": -118.41,
+        "alt": 38,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "LAX TOWER",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "Los Angeles International Airport tower and TRACON. ASR-11 airport surveillance radar."
+      }
+    },
+    {
+      "id": "denver_center",
+      "name": "DENVER CENTER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 39.86,
+        "lon": -104.67,
+        "alt": 1655,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 12,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "DENVER CENTER",
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "notes": "Denver Air Route Traffic Control Center. En-route ATC for western US airspace."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "JFK TOWER: AAL 100, wind 280 at 12, cleared for takeoff runway 31L. Contact departure on 125.7 when airborne."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "NEW YORK DEPARTURE: AAL 100, radar contact. Climb and maintain flight level 350. Turn left heading 280 direct PHILA."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "HANDOFF: AAL 100, contact Cleveland Center on 132.85. Have a good flight."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1800,
+      "action": {
+        "type": "message",
+        "text": "HANDOFF: AAL 100, contact Kansas City Center on 128.35. Traffic at your 2 o'clock, 20 miles, eastbound, flight level 370."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 3600,
+      "action": {
+        "type": "message",
+        "text": "HANDOFF: AAL 100, contact Denver Center on 135.10. Expect direct Las Vegas after the Rocky Mountain crossing."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 5400,
+      "action": {
+        "type": "message",
+        "text": "DENVER CENTER: AAL 100, direct Las Vegas. Expect the CIVET ONE arrival into LAX."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 7200,
+      "action": {
+        "type": "message",
+        "text": "LOS ANGELES CENTER: AAL 100, descend and maintain flight level 240. Expect vectors for the ILS runway 25L."
+      }
+    }
+  ],
+  "camera": {
+    "mode": "chase",
+    "target": "player",
+    "range": 200,
+    "pitch": -0.2
+  }
+}

@@ -1,0 +1,618 @@
+{
+  "metadata": {
+    "name": "Nuclear Deterrence - Strategic Triad Standoff",
+    "description": "Full nuclear triad scenario: US vs Russia strategic forces including ICBMs, SSBNs, strategic bombers, early warning satellites, ABM systems, and airborne command. Escalation from DEFCON 3 through DEFCON 1 with timed events simulating a crisis escalation ladder.",
+    "version": "2.0",
+    "author": "All-Domain Sim",
+    "tags": ["nuclear", "strategic", "triad", "deterrence", "ICBM", "SSBN", "bomber"]
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "wgs84",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "mm3_silo_1",
+      "name": "MINUTEMAN III Alpha-1",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 42.85, "lon": -104.45, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#4488ff", "size": 10 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "LGM-30G Minuteman III",
+        "warheads": 3,
+        "yield_kt": 300,
+        "range_km": 13000,
+        "sensors": [{ "type": "radar", "range_km": 50, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "mm3_silo_2",
+      "name": "MINUTEMAN III Alpha-2",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 42.75, "lon": -104.55, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#4488ff", "size": 10 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "LGM-30G Minuteman III",
+        "warheads": 3,
+        "yield_kt": 300,
+        "range_km": 13000,
+        "sensors": [{ "type": "radar", "range_km": 50, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "ohio_1",
+      "name": "USS OHIO (SSGN-726)",
+      "type": "naval",
+      "team": "blue",
+      "initialState": { "lat": 30, "lon": -165, "alt": 0, "speed": 10, "heading": 270 },
+      "components": {
+        "physics": { "type": "naval", "cruiseSpeed": 10 },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 30, "lon": -165 },
+            { "lat": 32, "lon": -168 },
+            { "lat": 34, "lon": -166 },
+            { "lat": 32, "lon": -163 },
+            { "lat": 30, "lon": -165 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#4488ff", "size": 7, "trail": true, "trailLength": 300 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "Ohio-class SSBN",
+        "missiles": 24,
+        "missile_type": "Trident II D5",
+        "warheads_per_missile": 8,
+        "yield_kt": 475,
+        "range_km": 12000,
+        "rcs_m2": 500
+      }
+    },
+    {
+      "id": "b2_1",
+      "name": "SPIRIT 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 38.7, "lon": -93.5, "alt": 12000, "speed": 250, "heading": 0, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "bomber" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 38.7, "lon": -93.5, "alt": 12000 },
+            { "lat": 42.0, "lon": -93.5, "alt": 12000 },
+            { "lat": 42.0, "lon": -98.0, "alt": 12000 },
+            { "lat": 38.7, "lon": -98.0, "alt": 12000 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#4488ff", "size": 8, "trail": true, "trailLength": 200 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "B-2A Spirit",
+        "weapons": "16x B61-12 or 16x AGM-158B JASSM-ER",
+        "rcs_m2": 0.001
+      }
+    },
+    {
+      "id": "b2_2",
+      "name": "SPIRIT 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 38.7, "lon": -93.3, "alt": 11500, "speed": 250, "heading": 45, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "bomber" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 38.7, "lon": -93.3, "alt": 11500 },
+            { "lat": 41.5, "lon": -90.0, "alt": 11500 },
+            { "lat": 44.0, "lon": -93.3, "alt": 11500 },
+            { "lat": 41.5, "lon": -96.5, "alt": 11500 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#4488ff", "size": 8, "trail": true, "trailLength": 200 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "B-2A Spirit",
+        "weapons": "16x B83-1 or 16x AGM-158B JASSM-ER",
+        "rcs_m2": 0.001
+      }
+    },
+    {
+      "id": "e6_mercury",
+      "name": "LOOKING GLASS",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 35.0, "lon": -100.0, "alt": 9000, "speed": 220, "heading": 90, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "awacs" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 35.0, "lon": -100.0, "alt": 9000 },
+            { "lat": 37.0, "lon": -96.0, "alt": 9000 },
+            { "lat": 39.0, "lon": -100.0, "alt": 9000 },
+            { "lat": 37.0, "lon": -104.0, "alt": 9000 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#66aaff", "size": 8, "trail": true, "trailLength": 250 }
+      },
+      "_custom": {
+        "designation": "E-6B Mercury TACAMO",
+        "role": "Airborne Command Post / TACAMO relay",
+        "sensors": [{ "type": "radar", "range_km": 400, "fov_deg": 360 }],
+        "rcs_m2": 80
+      }
+    },
+    {
+      "id": "sbirs_geo_1",
+      "name": "SBIRS GEO-1",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "semiMajorAxis": 42164,
+        "eccentricity": 0.0005,
+        "inclination": 0.05,
+        "raan": 260,
+        "argPerigee": 0,
+        "meanAnomaly": 0
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#4488ff", "size": 6, "showOrbit": true }
+      },
+      "_custom": {
+        "designation": "SBIRS GEO Flight 1",
+        "role": "Missile early warning - Western Hemisphere",
+        "sensors": [{ "type": "ir", "fov_deg": 15, "range_km": 42000 }]
+      }
+    },
+    {
+      "id": "sbirs_geo_2",
+      "name": "SBIRS GEO-2",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "semiMajorAxis": 42164,
+        "eccentricity": 0.0005,
+        "inclination": 0.05,
+        "raan": 75,
+        "argPerigee": 0,
+        "meanAnomaly": 0
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#4488ff", "size": 6, "showOrbit": true }
+      },
+      "_custom": {
+        "designation": "SBIRS GEO Flight 2",
+        "role": "Missile early warning - Eastern Hemisphere",
+        "sensors": [{ "type": "ir", "fov_deg": 15, "range_km": 42000 }]
+      }
+    },
+    {
+      "id": "norad",
+      "name": "NORAD - Cheyenne Mountain",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 38.74, "lon": -104.84, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#44aaff", "size": 12 }
+      },
+      "_custom": {
+        "designation": "NORAD / USNORTHCOM",
+        "role": "Aerospace warning and control",
+        "sensors": [
+          { "type": "radar", "range_km": 5000, "fov_deg": 360 },
+          { "type": "ir", "fov_deg": 120, "range_km": 3000 }
+        ]
+      }
+    },
+    {
+      "id": "gbi_1",
+      "name": "GBI Site Alpha",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 64.0, "lon": -145.7, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#44ddff", "size": 10 }
+      },
+      "_custom": {
+        "designation": "Ground-Based Interceptor",
+        "role": "Midcourse ballistic missile defense",
+        "interceptors": 20,
+        "range_km": 6000,
+        "sensors": [{ "type": "radar", "range_km": 4000, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "gbi_2",
+      "name": "GBI Site Bravo",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 63.9, "lon": -145.5, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#44ddff", "size": 10 }
+      },
+      "_custom": {
+        "designation": "Ground-Based Interceptor",
+        "role": "Midcourse ballistic missile defense",
+        "interceptors": 20,
+        "range_km": 6000,
+        "sensors": [{ "type": "radar", "range_km": 4000, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "sarmat_silo_1",
+      "name": "RS-28 SARMAT Silo-1",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 55.3, "lon": 89.8, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#ff4444", "size": 10 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "RS-28 Sarmat (SS-X-30 SATAN II)",
+        "warheads": 10,
+        "yield_kt": 750,
+        "range_km": 18000,
+        "sensors": [{ "type": "radar", "range_km": 50, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "sarmat_silo_2",
+      "name": "RS-28 SARMAT Silo-2",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 55.35, "lon": 89.9, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#ff4444", "size": 10 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "RS-28 Sarmat (SS-X-30 SATAN II)",
+        "warheads": 10,
+        "yield_kt": 750,
+        "range_km": 18000,
+        "sensors": [{ "type": "radar", "range_km": 50, "fov_deg": 360 }]
+      }
+    },
+    {
+      "id": "borei_1",
+      "name": "K-535 YURI DOLGORUKIY",
+      "type": "naval",
+      "team": "red",
+      "initialState": { "lat": 72.0, "lon": 33.0, "alt": 0, "speed": 10, "heading": 0 },
+      "components": {
+        "physics": { "type": "naval", "cruiseSpeed": 10 },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 72.0, "lon": 33.0 },
+            { "lat": 74.0, "lon": 30.0 },
+            { "lat": 75.0, "lon": 35.0 },
+            { "lat": 73.0, "lon": 37.0 },
+            { "lat": 72.0, "lon": 33.0 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#ff4444", "size": 7, "trail": true, "trailLength": 300 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "Borei-class SSBN (Project 955)",
+        "missiles": 16,
+        "missile_type": "RSM-56 Bulava",
+        "warheads_per_missile": 6,
+        "yield_kt": 150,
+        "range_km": 9300,
+        "rcs_m2": 400
+      }
+    },
+    {
+      "id": "tu160_1",
+      "name": "BLACKJACK 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 51.5, "lon": 46.2, "alt": 12000, "speed": 260, "heading": 340, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "bomber" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 51.5, "lon": 46.2, "alt": 12000 },
+            { "lat": 58.0, "lon": 42.0, "alt": 12000 },
+            { "lat": 62.0, "lon": 50.0, "alt": 12000 },
+            { "lat": 56.0, "lon": 54.0, "alt": 12000 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#ff4444", "size": 8, "trail": true, "trailLength": 200 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "Tu-160M Blackjack",
+        "weapons": "12x Kh-102 ALCM (nuclear) or 12x Kh-101 (conventional)",
+        "rcs_m2": 15
+      }
+    },
+    {
+      "id": "tu160_2",
+      "name": "BLACKJACK 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 51.5, "lon": 46.0, "alt": 11500, "speed": 260, "heading": 20, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "bomber" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 51.5, "lon": 46.0, "alt": 11500 },
+            { "lat": 56.0, "lon": 38.0, "alt": 11500 },
+            { "lat": 60.0, "lon": 44.0, "alt": 11500 },
+            { "lat": 55.0, "lon": 50.0, "alt": 11500 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#ff4444", "size": 8, "trail": true, "trailLength": 200 }
+      },
+      "_custom": {
+        "payloads": ["nuclear"],
+        "designation": "Tu-160M Blackjack",
+        "weapons": "12x Kh-102 ALCM (nuclear) or 12x Kh-101 (conventional)",
+        "rcs_m2": 15
+      }
+    },
+    {
+      "id": "a50_mainstay",
+      "name": "MAINSTAY 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 55.0, "lon": 50.0, "alt": 9000, "speed": 220, "heading": 180, "gamma": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "awacs" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 55.0, "lon": 50.0, "alt": 9000 },
+            { "lat": 57.0, "lon": 45.0, "alt": 9000 },
+            { "lat": 59.0, "lon": 50.0, "alt": 9000 },
+            { "lat": 57.0, "lon": 55.0, "alt": 9000 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#ff6666", "size": 8, "trail": true, "trailLength": 250 }
+      },
+      "_custom": {
+        "designation": "A-50U Mainstay",
+        "role": "Airborne early warning and control",
+        "sensors": [{ "type": "radar", "range_km": 600, "fov_deg": 360 }],
+        "rcs_m2": 100
+      }
+    },
+    {
+      "id": "tundra_ew_1",
+      "name": "TUNDRA EKS-1",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 26600,
+        "eccentricity": 0.74,
+        "inclination": 63.4,
+        "raan": 30,
+        "argPerigee": 270,
+        "meanAnomaly": 0
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff4444", "size": 6, "showOrbit": true }
+      },
+      "_custom": {
+        "designation": "14F142 Tundra (EKS / Kupol)",
+        "role": "Missile early warning - Northern Hemisphere",
+        "sensors": [{ "type": "ir", "fov_deg": 12, "range_km": 40000 }]
+      }
+    },
+    {
+      "id": "tundra_ew_2",
+      "name": "TUNDRA EKS-2",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 26600,
+        "eccentricity": 0.74,
+        "inclination": 63.4,
+        "raan": 150,
+        "argPerigee": 270,
+        "meanAnomaly": 180
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff4444", "size": 6, "showOrbit": true }
+      },
+      "_custom": {
+        "designation": "14F142 Tundra (EKS / Kupol)",
+        "role": "Missile early warning - Northern Hemisphere (offset)",
+        "sensors": [{ "type": "ir", "fov_deg": 12, "range_km": 40000 }]
+      }
+    },
+    {
+      "id": "moscow_abm",
+      "name": "MOSCOW A-235 ABM",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 55.75, "lon": 37.6, "alt": 0 },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#ff6644", "size": 12 }
+      },
+      "_custom": {
+        "designation": "A-235 Nudol ABM System",
+        "role": "Moscow strategic ABM defense",
+        "interceptors": 68,
+        "range_km": 1500,
+        "sensors": [
+          { "type": "radar", "range_km": 6000, "fov_deg": 360 },
+          { "type": "radar", "range_km": 1500, "fov_deg": 120, "name": "Don-2N engagement radar" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "DEFCON 3 — Increased readiness. Strategic forces placed on heightened alert. SBIRS constellation nominal. TACAMO airborne.",
+        "priority": "high"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "SBIRS GEO-2 detects thermal activity consistent with missile test preparation at Uzhur ICBM complex. NORAD initiating threat assessment.",
+        "priority": "high"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 180,
+      "action": {
+        "type": "message",
+        "text": "DEFCON 2 — Strategic bombers scrambled. SPIRIT 1 and SPIRIT 2 proceeding to positive control orbits. Looking Glass confirms nuclear command authority chain intact.",
+        "priority": "critical"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "Arctic ADIZ penetration detected. Two Tu-160 BLACKJACK bombers on northerly heading from Engels AFB. Canadian NORAD sector tracking. Fighter intercept scrambled.",
+        "priority": "high"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 420,
+      "action": {
+        "type": "message",
+        "text": "NRO satellite imagery confirms hypergolic fuel transfer at Sarmat silo complex. STRATCOM assesses ICBM readiness within 30 minutes. USSTRATCOM OPLAN updated.",
+        "priority": "critical"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "DEFCON 1 — MAXIMUM READINESS. All nuclear forces at full alert. USS OHIO confirms receipt of Emergency Action Message. National Command Authority in continuity of operations posture.",
+        "priority": "critical"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "LAUNCH DETECTION — SBIRS GEO-1 and GEO-2 report infrared bloom consistent with ICBM launch from Uzhur complex. Dual-phenomenology confirmation pending. NORAD impact assessment initiated. Estimated time of flight: 30 minutes.",
+        "priority": "critical"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1200,
+      "action": {
+        "type": "message",
+        "text": "GBI LAUNCH AUTHORIZED — Fort Greely Site Alpha firing two GBI interceptors in salvo. Midcourse tracking via Sea-Based X-Band radar. Time to intercept: 12 minutes. THAAD batteries on standby for terminal defense.",
+        "priority": "critical"
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "us_icbm_complex",
+      "name": "US ICBM Complex - FE Warren",
+      "type": "operational",
+      "shape": "circle",
+      "center": { "lat": 42.8, "lon": -104.5 },
+      "radius_km": 100,
+      "color": "#4488ff40",
+      "borderColor": "#4488ff"
+    },
+    {
+      "id": "russian_icbm_complex",
+      "name": "Russian ICBM Complex - Uzhur",
+      "type": "engagement",
+      "shape": "circle",
+      "center": { "lat": 55.3, "lon": 89.8 },
+      "radius_km": 100,
+      "color": "#ff444440",
+      "borderColor": "#ff4444"
+    },
+    {
+      "id": "norad_defense_zone",
+      "name": "NORAD Defense Zone",
+      "type": "safe",
+      "shape": "circle",
+      "center": { "lat": 38.74, "lon": -104.84 },
+      "radius_km": 2000,
+      "color": "#44aaff20",
+      "borderColor": "#44aaff"
+    },
+    {
+      "id": "arctic_adiz",
+      "name": "Arctic Air Defense Identification Zone",
+      "type": "adiz",
+      "shape": "polygon",
+      "points": [
+        { "lat": 65.0, "lon": -170.0 },
+        { "lat": 80.0, "lon": -120.0 },
+        { "lat": 82.0, "lon": 0.0 },
+        { "lat": 80.0, "lon": 60.0 },
+        { "lat": 65.0, "lon": 90.0 },
+        { "lat": 65.0, "lon": 30.0 },
+        { "lat": 68.0, "lon": 0.0 },
+        { "lat": 65.0, "lon": -90.0 }
+      ],
+      "color": "#ffaa0020",
+      "borderColor": "#ffaa00"
+    },
+    {
+      "id": "pacific_patrol_zone",
+      "name": "Pacific SSBN Patrol Zone",
+      "type": "exclusion",
+      "shape": "circle",
+      "center": { "lat": 31.0, "lon": -166.0 },
+      "radius_km": 500,
+      "color": "#4488ff15",
+      "borderColor": "#4488ff80"
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 70,
+    "lon": -30,
+    "range": 15000000
+  }
+}

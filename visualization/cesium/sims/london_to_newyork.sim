@@ -1,0 +1,481 @@
+{
+  "metadata": {
+    "name": "London to New York — Transatlantic Flight",
+    "description": "Transatlantic commercial flight from London Heathrow (LHR) to John F. Kennedy International Airport (JFK). Fly a Boeing 747 across the North Atlantic via the Shanwick Oceanic Track system with realistic ATC handoffs.",
+    "version": "1.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "weather": "overcast",
+    "maxTimeWarp": 128
+  },
+  "entities": [
+    {
+      "id": "player",
+      "name": "BAW 117",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 51.47,
+        "lon": -0.46,
+        "alt": 0,
+        "speed": 0,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0,
+        "engineOn": false,
+        "gearDown": true,
+        "brakesOn": true,
+        "flapsDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "control": {
+          "type": "player_input",
+          "config": "fighter"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 14,
+          "trail": true,
+          "trailColor": "#4488ff88",
+          "label": "BAW 117"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "taxi": true,
+          "air": true
+        },
+        "notes": "Boeing 747-400, British Airways Flight 117. London Heathrow to New York JFK. Cruising altitude FL370. NAT Track Alpha westbound."
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "groundAlt": 25,
+        "routeAlt": 50,
+        "initialMsg": "HEATHROW TOWER: BAW 117 Heavy, cleared for takeoff runway 27L. Climb to altitude 6,000, squawk 4521.",
+        "initialHint": "Press E to start engines. Hold B to brake. Use P to switch to AIR mode before takeoff.",
+        "waypoints": [
+          {
+            "lat": 51.47,
+            "lon": -0.52,
+            "radius": 500,
+            "name": "RWY 27L",
+            "msg": "Line up runway 27L. Heading 270.",
+            "hint": "Switch to AIR mode (P), full throttle (W), release brakes."
+          },
+          {
+            "lat": 51.47,
+            "lon": -0.62,
+            "radius": 1000,
+            "name": "DEPARTURE",
+            "msg": "Airborne! Contact London Control. Climb to FL370.",
+            "hint": "Retract gear, maintain positive climb."
+          }
+        ],
+        "milestones": [
+          {
+            "type": "engine",
+            "msg": "ENGINE START — Four Rolls-Royce RB211 engines spooling up."
+          },
+          {
+            "type": "speed",
+            "value": 75,
+            "msg": "V1 — COMMIT TO TAKEOFF"
+          },
+          {
+            "type": "speed",
+            "value": 85,
+            "msg": "ROTATE — Gentle pull to rotate. VR reached."
+          },
+          {
+            "type": "alt",
+            "value": 3000,
+            "msg": "Gear up, climbing through 3,000ft. Continue climb to FL370."
+          },
+          {
+            "type": "alt",
+            "value": 10000,
+            "msg": "Passing 10,000ft — Accelerate to cruise speed. Turn heading 290 for Land's End."
+          },
+          {
+            "type": "alt",
+            "value": 11500,
+            "msg": "Cruise altitude FL370 reached. Transatlantic crossing underway."
+          }
+        ]
+      }
+    },
+    {
+      "id": "baw_178",
+      "name": "BAW 178",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 51.5,
+        "lon": -0.3,
+        "alt": 11500,
+        "speed": 260,
+        "heading": 290,
+        "gamma": 0,
+        "throttle": 0.82,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 51.5,
+              "lon": -0.3,
+              "alt": 11500,
+              "speed": 260
+            },
+            {
+              "lat": 51.8,
+              "lon": -5.0,
+              "alt": 11500,
+              "speed": 260
+            },
+            {
+              "lat": 53.0,
+              "lon": -15.0,
+              "alt": 11500,
+              "speed": 260
+            },
+            {
+              "lat": 52.5,
+              "lon": -30.0,
+              "alt": 11500,
+              "speed": 260
+            },
+            {
+              "lat": 49.0,
+              "lon": -54.0,
+              "alt": 11500,
+              "speed": 260
+            },
+            {
+              "lat": 42.36,
+              "lon": -71.06,
+              "alt": 5000,
+              "speed": 200
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88cc88",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#88cc8866",
+          "label": "BAW 178"
+        }
+      },
+      "_custom": {
+        "notes": "British Airways 178, London Heathrow to Boston Logan. Boeing 787-9 Dreamliner."
+      }
+    },
+    {
+      "id": "afr_007",
+      "name": "AFR 007",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 48.9,
+        "lon": 2.3,
+        "alt": 12000,
+        "speed": 255,
+        "heading": 300,
+        "gamma": 0,
+        "throttle": 0.82,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 48.9,
+              "lon": 2.3,
+              "alt": 12000,
+              "speed": 255
+            },
+            {
+              "lat": 50.5,
+              "lon": -3.0,
+              "alt": 12000,
+              "speed": 255
+            },
+            {
+              "lat": 52.0,
+              "lon": -15.0,
+              "alt": 12000,
+              "speed": 255
+            },
+            {
+              "lat": 51.0,
+              "lon": -30.0,
+              "alt": 12000,
+              "speed": 255
+            },
+            {
+              "lat": 48.0,
+              "lon": -50.0,
+              "alt": 12000,
+              "speed": 255
+            },
+            {
+              "lat": 42.0,
+              "lon": -68.0,
+              "alt": 11000,
+              "speed": 250
+            },
+            {
+              "lat": 40.64,
+              "lon": -73.78,
+              "alt": 3000,
+              "speed": 180
+            }
+          ],
+          "loopMode": "once"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#8888cc",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#8888cc66",
+          "label": "AFR 007"
+        }
+      },
+      "_custom": {
+        "notes": "Air France 007, Paris Charles de Gaulle to New York JFK. Airbus A350-900."
+      }
+    },
+    {
+      "id": "heathrow_tower",
+      "name": "HEATHROW TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 51.47,
+        "lon": -0.46,
+        "alt": 25,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "HEATHROW",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "London Heathrow Airport. NATS approach and tower control. Watchman radar."
+      }
+    },
+    {
+      "id": "shannon_control",
+      "name": "SHANNON CONTROL",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 52.7,
+        "lon": -8.9,
+        "alt": 14,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.88
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "SHANNON",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "notes": "Shannon Aeradio / Shanwick Oceanic Control. Manages North Atlantic Organized Track System (NAT OTS) entry."
+      }
+    },
+    {
+      "id": "gander_control",
+      "name": "GANDER CONTROL",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 48.9,
+        "lon": -54.6,
+        "alt": 151,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.88
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "GANDER",
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "notes": "Gander Oceanic Control. Manages westbound NAT traffic entering North American domestic airspace."
+      }
+    },
+    {
+      "id": "jfk_tower",
+      "name": "JFK TOWER",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 40.64,
+        "lon": -73.78,
+        "alt": 4,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.95
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "JFK TOWER",
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(68,255,68,0.03)",
+          "sensorOutlineColor": "#44ff44"
+        }
+      },
+      "_custom": {
+        "notes": "John F. Kennedy International Airport tower and TRACON. ASR-11 airport surveillance radar."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "HEATHROW TOWER: BAW 117 Heavy, cleared for takeoff runway 27L. Wind 260 at 15. Contact London Control on 127.1 when airborne."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "LONDON CONTROL: BAW 117, radar contact. Cleared to flight level 370 via Shanwick. Expect NAT Track Alpha."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1200,
+      "action": {
+        "type": "message",
+        "text": "SHANWICK OCEANIC: BAW 117, oceanic clearance received. NAT Track Alpha. Maintain FL370, Mach 0.84. Report 20 West."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 2400,
+      "action": {
+        "type": "message",
+        "text": "SHANWICK OCEANIC: BAW 117, position report received at 20 West. No conflicting traffic. Next report at 30 West."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 3600,
+      "action": {
+        "type": "message",
+        "text": "MID-ATLANTIC: BAW 117, halfway point. Approximately 3 hours to JFK. Current position mid-ocean, FL370."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 5400,
+      "action": {
+        "type": "message",
+        "text": "GANDER OCEANIC: BAW 117, entering Gander Oceanic FIR. Cleared direct Gander. Contact New York Oceanic on 131.8."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 7200,
+      "action": {
+        "type": "message",
+        "text": "NEW YORK CENTER: BAW 117, radar contact. Descend and maintain flight level 240. Expect vectors for the ILS 31L at Kennedy."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 8400,
+      "action": {
+        "type": "message",
+        "text": "NEW YORK APPROACH: BAW 117 Heavy, turn left heading 220. Descend to 4,000. Expect ILS runway 31L. Traffic at your 10 o'clock, 15 miles, a 737 on the ILS 31R."
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 52,
+    "lon": -30,
+    "range": 8000000
+  }
+}

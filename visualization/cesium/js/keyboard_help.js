@@ -132,9 +132,22 @@ var KeyboardHelp = (function() {
             modes: ['flight', 'ground'],
             bindings: [
                 { key: 'T',           desc: 'Auto-trim (hold) / Trim up' },
-                { key: 'Shift+T',     desc: 'Trim down' },
                 { key: 'Ctrl+T',      desc: 'Trim up (step)' },
                 { key: 'A',           desc: 'Toggle autopilot' },
+            ]
+        },
+        {
+            name: 'Mission / Tactical',
+            color: '#ff6644',
+            modes: ['flight', 'observer'],
+            bindings: [
+                { key: 'Shift+T',     desc: 'Threat assessment overlay' },
+                { key: 'G',           desc: 'Toggle data link (Link-16)' },
+                { key: 'Shift+W',     desc: 'Waypoint planner (right-click to place)' },
+                { key: 'Backspace',   desc: 'Remove last waypoint' },
+                { key: 'Shift+Back',  desc: 'Clear all waypoints' },
+                { key: 'Shift+E',     desc: 'Entity status board' },
+                { key: 'J',           desc: 'Toggle conjunction alerts' },
             ]
         },
         {

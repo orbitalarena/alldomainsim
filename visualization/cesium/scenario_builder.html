@@ -1053,12 +1053,13 @@
             display: none;
             position: absolute;
             top: 100%;
-            right: 0;
+            left: 0;
             margin-top: 4px;
             background: rgba(12, 18, 30, 0.98);
             border: 1px solid #1a2a44;
             border-radius: 6px;
             min-width: 360px;
+            max-width: calc(100vw - 20px);
             max-height: 80vh;
             overflow-y: auto;
             z-index: 100;
@@ -1759,6 +1760,8 @@
             <button class="toolbar-btn primary" id="btnAddPlatform" title="Create custom platform template">+ Platform</button>
             <button class="toolbar-btn" id="btnEnvironment" title="Scenario environment settings">Environment</button>
             <button class="toolbar-btn" id="btnComms" title="Design communication networks" style="color:#00ffcc; border-color:#006655;">Comms</button>
+            <button class="toolbar-btn" id="btnRegions" title="Toggle Region Editor" style="color:#ff8844; border-color:#664422;">Regions</button>
+            <button class="toolbar-btn" id="btnValidate" title="Validate Scenario" style="background:rgba(0,0,0,0.5); border:1px solid #555; color:#aaa; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-family:monospace;">&#10003; Validate</button>
             <div class="toolbar-separator"></div>
             <div class="demo-dropdown">
                 <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
@@ -2296,6 +2299,42 @@
     <div id="cesiumContainer"></div>
 
     <!-- ============================================================
+         REGION EDITOR PANEL (floating overlay)
+         ============================================================ -->
+    <div id="regionEditorPanel" style="display:none; position:absolute; right:282px; top:44px; width:260px; height:calc(100% - 224px); background:rgba(10,14,23,0.95); border-left:1px solid rgba(255,136,68,0.2); border-right:1px solid rgba(255,136,68,0.2); padding:10px; overflow-y:auto; z-index:30; font-family:'Courier New',monospace;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="color:#ff8844; font-size:13px; font-weight:bold;">REGIONS</span>
+        <button id="btnCloseRegions" style="background:none; border:1px solid #555; color:#aaa; cursor:pointer; padding:1px 6px; border-radius:3px;">&times;</button>
+      </div>
+
+      <!-- Draw tools -->
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <button id="btnDrawCircle" style="flex:1; background:rgba(0,0,0,0.3); border:1px solid #555; color:#aaa; padding:4px; border-radius:3px; cursor:pointer; font-family:monospace; font-size:11px;">Circle</button>
+        <button id="btnDrawPolygon" style="flex:1; background:rgba(0,0,0,0.3); border:1px solid #555; color:#aaa; padding:4px; border-radius:3px; cursor:pointer; font-family:monospace; font-size:11px;">Polygon</button>
+        <button id="btnCancelDraw" style="background:rgba(0,0,0,0.3); border:1px solid #555; color:#888; padding:4px 8px; border-radius:3px; cursor:pointer; font-family:monospace; font-size:11px; display:none;">Cancel</button>
+      </div>
+
+      <div id="drawInstructions" style="display:none; color:#ffcc00; font-size:10px; margin-bottom:8px; padding:4px 6px; background:rgba(255,200,0,0.08); border-radius:3px;"></div>
+
+      <!-- Region list -->
+      <div style="border-top:1px solid #333; padding-top:8px; margin-bottom:8px;">
+        <div style="color:#ff8844; font-size:10px; margin-bottom:4px;">REGION LIST</div>
+        <div id="regionList" style="max-height:200px; overflow-y:auto;"></div>
+      </div>
+
+      <!-- Properties -->
+      <div style="border-top:1px solid #333; padding-top:8px;">
+        <div style="color:#ff8844; font-size:10px; margin-bottom:4px;">PROPERTIES</div>
+        <div id="regionProperties"></div>
+      </div>
+
+      <!-- Bulk actions -->
+      <div style="border-top:1px solid #333; padding-top:8px; margin-top:8px;">
+        <button id="btnClearRegions" style="width:100%; background:rgba(255,50,50,0.1); border:1px solid #ff4444; color:#ff4444; padding:4px; border-radius:3px; cursor:pointer; font-family:monospace; font-size:11px;">Clear All Regions</button>
+      </div>
+    </div>
+
+    <!-- ============================================================
          RIGHT SIDEBAR - PROPERTY INSPECTOR
          ============================================================ -->
     <div id="rightSidebar">
@@ -2470,6 +2509,15 @@
 <!-- Run-mode HUD -->
 <div id="runHUD"></div>
 
+<!-- Validation Results Panel -->
+<div id="validationPanel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(10,14,23,0.95); border:1px solid rgba(0,255,100,0.3); border-radius:8px; padding:16px 20px; z-index:70; min-width:400px; max-width:600px; max-height:70vh; overflow-y:auto; font-family:'Courier New',monospace;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <span id="validationTitle" style="font-size:14px; font-weight:bold; color:#00ff88;">SCENARIO VALIDATION</span>
+    <button id="validationClose" style="background:none; border:1px solid #555; color:#aaa; cursor:pointer; padding:2px 8px; border-radius:4px; font-size:14px;">&times;</button>
+  </div>
+  <div id="validationResults"></div>
+</div>
+
 <!-- Help Dialog -->
 <div id="helpDialogOverlay">
     <div class="help-dialog">
@@ -2593,6 +2641,8 @@
 <script src="js/builder/platform_builder.js"></script>
 <script src="js/builder/sensor_view_mode.js"></script>
 <script src="js/builder/comm_designer.js"></script>
+<script src="js/builder/region_editor.js"></script>
+<script src="js/builder/scenario_validator.js"></script>
 <script src="js/builder/builder_app.js"></script>
 <script src="js/builder/scenario_io.js"></script>
 <script src="js/builder/globe_interaction.js"></script>

@@ -1,0 +1,1578 @@
+{
+  "metadata": {
+    "name": "Maritime Interdiction - Strait of Hormuz",
+    "description": "Coalition naval blockade enforcing maritime interdiction in the Strait of Hormuz. Blue coalition CSG with carrier, escorts, and air wing maintains a blockade line across the strait. Red adversary forces attempt to challenge with fast attack craft, a submarine, coastal defense missiles, and maritime strike aircraft. Combined Maritime Forces HQ in Bahrain coordinates the operation.",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 32
+  },
+  "entities": [
+    {
+      "id": "cvn68_nimitz",
+      "name": "CVN-68 NIMITZ",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 25.5,
+        "lon": 57.5,
+        "alt": 0,
+        "speed": 12,
+        "heading": 315,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "cvn_nimitz",
+          "cruiseSpeed": 15
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.5,
+              "lon": 57.5,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.8,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.5,
+              "lon": 56.5,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.2,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 12
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4466aa",
+          "label": "CVN-68 NIMITZ",
+          "pixelSize": 16,
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,102,170,0.04)",
+          "sensorOutlineColor": "#4466aa"
+        }
+      },
+      "_custom": {
+        "notes": "CVN-68 USS Nimitz, flagship of the blockade task force. Nimitz-class nuclear carrier with embarked air wing. SPS-48E 3D radar, SPS-49 2D air search radar."
+      }
+    },
+    {
+      "id": "ddg92_momsen",
+      "name": "DDG-92 MOMSEN",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 25.55,
+        "lon": 57.4,
+        "alt": 0,
+        "speed": 12,
+        "heading": 315,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "ddg_arleigh_burke",
+          "cruiseSpeed": 15
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.55,
+              "lon": 57.4,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.85,
+              "lon": 56.9,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.55,
+              "lon": 56.4,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.25,
+              "lon": 56.9,
+              "alt": 0,
+              "speed": 12
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 160000,
+          "minRange_m": 3000,
+          "maxAlt_m": 25000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.75,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "DDG-92 MOMSEN",
+          "pixelSize": 14,
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(68,136,255,0.03)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      },
+      "_custom": {
+        "notes": "DDG-92 USS Momsen, Arleigh Burke-class Flight IIA. SPY-1D AEGIS radar, SM-2/SM-6 SAMs, Harpoon ASMs. Carrier escort, starboard screen."
+      }
+    },
+    {
+      "id": "ddg105_dewey",
+      "name": "DDG-105 DEWEY",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 25.45,
+        "lon": 57.6,
+        "alt": 0,
+        "speed": 12,
+        "heading": 315,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "ddg_arleigh_burke",
+          "cruiseSpeed": 15
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.45,
+              "lon": 57.6,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.75,
+              "lon": 57.1,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.45,
+              "lon": 56.6,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.15,
+              "lon": 57.1,
+              "alt": 0,
+              "speed": 12
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 160000,
+          "minRange_m": 3000,
+          "maxAlt_m": 25000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.75,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "DDG-105 DEWEY",
+          "pixelSize": 14,
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(68,136,255,0.03)",
+          "sensorOutlineColor": "#4488ff"
+        }
+      },
+      "_custom": {
+        "notes": "DDG-105 USS Dewey, Arleigh Burke-class Flight IIA. SPY-1D AEGIS radar, SM-2/SM-6 SAMs, Harpoon ASMs. Carrier escort, port screen."
+      }
+    },
+    {
+      "id": "cg62_chancellorsville",
+      "name": "CG-62 CHANCELLORSVILLE",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 25.7,
+        "lon": 57.3,
+        "alt": 0,
+        "speed": 12,
+        "heading": 315,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "cg_ticonderoga",
+          "cruiseSpeed": 15
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.7,
+              "lon": 57.3,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 26.0,
+              "lon": 56.8,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.7,
+              "lon": 56.3,
+              "alt": 0,
+              "speed": 12
+            },
+            {
+              "lat": 25.4,
+              "lon": 56.8,
+              "alt": 0,
+              "speed": 12
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.92
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 180000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1400,
+          "killProbability": 0.8,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 3
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#6699ff",
+          "label": "CG-62 CHANCELLORSVILLE",
+          "pixelSize": 15,
+          "sensorRange_m": 250000,
+          "sensorColor": "rgba(102,153,255,0.03)",
+          "sensorOutlineColor": "#6699ff"
+        }
+      },
+      "_custom": {
+        "notes": "CG-62 USS Chancellorsville, Ticonderoga-class cruiser. Dual SPY-1B AEGIS arrays, SM-2/SM-6 long-range SAMs, Tomahawk cruise missiles. Air defense commander for the CSG."
+      }
+    },
+    {
+      "id": "ffg67_massapequa",
+      "name": "FFG-67 MASSAPEQUA",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 26.3,
+        "lon": 56.5,
+        "alt": 0,
+        "speed": 10,
+        "heading": 45,
+        "gamma": 0,
+        "throttle": 0.4,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "config": "ffg_constellation",
+          "cruiseSpeed": 14
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.3,
+              "lon": 56.5,
+              "alt": 0,
+              "speed": 10
+            },
+            {
+              "lat": 26.5,
+              "lon": 56.7,
+              "alt": 0,
+              "speed": 10
+            },
+            {
+              "lat": 26.7,
+              "lon": 56.3,
+              "alt": 0,
+              "speed": 10
+            },
+            {
+              "lat": 26.3,
+              "lon": 56.1,
+              "alt": 0,
+              "speed": 10
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 120000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.82
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 50000,
+          "minRange_m": 2000,
+          "maxAlt_m": 15000,
+          "missileSpeed_mps": 900,
+          "killProbability": 0.65,
+          "engagementRules": "weapons_free",
+          "salvoSize": 1,
+          "maxSimultaneous": 1
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#3377cc",
+          "label": "FFG-67 MASSAPEQUA",
+          "pixelSize": 12,
+          "sensorRange_m": 120000,
+          "sensorColor": "rgba(51,119,204,0.03)",
+          "sensorOutlineColor": "#3377cc"
+        }
+      },
+      "_custom": {
+        "notes": "FFG-67 USS Massapequa, Constellation-class frigate. EASR radar, ESSM point defense, NSM anti-ship missiles. Picket station at strait entrance."
+      }
+    },
+    {
+      "id": "hornet_201",
+      "name": "HORNET 201",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 26.0,
+        "lon": 56.8,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 350,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.0,
+              "lon": 56.8,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 26.6,
+              "lon": 56.4,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 26.8,
+              "lon": 57.0,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 26.2,
+              "lon": 57.2,
+              "alt": 8000,
+              "speed": 250
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-120",
+              "count": 4,
+              "maxRange_m": 80000
+            },
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "maxRange_m": 18000
+            }
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#66aaff",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "HORNET 201"
+        }
+      },
+      "_custom": {
+        "notes": "F/A-18E Super Hornet, VFA-14 Tophatters. CAP over strait, armed with AIM-120C and AIM-9X. Carrier air wing asset."
+      }
+    },
+    {
+      "id": "hornet_205",
+      "name": "HORNET 205",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 26.4,
+        "lon": 57.0,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 330,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.4,
+              "lon": 57.0,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 26.8,
+              "lon": 56.5,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 27.0,
+              "lon": 57.2,
+              "alt": 8000,
+              "speed": 250
+            },
+            {
+              "lat": 26.5,
+              "lon": 57.4,
+              "alt": 8000,
+              "speed": 250
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "loadout": [
+            {
+              "type": "AIM-120",
+              "count": 4,
+              "maxRange_m": 80000
+            },
+            {
+              "type": "AIM-9X",
+              "count": 2,
+              "maxRange_m": 18000
+            }
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#66aaff",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "HORNET 205"
+        }
+      },
+      "_custom": {
+        "notes": "F/A-18E Super Hornet, VFA-14 Tophatters. Northern CAP station, armed with AIM-120C and AIM-9X."
+      }
+    },
+    {
+      "id": "hawkeye_601",
+      "name": "HAWKEYE 601",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.8,
+        "lon": 57.0,
+        "alt": 9000,
+        "speed": 160,
+        "heading": 270,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.8,
+              "lon": 57.0,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 26.2,
+              "lon": 56.3,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 26.2,
+              "lon": 57.5,
+              "alt": 9000,
+              "speed": 160
+            },
+            {
+              "lat": 25.8,
+              "lon": 57.0,
+              "alt": 9000,
+              "speed": 160
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.93
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88ccff",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "HAWKEYE 601"
+        }
+      },
+      "_custom": {
+        "notes": "E-2D Advanced Hawkeye, VAW-117 Wallbangers. AEW orbit providing 350km radar coverage over the strait. AN/APY-9 AESA radar with maritime surface search mode."
+      }
+    },
+    {
+      "id": "seahawk_711",
+      "name": "SEAHAWK 711",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 26.2,
+        "lon": 56.7,
+        "alt": 500,
+        "speed": 80,
+        "heading": 30,
+        "gamma": 0,
+        "throttle": 0.5,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.2,
+              "lon": 56.7,
+              "alt": 500,
+              "speed": 80
+            },
+            {
+              "lat": 26.5,
+              "lon": 56.5,
+              "alt": 500,
+              "speed": 80
+            },
+            {
+              "lat": 26.5,
+              "lon": 57.0,
+              "alt": 500,
+              "speed": 80
+            },
+            {
+              "lat": 26.2,
+              "lon": 56.7,
+              "alt": 500,
+              "speed": 80
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 60000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.8
+        },
+        "visual": {
+          "type": "point",
+          "color": "#55bbff",
+          "pixelSize": 8,
+          "trail": true,
+          "label": "SEAHAWK 711"
+        }
+      },
+      "_custom": {
+        "notes": "MH-60R Seahawk, HSM-77 Saberhawks. Low-altitude ASW/ASUW patrol with APS-153 multi-mode radar, dipping sonar, and AGM-114 Hellfire missiles."
+      }
+    },
+    {
+      "id": "cmf_hq_bahrain",
+      "name": "CMF HQ BAHRAIN",
+      "type": "ground",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 26.22,
+        "lon": 50.55,
+        "alt": 5,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 15,
+          "detectionProbability": 0.9
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "CMF HQ BAHRAIN",
+          "pixelSize": 14,
+          "sensorRange_m": 500000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "notes": "Combined Maritime Forces Headquarters, NSA Bahrain. C5I node coordinating CTF-150 (maritime security), CTF-151 (counter-piracy), CTF-152 (Gulf security). Long-range OTH-B radar and satellite comms."
+      }
+    },
+    {
+      "id": "fac_01",
+      "name": "FAC PEYKAN-1",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 26.8,
+        "lon": 56.2,
+        "alt": 0,
+        "speed": 25,
+        "heading": 200,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 25
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.8,
+              "lon": 56.2,
+              "alt": 0,
+              "speed": 25
+            },
+            {
+              "lat": 26.4,
+              "lon": 56.5,
+              "alt": 0,
+              "speed": 30
+            },
+            {
+              "lat": 26.2,
+              "lon": 56.8,
+              "alt": 0,
+              "speed": 30
+            },
+            {
+              "lat": 26.6,
+              "lon": 56.3,
+              "alt": 0,
+              "speed": 25
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 40000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.7
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "FAC PEYKAN-1",
+          "pixelSize": 10,
+          "sensorRange_m": 40000,
+          "sensorColor": "rgba(255,68,68,0.03)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      },
+      "_custom": {
+        "notes": "Peykan-class fast attack craft. Armed with C-802 anti-ship missiles, 76mm gun. Small RCS, high speed dash capability up to 35 knots."
+      }
+    },
+    {
+      "id": "fac_02",
+      "name": "FAC PEYKAN-2",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 26.9,
+        "lon": 56.0,
+        "alt": 0,
+        "speed": 25,
+        "heading": 190,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 25
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.9,
+              "lon": 56.0,
+              "alt": 0,
+              "speed": 25
+            },
+            {
+              "lat": 26.5,
+              "lon": 56.3,
+              "alt": 0,
+              "speed": 30
+            },
+            {
+              "lat": 26.1,
+              "lon": 56.6,
+              "alt": 0,
+              "speed": 30
+            },
+            {
+              "lat": 26.7,
+              "lon": 56.1,
+              "alt": 0,
+              "speed": 25
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 40000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.7
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "FAC PEYKAN-2",
+          "pixelSize": 10,
+          "sensorRange_m": 40000,
+          "sensorColor": "rgba(255,68,68,0.03)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      },
+      "_custom": {
+        "notes": "Peykan-class fast attack craft. C-802 missiles, swarm tactics. Operating in pair with PEYKAN-1."
+      }
+    },
+    {
+      "id": "fac_03",
+      "name": "FAC SINA-3",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 27.0,
+        "lon": 56.5,
+        "alt": 0,
+        "speed": 25,
+        "heading": 210,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 25
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 27.0,
+              "lon": 56.5,
+              "alt": 0,
+              "speed": 25
+            },
+            {
+              "lat": 26.6,
+              "lon": 56.7,
+              "alt": 0,
+              "speed": 28
+            },
+            {
+              "lat": 26.3,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 28
+            },
+            {
+              "lat": 26.8,
+              "lon": 56.4,
+              "alt": 0,
+              "speed": 25
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 40000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.7
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "FAC SINA-3",
+          "pixelSize": 10,
+          "sensorRange_m": 40000,
+          "sensorColor": "rgba(255,68,68,0.03)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      },
+      "_custom": {
+        "notes": "Sina-class fast attack craft. C-704 anti-ship missiles, 30mm gun. Third prong of fast attack swarm."
+      }
+    },
+    {
+      "id": "sub_kilo",
+      "name": "SSK TAREQ",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 26.5,
+        "lon": 56.8,
+        "alt": 0,
+        "speed": 5,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.3,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 10
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 26.5,
+              "lon": 56.8,
+              "alt": 0,
+              "speed": 5
+            },
+            {
+              "lat": 26.3,
+              "lon": 56.9,
+              "alt": 0,
+              "speed": 5
+            },
+            {
+              "lat": 26.1,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 5
+            },
+            {
+              "lat": 26.3,
+              "lon": 56.7,
+              "alt": 0,
+              "speed": 5
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 20000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.6
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc3333",
+          "label": "SSK TAREQ",
+          "pixelSize": 10,
+          "sensorRange_m": 20000,
+          "sensorColor": "rgba(204,51,51,0.03)",
+          "sensorOutlineColor": "#cc3333"
+        }
+      },
+      "_custom": {
+        "notes": "Kilo-class (877EKM) diesel-electric submarine. TEST-71 torpedoes, 3M-54 Klub cruise missiles. Quiet diesel-electric patrol in chokepoint. Surface representation (no underwater physics)."
+      }
+    },
+    {
+      "id": "corvette_bayandor",
+      "name": "CORVETTE BAYANDOR",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Naval",
+      "initialState": {
+        "lat": 27.0,
+        "lon": 57.0,
+        "alt": 0,
+        "speed": 18,
+        "heading": 225,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 18
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 27.0,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 18
+            },
+            {
+              "lat": 26.7,
+              "lon": 56.7,
+              "alt": 0,
+              "speed": 18
+            },
+            {
+              "lat": 26.5,
+              "lon": 57.0,
+              "alt": 0,
+              "speed": 18
+            },
+            {
+              "lat": 26.8,
+              "lon": 57.2,
+              "alt": 0,
+              "speed": 18
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 360,
+          "scanRate_dps": 24,
+          "detectionProbability": 0.78
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 20000,
+          "minRange_m": 1500,
+          "maxAlt_m": 10000,
+          "missileSpeed_mps": 800,
+          "killProbability": 0.45,
+          "engagementRules": "weapons_free",
+          "salvoSize": 1,
+          "maxSimultaneous": 1
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff5555",
+          "label": "CORVETTE BAYANDOR",
+          "pixelSize": 12,
+          "sensorRange_m": 80000,
+          "sensorColor": "rgba(255,85,85,0.03)",
+          "sensorOutlineColor": "#ff5555"
+        }
+      },
+      "_custom": {
+        "notes": "Bayandor-class corvette. 76mm gun, Fajr-27 CIWS, limited point defense SAMs. Provides surface combatant escort for the FAC swarm."
+      }
+    },
+    {
+      "id": "cdcm_01",
+      "name": "CDCM SITE ALPHA",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 27.0,
+        "lon": 56.5,
+        "alt": 50,
+        "speed": 0,
+        "heading": 180
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.85
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 120000,
+          "minRange_m": 10000,
+          "maxAlt_m": 100,
+          "missileSpeed_mps": 300,
+          "killProbability": 0.7,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2222",
+          "label": "CDCM ALPHA",
+          "pixelSize": 12,
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(255,34,34,0.04)",
+          "sensorOutlineColor": "#ff2222"
+        }
+      },
+      "_custom": {
+        "notes": "C-802 Noor coastal defense cruise missile battery. 6x launcher TELs, Band Stand targeting radar. Range 120km, sea-skimming terminal phase. Located on Qeshm Island coastline."
+      }
+    },
+    {
+      "id": "cdcm_02",
+      "name": "CDCM SITE BRAVO",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 27.2,
+        "lon": 57.0,
+        "alt": 120,
+        "speed": 0,
+        "heading": 200
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 18,
+          "detectionProbability": 0.85
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 120000,
+          "minRange_m": 10000,
+          "maxAlt_m": 100,
+          "missileSpeed_mps": 300,
+          "killProbability": 0.7,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2222",
+          "label": "CDCM BRAVO",
+          "pixelSize": 12,
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(255,34,34,0.04)",
+          "sensorOutlineColor": "#ff2222"
+        }
+      },
+      "_custom": {
+        "notes": "C-802 Noor coastal defense cruise missile battery. Elevated position on mainland coast overlooking strait. Cross-fire geometry with CDCM ALPHA."
+      }
+    },
+    {
+      "id": "s300_coast",
+      "name": "S-300PMU2 BANDAR ABBAS",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 27.1,
+        "lon": 57.2,
+        "alt": 30,
+        "speed": 0,
+        "heading": 180
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 5000,
+          "maxAlt_m": 27000,
+          "missileSpeed_mps": 2000,
+          "killProbability": 0.8,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 4
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff0000",
+          "label": "S-300PMU2",
+          "pixelSize": 14,
+          "sensorRange_m": 300000,
+          "sensorColor": "rgba(255,0,0,0.03)",
+          "sensorOutlineColor": "#ff0000"
+        }
+      },
+      "_custom": {
+        "notes": "S-300PMU2 Favorit long-range SAM battery near Bandar Abbas. 64N6E Big Bird acquisition radar, 30N6E Flap Lid engagement radar. 48N6E2 missiles, range 200km, alt 27km. Provides area air defense umbrella over the strait."
+      }
+    },
+    {
+      "id": "fencer_01",
+      "name": "FENCER 01",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 27.3,
+        "lon": 56.5,
+        "alt": 500,
+        "speed": 250,
+        "heading": 200,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 27.3,
+              "lon": 56.5,
+              "alt": 500,
+              "speed": 250
+            },
+            {
+              "lat": 26.5,
+              "lon": 56.8,
+              "alt": 200,
+              "speed": 280
+            },
+            {
+              "lat": 26.0,
+              "lon": 57.0,
+              "alt": 200,
+              "speed": 280
+            },
+            {
+              "lat": 26.8,
+              "lon": 56.3,
+              "alt": 500,
+              "speed": 250
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.75
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6644",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "FENCER 01"
+        }
+      },
+      "_custom": {
+        "notes": "Su-24MK Fencer-D, maritime strike configuration. Kh-31A anti-ship missiles, low-altitude sea-skimming attack profile. Orion-A nav/attack radar."
+      }
+    },
+    {
+      "id": "fencer_02",
+      "name": "FENCER 02",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 27.2,
+        "lon": 56.8,
+        "alt": 500,
+        "speed": 250,
+        "heading": 210,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 27.2,
+              "lon": 56.8,
+              "alt": 500,
+              "speed": 250
+            },
+            {
+              "lat": 26.6,
+              "lon": 57.0,
+              "alt": 200,
+              "speed": 280
+            },
+            {
+              "lat": 26.1,
+              "lon": 57.2,
+              "alt": 200,
+              "speed": 280
+            },
+            {
+              "lat": 26.9,
+              "lon": 56.6,
+              "alt": 500,
+              "speed": 250
+            }
+          ],
+          "loopMode": "cycle"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.75
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6644",
+          "pixelSize": 10,
+          "trail": true,
+          "label": "FENCER 02"
+        }
+      },
+      "_custom": {
+        "notes": "Su-24MK Fencer-D, maritime strike wingman. Kh-31A anti-ship missiles. Offset attack axis from FENCER 01 for pincer approach."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": "message",
+      "message": "MARITIME INTERDICTION OPS: Coalition CSG establishing blockade line across Strait of Hormuz. All vessels entering the exclusion zone are subject to boarding and inspection."
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": "message",
+      "message": "HAWKEYE 601 reports multiple fast movers bearing 350, range 120nm. Classify as Fast Attack Craft, heading south toward the strait."
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": "message",
+      "message": "ELINT: Coastal defense radar emissions detected from Qeshm Island and mainland sites. Assess C-802 CDCM batteries active."
+    },
+    {
+      "type": "timed",
+      "time": 180,
+      "action": "message",
+      "message": "SIGINT: S-300PMU2 acquisition radar active near Bandar Abbas. Air threat axis established. CAP flights maintain safe standoff distance."
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": "message",
+      "message": "SEAHAWK 711 reports possible submarine contact bearing 160, range 15nm. Commencing prosecution with dipping sonar."
+    },
+    {
+      "type": "timed",
+      "time": 420,
+      "action": "message",
+      "message": "WARNING: Two Su-24 Fencer aircraft detected low-level southbound. Probable maritime strike profile. HORNET flight vectoring to intercept."
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 26.3,
+    "lon": 56.8,
+    "range": 400000
+  },
+  "regions": [
+    {
+      "name": "Strait of Hormuz",
+      "type": "exclusion",
+      "shape": "polygon",
+      "points": [
+        [
+          26.8,
+          56.0
+        ],
+        [
+          26.8,
+          57.0
+        ],
+        [
+          26.0,
+          57.0
+        ],
+        [
+          26.0,
+          56.0
+        ]
+      ]
+    },
+    {
+      "name": "Patrol Box Alpha",
+      "type": "operational",
+      "shape": "rect",
+      "bounds": [
+        25.5,
+        55.0,
+        27.5,
+        58.0
+      ]
+    },
+    {
+      "name": "Iranian Territorial Waters",
+      "type": "adiz",
+      "shape": "polygon",
+      "points": [
+        [
+          27.5,
+          56.5
+        ],
+        [
+          27.5,
+          57.5
+        ],
+        [
+          27.0,
+          58.0
+        ],
+        [
+          26.0,
+          58.0
+        ],
+        [
+          25.5,
+          57.5
+        ],
+        [
+          25.5,
+          56.5
+        ]
+      ]
+    }
+  ]
+}

@@ -101,8 +101,9 @@
 
             // Label
             if (cfg.label) {
+                var labelStr = typeof cfg.label === 'string' ? cfg.label : entity.name;
                 entityOpts.label = {
-                    text: cfg.label,
+                    text: labelStr,
                     font: '12px monospace',
                     fillColor: color,
                     outlineColor: Cesium.Color.BLACK,

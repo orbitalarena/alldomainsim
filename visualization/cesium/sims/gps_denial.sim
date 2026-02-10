@@ -1,0 +1,688 @@
+{
+  "metadata": {
+    "name": "GPS Denial - Eastern Mediterranean",
+    "description": "NATO navigation warfare scenario over contested territory. Player F-16 must penetrate a GPS-denied zone created by adversary ground jammers in northern Syria. GPS satellites provide space domain coverage, an EA-18G provides electronic warfare support to locate and suppress jammers, AWACS provides alternative situational awareness, and an F-15E strike element targets high-value objectives. Red forces operate SA-21 SAM, EW radar, and three GPS jammers creating an overlapping denial zone.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 32
+  },
+  "entities": [
+    {
+      "id": "viper_01",
+      "name": "VIPER 01",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 37.0,
+        "lon": 35.4,
+        "alt": 8000,
+        "speed": 230,
+        "heading": 180,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "control": { "type": "player_input" },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "visual": { "type": "point", "color": "#44ff44", "pixelSize": 14, "trail": true, "label": "VIPER 01" }
+      },
+      "_custom": {
+        "notes": "Player F-16 departing Incirlik AB area, heading south into GPS-denied zone. Equipped with APG-68 radar. Must navigate through jammer coverage to reach target area.",
+        "role": "SEAD/escort",
+        "payloads": ["a2a"],
+        "sensors": [{ "type": "radar", "name": "APG-68" }]
+      }
+    },
+    {
+      "id": "strike_11",
+      "name": "STRIKE 11",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.5,
+        "lon": 34.0,
+        "alt": 10668,
+        "speed": 250,
+        "heading": 110,
+        "gamma": 0,
+        "throttle": 0.65,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f15" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 36.0, "lon": 36.5, "alt": 10668 },
+            { "lat": 35.5, "lon": 37.0, "alt": 10668 },
+            { "lat": 35.8, "lon": 38.0, "alt": 10668 }
+          ]
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.88,
+          "updateInterval": 2.0
+        },
+        "visual": { "type": "point", "color": "#4488ff", "pixelSize": 10, "trail": true, "label": "STRIKE 11" }
+      },
+      "_custom": {
+        "notes": "F-15E Strike Eagle approaching target area from the Mediterranean. APG-70 radar. Carrying precision strike ordnance for ground targets in the denied zone.",
+        "role": "strike",
+        "payloads": ["a2a", "a2g"],
+        "sensors": [{ "type": "radar", "name": "APG-70" }]
+      }
+    },
+    {
+      "id": "sparky_01",
+      "name": "SPARKY 01",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.2,
+        "lon": 33.5,
+        "alt": 9144,
+        "speed": 220,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 36.2, "lon": 34.5, "alt": 9144 },
+            { "lat": 36.0, "lon": 35.5, "alt": 9144 },
+            { "lat": 36.2, "lon": 34.0, "alt": 9144 },
+            { "lat": 36.4, "lon": 33.0, "alt": 9144 }
+          ]
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 90,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.5
+        },
+        "weapons": {
+          "type": "jammer",
+          "jammerType": "spot",
+          "power_dbw": 35,
+          "range_m": 250000,
+          "direction": "both",
+          "targetFreq_ghz": 9.0,
+          "bandwidth_ghz": 4.0,
+          "activateOnDetection": true
+        },
+        "visual": { "type": "point", "color": "#88aaff", "pixelSize": 10, "trail": true, "label": "SPARKY 01" }
+      },
+      "_custom": {
+        "notes": "EA-18G Growler providing electronic warfare support. Orbiting over eastern Mediterranean to detect, locate, and suppress adversary GPS jammers and radar emitters. ALQ-99/NGJ jamming pods.",
+        "role": "electronic_warfare",
+        "payloads": ["jammer"],
+        "sensors": [{ "type": "radar", "name": "APG-79 AESA" }, { "type": "sigint", "name": "ALQ-218 ESM" }]
+      }
+    },
+    {
+      "id": "magic_01",
+      "name": "MAGIC 01",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 36.8,
+        "lon": 33.0,
+        "alt": 10668,
+        "speed": 200,
+        "heading": 90,
+        "gamma": 0,
+        "throttle": 0.55,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "awacs" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 36.8, "lon": 34.5, "alt": 10668 },
+            { "lat": 36.5, "lon": 35.0, "alt": 10668 },
+            { "lat": 36.8, "lon": 34.0, "alt": 10668 },
+            { "lat": 37.0, "lon": 33.0, "alt": 10668 }
+          ]
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 180,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "visual": { "type": "point", "color": "#00ccff", "pixelSize": 12, "trail": true, "label": "MAGIC 01" }
+      },
+      "_custom": {
+        "notes": "E-3 AWACS providing alternative situational awareness over the theater. AN/APY-2 radar with 400km detection range. Critical asset when GPS is denied -- provides precision track data via Link-16 to compensate for degraded navigation.",
+        "role": "awacs",
+        "sensors": [{ "type": "radar", "name": "AN/APY-2" }]
+      }
+    },
+    {
+      "id": "gps_sv_01",
+      "name": "GPS IIR-M SVN 53",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.005,
+          "inc": 55,
+          "raan": 30,
+          "argPerigee": 0,
+          "meanAnomaly": 45
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS-53"
+        }
+      },
+      "_custom": {
+        "notes": "GPS Block IIR-M satellite, Plane B. Provides L1/L2 navigation signals. Being jammed by adversary ground-based GPS jammers in the target area. Satellite is healthy but ground-level signals are denied.",
+        "regime": "MEO"
+      }
+    },
+    {
+      "id": "gps_sv_02",
+      "name": "GPS IIF SVN 66",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.003,
+          "inc": 55,
+          "raan": 90,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS-66"
+        }
+      },
+      "_custom": {
+        "notes": "GPS Block IIF satellite, Plane D. L1/L2/L5 capable. Higher power L5 signal partially resistant to jamming but still degraded in the denial zone.",
+        "regime": "MEO"
+      }
+    },
+    {
+      "id": "gps_sv_03",
+      "name": "GPS III SVN 75",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.002,
+          "inc": 55,
+          "raan": 150,
+          "argPerigee": 0,
+          "meanAnomaly": 200
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS-75"
+        }
+      },
+      "_custom": {
+        "notes": "GPS III satellite with M-code military signal. Higher jam resistance than legacy GPS but still vulnerable to high-power ground jammers at close range.",
+        "regime": "MEO"
+      }
+    },
+    {
+      "id": "gps_sv_04",
+      "name": "GPS III SVN 77",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.004,
+          "inc": 55,
+          "raan": 210,
+          "argPerigee": 0,
+          "meanAnomaly": 280
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS-77"
+        }
+      },
+      "_custom": {
+        "notes": "GPS III satellite, Plane F. Provides coverage over the eastern Mediterranean and Middle East theater.",
+        "regime": "MEO"
+      }
+    },
+    {
+      "id": "gps_sv_05",
+      "name": "GPS IIF SVN 70",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.006,
+          "inc": 55,
+          "raan": 330,
+          "argPerigee": 0,
+          "meanAnomaly": 10
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS-70"
+        }
+      },
+      "_custom": {
+        "notes": "GPS Block IIF satellite, Plane A. Completes the minimal visible constellation geometry over the theater for PDOP coverage.",
+        "regime": "MEO"
+      }
+    },
+    {
+      "id": "jammer_west",
+      "name": "GPS JAMMER WEST",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 36.2,
+        "lon": 37.0,
+        "alt": 450,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.7,
+          "updateInterval": 3.0
+        },
+        "weapons": {
+          "type": "jammer",
+          "jammerType": "barrage",
+          "power_dbw": 40,
+          "range_m": 200000,
+          "direction": "up",
+          "targetFreq_ghz": 1.575,
+          "bandwidth_ghz": 0.05,
+          "activateOnDetection": false
+        },
+        "visual": { "type": "point", "color": "#ff8800", "pixelSize": 10, "trail": false },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "Ground-based GPS jammer, western position. High-power barrage jammer on L1 frequency (1.575 GHz). 200km effective denial radius. Creates western edge of the GPS denied zone. Co-located surveillance radar for early warning.",
+        "role": "gps_jammer",
+        "jammingTarget": "GPS L1/L2"
+      }
+    },
+    {
+      "id": "jammer_center",
+      "name": "GPS JAMMER CENTER",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 36.0,
+        "lon": 38.0,
+        "alt": 520,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.7,
+          "updateInterval": 3.0
+        },
+        "weapons": {
+          "type": "jammer",
+          "jammerType": "barrage",
+          "power_dbw": 45,
+          "range_m": 200000,
+          "direction": "up",
+          "targetFreq_ghz": 1.575,
+          "bandwidth_ghz": 0.05,
+          "activateOnDetection": false
+        },
+        "visual": { "type": "point", "color": "#ff8800", "pixelSize": 10, "trail": false },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "Ground-based GPS jammer, central position. Highest-power unit at 45 dBW. 200km denial radius. Forms the core of the GPS-denied zone. Located near Deir ez-Zor area.",
+        "role": "gps_jammer",
+        "jammingTarget": "GPS L1/L2/L5"
+      }
+    },
+    {
+      "id": "jammer_east",
+      "name": "GPS JAMMER EAST",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 36.3,
+        "lon": 39.0,
+        "alt": 480,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.7,
+          "updateInterval": 3.0
+        },
+        "weapons": {
+          "type": "jammer",
+          "jammerType": "barrage",
+          "power_dbw": 40,
+          "range_m": 200000,
+          "direction": "up",
+          "targetFreq_ghz": 1.575,
+          "bandwidth_ghz": 0.05,
+          "activateOnDetection": false
+        },
+        "visual": { "type": "point", "color": "#ff8800", "pixelSize": 10, "trail": false },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "Ground-based GPS jammer, eastern position. 200km denial radius. Creates eastern boundary of the denied zone. Three jammers together create a ~600km wide GPS-denied corridor across northern Syria/Iraq.",
+        "role": "gps_jammer",
+        "jammingTarget": "GPS L1/L2"
+      }
+    },
+    {
+      "id": "sa21_battery",
+      "name": "SA-21 GROWLER",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.5,
+        "lon": 37.5,
+        "alt": 380,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 180,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 250000,
+          "minRange_m": 5000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 2100,
+          "killProbability": 0.8,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 4
+        },
+        "visual": { "type": "point", "color": "#ff4444", "pixelSize": 12, "trail": false },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "S-400 Triumf (SA-21 Growler) long-range SAM system. 91N6E Big Bird acquisition radar (300km) paired with 92N6E Grave Stone engagement radar. 48N6E3 missiles with 250km range. Defends the southern approach to the GPS-denied zone. Primary threat to blue aircraft.",
+        "role": "air_defense",
+        "system": "S-400"
+      }
+    },
+    {
+      "id": "red_ew_radar",
+      "name": "RED EW RADAR",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 36.0,
+        "lon": 38.0,
+        "alt": 520,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 450000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.5
+        },
+        "visual": { "type": "point", "color": "#ff6644", "pixelSize": 10, "trail": false },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "Nebo-M multi-band early warning radar. 450km detection range. Provides long-range surveillance and early warning for the integrated air defense network. Co-located with central GPS jammer for mutual protection. Feeds track data to SA-21 battery.",
+        "role": "early_warning",
+        "system": "Nebo-M"
+      }
+    },
+    {
+      "id": "incirlik_caoc",
+      "name": "INCIRLIK CAOC",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 37.0,
+        "lon": 35.43,
+        "alt": 48,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "visual": { "type": "ground_station", "color": "#00ccff", "pixelSize": 14 },
+        "physics": { "type": "static_ground" }
+      },
+      "_custom": {
+        "notes": "NATO Combined Air Operations Center at Incirlik Air Base, Turkey. Coordinates blue air operations, receives AWACS feeds, distributes threat and navigation data via Link-16. Terminal node for GPS-alternative navigation solutions.",
+        "role": "command_control"
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "nato_link16",
+      "name": "NATO Link-16 TADIL-J",
+      "type": "mesh",
+      "members": [
+        "viper_01",
+        "strike_11",
+        "sparky_01",
+        "magic_01",
+        "incirlik_caoc"
+      ],
+      "rfConfig": {
+        "preset": "link16",
+        "freq_ghz": 1.2,
+        "bandwidth_hz": 50000000,
+        "txPower_dbw": 20,
+        "txGain_dbi": 6,
+        "rxGain_dbi": 6,
+        "noiseFigure_db": 4,
+        "requiredSNR_db": 10,
+        "dataRate_bps": 50000000,
+        "linkType": "rf",
+        "encryption": "aes256"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_mission_brief",
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "VIPER 01, mission brief: Penetrate GPS-denied zone in northern Syria. Three high-power GPS jammers creating 600km denial corridor. SA-21 defending southern approach. SPARKY 01 providing EW support, MAGIC 01 on AWACS station. Expect GPS degradation at 150nm south of Incirlik."
+      },
+      "description": "Mission briefing"
+    },
+    {
+      "id": "evt_awacs_picture",
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "MAGIC 01: Picture clean. STRIKE 11 established on ingress route. SPARKY 01 in orbit, jamming assets hot. No airborne threats. SA-21 acquisition radar active bearing 170 from VIPER."
+      },
+      "description": "AWACS initial picture call"
+    },
+    {
+      "id": "evt_gps_degraded",
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "VIPER 01: GPS accuracy degrading. PDOP climbing. Signal strength dropping on L1 and L2 frequencies. Entering outer jammer coverage. Recommend verify INS alignment."
+      },
+      "description": "GPS degradation warning"
+    },
+    {
+      "id": "evt_gps_denied",
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "VIPER 01: GPS DENIED. No satellite fix available. Switching to ring laser gyro INS backup. INS drift rate approximately 0.8 nm/hr. MAGIC 01 providing position updates via Link-16."
+      },
+      "description": "Full GPS denial"
+    },
+    {
+      "id": "evt_sam_threat",
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "MAGIC 01: SA-21 track radar lock-on detected bearing 175, 120nm from VIPER. Recommend descent to low altitude to exploit terrain masking. SPARKY 01 standing by for SEAD support."
+      },
+      "description": "SAM radar lock warning"
+    },
+    {
+      "id": "evt_jammer_located",
+      "type": "timed",
+      "time": 1200,
+      "action": {
+        "type": "message",
+        "text": "SPARKY 01: GPS jamming source triangulated. Three emitters confirmed: 36.2N/37.0E, 36.0N/38.0E, 36.3N/39.0E. Central emitter is highest power. Initiating targeted suppression on western jammer."
+      },
+      "description": "Jamming source located by EA-18G"
+    },
+    {
+      "id": "evt_partial_restore",
+      "type": "timed",
+      "time": 1500,
+      "action": {
+        "type": "message",
+        "text": "SPARKY 01: Western jammer suppressed. Partial GPS restoration in western corridor. VIPER 01, recommend approach via western route for intermittent GPS fix capability."
+      },
+      "description": "Partial GPS restoration"
+    },
+    {
+      "id": "evt_egress",
+      "type": "timed",
+      "time": 1800,
+      "action": {
+        "type": "message",
+        "text": "INCIRLIK CAOC: All callsigns, egress authorized. VIPER 01 and STRIKE 11, RTB via western corridor. MAGIC 01 maintain station for 30 minutes. BDA pending. Good work."
+      },
+      "description": "Egress authorization"
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}

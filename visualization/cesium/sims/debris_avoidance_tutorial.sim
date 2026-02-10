@@ -1,0 +1,294 @@
+{
+  "metadata": {
+    "name": "Debris Avoidance Tutorial",
+    "description": "Learn conjunction assessment and avoidance maneuvers. Detect approaching debris, plan avoidance burn, execute maneuver, verify safe orbit.",
+    "version": "2.0"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 256
+  },
+  "entities": [
+    {
+      "id": "player_sat",
+      "name": "TUTORIAL SAT",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "semiMajorAxis": 6778,
+        "eccentricity": 0.001,
+        "inclination": 51.6,
+        "raan": 45,
+        "argPerigee": 0,
+        "meanAnomaly": 0
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#44ccff", "size": 10, "showOrbit": true }
+      },
+      "_custom": {
+        "propulsion": { "modes": ["ROCKET"], "rocketEngine": "OMS" },
+        "sensors": [{ "type": "radar", "range_km": 500, "fov_deg": 360 }]
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "initialMsg": "CONJUNCTION WARNING: Debris field detected in your orbital corridor. Plan an avoidance maneuver.",
+        "initialHint": "Press M for planner mode, N to create node, adjust prograde DV, Enter to execute",
+        "milestones": [
+          { "type": "alt", "value": 415000, "msg": "Altitude 415km - rising above debris corridor" },
+          { "type": "alt", "value": 425000, "msg": "Altitude 425km - safe separation achieved!" },
+          { "type": "alt", "value": 435000, "msg": "MISSION SUCCESS: Clear of all debris. Well done!" }
+        ]
+      }
+    },
+    {
+      "id": "debris_1",
+      "name": "DEBRIS ALPHA",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6780,
+        "eccentricity": 0.002,
+        "inclination": 51.6,
+        "raan": 45,
+        "argPerigee": 180,
+        "meanAnomaly": 170
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff4444", "size": 6, "showOrbit": true }
+      },
+      "_custom": { "rcs_m2": 0.1 }
+    },
+    {
+      "id": "debris_2",
+      "name": "DEBRIS BRAVO",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6782,
+        "eccentricity": 0.003,
+        "inclination": 51.8,
+        "raan": 45.1,
+        "argPerigee": 175,
+        "meanAnomaly": 168
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff6644", "size": 5, "showOrbit": true }
+      },
+      "_custom": { "rcs_m2": 0.05 }
+    },
+    {
+      "id": "debris_3",
+      "name": "DEBRIS CHARLIE",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6775,
+        "eccentricity": 0.0015,
+        "inclination": 51.2,
+        "raan": 44.8,
+        "argPerigee": 170,
+        "meanAnomaly": 155
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff5533", "size": 4, "showOrbit": false }
+      },
+      "_custom": { "rcs_m2": 0.02 }
+    },
+    {
+      "id": "debris_4",
+      "name": "DEBRIS DELTA",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6783,
+        "eccentricity": 0.0025,
+        "inclination": 51.9,
+        "raan": 45.3,
+        "argPerigee": 182,
+        "meanAnomaly": 162
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff4422", "size": 4, "showOrbit": false }
+      },
+      "_custom": { "rcs_m2": 0.03 }
+    },
+    {
+      "id": "debris_5",
+      "name": "DEBRIS ECHO",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6777,
+        "eccentricity": 0.001,
+        "inclination": 51.5,
+        "raan": 44.5,
+        "argPerigee": 178,
+        "meanAnomaly": 175
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff6655", "size": 5, "showOrbit": false }
+      },
+      "_custom": { "rcs_m2": 0.04 }
+    },
+    {
+      "id": "debris_6",
+      "name": "DEBRIS FOXTROT",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6785,
+        "eccentricity": 0.0035,
+        "inclination": 52.0,
+        "raan": 45.5,
+        "argPerigee": 185,
+        "meanAnomaly": 185
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff3333", "size": 4, "showOrbit": false }
+      },
+      "_custom": { "rcs_m2": 0.015 }
+    },
+    {
+      "id": "debris_7",
+      "name": "DEBRIS GOLF",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "semiMajorAxis": 6779,
+        "eccentricity": 0.002,
+        "inclination": 51.4,
+        "raan": 46.0,
+        "argPerigee": 172,
+        "meanAnomaly": 160
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ff5544", "size": 5, "showOrbit": false }
+      },
+      "_custom": { "rcs_m2": 0.025 }
+    },
+    {
+      "id": "ssn_ground",
+      "name": "SSN Eglin",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 30.57,
+        "lon": -86.21,
+        "alt": 0
+      },
+      "components": {
+        "visual": { "type": "ground_station", "color": "#44ccff", "size": 8 }
+      },
+      "_custom": {
+        "sensors": [{ "type": "radar", "range_km": 3000, "fov_deg": 120 }]
+      }
+    },
+    {
+      "id": "iss",
+      "name": "ISS",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "semiMajorAxis": 6778,
+        "eccentricity": 0.0002,
+        "inclination": 51.6,
+        "raan": 50,
+        "argPerigee": 0,
+        "meanAnomaly": 90
+      },
+      "components": {
+        "physics": { "type": "orbital_2body" },
+        "visual": { "type": "satellite", "color": "#ffffff", "size": 8, "showOrbit": true }
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "CONJUNCTION ALERT: Debris field approaching your orbital plane. Use Search (F) to locate debris objects."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 30,
+      "action": {
+        "type": "message",
+        "text": "TIP: Open the orbital elements panel (O) to check your current orbit parameters."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "STEP 1: Enter planner mode (M) and create a maneuver node (N) to raise your orbit by 10-20km."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "TIP: A small prograde burn (green marker) will raise your apoapsis. Even 5-10 m/s can create safe separation."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 240,
+      "action": {
+        "type": "message",
+        "text": "STEP 2: Execute your maneuver (Enter). Watch the auto-execute burn complete."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "STEP 3: After the burn, check your new orbit. The debris should now pass safely below."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "MISSION COMPLETE: If your altitude is above 420km, you have successfully avoided the debris field!"
+      }
+    }
+  ],
+  "regions": [
+    {
+      "name": "Debris Corridor",
+      "type": "engagement",
+      "shape": "circle",
+      "center": { "lat": 0, "lon": 0 },
+      "radius": 500000
+    },
+    {
+      "name": "Safe Zone",
+      "type": "safe",
+      "shape": "circle",
+      "center": { "lat": 0, "lon": 45 },
+      "radius": 300000
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 30,
+    "lon": 0,
+    "range": 20000000
+  }
+}

@@ -549,7 +549,7 @@
         <div class="header-top">
             <div>
                 <h1>All-Domain <span class="accent">Sim</span><span class="accent2">ulation</span></h1>
-                <div class="subtitle">Integrated Earth-Air-Space simulation &mdash; from the runway to orbit and beyond</div>
+                <div class="subtitle">All-domain simulation &mdash; Air, Space, Cyber, Maritime, Ground &mdash; from the runway to orbit and beyond</div>
             </div>
         </div>
         <div class="status-bar">
@@ -675,25 +675,30 @@
                 <div class="card-badge badge-cockpit">Cockpit</div>
             </div>
             <h3>Live Sim Viewer</h3>
-            <p>Full cockpit experience: fly any aircraft or satellite in a scenario. Chase camera with bank/roll, cockpit view, full HUD with pitch ladder, weapons, sensors, and trim.</p>
+            <p>Full all-domain cockpit: fly aircraft, command satellites, operate cyber centers. TLE catalog with 14,000+ real satellites, observer mode, data analytics, comms networks.</p>
             <ul class="card-features">
-                <li>Chase / cockpit / free / globe camera modes</li>
-                <li>Weapons HUD: cycle with W, fire with Space, inventory tracking</li>
-                <li>Sensor cycling (V): radar, EO, IR, SAR, SIGINT, LIDAR</li>
-                <li>Pitch trim (T / Shift+T), 11 per-element HUD toggles</li>
-                <li>AI entities simulate around you in real-time</li>
+                <li>Cockpit / chase / free / globe cameras, sensor view (EO/IR)<span class="new">New</span></li>
+                <li>TLE catalog: load real satellites by constellation/regime<span class="new">New</span></li>
+                <li>Observer mode: spectate, click-to-assume any entity<span class="new">New</span></li>
+                <li>Cyber cockpit: terminal-style offensive/defensive cyber ops<span class="new">New</span></li>
+                <li>Comm networks, data links, analytics with Chart.js graphs<span class="new">New</span></li>
+                <li>RWR display, weapons (R), sensors (V), engine panel (P)</li>
+                <li>Hohmann planner, auto-pointing, smart search (F)</li>
             </ul>
             <div class="shortcut-row">
-                <span class="shortcut"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Flight</span>
-                <span class="shortcut"><kbd>P</kbd> Propulsion</span>
+                <span class="shortcut"><kbd>W</kbd><kbd>S</kbd> Throttle</span>
+                <span class="shortcut"><kbd>P</kbd> Engines</span>
+                <span class="shortcut"><kbd>V</kbd> Sensor</span>
+                <span class="shortcut"><kbd>R</kbd> Weapon</span>
                 <span class="shortcut"><kbd>C</kbd> Camera</span>
-                <span class="shortcut"><kbd>Esc</kbd> Pause</span>
+                <span class="shortcut"><kbd>F</kbd> Search</span>
             </div>
             <div class="card-tags">
-                <span class="tag">Cockpit</span>
-                <span class="tag">HUD</span>
-                <span class="tag">Weapons</span>
-                <span class="tag">Sensors</span>
+                <span class="tag">All-Domain</span>
+                <span class="tag">TLE Catalog</span>
+                <span class="tag">Cyber</span>
+                <span class="tag">Comms</span>
+                <span class="tag">Analytics</span>
             </div>
         </a>
 
@@ -1328,7 +1333,140 @@
 
 
 <!-- =============================================
-     SECTION 5: DEVELOPER TOOLS
+     SECTION 5: DEMO SCENARIOS (.sim files)
+     ============================================= -->
+<div class="section">
+    <div class="section-header">
+        <div class="section-icon green">&#127758;</div>
+        <div class="section-title">Demo Scenarios</div>
+        <div class="section-count">(20+)</div>
+        <div class="section-line"></div>
+    </div>
+    <div style="font-size: 11px; color: #3a4a60; margin-bottom: 14px; padding-left: 4px;">
+        Pre-built .sim scenarios for the Live Sim Viewer. Launch in cockpit or observer mode.
+    </div>
+    <div class="grid grid-compact">
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/jadc2_pacific.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#127758;</div>
+                <div class="card-badge badge-cockpit">All-Domain</div>
+            </div>
+            <h3>JADC2 Pacific</h3>
+            <p>Joint All-Domain C2 in the Western Pacific. F-35s, J-20s, carrier groups, THAAD, GPS satellites, cyber ops. All 5 domains.</p>
+            <div class="card-tags">
+                <span class="tag">Air</span>
+                <span class="tag">Space</span>
+                <span class="tag">Cyber</span>
+                <span class="tag">Maritime</span>
+                <span class="tag">Ground</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/carrier_strike_group.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#9875;</div>
+                <div class="card-badge badge-cockpit">Maritime</div>
+            </div>
+            <h3>Carrier Strike Group</h3>
+            <p>US carrier strike group vs adversary naval forces. Destroyers, cruisers, F-18s, maritime patrol, comm networks.</p>
+            <div class="card-tags">
+                <span class="tag">CSG</span>
+                <span class="tag">Naval</span>
+                <span class="tag">Anti-Ship</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/space_surveillance.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#128301;</div>
+                <div class="card-badge badge-cockpit">Space</div>
+            </div>
+            <h3>Space Surveillance</h3>
+            <p>SBSS, GSSAP inspectors, ground radars vs ASAT threats. Space domain awareness across LEO to GEO.</p>
+            <div class="card-tags">
+                <span class="tag">SSA</span>
+                <span class="tag">GSSAP</span>
+                <span class="tag">ASAT</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/cyber_warfare.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#128187;</div>
+                <div class="card-badge badge-cockpit">Cyber</div>
+            </div>
+            <h3>Cyber Warfare</h3>
+            <p>Offensive and defensive cyber operations. Exploit chains, lateral movement, data exfil, IDS/firewall defense.</p>
+            <div class="card-tags">
+                <span class="tag">Cyber Ops</span>
+                <span class="tag">Exploit</span>
+                <span class="tag">Defense</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/red_flag_nellis.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#9876;</div>
+                <div class="card-badge badge-cockpit">Air</div>
+            </div>
+            <h3>Red Flag - Nellis</h3>
+            <p>Red Flag training exercise at NTTR. Blue student flights vs Red aggressor squadron with layered IADS.</p>
+            <div class="card-tags">
+                <span class="tag">Training</span>
+                <span class="tag">IADS</span>
+                <span class="tag">Aggressor</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/maritime_interdiction.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#9875;</div>
+                <div class="card-badge badge-cockpit">Maritime</div>
+            </div>
+            <h3>Maritime Interdiction</h3>
+            <p>Naval blockade in the Strait of Hormuz. Carrier group, fast attack craft, coastal defense, maritime patrol.</p>
+            <div class="card-tags">
+                <span class="tag">Blockade</span>
+                <span class="tag">Hormuz</span>
+                <span class="tag">Naval</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/space_launch.sim">
+            <div class="card-top">
+                <div class="card-icon">&#128640;</div>
+                <div class="card-badge badge-cockpit">Launch</div>
+            </div>
+            <h3>Space Launch</h3>
+            <p>Falcon 9 on the pad at Cape Canaveral. Fire up the rocket engine, perform a gravity turn to orbit.</p>
+            <div class="card-tags">
+                <span class="tag">Falcon 9</span>
+                <span class="tag">Rocket</span>
+                <span class="tag">Cape Canaveral</span>
+            </div>
+        </a>
+
+        <a class="card" href="live_sim_viewer.html?sim=sims/iads_comm_network.sim&player=__observer__">
+            <div class="card-top">
+                <div class="card-icon">&#128225;</div>
+                <div class="card-badge badge-cockpit">Comms</div>
+            </div>
+            <h3>IADS Comm Network</h3>
+            <p>Integrated air defense with comm-linked radar, C2, and SAM nodes. Data link visualization.</p>
+            <div class="card-tags">
+                <span class="tag">IADS</span>
+                <span class="tag">Comms</span>
+                <span class="tag">F2T2EA</span>
+            </div>
+        </a>
+
+    </div>
+</div>
+
+
+<!-- =============================================
+     SECTION 6: DEVELOPER TOOLS
      ============================================= -->
 <div class="section">
     <div class="section-header">
@@ -1417,7 +1555,7 @@ python3 serve.py 8000</code>
 
 <!-- ========== FOOTER ========== -->
 <footer>
-    All-Domain Simulation &mdash; Earth, Air, Space &mdash; Cesium 3D + C++ MC Engine
+    All-Domain Simulation &mdash; Air, Space, Cyber, Maritime, Ground &mdash; Cesium 3D + C++ MC Engine
 </footer>
 
 <!-- ========== SCRIPTS ========== -->

@@ -1,0 +1,427 @@
+{
+  "metadata": {
+    "name": "Mars Probe Mission",
+    "description": "Civilian Mars transfer mission. Start in 200km LEO parking orbit at Cape Canaveral inclination. Plan and execute the Trans-Mars Injection (TMI) burn to escape Earth and reach Mars. Three DSN stations provide deep space tracking.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 1024
+  },
+  "entities": [
+    {
+      "id": "mars_explorer",
+      "name": "MARS EXPLORER",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6571000,
+          "ecc": 0.001,
+          "inc": 28.5,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44aaff",
+          "pixelSize": 12,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "MARS EXPLORER"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["ROCKET"],
+          "rocketEngine": "RL10"
+        },
+        "mass_kg": 5000,
+        "notes": "Mars Explorer spacecraft in 200km LEO parking orbit. RL10 upper stage engine (500kN) for Trans-Mars Injection. A Hohmann-like transfer to Mars requires approximately 3.6 km/s of prograde delta-V from LEO."
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "initialMsg": "MISSION CONTROL: Mars Explorer is in parking orbit. Plan the Trans-Mars Injection (TMI) burn.",
+        "initialHint": "Press M for planner, N to create node. Add ~3.6 km/s prograde to reach Mars transfer orbit.",
+        "milestones": [
+          {
+            "type": "alt",
+            "value": 400000,
+            "msg": "Climbing through 400km — departure trajectory confirmed.",
+            "hint": "The TMI burn is raising your orbit. Continue burning prograde."
+          },
+          {
+            "type": "alt",
+            "value": 1000000,
+            "msg": "Passing 1,000km — leaving LEO. DSN stations acquiring signal.",
+            "hint": "You are well above the LEO belt. Your trajectory is becoming hyperbolic."
+          },
+          {
+            "type": "alt",
+            "value": 10000000,
+            "msg": "10,000km altitude — well above the GEO belt. Mars-bound trajectory!",
+            "hint": "You have departed the near-Earth environment. In a real mission, midcourse corrections would follow."
+          }
+        ]
+      }
+    },
+    {
+      "id": "iss_ref",
+      "name": "ISS",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6778000,
+          "ecc": 0.0002,
+          "inc": 51.6,
+          "raan": 45,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffffff",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "ISS"
+        }
+      },
+      "_custom": {
+        "mass_kg": 420000,
+        "rcs_m2": 1500,
+        "notes": "International Space Station at 407km altitude, 51.6-degree inclination. LEO reference object."
+      }
+    },
+    {
+      "id": "gps_iif1",
+      "name": "GPS IIF-1",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.01,
+          "inc": 55,
+          "raan": 60,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "GPS IIF-1"
+        }
+      },
+      "_custom": {
+        "mass_kg": 1630,
+        "rcs_m2": 10,
+        "notes": "GPS Block IIF satellite at 20,200km MEO altitude. MEO reference object showing the navigation constellation belt."
+      }
+    },
+    {
+      "id": "tdrs_13",
+      "name": "TDRS-13",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 270,
+          "argPerigee": 0,
+          "meanAnomaly": 45
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "TDRS-13"
+        }
+      },
+      "_custom": {
+        "mass_kg": 3454,
+        "rcs_m2": 30,
+        "notes": "Tracking and Data Relay Satellite at GEO. Provides S/Ku-band relay for LEO spacecraft. GEO reference object."
+      }
+    },
+    {
+      "id": "hubble_ref",
+      "name": "HUBBLE",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6918000,
+          "ecc": 0.0002,
+          "inc": 28.5,
+          "raan": 20,
+          "argPerigee": 0,
+          "meanAnomaly": 200
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#cc88ff",
+          "pixelSize": 7,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "HUBBLE"
+        }
+      },
+      "_custom": {
+        "mass_kg": 11110,
+        "rcs_m2": 50,
+        "notes": "Hubble Space Telescope at 547km altitude, 28.5-degree inclination. Same inclination as your parking orbit but higher altitude. LEO reference."
+      }
+    },
+    {
+      "id": "dsn_goldstone",
+      "name": "DSN GOLDSTONE",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 35.43,
+        "lon": -116.89,
+        "alt": 900,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 1000000000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.99,
+          "updateInterval": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff8800",
+          "label": "DSN GOLDSTONE",
+          "sensorRange_m": 50000000,
+          "sensorColor": "rgba(255,136,0,0.015)",
+          "sensorOutlineColor": "#ff8800"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "DSS-14 70m Dish", "range_km": 1000000, "fov_deg": 360 }
+        ],
+        "notes": "Goldstone Deep Space Communications Complex, Mojave Desert, California. 70m DSS-14 antenna. Part of NASA Deep Space Network providing 24-hour coverage for interplanetary missions."
+      }
+    },
+    {
+      "id": "dsn_canberra",
+      "name": "DSN CANBERRA",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": -35.40,
+        "lon": 148.98,
+        "alt": 680,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 1000000000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.99,
+          "updateInterval": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff8800",
+          "label": "DSN CANBERRA",
+          "sensorRange_m": 50000000,
+          "sensorColor": "rgba(255,136,0,0.015)",
+          "sensorOutlineColor": "#ff8800"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "DSS-43 70m Dish", "range_km": 1000000, "fov_deg": 360 }
+        ],
+        "notes": "Canberra Deep Space Communication Complex, Tidbinbilla, Australia. 70m DSS-43 antenna. Provides Southern Hemisphere coverage for the Deep Space Network."
+      }
+    },
+    {
+      "id": "dsn_madrid",
+      "name": "DSN MADRID",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 40.43,
+        "lon": -4.25,
+        "alt": 830,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 1000000000,
+          "fov_deg": 360,
+          "scanRate_dps": 10,
+          "detectionProbability": 0.99,
+          "updateInterval": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff8800",
+          "label": "DSN MADRID",
+          "sensorRange_m": 50000000,
+          "sensorColor": "rgba(255,136,0,0.015)",
+          "sensorOutlineColor": "#ff8800"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "DSS-63 70m Dish", "range_km": 1000000, "fov_deg": 360 }
+        ],
+        "notes": "Madrid Deep Space Communications Complex, Robledo de Chavela, Spain. 70m DSS-63 antenna. Completes the DSN triad for continuous deep space coverage."
+      }
+    },
+    {
+      "id": "cape_canaveral",
+      "name": "CAPE CANAVERAL",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 28.5,
+        "lon": -80.6,
+        "alt": 3,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "CAPE CANAVERAL",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "C-band Tracking Radar", "range_km": 2000, "fov_deg": 360 }
+        ],
+        "notes": "Cape Canaveral Space Force Station. Launch site and near-Earth tracking. The 28.5N latitude defines the minimum orbital inclination for eastward launches."
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": "message",
+      "message": "MISSION CONTROL: Mars Explorer in 200km parking orbit. Planning Trans-Mars Injection."
+    },
+    {
+      "type": "timed",
+      "time": 30,
+      "action": "message",
+      "message": "TIP: Use the maneuver planner (M key) to plan your TMI burn."
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": "message",
+      "message": "INFO: For a Hohmann transfer to Mars, you need approximately 3.6 km/s of delta-V."
+    },
+    {
+      "type": "timed",
+      "time": 120,
+      "action": "message",
+      "message": "STEP 1: Create a maneuver node (N key) and add ~3600 m/s prograde."
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": "message",
+      "message": "TIP: After TMI, your orbit will become highly elliptical. The apoapsis represents your departure trajectory."
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": "message",
+      "message": "MISSION UPDATE: If apoapsis exceeds 500,000km, you are on a Mars-bound trajectory!"
+    },
+    {
+      "type": "timed",
+      "time": 1200,
+      "action": "message",
+      "message": "DEEP SPACE NETWORK: All three DSN stations tracking Mars Explorer."
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 20,
+    "lon": -80,
+    "range": 50000000
+  }
+}

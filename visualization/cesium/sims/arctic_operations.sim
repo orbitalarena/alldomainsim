@@ -1,0 +1,625 @@
+{
+  "metadata": {
+    "name": "Arctic Operations - Barents Sea",
+    "description": "Russian Northern Fleet exercise in the Barents Sea with NATO monitoring and response. Features naval, air, ground-based, and space assets across the Arctic theater.",
+    "version": "2.0",
+    "author": "scenario_generator",
+    "created": "2026-02-10"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 128,
+    "weather": "arctic"
+  },
+  "entities": [
+    {
+      "id": "red_ssbn_borei",
+      "name": "K-549 Knyaz Vladimir (Borei-class SSBN)",
+      "type": "naval",
+      "team": "red",
+      "initialState": {
+        "lat": 72.0,
+        "lon": 33.0,
+        "alt": 0,
+        "speed": 8,
+        "heading": 315,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "cruiseSpeed": 8 },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 72.5, "lon": 31.0 },
+            { "lat": 73.0, "lon": 29.0 },
+            { "lat": 73.5, "lon": 32.0 },
+            { "lat": 73.0, "lon": 35.0 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#ff4444", "size": 10, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "sonar", "name": "MGK-600 Irtysh-Amfora", "range_km": 120, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "slbm", "name": "RSM-56 Bulava", "count": 16, "range_km": 9300 },
+          { "type": "torpedo", "name": "RPK-2 Viyuga", "count": 6, "range_km": 40 }
+        ],
+        "rcs_m2": 0.001,
+        "vizCategory": "naval"
+      }
+    },
+    {
+      "id": "red_cgn_nakhimov",
+      "name": "Admiral Nakhimov (Kirov-class)",
+      "type": "naval",
+      "team": "red",
+      "initialState": {
+        "lat": 71.0,
+        "lon": 35.0,
+        "alt": 0,
+        "speed": 10,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "cruiseSpeed": 10 },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 71.0, "lon": 33.0 },
+            { "lat": 71.5, "lon": 31.0 },
+            { "lat": 72.0, "lon": 33.0 },
+            { "lat": 71.5, "lon": 35.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 30 },
+        "visual": { "type": "point", "color": "#ff4444", "size": 10, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Tomb Stone (S-300FM)", "range_km": 350, "fov_deg": 360 },
+          { "type": "radar", "name": "Top Pair 3D Search", "range_km": 500, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "sam", "name": "S-300FM Fort-M", "count": 46, "range_km": 150 },
+          { "type": "ascm", "name": "P-800 Oniks", "count": 20, "range_km": 600 },
+          { "type": "ascm", "name": "3M22 Zircon", "count": 10, "range_km": 1000 }
+        ],
+        "rcs_m2": 25000,
+        "vizCategory": "naval"
+      }
+    },
+    {
+      "id": "red_mig31_1",
+      "name": "MiG-31BM Foxhound 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 71.62,
+        "lon": 52.5,
+        "alt": 12000,
+        "speed": 280,
+        "heading": 315,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 72.5, "lon": 48.0 },
+            { "lat": 73.0, "lon": 44.0 },
+            { "lat": 72.0, "lon": 50.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 320000, "fov_deg": 120, "scanRate_dps": 45 },
+        "visual": { "type": "point", "color": "#ff4444", "size": 8, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Zaslon-M PESA", "range_km": 320, "fov_deg": 120 }
+        ],
+        "payloads": [
+          { "type": "a2a", "name": "R-37M", "count": 4, "range_km": 300 },
+          { "type": "a2a", "name": "R-77-1", "count": 2, "range_km": 110 }
+        ],
+        "rcs_m2": 6.0,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "red_mig31_2",
+      "name": "MiG-31BM Foxhound 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": {
+        "lat": 71.58,
+        "lon": 52.8,
+        "alt": 12000,
+        "speed": 280,
+        "heading": 315,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 72.3, "lon": 47.0 },
+            { "lat": 72.8, "lon": 43.0 },
+            { "lat": 71.8, "lon": 49.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 320000, "fov_deg": 120, "scanRate_dps": 45 },
+        "visual": { "type": "point", "color": "#ff4444", "size": 8, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Zaslon-M PESA", "range_km": 320, "fov_deg": 120 }
+        ],
+        "payloads": [
+          { "type": "a2a", "name": "R-37M", "count": 4, "range_km": 300 },
+          { "type": "a2a", "name": "R-77-1", "count": 2, "range_km": 110 }
+        ],
+        "rcs_m2": 6.0,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "red_s400_novaya_zemlya",
+      "name": "S-400 Triumf (Novaya Zemlya)",
+      "type": "ground_station",
+      "team": "red",
+      "initialState": {
+        "lat": 73.35,
+        "lon": 54.78,
+        "alt": 50,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "static" },
+        "sensors": { "type": "radar", "maxRange_m": 400000, "fov_deg": 360, "scanRate_dps": 20 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 400000, "numLaunchers": 4, "salvoSize": 2, "pk": 0.85 },
+        "visual": { "type": "ground_station", "color": "#ff4444", "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "91N6E Big Bird Acquisition", "range_km": 600, "fov_deg": 360 },
+          { "type": "radar", "name": "92N6E Gravestone FCR", "range_km": 400, "fov_deg": 120 }
+        ],
+        "payloads": [
+          { "type": "sam", "name": "48N6E3 (250km)", "count": 32, "range_km": 250 },
+          { "type": "sam", "name": "40N6E (400km)", "count": 16, "range_km": 400 }
+        ],
+        "rcs_m2": 50,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "red_radar_pechenga",
+      "name": "Radar Station Pechenga",
+      "type": "ground_station",
+      "team": "red",
+      "initialState": {
+        "lat": 69.55,
+        "lon": 31.2,
+        "alt": 200,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "static" },
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 15 },
+        "visual": { "type": "ground_station", "color": "#ff4444", "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Podlet-E1 VHF Radar", "range_km": 300, "fov_deg": 360 }
+        ],
+        "rcs_m2": 100,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "red_eks_molniya",
+      "name": "EKS Tundra (Molniya Orbit)",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "sma": 26600,
+        "eccentricity": 0.74,
+        "inclination": 63.4,
+        "raan": 90,
+        "argPeriapsis": 270,
+        "meanAnomaly": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "elements": {
+            "sma": 26600,
+            "ecc": 0.74,
+            "inc": 63.4,
+            "raan": 90,
+            "argPe": 270,
+            "ma": 0
+          }
+        },
+        "visual": { "type": "satellite_visual", "color": "#ff6688", "size": 8, "orbit": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "ir", "name": "Infrared Missile Launch Detector", "range_km": 6000, "fov_deg": 40 },
+          { "type": "eo", "name": "Wide-Area EO Scanner", "range_km": 4000, "fov_deg": 30 }
+        ],
+        "rcs_m2": 4.0,
+        "vizCategory": "satellite",
+        "regime": "HEO"
+      }
+    },
+    {
+      "id": "blue_f35_1",
+      "name": "RNoAF F-35A Lightning 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 67.27,
+        "lon": 14.4,
+        "alt": 10000,
+        "speed": 250,
+        "heading": 45,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 68.5, "lon": 18.0 },
+            { "lat": 70.0, "lon": 22.0 },
+            { "lat": 69.0, "lon": 16.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 250000, "fov_deg": 120, "scanRate_dps": 60 },
+        "visual": { "type": "point", "color": "#4488ff", "size": 8, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "AN/APG-81 AESA", "range_km": 250, "fov_deg": 120 },
+          { "type": "eo", "name": "AN/AAQ-40 EOTS", "range_km": 80, "fov_deg": 3 },
+          { "type": "sigint", "name": "AN/ASQ-239 EW Suite", "range_km": 500, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "a2a", "name": "AIM-120D AMRAAM", "count": 4, "range_km": 180 },
+          { "type": "a2a", "name": "AIM-9X Sidewinder", "count": 2, "range_km": 35 }
+        ],
+        "rcs_m2": 0.001,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "blue_f35_2",
+      "name": "RNoAF F-35A Lightning 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 67.3,
+        "lon": 14.6,
+        "alt": 10000,
+        "speed": 250,
+        "heading": 45,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 68.7, "lon": 18.5 },
+            { "lat": 70.2, "lon": 22.5 },
+            { "lat": 69.2, "lon": 16.5 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 250000, "fov_deg": 120, "scanRate_dps": 60 },
+        "visual": { "type": "point", "color": "#4488ff", "size": 8, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "AN/APG-81 AESA", "range_km": 250, "fov_deg": 120 },
+          { "type": "eo", "name": "AN/AAQ-40 EOTS", "range_km": 80, "fov_deg": 3 },
+          { "type": "sigint", "name": "AN/ASQ-239 EW Suite", "range_km": 500, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "a2a", "name": "AIM-120D AMRAAM", "count": 4, "range_km": 180 },
+          { "type": "a2a", "name": "AIM-9X Sidewinder", "count": 2, "range_km": 35 }
+        ],
+        "rcs_m2": 0.001,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "blue_ssn_astute",
+      "name": "HMS Astute (SSN)",
+      "type": "naval",
+      "team": "blue",
+      "initialState": {
+        "lat": 70.0,
+        "lon": 5.0,
+        "alt": 0,
+        "speed": 6,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "naval", "cruiseSpeed": 6 },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 70.5, "lon": 10.0 },
+            { "lat": 71.0, "lon": 15.0 },
+            { "lat": 71.5, "lon": 20.0 },
+            { "lat": 71.0, "lon": 15.0 }
+          ],
+          "loop": true
+        },
+        "visual": { "type": "point", "color": "#4488ff", "size": 10, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "sonar", "name": "Thales Sonar 2076", "range_km": 150, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "torpedo", "name": "Spearfish Torpedo", "count": 30, "range_km": 54 },
+          { "type": "cruise_missile", "name": "Tomahawk Block V", "count": 8, "range_km": 1600 }
+        ],
+        "rcs_m2": 0.0005,
+        "vizCategory": "naval"
+      }
+    },
+    {
+      "id": "blue_b52_stratofortress",
+      "name": "B-52H Stratofortress",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 65.0,
+        "lon": -20.0,
+        "alt": 11000,
+        "speed": 240,
+        "heading": 45,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 67.0, "lon": -10.0 },
+            { "lat": 69.0, "lon": 0.0 },
+            { "lat": 71.0, "lon": 10.0 },
+            { "lat": 69.0, "lon": 0.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 120, "scanRate_dps": 20 },
+        "visual": { "type": "point", "color": "#4488ff", "size": 10, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "AN/APQ-166 Attack Radar", "range_km": 200, "fov_deg": 120 },
+          { "type": "sigint", "name": "AN/ALQ-172 EW Suite", "range_km": 300, "fov_deg": 360 }
+        ],
+        "payloads": [
+          { "type": "cruise_missile", "name": "AGM-86C CALCM", "count": 12, "range_km": 1100 },
+          { "type": "standoff", "name": "AGM-158B JASSM-ER", "count": 8, "range_km": 925 }
+        ],
+        "rcs_m2": 100,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "blue_e3_awacs",
+      "name": "E-3A Sentry AWACS",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 68.0,
+        "lon": 10.0,
+        "alt": 10000,
+        "speed": 170,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 68.5, "lon": 15.0 },
+            { "lat": 69.0, "lon": 20.0 },
+            { "lat": 68.5, "lon": 15.0 },
+            { "lat": 68.0, "lon": 10.0 }
+          ],
+          "loop": true
+        },
+        "sensors": { "type": "radar", "maxRange_m": 600000, "fov_deg": 360, "scanRate_dps": 60 },
+        "visual": { "type": "point", "color": "#44ccff", "size": 10, "trail": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "AN/APY-2 Pulse-Doppler", "range_km": 600, "fov_deg": 360 },
+          { "type": "sigint", "name": "Passive ESM Suite", "range_km": 800, "fov_deg": 360 }
+        ],
+        "payloads": [],
+        "rcs_m2": 40,
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "blue_radar_vardo",
+      "name": "Vardø Globus II Radar",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 70.37,
+        "lon": 31.11,
+        "alt": 120,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": { "type": "static" },
+        "sensors": { "type": "radar", "maxRange_m": 1000000, "fov_deg": 360, "scanRate_dps": 10 },
+        "visual": { "type": "ground_station", "color": "#4488ff", "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "Globus II X-band Phased Array", "range_km": 1000, "fov_deg": 240 },
+          { "type": "radar", "name": "Globus III UHF Space Track", "range_km": 4000, "fov_deg": 120 }
+        ],
+        "rcs_m2": 200,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "blue_sbirs_geo",
+      "name": "SBIRS GEO-5 (Arctic Watch)",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "sma": 42164,
+        "eccentricity": 0.0005,
+        "inclination": 0.05,
+        "raan": 0,
+        "argPeriapsis": 0,
+        "meanAnomaly": 30
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "elements": {
+            "sma": 42164,
+            "ecc": 0.0005,
+            "inc": 0.05,
+            "raan": 0,
+            "argPe": 0,
+            "ma": 30
+          }
+        },
+        "visual": { "type": "satellite_visual", "color": "#ffcc44", "size": 8, "orbit": true, "label": true }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "ir", "name": "SBIRS IR Scanning Sensor", "range_km": 42000, "fov_deg": 20 },
+          { "type": "ir", "name": "SBIRS IR Staring Sensor", "range_km": 42000, "fov_deg": 5 }
+        ],
+        "rcs_m2": 6.0,
+        "vizCategory": "satellite",
+        "regime": "GEO"
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "ARCTIC WATCH: Russian Northern Fleet exercise detected in Barents Sea"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "SIGINT: MiG-31 radar emissions detected from Novaya Zemlya"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 180,
+      "action": {
+        "type": "message",
+        "text": "WARNING: Russian SSBN leaving bastion - tracking lost"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "ALERT: S-400 battery active at Novaya Zemlya"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 480,
+      "action": {
+        "type": "message",
+        "text": "UPDATE: B-52 approaching Russian ADIZ boundary"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "INTERCEPT: MiG-31s scrambled toward NATO AWACS"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "ESCALATION: Russian surface fleet moving to defensive positions"
+      }
+    }
+  ],
+  "regions": [
+    {
+      "name": "Barents Sea",
+      "type": "circle",
+      "center": { "lat": 72, "lon": 33 },
+      "radius_km": 500
+    },
+    {
+      "name": "Russian Arctic ADIZ",
+      "type": "circle",
+      "center": { "lat": 73, "lon": 45 },
+      "radius_km": 800
+    },
+    {
+      "name": "NATO Patrol Zone",
+      "type": "circle",
+      "center": { "lat": 69, "lon": 15 },
+      "radius_km": 400
+    },
+    {
+      "name": "GIUK Gap",
+      "type": "circle",
+      "center": { "lat": 63, "lon": -15 },
+      "radius_km": 600
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 72,
+    "lon": 25,
+    "range": 4000000
+  }
+}

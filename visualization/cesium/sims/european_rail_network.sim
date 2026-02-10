@@ -1,0 +1,659 @@
+{
+  "metadata": {
+    "name": "European High-Speed Rail Network",
+    "description": "Multiple high-speed trains crisscrossing Europe simultaneously. Player controls Thalys 9341 from Brussels to Amsterdam. TGV, ICE, Eurostar, AVE, and Frecciarossa services run as AI along their real routes. No weapons, no combat — civilian rail transportation across the continent.",
+    "version": "1.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "weather": "overcast",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "thalys_9341",
+      "name": "THALYS 9341",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 50.84,
+        "lon": 4.35,
+        "alt": 100,
+        "speed": 0,
+        "heading": 10,
+        "gamma": 0,
+        "throttle": 0,
+        "engineOn": false,
+        "gearDown": true,
+        "brakesOn": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "control": {
+          "type": "player_input"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#cc2244",
+          "pixelSize": 10,
+          "trail": true,
+          "trailColor": "#cc224488",
+          "label": "THALYS 9341"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "groundAlt": 100,
+        "routeAlt": 100,
+        "initialMsg": "BRUSSELS MIDI: Thalys 9341 cleared for departure to Amsterdam Centraal. Estimated journey: 1h50m.",
+        "initialHint": "Press W to accelerate. Follow waypoints north to Amsterdam.",
+        "waypoints": [
+          {
+            "lat": 50.9,
+            "lon": 4.37,
+            "radius": 3000,
+            "name": "BRUSSELS NORTH",
+            "msg": "Clearing Brussels suburbs. Accelerate to cruise speed.",
+            "hint": "Target ~75 m/s (270 km/h)"
+          },
+          {
+            "lat": 51.22,
+            "lon": 4.42,
+            "radius": 5000,
+            "name": "ANTWERP",
+            "msg": "Antwerp Central Station — diamond capital of the world.",
+            "hint": "Continue north, heading ~10 degrees"
+          },
+          {
+            "lat": 51.45,
+            "lon": 4.47,
+            "radius": 5000,
+            "name": "BORDER",
+            "msg": "Crossing into the Netherlands. Welkom!",
+            "hint": "Maintain heading north"
+          },
+          {
+            "lat": 51.81,
+            "lon": 4.67,
+            "radius": 5000,
+            "name": "BREDA",
+            "msg": "Passing Breda. Dutch countryside on both sides.",
+            "hint": "Heading ~20 toward Rotterdam"
+          },
+          {
+            "lat": 51.92,
+            "lon": 4.48,
+            "radius": 5000,
+            "name": "ROTTERDAM",
+            "msg": "Rotterdam — Europe's largest port. The Erasmus Bridge is to the west.",
+            "hint": "Bear northeast toward Schiphol"
+          },
+          {
+            "lat": 52.17,
+            "lon": 4.57,
+            "radius": 5000,
+            "name": "DEN HAAG",
+            "msg": "The Hague area — seat of Dutch government and the International Court of Justice.",
+            "hint": "Continue north to Schiphol"
+          },
+          {
+            "lat": 52.31,
+            "lon": 4.76,
+            "radius": 5000,
+            "name": "SCHIPHOL",
+            "msg": "Schiphol Airport junction. Almost there!",
+            "hint": "Amsterdam Centraal is just ahead"
+          },
+          {
+            "lat": 52.38,
+            "lon": 4.9,
+            "radius": 3000,
+            "name": "AMSTERDAM CENTRAAL",
+            "msg": "AMSTERDAM CENTRAAL: Arrival! Welcome to Amsterdam. Journey complete.",
+            "hint": "Hold B to brake. You've completed the Brussels-Amsterdam Thalys route."
+          }
+        ],
+        "milestones": [
+          {
+            "type": "speed",
+            "value": 20,
+            "msg": "Departing Brussels Midi — clearing the station",
+            "hint": "Keep accelerating"
+          },
+          {
+            "type": "speed",
+            "value": 70,
+            "msg": "Reaching cruise speed — 250+ km/h!",
+            "hint": "Thalys cruises at 300 km/h on this corridor"
+          }
+        ]
+      }
+    },
+    {
+      "id": "tgv_9201",
+      "name": "TGV 9201",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 48.85,
+        "lon": 2.37,
+        "alt": 100,
+        "speed": 80,
+        "heading": 155,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 48.21, "lon": 2.7, "alt": 100, "speed": 80 },
+            { "lat": 47.32, "lon": 3.5, "alt": 100, "speed": 80 },
+            { "lat": 46.72, "lon": 4.0, "alt": 100, "speed": 80 },
+            { "lat": 46.2, "lon": 4.4, "alt": 100, "speed": 80 },
+            { "lat": 45.76, "lon": 4.84, "alt": 100, "speed": 30 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#4488ff88",
+          "label": "TGV 9201"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "ice_79",
+      "name": "ICE 79",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 50.1,
+        "lon": 8.66,
+        "alt": 100,
+        "speed": 70,
+        "heading": 150,
+        "gamma": 0,
+        "throttle": 0.7,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 49.87, "lon": 8.65, "alt": 100, "speed": 70 },
+            { "lat": 49.45, "lon": 8.85, "alt": 100, "speed": 70 },
+            { "lat": 49.01, "lon": 9.18, "alt": 100, "speed": 70 },
+            { "lat": 48.78, "lon": 9.18, "alt": 100, "speed": 70 },
+            { "lat": 48.54, "lon": 10.0, "alt": 100, "speed": 70 },
+            { "lat": 48.36, "lon": 10.89, "alt": 100, "speed": 70 },
+            { "lat": 48.14, "lon": 11.58, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#ff444488",
+          "label": "ICE 79"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "eurostar_9024",
+      "name": "EUROSTAR 9024",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 51.53,
+        "lon": -0.13,
+        "alt": 100,
+        "speed": 80,
+        "heading": 135,
+        "gamma": 0,
+        "throttle": 0.8,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 51.28, "lon": 0.5, "alt": 100, "speed": 80 },
+            { "lat": 51.1, "lon": 1.12, "alt": 100, "speed": 80 },
+            { "lat": 51.0, "lon": 1.85, "alt": 100, "speed": 80 },
+            { "lat": 50.63, "lon": 1.62, "alt": 100, "speed": 80 },
+            { "lat": 50.1, "lon": 1.83, "alt": 100, "speed": 80 },
+            { "lat": 49.84, "lon": 2.3, "alt": 100, "speed": 80 },
+            { "lat": 49.25, "lon": 2.52, "alt": 100, "speed": 80 },
+            { "lat": 48.85, "lon": 2.37, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ffcc00",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#ffcc0088",
+          "label": "EUROSTAR 9024"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "ave_102",
+      "name": "AVE 102",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 40.41,
+        "lon": -3.69,
+        "alt": 100,
+        "speed": 75,
+        "heading": 60,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 40.6, "lon": -3.17, "alt": 100, "speed": 75 },
+            { "lat": 40.85, "lon": -2.13, "alt": 100, "speed": 75 },
+            { "lat": 41.07, "lon": -1.1, "alt": 100, "speed": 75 },
+            { "lat": 41.65, "lon": 0.88, "alt": 100, "speed": 75 },
+            { "lat": 41.38, "lon": 2.17, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff8800",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#ff880088",
+          "label": "AVE 102"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "frecciarossa_9501",
+      "name": "FRECCIAROSSA 9501",
+      "type": "aircraft",
+      "team": "neutral",
+      "initialState": {
+        "lat": 41.9,
+        "lon": 12.5,
+        "alt": 100,
+        "speed": 75,
+        "heading": 345,
+        "gamma": 0,
+        "throttle": 0.75,
+        "engineOn": true,
+        "gearDown": true,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "transport"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 42.44, "lon": 12.11, "alt": 100, "speed": 75 },
+            { "lat": 43.07, "lon": 11.78, "alt": 100, "speed": 75 },
+            { "lat": 43.77, "lon": 11.25, "alt": 100, "speed": 75 },
+            { "lat": 44.49, "lon": 11.34, "alt": 100, "speed": 75 },
+            { "lat": 44.65, "lon": 10.92, "alt": 100, "speed": 75 },
+            { "lat": 45.06, "lon": 10.0, "alt": 100, "speed": 75 },
+            { "lat": 45.46, "lon": 9.19, "alt": 100, "speed": 20 }
+          ],
+          "loop": false
+        },
+        "visual": {
+          "type": "point",
+          "color": "#44ff44",
+          "pixelSize": 7,
+          "trail": true,
+          "trailColor": "#44ff4488",
+          "label": "FRECCIAROSSA 9501"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["TAXI"]
+        }
+      }
+    },
+    {
+      "id": "stn_paris",
+      "name": "Paris Gare de Lyon",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 48.85,
+        "lon": 2.37,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Paris Gare de Lyon"
+        }
+      }
+    },
+    {
+      "id": "stn_london",
+      "name": "London St Pancras",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 51.53,
+        "lon": -0.13,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ffcc00",
+          "label": "London St Pancras"
+        }
+      }
+    },
+    {
+      "id": "stn_frankfurt",
+      "name": "Frankfurt Hbf",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 50.1,
+        "lon": 8.66,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "Frankfurt Hbf"
+        }
+      }
+    },
+    {
+      "id": "stn_madrid",
+      "name": "Madrid Atocha",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 40.41,
+        "lon": -3.69,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff8800",
+          "label": "Madrid Atocha"
+        }
+      }
+    },
+    {
+      "id": "stn_rome",
+      "name": "Roma Termini",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 41.9,
+        "lon": 12.5,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "Roma Termini"
+        }
+      }
+    },
+    {
+      "id": "stn_brussels",
+      "name": "Brussels Midi",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 50.84,
+        "lon": 4.35,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc2244",
+          "label": "Brussels Midi"
+        }
+      }
+    },
+    {
+      "id": "stn_amsterdam",
+      "name": "Amsterdam Centraal",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 52.38,
+        "lon": 4.9,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc2244",
+          "label": "Amsterdam Centraal"
+        }
+      }
+    },
+    {
+      "id": "stn_milan",
+      "name": "Milano Centrale",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 45.46,
+        "lon": 9.19,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#44ff44",
+          "label": "Milano Centrale"
+        }
+      }
+    },
+    {
+      "id": "stn_lyon",
+      "name": "Lyon Part-Dieu",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 45.76,
+        "lon": 4.84,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488ff",
+          "label": "Lyon Part-Dieu"
+        }
+      }
+    },
+    {
+      "id": "stn_munich",
+      "name": "Munich Hbf",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 48.14,
+        "lon": 11.58,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "Munich Hbf"
+        }
+      }
+    },
+    {
+      "id": "stn_barcelona",
+      "name": "Barcelona Sants",
+      "type": "ground",
+      "team": "neutral",
+      "initialState": {
+        "lat": 41.38,
+        "lon": 2.17,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff8800",
+          "label": "Barcelona Sants"
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "BRUSSELS MIDI: Thalys 9341 cleared for departure to Amsterdam. Estimated journey: 1h50m. TGV, ICE, Eurostar, AVE, and Frecciarossa services are also running across Europe."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "ANTWERP: Passing Antwerp Central — one of the most beautiful stations in the world."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "ROTTERDAM: Entering the Netherlands. The Eurostar should be passing through the Channel Tunnel right about now."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1800,
+      "action": {
+        "type": "message",
+        "text": "SCHIPHOL: Airport junction ahead. The TGV is approaching Lyon and the ICE is crossing through Stuttgart."
+      }
+    },
+    {
+      "type": "timed",
+      "time": 2400,
+      "action": {
+        "type": "message",
+        "text": "AMSTERDAM CENTRAAL: Arriving at destination. Welcome to Amsterdam! European rail connects 8 major cities — over 4000km of track."
+      }
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 48,
+    "lon": 5,
+    "range": 3000000
+  }
+}

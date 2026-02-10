@@ -1,0 +1,945 @@
+{
+  "metadata": {
+    "name": "Anti-Satellite Warfare",
+    "description": "Comprehensive ASAT threat scenario featuring co-orbital interceptors, direct-ascent weapons, electronic warfare jammers, and laser dazzlers targeting Blue force high-value space assets. Blue defends GPS III, SBIRS GEO, and WGS-11 with Space Surveillance Network ground stations, an F-15 ASAT interceptor, and a ground-based interceptor site. Tests space domain awareness, defensive counter-space operations, and multi-domain response coordination.",
+    "version": "2.0",
+    "author": "Claude",
+    "created": "2026-02-10"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "j2",
+    "maxTimeWarp": 256,
+    "simStartTime": "2026-02-10T12:00:00Z"
+  },
+  "entities": [
+    {
+      "id": "gps_iii_sv01",
+      "name": "GPS III SV01",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0,
+        "lon": -90,
+        "alt": 20200000,
+        "speed": 3874,
+        "heading": 45,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 26571000,
+            "eccentricity": 0.01,
+            "inclination": 55.0,
+            "raan": 120.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 0.0
+          }
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#4488ff",
+          "trail": true,
+          "orbitPath": true,
+          "label": true,
+          "model": "satellite"
+        }
+      },
+      "_custom": {
+        "role": "HVA",
+        "category": "navigation",
+        "rcs_m2": 2.5,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Navigation Payload",
+            "maxRange_m": 0,
+            "fov_deg": 360
+          }
+        ],
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "sbirs_geo_1",
+      "name": "SBIRS GEO-5",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0,
+        "lon": -75,
+        "alt": 35786000,
+        "speed": 3075,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 42164000,
+            "eccentricity": 0.0002,
+            "inclination": 0.05,
+            "raan": 195.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 90.0
+          }
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 120,
+          "scanRate_degPerSec": 10,
+          "detectionProbability": 0.85
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ddff",
+          "trail": true,
+          "orbitPath": true,
+          "label": true,
+          "model": "satellite"
+        }
+      },
+      "_custom": {
+        "role": "HVA",
+        "category": "missile_warning",
+        "rcs_m2": 4.0,
+        "sensors": [
+          {
+            "type": "ir",
+            "name": "Scanning IR Sensor",
+            "maxRange_m": 42000000,
+            "fov_deg": 10,
+            "sensitivity": "high"
+          }
+        ],
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "wgs_11",
+      "name": "WGS-11",
+      "type": "satellite",
+      "team": "blue",
+      "initialState": {
+        "lat": 0,
+        "lon": 60,
+        "alt": 35786000,
+        "speed": 3075,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 42164000,
+            "eccentricity": 0.0003,
+            "inclination": 0.05,
+            "raan": 330.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 240.0
+          }
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#66aaff",
+          "trail": true,
+          "orbitPath": true,
+          "label": true,
+          "model": "satellite"
+        }
+      },
+      "_custom": {
+        "role": "HVA",
+        "category": "communications",
+        "rcs_m2": 5.0,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "SATCOM Transponder",
+            "maxRange_m": 0,
+            "fov_deg": 360
+          }
+        ],
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "ssn_eglin",
+      "name": "SSN Eglin AFB",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 30.57,
+        "lon": -86.21,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 5000000,
+          "fov_deg": 120,
+          "scanRate_degPerSec": 6,
+          "detectionProbability": 0.92
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#2266cc",
+          "label": true,
+          "icon": "radar"
+        }
+      },
+      "_custom": {
+        "role": "sensor",
+        "category": "space_surveillance",
+        "rcs_m2": 0,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "ssn_maui",
+      "name": "SSN Maui MSSS",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 20.7,
+        "lon": -156.3,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 5000000,
+          "fov_deg": 120,
+          "scanRate_degPerSec": 6,
+          "detectionProbability": 0.90
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#2266cc",
+          "label": true,
+          "icon": "radar"
+        }
+      },
+      "_custom": {
+        "role": "sensor",
+        "category": "space_surveillance",
+        "rcs_m2": 0,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "asat_f15",
+      "name": "ASAT F-15 Eagle",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.9,
+        "lon": -117.9,
+        "alt": 12000,
+        "speed": 250,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f15"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            { "lat": 35.5, "lon": -117.9, "alt": 12000, "speed": 260 },
+            { "lat": 36.0, "lon": -118.5, "alt": 14000, "speed": 280 },
+            { "lat": 35.5, "lon": -119.0, "alt": 12000, "speed": 260 },
+            { "lat": 35.0, "lon": -118.5, "alt": 12000, "speed": 250 }
+          ],
+          "loopWaypoints": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 60,
+          "scanRate_degPerSec": 40,
+          "detectionProbability": 0.88
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "ASAT_interceptor",
+        "category": "fighter",
+        "rcs_m2": 5.0,
+        "payloads": ["a2a"],
+        "propulsion": {
+          "modes": ["air", "rocket"],
+          "rocketEngine": "AJ10"
+        },
+        "vizCategory": "aircraft"
+      }
+    },
+    {
+      "id": "gbi_vandenberg",
+      "name": "GBI Vandenberg SFB",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.75,
+        "lon": -120.52,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 4000000,
+          "fov_deg": 90,
+          "scanRate_degPerSec": 8,
+          "detectionProbability": 0.95
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 2000000,
+          "numMissiles": 6,
+          "pk": 0.7,
+          "tof": 300,
+          "reloadTime": 600
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#2288ff",
+          "label": true,
+          "icon": "missile"
+        }
+      },
+      "_custom": {
+        "role": "ground_interceptor",
+        "category": "missile_defense",
+        "rcs_m2": 0,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "red_asat_1",
+      "name": "Kosmos-2570 ASAT",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "lat": 45,
+        "lon": 30,
+        "alt": 330000,
+        "speed": 7720,
+        "heading": 45,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 6700000,
+            "eccentricity": 0.005,
+            "inclination": 63.0,
+            "raan": 45.0,
+            "argPerigee": 270.0,
+            "meanAnomaly": 30.0
+          }
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "targetId": "gps_iii_sv01"
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "trail": true,
+          "orbitPath": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "co-orbital_ASAT",
+        "category": "weapon",
+        "rcs_m2": 0.8,
+        "payloads": ["kkv"],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Target Tracking Radar",
+            "maxRange_m": 500000,
+            "fov_deg": 30
+          },
+          {
+            "type": "ir",
+            "name": "IR Seeker",
+            "maxRange_m": 200000,
+            "fov_deg": 5,
+            "sensitivity": "high"
+          }
+        ],
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "red_asat_2",
+      "name": "Kosmos-2575 ASAT",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "lat": 50,
+        "lon": 90,
+        "alt": 340000,
+        "speed": 7710,
+        "heading": 50,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 6720000,
+            "eccentricity": 0.008,
+            "inclination": 63.0,
+            "raan": 110.0,
+            "argPerigee": 90.0,
+            "meanAnomaly": 180.0
+          }
+        },
+        "ai": {
+          "type": "orbital_combat",
+          "role": "attacker",
+          "targetId": "sbirs_geo_1"
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff4444",
+          "trail": true,
+          "orbitPath": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "co-orbital_ASAT",
+        "category": "weapon",
+        "rcs_m2": 0.8,
+        "payloads": ["kkv"],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Target Tracking Radar",
+            "maxRange_m": 500000,
+            "fov_deg": 30
+          },
+          {
+            "type": "ir",
+            "name": "IR Seeker",
+            "maxRange_m": 200000,
+            "fov_deg": 5,
+            "sensitivity": "high"
+          }
+        ],
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "red_da_asat",
+      "name": "DA-ASAT Plesetsk",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 62.93,
+        "lon": 40.57,
+        "alt": 0,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 3000000,
+          "fov_deg": 90,
+          "scanRate_degPerSec": 10,
+          "detectionProbability": 0.88
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 1500000,
+          "numMissiles": 4,
+          "pk": 0.65,
+          "tof": 480,
+          "reloadTime": 900
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc2222",
+          "label": true,
+          "icon": "missile"
+        }
+      },
+      "_custom": {
+        "role": "direct_ascent_ASAT",
+        "category": "weapon",
+        "rcs_m2": 0,
+        "vizCategory": "ground"
+      }
+    },
+    {
+      "id": "red_ew_sat_1",
+      "name": "Kosmos-2580 EW",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "lat": 60,
+        "lon": 0,
+        "alt": 630000,
+        "speed": 7550,
+        "heading": 10,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 7000000,
+            "eccentricity": 0.002,
+            "inclination": 97.0,
+            "raan": 150.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 60.0
+          }
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff8844",
+          "trail": true,
+          "orbitPath": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "electronic_warfare",
+        "category": "jammer",
+        "rcs_m2": 1.2,
+        "sensors": [
+          {
+            "type": "sigint",
+            "name": "GPS Signal Detector",
+            "maxRange_m": 2000000,
+            "fov_deg": 180
+          }
+        ],
+        "jamming": {
+          "mode": "broadband",
+          "power_dbw": 30,
+          "band": "L1/L2",
+          "target_system": "GPS"
+        },
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "red_ew_sat_2",
+      "name": "Kosmos-2581 EW",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "lat": -60,
+        "lon": 180,
+        "alt": 620000,
+        "speed": 7555,
+        "heading": 190,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 7000000,
+            "eccentricity": 0.003,
+            "inclination": 97.0,
+            "raan": 330.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 240.0
+          }
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff8844",
+          "trail": true,
+          "orbitPath": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "electronic_warfare",
+        "category": "jammer",
+        "rcs_m2": 1.2,
+        "sensors": [
+          {
+            "type": "sigint",
+            "name": "GPS Signal Detector",
+            "maxRange_m": 2000000,
+            "fov_deg": 180
+          }
+        ],
+        "jamming": {
+          "mode": "broadband",
+          "power_dbw": 30,
+          "band": "L1/L2",
+          "target_system": "GPS"
+        },
+        "vizCategory": "satellite"
+      }
+    },
+    {
+      "id": "red_laser_geo",
+      "name": "Olymp-K2 Dazzler",
+      "type": "satellite",
+      "team": "red",
+      "initialState": {
+        "lat": 0,
+        "lon": -70,
+        "alt": 35786000,
+        "speed": 3075,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "mode": "elements",
+          "elements": {
+            "sma": 42164000,
+            "eccentricity": 0.0004,
+            "inclination": 0.08,
+            "raan": 200.0,
+            "argPerigee": 0.0,
+            "meanAnomaly": 95.0
+          }
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff2222",
+          "trail": true,
+          "orbitPath": true,
+          "label": true
+        }
+      },
+      "_custom": {
+        "role": "directed_energy",
+        "category": "weapon",
+        "rcs_m2": 3.5,
+        "sensors": [
+          {
+            "type": "eo",
+            "name": "Target Acquisition Camera",
+            "maxRange_m": 1000000,
+            "fov_deg": 5,
+            "gsd_m": 0.5
+          },
+          {
+            "type": "ir",
+            "name": "Laser Targeting IR",
+            "maxRange_m": 500000,
+            "fov_deg": 2,
+            "sensitivity": "high"
+          }
+        ],
+        "directed_energy": {
+          "type": "laser_dazzler",
+          "power_kw": 50,
+          "wavelength_nm": 1064,
+          "range_m": 500000,
+          "target": "sbirs_geo_1"
+        },
+        "vizCategory": "satellite"
+      }
+    }
+  ],
+  "events": [
+    {
+      "type": "timed",
+      "time": 0,
+      "action": {
+        "type": "message",
+        "text": "SPACE DOMAIN AWARENESS: Tracking 5 hostile space objects — 2 co-orbital ASAT interceptors (Kosmos-2570/2575 in LEO, inc 63 deg), 2 EW jamming satellites (Kosmos-2580/2581 in SSO), 1 laser dazzler (Olymp-K2 in GEO near SBIRS). Direct-ascent ASAT site active at Plesetsk.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "WARNING: Red co-orbital ASAT Kosmos-2570 orbit change detected — delta-V burn observed, trajectory analysis shows closing geometry on GPS III SV01 in MEO. Estimated intercept window: T+800s to T+1200s.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 180,
+      "action": {
+        "type": "message",
+        "text": "ALERT: Electronic warfare satellites Kosmos-2580 and Kosmos-2581 activating broadband L1/L2 GPS jamming. GPS accuracy degradation reported across Northern Hemisphere. Navigation constellation integrity compromised.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "CRITICAL: Infrared signature detected at Plesetsk Cosmodrome — direct-ascent ASAT launch confirmed. Trajectory analysis indicates intercept of WGS-11 communications satellite in GEO. Time to intercept: approximately 2400 seconds.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 450,
+      "action": {
+        "type": "message",
+        "text": "WARNING: Olymp-K2 laser dazzler satellite maneuvering toward SBIRS GEO-5. High-power 1064nm laser illumination expected. SBIRS scanning IR sensor degradation imminent.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "message",
+        "text": "RESPONSE AUTHORIZED: F-15 ASAT mission go for launch. ASAT Eagle cleared to climb to engagement altitude. GBI Vandenberg on alert for direct-ascent intercept of inbound Red ASAT. All assets shift to WEAPONS FREE.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 600,
+      "action": {
+        "type": "changeROE",
+        "team": "blue",
+        "roe": "weapons_free"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 750,
+      "action": {
+        "type": "message",
+        "text": "ENGAGEMENT: GBI Vandenberg launching ground-based interceptor against inbound DA-ASAT. Tracking radar locked. Kill assessment pending.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 900,
+      "action": {
+        "type": "message",
+        "text": "UPDATE: Space debris cloud expanding from engagement zone. USSPACECOM tracking 47 new objects. Conjunction warnings issued for 12 active satellites in adjacent orbital planes. ISS collision avoidance maneuver may be required.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1100,
+      "action": {
+        "type": "message",
+        "text": "ASSESSMENT: Kosmos-2570 ASAT neutralized by GBI intercept. GPS III SV01 safe. Kosmos-2575 still tracking toward SBIRS. EW jamming ongoing — GPS accuracy degraded to 50m CEP. Olymp-K2 dazzler within engagement range of SBIRS GEO-5.",
+        "team": "blue"
+      }
+    },
+    {
+      "type": "timed",
+      "time": 1500,
+      "action": {
+        "type": "message",
+        "text": "ENDGAME: Space domain situation stabilizing. Blue counterspace operations continuing. Debris mitigation protocols active. Coalition partners notified of orbital hazards. Diplomatic channels engaged regarding Plesetsk launch.",
+        "team": "blue"
+      }
+    }
+  ],
+  "regions": [
+    {
+      "id": "leo_corridor",
+      "name": "LEO ASAT Corridor",
+      "type": "orbital_band",
+      "altMin_km": 200,
+      "altMax_km": 800,
+      "description": "Low Earth Orbit — co-orbital ASAT and EW satellite operating zone"
+    },
+    {
+      "id": "meo_gps_belt",
+      "name": "MEO GPS Belt",
+      "type": "orbital_band",
+      "altMin_km": 19900,
+      "altMax_km": 20600,
+      "description": "Medium Earth Orbit — GPS constellation altitude, primary target zone for Red ASAT"
+    },
+    {
+      "id": "geo_belt",
+      "name": "GEO Belt",
+      "type": "orbital_band",
+      "altMin_km": 35500,
+      "altMax_km": 36100,
+      "description": "Geostationary orbit — SBIRS, WGS, and Red laser dazzler operating zone"
+    },
+    {
+      "id": "russian_asat_zone",
+      "name": "Russian ASAT Launch Zone",
+      "type": "ground_region",
+      "center": { "lat": 62.93, "lon": 40.57 },
+      "radius_km": 200,
+      "description": "Plesetsk Cosmodrome — direct-ascent ASAT launch facility"
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_cmd_net",
+      "name": "Blue Space Command Network",
+      "team": "blue",
+      "topology": "mesh",
+      "frequency_mhz": 20200,
+      "bandwidth_mbps": 100,
+      "encryption": "AES-256",
+      "nodes": [
+        {
+          "entityId": "ssn_eglin",
+          "role": "command",
+          "capabilities": ["track", "command", "relay"]
+        },
+        {
+          "entityId": "ssn_maui",
+          "role": "sensor",
+          "capabilities": ["track", "relay"]
+        },
+        {
+          "entityId": "gbi_vandenberg",
+          "role": "shooter",
+          "capabilities": ["track", "engage", "command"]
+        },
+        {
+          "entityId": "gps_iii_sv01",
+          "role": "relay",
+          "capabilities": ["relay", "navigate"]
+        },
+        {
+          "entityId": "sbirs_geo_1",
+          "role": "sensor",
+          "capabilities": ["track", "relay", "warning"]
+        },
+        {
+          "entityId": "wgs_11",
+          "role": "relay",
+          "capabilities": ["relay", "wideband"]
+        },
+        {
+          "entityId": "asat_f15",
+          "role": "shooter",
+          "capabilities": ["engage", "track"]
+        }
+      ],
+      "links": [
+        { "from": "ssn_eglin", "to": "ssn_maui", "type": "fiber", "bandwidth_mbps": 10000 },
+        { "from": "ssn_eglin", "to": "gbi_vandenberg", "type": "fiber", "bandwidth_mbps": 10000 },
+        { "from": "ssn_eglin", "to": "wgs_11", "type": "rf", "bandwidth_mbps": 100 },
+        { "from": "ssn_maui", "to": "wgs_11", "type": "rf", "bandwidth_mbps": 100 },
+        { "from": "gbi_vandenberg", "to": "sbirs_geo_1", "type": "rf", "bandwidth_mbps": 50 },
+        { "from": "gbi_vandenberg", "to": "asat_f15", "type": "rf", "bandwidth_mbps": 20 },
+        { "from": "sbirs_geo_1", "to": "wgs_11", "type": "laser", "bandwidth_mbps": 1000 },
+        { "from": "wgs_11", "to": "gps_iii_sv01", "type": "rf", "bandwidth_mbps": 50 },
+        { "from": "ssn_eglin", "to": "sbirs_geo_1", "type": "rf", "bandwidth_mbps": 50 },
+        { "from": "ssn_eglin", "to": "asat_f15", "type": "rf", "bandwidth_mbps": 20 }
+      ]
+    },
+    {
+      "id": "red_asat_net",
+      "name": "Red ASAT Command Network",
+      "team": "red",
+      "topology": "star",
+      "frequency_mhz": 8400,
+      "bandwidth_mbps": 50,
+      "encryption": "GOST",
+      "nodes": [
+        {
+          "entityId": "red_da_asat",
+          "role": "command",
+          "capabilities": ["track", "command", "engage"]
+        },
+        {
+          "entityId": "red_asat_1",
+          "role": "shooter",
+          "capabilities": ["track", "engage"]
+        },
+        {
+          "entityId": "red_asat_2",
+          "role": "shooter",
+          "capabilities": ["track", "engage"]
+        },
+        {
+          "entityId": "red_ew_sat_1",
+          "role": "jammer",
+          "capabilities": ["jam", "sigint"]
+        },
+        {
+          "entityId": "red_ew_sat_2",
+          "role": "jammer",
+          "capabilities": ["jam", "sigint"]
+        },
+        {
+          "entityId": "red_laser_geo",
+          "role": "shooter",
+          "capabilities": ["engage", "track"]
+        }
+      ],
+      "links": [
+        { "from": "red_da_asat", "to": "red_asat_1", "type": "rf", "bandwidth_mbps": 50 },
+        { "from": "red_da_asat", "to": "red_asat_2", "type": "rf", "bandwidth_mbps": 50 },
+        { "from": "red_da_asat", "to": "red_ew_sat_1", "type": "rf", "bandwidth_mbps": 20 },
+        { "from": "red_da_asat", "to": "red_ew_sat_2", "type": "rf", "bandwidth_mbps": 20 },
+        { "from": "red_da_asat", "to": "red_laser_geo", "type": "rf", "bandwidth_mbps": 30 }
+      ]
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "range": 50000000,
+    "lat": 20,
+    "lon": -40,
+    "alt": 35000000
+  }
+}

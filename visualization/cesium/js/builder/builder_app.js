@@ -137,6 +137,11 @@ const BuilderApp = (function() {
             CommDesigner.init();
         }
 
+        // Initialize Region Editor
+        if (typeof RegionEditor !== 'undefined') {
+            RegionEditor.init(_viewer);
+        }
+
         // Build palette template map from ObjectPalette
         _buildPaletteTemplateMap();
 
@@ -214,6 +219,10 @@ const BuilderApp = (function() {
     }
 
     function getScenarioData() {
+        // Sync region data into scenario before returning
+        if (_scenarioData && typeof RegionEditor !== 'undefined') {
+            _scenarioData.regions = RegionEditor.getRegions();
+        }
         return _scenarioData;
     }
 
@@ -258,6 +267,11 @@ const BuilderApp = (function() {
         _scenarioName = (json.metadata && json.metadata.name) || 'Untitled Scenario';
         var nameDisplay = document.getElementById('scenarioNameDisplay');
         if (nameDisplay) nameDisplay.textContent = _scenarioName;
+
+        // Load regions if present
+        if (typeof RegionEditor !== 'undefined' && json.regions) {
+            RegionEditor.loadRegions(json.regions);
+        }
 
         showMessage('Scenario loaded: ' + (json.metadata.name || 'Untitled'));
     }
@@ -677,6 +691,9 @@ const BuilderApp = (function() {
         _selectedEntityId = null;
         _entityCounter = 0;
         _clearBuildPreviews();
+        if (typeof RegionEditor !== 'undefined') {
+            RegionEditor.clearAll();
+        }
         _updateInspectorUI();
         _updateEntityListUI();
         showMessage('New scenario created');
@@ -1403,6 +1420,131 @@ const BuilderApp = (function() {
             }
         });
 
+        // Region Editor panel toggle and draw tools
+        _bindButton('btnRegions', function() {
+            var panel = document.getElementById('regionEditorPanel');
+            if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        var btnDrawCircle = document.getElementById('btnDrawCircle');
+        if (btnDrawCircle) btnDrawCircle.onclick = function() {
+            if (typeof RegionEditor === 'undefined') return;
+            RegionEditor.startCircleDraw();
+            var inst = document.getElementById('drawInstructions');
+            if (inst) { inst.style.display = 'block'; inst.textContent = 'Click center, then click edge to set radius.'; }
+            var cancelBtn = document.getElementById('btnCancelDraw');
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
+            btnDrawCircle.style.borderColor = '#ff8844';
+            btnDrawCircle.style.color = '#ff8844';
+            var polyBtn = document.getElementById('btnDrawPolygon');
+            if (polyBtn) { polyBtn.style.borderColor = '#555'; polyBtn.style.color = '#aaa'; }
+        };
+
+        var btnDrawPolygon = document.getElementById('btnDrawPolygon');
+        if (btnDrawPolygon) btnDrawPolygon.onclick = function() {
+            if (typeof RegionEditor === 'undefined') return;
+            RegionEditor.startPolygonDraw();
+            var inst = document.getElementById('drawInstructions');
+            if (inst) { inst.style.display = 'block'; inst.textContent = 'Click to add vertices. Right-click to finish (min 3 points).'; }
+            var cancelBtn = document.getElementById('btnCancelDraw');
+            if (cancelBtn) cancelBtn.style.display = 'inline-block';
+            btnDrawPolygon.style.borderColor = '#ff8844';
+            btnDrawPolygon.style.color = '#ff8844';
+            var circleBtn = document.getElementById('btnDrawCircle');
+            if (circleBtn) { circleBtn.style.borderColor = '#555'; circleBtn.style.color = '#aaa'; }
+        };
+
+        var btnCancelDraw = document.getElementById('btnCancelDraw');
+        if (btnCancelDraw) btnCancelDraw.onclick = function() {
+            if (typeof RegionEditor !== 'undefined') RegionEditor.cancelDraw();
+            _resetRegionDrawUI();
+        };
+
+        var btnCloseRegions = document.getElementById('btnCloseRegions');
+        if (btnCloseRegions) btnCloseRegions.onclick = function() {
+            var panel = document.getElementById('regionEditorPanel');
+            if (panel) panel.style.display = 'none';
+            if (typeof RegionEditor !== 'undefined') RegionEditor.cancelDraw();
+            _resetRegionDrawUI();
+        };
+
+        var btnClearRegions = document.getElementById('btnClearRegions');
+        if (btnClearRegions) btnClearRegions.onclick = function() {
+            if (typeof RegionEditor !== 'undefined') RegionEditor.clearAll();
+        };
+
+        // Listen for region events to hide draw instructions
+        if (typeof RegionEditor !== 'undefined') {
+            RegionEditor.on('regionAdded', function() {
+                _resetRegionDrawUI();
+            });
+        }
+
+        // Validate scenario
+        _bindButton('btnValidate', function() {
+            if (typeof ScenarioValidator === 'undefined') return;
+            var issues = [];
+            // Run data-level validation first
+            var dataResult = _validateForRun(getScenarioData());
+            if (dataResult.errors.length > 0) {
+                for (var ei = 0; ei < dataResult.errors.length; ei++) {
+                    issues.push({ level: 'error', msg: dataResult.errors[ei], entityId: null });
+                }
+            }
+            if (dataResult.warnings.length > 0) {
+                for (var wi = 0; wi < dataResult.warnings.length; wi++) {
+                    issues.push({ level: 'warning', msg: dataResult.warnings[wi], entityId: null });
+                }
+            }
+            // Run ECS-level validation if world exists (RUN mode)
+            if (_world) {
+                var ecsIssues = ScenarioValidator.validate(_world);
+                for (var k = 0; k < ecsIssues.length; k++) {
+                    issues.push(ecsIssues[k]);
+                }
+            } else {
+                // BUILD mode: try building a temporary headless world for deeper checks
+                var scenarioData = getScenarioData();
+                if (scenarioData && scenarioData.entities && scenarioData.entities.length > 0) {
+                    try {
+                        var tempWorld = ScenarioLoader.build(scenarioData, null);
+                        tempWorld.headless = true;
+                        var ecsIssues2 = ScenarioValidator.validate(tempWorld);
+                        for (var m = 0; m < ecsIssues2.length; m++) {
+                            issues.push(ecsIssues2[m]);
+                        }
+                    } catch (buildErr) {
+                        issues.push({ level: 'error', msg: 'ECS build failed: ' + buildErr.message, entityId: null });
+                    }
+                }
+            }
+            // Deduplicate by message
+            var seen = {};
+            var deduped = [];
+            for (var d = 0; d < issues.length; d++) {
+                var key = issues[d].level + ':' + issues[d].msg;
+                if (!seen[key]) {
+                    seen[key] = true;
+                    deduped.push(issues[d]);
+                }
+            }
+            // Sort: errors first, then warnings, then info
+            var levelOrder = { error: 0, warning: 1, info: 2 };
+            deduped.sort(function(a, b) {
+                return (levelOrder[a.level] || 3) - (levelOrder[b.level] || 3);
+            });
+            _showValidationPanel(deduped);
+        });
+
+        // Close validation panel
+        var validationCloseBtn = document.getElementById('validationClose');
+        if (validationCloseBtn) {
+            validationCloseBtn.addEventListener('click', function() {
+                var panel = document.getElementById('validationPanel');
+                if (panel) panel.style.display = 'none';
+            });
+        }
+
         // Export dropdown toggle
         _bindButton('btnExport', function() {
             var menu = document.getElementById('exportDropdownMenu');
@@ -1754,6 +1896,17 @@ const BuilderApp = (function() {
         if (el) {
             el.addEventListener('click', handler);
         }
+    }
+
+    function _resetRegionDrawUI() {
+        var inst = document.getElementById('drawInstructions');
+        if (inst) inst.style.display = 'none';
+        var cancelBtn = document.getElementById('btnCancelDraw');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        var circleBtn = document.getElementById('btnDrawCircle');
+        if (circleBtn) { circleBtn.style.borderColor = '#555'; circleBtn.style.color = '#aaa'; }
+        var polyBtn = document.getElementById('btnDrawPolygon');
+        if (polyBtn) { polyBtn.style.borderColor = '#555'; polyBtn.style.color = '#aaa'; }
     }
 
     // -------------------------------------------------------------------
@@ -2184,11 +2337,17 @@ const BuilderApp = (function() {
                 return;
             }
 
-            // Escape closes help dialog
+            // Escape closes help dialog or cancels region drawing
             if (e.key === 'Escape') {
                 var helpOverlay = document.getElementById('helpDialogOverlay');
                 if (helpOverlay && helpOverlay.style.display !== 'none') {
                     helpOverlay.style.display = 'none';
+                    return;
+                }
+                // Cancel region drawing if active
+                if (typeof RegionEditor !== 'undefined' && RegionEditor.isDrawing) {
+                    RegionEditor.cancelDraw();
+                    _resetRegionDrawUI();
                     return;
                 }
             }
@@ -2654,6 +2813,60 @@ const BuilderApp = (function() {
 
     function _clearAutosave() {
         try { localStorage.removeItem(_AUTOSAVE_KEY); } catch (e) { /* ignore */ }
+    }
+
+    // -------------------------------------------------------------------
+    // Scenario Validation Panel
+    // -------------------------------------------------------------------
+
+    function _showValidationPanel(issues) {
+        var panel = document.getElementById('validationPanel');
+        var results = document.getElementById('validationResults');
+        var title = document.getElementById('validationTitle');
+        if (!panel || !results) return;
+
+        var errors = issues.filter(function(i) { return i.level === 'error'; }).length;
+        var warnings = issues.filter(function(i) { return i.level === 'warning'; }).length;
+        var infos = issues.filter(function(i) { return i.level === 'info'; }).length;
+
+        if (title) {
+            if (errors > 0) {
+                title.textContent = 'VALIDATION: ' + errors + ' ERROR(S)';
+                title.style.color = '#ff4444';
+            } else if (warnings > 0) {
+                title.textContent = 'VALIDATION: ' + warnings + ' WARNING(S)';
+                title.style.color = '#ffcc00';
+            } else if (infos > 0) {
+                title.textContent = 'VALIDATION: ALL CLEAR (' + infos + ' notes)';
+                title.style.color = '#00ff88';
+            } else {
+                title.textContent = 'VALIDATION: PERFECT';
+                title.style.color = '#00ff88';
+            }
+        }
+
+        if (issues.length === 0) {
+            results.innerHTML = '<div style="color:#00ff88; padding:16px; text-align:center;">No issues found. Scenario looks good!</div>';
+        } else {
+            var html = '';
+            var levelColors = { error: '#ff4444', warning: '#ffcc00', info: '#4488ff' };
+            var levelIcons = { error: '&#x2717;', warning: '&#x26A0;', info: '&#x2139;' };
+            for (var i = 0; i < issues.length; i++) {
+                var issue = issues[i];
+                var color = levelColors[issue.level] || '#aaa';
+                var icon = levelIcons[issue.level] || '?';
+                html += '<div style="display:flex; align-items:flex-start; gap:8px; padding:6px 8px; margin:3px 0; background:rgba(0,0,0,0.2); border-radius:3px; border-left:3px solid ' + color + ';">';
+                html += '<span style="color:' + color + '; font-size:13px; flex-shrink:0;">' + icon + '</span>';
+                html += '<div>';
+                html += '<span style="color:' + color + '; font-size:11px;">' + _escHtml(issue.level.toUpperCase()) + '</span>';
+                html += '<div style="color:#ccc; font-size:11px; margin-top:2px;">' + _escHtml(issue.msg) + '</div>';
+                html += '</div>';
+                html += '</div>';
+            }
+            results.innerHTML = html;
+        }
+
+        panel.style.display = 'block';
     }
 
     // -------------------------------------------------------------------

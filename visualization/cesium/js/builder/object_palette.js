@@ -425,6 +425,368 @@ var ObjectPalette = (function() {
                 visual: { type: 'point', color: '#cc8844', pixelSize: 8, trail: true }
             }
         },
+        {
+            category: 'Aircraft',
+            name: 'J-20 Mighty Dragon',
+            icon: '#ee3333',
+            description: '5th-gen stealth, PL-15/PL-10, AESA radar',
+            tooltip: 'Chengdu J-20 Mighty Dragon. Chinese 5th-gen stealth air superiority fighter. Type 1475 AESA radar, 200km range. PL-15 long-range + PL-10 short-range missiles. Delta canard configuration.',
+            type: 'aircraft',
+            team: 'red',
+            defaults: {
+                alt: 10000, speed: 300, heading: 270, gamma: 0,
+                throttle: 0.65, engineOn: true, gearDown: false, infiniteFuel: true
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'f22' },
+                control: { type: 'player_input', config: 'fighter' },
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 120, scanRate_dps: 75, detectionProbability: 0.90 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'PL-10', count: 2, minRange: 500, maxRange: 20000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'PL-15', count: 4, minRange: 2000, maxRange: 150000, seekerFOV: 360, Pk: 0.78, speed: 1400, flightTime: 50 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#ee3333', pixelSize: 12, trail: true }
+            },
+            _custom: { rcs_m2: 0.05 }
+        },
+        {
+            category: 'Aircraft',
+            name: 'J-16 Flanker-L',
+            icon: '#dd4444',
+            description: '4th+ gen multirole, heavy payload, AESA',
+            tooltip: 'Shenyang J-16. Chinese 4th+ gen multirole fighter based on Su-30MKK. AESA radar, PL-15/PL-10 + guided bombs. Heavy payload for strike and air superiority.',
+            type: 'aircraft',
+            team: 'red',
+            defaults: {
+                alt: 8000, speed: 260, heading: 270, gamma: 0,
+                throttle: 0.65, engineOn: true, gearDown: false, infiniteFuel: true
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'f15' },
+                control: { type: 'player_input', config: 'fighter' },
+                sensors: { type: 'radar', maxRange_m: 160000, fov_deg: 120, scanRate_dps: 60, detectionProbability: 0.87 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'PL-10', count: 2, minRange: 500, maxRange: 20000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'PL-15', count: 6, minRange: 2000, maxRange: 150000, seekerFOV: 360, Pk: 0.75, speed: 1400, flightTime: 45 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#dd4444', pixelSize: 12, trail: true }
+            }
+        },
+        {
+            category: 'Aircraft',
+            name: 'J-10C Vigorous Dragon',
+            icon: '#dd5555',
+            description: 'Light multirole, AESA radar, PL-15',
+            tooltip: 'Chengdu J-10C. Chinese light multirole fighter with AESA radar. PL-15/PL-10 missiles. Delta canard, agile dogfighter. Comparable to F-16 Block 70.',
+            type: 'aircraft',
+            team: 'red',
+            defaults: {
+                alt: 7000, speed: 240, heading: 270, gamma: 0,
+                throttle: 0.6, engineOn: true, gearDown: false, infiniteFuel: true
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'f16' },
+                control: { type: 'player_input', config: 'fighter' },
+                sensors: { type: 'radar', maxRange_m: 130000, fov_deg: 120, scanRate_dps: 60, detectionProbability: 0.85 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'PL-10', count: 2, minRange: 500, maxRange: 20000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'PL-15', count: 4, minRange: 2000, maxRange: 150000, seekerFOV: 360, Pk: 0.75, speed: 1300, flightTime: 42 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#dd5555', pixelSize: 10, trail: true }
+            }
+        },
+        {
+            category: 'Aircraft',
+            name: 'KJ-500 AWACS',
+            icon: '#dd7777',
+            description: 'Chinese AEW&C, 3-panel AESA, 450km radar',
+            tooltip: 'Shaanxi KJ-500. Chinese AEW&C with three-panel fixed AESA radar. 450km detection range, 360-degree coverage. Command and control for PLA air operations.',
+            type: 'aircraft',
+            team: 'red',
+            defaults: {
+                alt: 9000, speed: 180, heading: 270, gamma: 0,
+                throttle: 0.5, engineOn: true, gearDown: false, infiniteFuel: true
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'awacs' },
+                ai: { type: 'waypoint_patrol', waypoints: [], loopMode: 'cycle' },
+                sensors: { type: 'radar', maxRange_m: 450000, fov_deg: 360, scanRate_dps: 20, detectionProbability: 0.90 },
+                visual: { type: 'point', color: '#dd7777', pixelSize: 14, trail: true }
+            }
+        },
+        // --- Launch Vehicles ---
+        {
+            category: 'Launch Vehicles',
+            name: 'Falcon 9 Block 5',
+            icon: '#00bbff',
+            description: 'SpaceX Falcon 9 Block 5 - LEO capacity 22,800 kg',
+            tooltip: 'SpaceX Falcon 9 Block 5 medium-lift launch vehicle. 549,054 kg liftoff mass. Reusable first stage. LEO capacity 22,800 kg, GTO 8,300 kg. Merlin 1D+ engines (sea-level + vacuum). Launch from Cape Canaveral.',
+            type: 'aircraft',
+            team: 'blue',
+            defaults: {
+                lat: 28.562, lon: -80.577,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' },
+                mass: 549054,
+                description: 'SpaceX Falcon 9 Block 5 - LEO capacity 22,800 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#00bbff', pixelSize: 14, trail: true }
+            }
+        },
+        {
+            category: 'Launch Vehicles',
+            name: 'Atlas V 551',
+            icon: '#0088cc',
+            description: 'ULA Atlas V 551 - LEO capacity 18,850 kg',
+            tooltip: 'United Launch Alliance Atlas V 551 heavy configuration. 590,000 kg liftoff mass. 5 solid rocket boosters, Common Core Booster (RD-180), Centaur upper stage (RL10). LEO capacity 18,850 kg, GTO 8,900 kg. Launch from Cape Canaveral.',
+            type: 'aircraft',
+            team: 'blue',
+            defaults: {
+                lat: 28.562, lon: -80.577,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' },
+                mass: 590000,
+                description: 'ULA Atlas V 551 - LEO capacity 18,850 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#0088cc', pixelSize: 14, trail: true }
+            }
+        },
+        {
+            category: 'Launch Vehicles',
+            name: 'SLS Block 1',
+            icon: '#ff8800',
+            description: 'NASA SLS Block 1 - LEO capacity 95,000 kg',
+            tooltip: 'NASA Space Launch System Block 1 super heavy-lift vehicle. 2,608,000 kg liftoff mass. 4x RS-25 core stage engines + 2x solid rocket boosters. LEO capacity 95,000 kg. Launch from Kennedy Space Center LC-39B.',
+            type: 'aircraft',
+            team: 'blue',
+            defaults: {
+                lat: 28.562, lon: -80.577,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' },
+                mass: 2608000,
+                description: 'NASA SLS Block 1 - LEO capacity 95,000 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#ff8800', pixelSize: 16, trail: true }
+            }
+        },
+        {
+            category: 'Launch Vehicles',
+            name: 'Long March 5',
+            icon: '#ff4444',
+            description: 'CASC Long March 5 - LEO capacity 25,000 kg',
+            tooltip: 'China Aerospace Science and Technology Corporation Long March 5 (CZ-5) heavy-lift vehicle. 867,000 kg liftoff mass. Kerolox/hydrolox core + 4x kerolox boosters. LEO capacity 25,000 kg, GTO 14,000 kg. Launch from Wenchang Space Launch Site.',
+            type: 'aircraft',
+            team: 'red',
+            defaults: {
+                lat: 19.614, lon: 110.951,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' },
+                mass: 867000,
+                description: 'CASC Long March 5 - LEO capacity 25,000 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#ff4444', pixelSize: 14, trail: true }
+            }
+        },
+        {
+            category: 'Launch Vehicles',
+            name: 'Ariane 6',
+            icon: '#2266cc',
+            description: 'ArianeGroup Ariane 6 - LEO capacity 21,650 kg',
+            tooltip: 'ArianeGroup Ariane 6 (A64 configuration) medium-to-heavy lift vehicle. 530,000 kg liftoff mass. Vulcain 2.1 core engine + 4x P120C solid boosters. Vinci re-ignitable upper stage. LEO capacity 21,650 kg, GTO 11,500 kg. Launch from Guiana Space Centre, Kourou.',
+            type: 'aircraft',
+            team: 'neutral',
+            defaults: {
+                lat: 5.239, lon: -52.768,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' },
+                mass: 530000,
+                description: 'ArianeGroup Ariane 6 - LEO capacity 21,650 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#2266cc', pixelSize: 14, trail: true }
+            }
+        },
+        {
+            category: 'Launch Vehicles',
+            name: 'PSLV',
+            icon: '#ff9944',
+            description: 'ISRO PSLV - LEO capacity 3,800 kg',
+            tooltip: 'Indian Space Research Organisation Polar Satellite Launch Vehicle (PSLV-XL). 320,000 kg liftoff mass. 4-stage vehicle (solid/liquid/solid/liquid). LEO capacity 3,800 kg, SSO 1,750 kg. Known for multi-satellite deployment. Launch from Satish Dhawan Space Centre, Sriharikota.',
+            type: 'aircraft',
+            team: 'neutral',
+            defaults: {
+                lat: 13.72, lon: 80.23,
+                alt: 10, speed: 0, heading: 90, gamma: 90,
+                throttle: 0, engineOn: false, infiniteFuel: true
+            },
+            _custom: {
+                propulsion: { modes: ['ROCKET'], rocketEngine: 'RL10' },
+                mass: 320000,
+                description: 'ISRO PSLV - LEO capacity 3,800 kg'
+            },
+            components: {
+                physics: { type: 'flight3dof', config: 'spaceplane' },
+                control: { type: 'player_input', config: 'spaceplane' },
+                visual: { type: 'point', color: '#ff9944', pixelSize: 12, trail: true }
+            }
+        },
+        // --- Formations (multi-entity groups) ---
+        {
+            category: 'Formations',
+            name: '2-Ship Element (F-16)',
+            icon: '#4488ff',
+            description: 'Lead + wingman pair, combat spread',
+            tooltip: 'Basic 2-ship element: lead + right wingman. Combat spread formation at 1NM spacing. Both F-16C with AIM-9/AIM-120.',
+            type: 'aircraft',
+            team: 'blue',
+            _isFormation: true,
+            _formationEntities: [
+                { suffix: 'Lead', role: 'lead', offset: [0, 0] },
+                { suffix: 'Wing', role: 'wingman', offset: [0.008, -0.003], formation: { position: 'right_wing', separation: 1852 } }
+            ],
+            defaults: { alt: 6000, speed: 220, heading: 90, gamma: 0, throttle: 0.7, engineOn: true, gearDown: false, infiniteFuel: true },
+            components: {
+                physics: { type: 'flight3dof', config: 'f16' },
+                sensors: { type: 'radar', maxRange_m: 120000, fov_deg: 120, scanRate_dps: 60, detectionProbability: 0.85 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'AIM-9X', count: 2, minRange: 500, maxRange: 18000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'AIM-120C', count: 4, minRange: 2000, maxRange: 80000, seekerFOV: 360, Pk: 0.75, speed: 1200, flightTime: 40 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#4488ff', pixelSize: 12, trail: true }
+            }
+        },
+        {
+            category: 'Formations',
+            name: '4-Ship Flight (F-16)',
+            icon: '#4488ff',
+            description: 'Finger-four formation, standard tactical flight',
+            tooltip: 'Standard 4-ship flight: lead + 3 wingmen in finger-four formation. F-16C fighters with full A2A loadout. Formation AI maintains relative positions.',
+            type: 'aircraft',
+            team: 'blue',
+            _isFormation: true,
+            _formationEntities: [
+                { suffix: 'Lead', role: 'lead', offset: [0, 0] },
+                { suffix: '2', role: 'wingman', offset: [0.008, -0.004], formation: { position: 'finger_four_2', separation: 1852 } },
+                { suffix: '3', role: 'element lead', offset: [-0.006, 0.008], formation: { position: 'finger_four_3', separation: 1852 } },
+                { suffix: '4', role: 'tail', offset: [-0.006, -0.004], formation: { position: 'finger_four_4', separation: 1852 } }
+            ],
+            defaults: { alt: 6000, speed: 220, heading: 90, gamma: 0, throttle: 0.7, engineOn: true, gearDown: false, infiniteFuel: true },
+            components: {
+                physics: { type: 'flight3dof', config: 'f16' },
+                sensors: { type: 'radar', maxRange_m: 120000, fov_deg: 120, scanRate_dps: 60, detectionProbability: 0.85 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'AIM-9X', count: 2, minRange: 500, maxRange: 18000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'AIM-120C', count: 4, minRange: 2000, maxRange: 80000, seekerFOV: 360, Pk: 0.75, speed: 1200, flightTime: 40 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#4488ff', pixelSize: 12, trail: true }
+            }
+        },
+        {
+            category: 'Formations',
+            name: '4-Ship Flight (MiG-29)',
+            icon: '#ff4444',
+            description: 'Red finger-four, MiG-29 Fulcrum',
+            tooltip: 'Red force 4-ship flight: MiG-29 Fulcrum fighters in finger-four. R-73/R-77 missiles. Formation AI maintains spacing.',
+            type: 'aircraft',
+            team: 'red',
+            _isFormation: true,
+            _formationEntities: [
+                { suffix: 'Lead', role: 'lead', offset: [0, 0] },
+                { suffix: '2', role: 'wingman', offset: [0.008, -0.004], formation: { position: 'finger_four_2', separation: 1852 } },
+                { suffix: '3', role: 'element lead', offset: [-0.006, 0.008], formation: { position: 'finger_four_3', separation: 1852 } },
+                { suffix: '4', role: 'tail', offset: [-0.006, -0.004], formation: { position: 'finger_four_4', separation: 1852 } }
+            ],
+            defaults: { alt: 6000, speed: 230, heading: 270, gamma: 0, throttle: 0.7, engineOn: true, gearDown: false, infiniteFuel: true },
+            components: {
+                physics: { type: 'flight3dof', config: 'mig29' },
+                sensors: { type: 'radar', maxRange_m: 100000, fov_deg: 120, scanRate_dps: 50, detectionProbability: 0.80 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'R-73', count: 2, minRange: 300, maxRange: 20000, seekerFOV: 60, Pk: 0.80, speed: 800, flightTime: 18 },
+                    { type: 'R-77', count: 4, minRange: 2000, maxRange: 80000, seekerFOV: 360, Pk: 0.70, speed: 1150, flightTime: 40 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#ff4444', pixelSize: 12, trail: true }
+            }
+        },
+        {
+            category: 'Formations',
+            name: 'Strike Package (4+2)',
+            icon: '#66aaff',
+            description: '4x F-15E strike + 2x F-16C escort',
+            tooltip: '6-ship strike package: 4x F-15E Strike Eagles in wall formation (primary strikers) plus 2x F-16C escorts in trail. F-15Es carry heavy A2G loadout, F-16Cs provide fighter sweep.',
+            type: 'aircraft',
+            team: 'blue',
+            _isFormation: true,
+            _formationEntities: [
+                { suffix: 'Strike Lead', role: 'lead', offset: [0, 0], config: 'f15' },
+                { suffix: 'Strike 2', role: 'striker', offset: [0.005, -0.008], formation: { position: 'right_wing', separation: 2500 }, config: 'f15' },
+                { suffix: 'Strike 3', role: 'striker', offset: [0.005, 0.008], formation: { position: 'left_wing', separation: 2500 }, config: 'f15' },
+                { suffix: 'Strike 4', role: 'striker', offset: [0.01, 0.0], formation: { position: 'trail', separation: 3000 }, config: 'f15' },
+                { suffix: 'Escort 1', role: 'escort', offset: [0.015, -0.005], formation: { position: 'echelon_right', separation: 4000 }, config: 'f16' },
+                { suffix: 'Escort 2', role: 'escort', offset: [0.015, 0.005], formation: { position: 'echelon_left', separation: 4000 }, config: 'f16' }
+            ],
+            defaults: { alt: 8000, speed: 250, heading: 90, gamma: 0, throttle: 0.75, engineOn: true, gearDown: false, infiniteFuel: true },
+            components: {
+                physics: { type: 'flight3dof', config: 'f15' },
+                sensors: { type: 'radar', maxRange_m: 150000, fov_deg: 120, scanRate_dps: 60, detectionProbability: 0.85 },
+                weapons: { type: 'a2a_missile', loadout: [
+                    { type: 'AIM-9X', count: 2, minRange: 500, maxRange: 18000, seekerFOV: 90, Pk: 0.85, speed: 900, flightTime: 20 },
+                    { type: 'AIM-120C', count: 6, minRange: 2000, maxRange: 100000, seekerFOV: 360, Pk: 0.78, speed: 1200, flightTime: 45 }
+                ], engagementRules: 'weapons_free' },
+                visual: { type: 'point', color: '#66aaff', pixelSize: 12, trail: true }
+            }
+        },
+        {
+            category: 'Formations',
+            name: 'AWACS + CAP (1+4)',
+            icon: '#88ddff',
+            description: 'E-3 AWACS with 4x F-16 combat air patrol',
+            tooltip: '5-ship CAP package: 1x E-3 AWACS high-value airborne asset providing 360° radar coverage, protected by 4x F-16C fighters in combat spread. AWACS flies racetrack, fighters maintain formation.',
+            type: 'aircraft',
+            team: 'blue',
+            _isFormation: true,
+            _formationEntities: [
+                { suffix: 'AWACS', role: 'lead', offset: [0, 0], config: 'awacs', isAwacs: true },
+                { suffix: 'CAP 1', role: 'escort', offset: [0.01, -0.015], formation: { position: 'right_wing', separation: 15000 }, config: 'f16' },
+                { suffix: 'CAP 2', role: 'escort', offset: [0.01, 0.015], formation: { position: 'left_wing', separation: 15000 }, config: 'f16' },
+                { suffix: 'CAP 3', role: 'escort', offset: [0.02, -0.008], formation: { position: 'echelon_right', separation: 20000 }, config: 'f16' },
+                { suffix: 'CAP 4', role: 'escort', offset: [0.02, 0.008], formation: { position: 'echelon_left', separation: 20000 }, config: 'f16' }
+            ],
+            defaults: { alt: 9000, speed: 180, heading: 90, gamma: 0, throttle: 0.5, engineOn: true, gearDown: false, infiniteFuel: true },
+            components: {
+                physics: { type: 'flight3dof', config: 'awacs' },
+                sensors: { type: 'radar', maxRange_m: 400000, fov_deg: 360, scanRate_dps: 20, detectionProbability: 0.92 },
+                visual: { type: 'point', color: '#88ddff', pixelSize: 14, trail: true }
+            }
+        },
         // --- Spacecraft ---
         {
             category: 'Spacecraft',
@@ -544,6 +906,173 @@ var ObjectPalette = (function() {
             components: {
                 physics: { type: 'orbital_2body', source: 'state' },
                 visual: { type: 'satellite', color: '#ff4466', pixelSize: 10, orbitPath: true, groundTrack: true, apPeMarkers: true }
+            }
+        },
+        // --- Real-World Constellation Templates ---
+        {
+            category: 'Spacecraft',
+            name: 'ISS',
+            icon: '#ffffff',
+            description: 'International Space Station, 420km, 51.6° inc.',
+            tooltip: 'International Space Station. 420km altitude, 51.6° inclination, ~92 min period. Mass ~420,000 kg, solar array area ~2,500 m². RCS ~400 m².',
+            type: 'satellite',
+            team: 'neutral',
+            defaults: { alt: 420000, speed: 7660, heading: 51.6, gamma: 0 },
+            _custom: { rcs_m2: 400, mass_kg: 420000 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#ffffff', pixelSize: 14, orbitPath: true, groundTrack: true, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'Starlink Gen2',
+            icon: '#44ccff',
+            description: 'SpaceX Starlink v2 Mini, 550km, 53° inc.',
+            tooltip: 'SpaceX Starlink Gen2 Mini. 550km shell, 53° inclination. Mass ~800 kg, RCS ~2-4 m². Ka/Ku-band phased array, laser inter-sat links.',
+            type: 'satellite',
+            team: 'neutral',
+            defaults: { alt: 550000, speed: 7590, heading: 53, gamma: 0 },
+            _custom: { rcs_m2: 3, mass_kg: 800 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#44ccff', pixelSize: 5, orbitPath: true, groundTrack: true, apPeMarkers: false }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'GPS III',
+            icon: '#ffcc44',
+            description: 'GPS Block III, 20,180km MEO, 55° inc.',
+            tooltip: 'GPS Block IIIF navigation satellite. 20,180km altitude, 55° inclination, ~12hr period. Mass ~2,161 kg. L1/L2/L5 signals, M-code.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 20180000, speed: 3874, heading: 55, gamma: 0 },
+            _custom: { rcs_m2: 10, mass_kg: 2161 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#ffcc44', pixelSize: 7, orbitPath: true, groundTrack: true, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'SBIRS GEO',
+            icon: '#ff4444',
+            description: 'Space-Based Infrared System, GEO missile warning.',
+            tooltip: 'SBIRS GEO missile warning satellite. Geostationary orbit. Scanning + staring IR sensors for boost-phase missile detection. Mass ~4,500 kg.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 35786000, speed: 3075, heading: 0, gamma: 0 },
+            _custom: { rcs_m2: 15, mass_kg: 4500, sensors: { ir: { enabled: true, fov_deg: 18, type: 'ir' } } },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                sensors: { type: 'radar', maxRange_m: 6000000, fov_deg: 18, scanRate_dps: 360, detectionProbability: 0.95, updateInterval: 0.5 },
+                visual: { type: 'satellite', color: '#ff4444', pixelSize: 8, orbitPath: true, groundTrack: false, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'WGS',
+            icon: '#44aaff',
+            description: 'Wideband Global SATCOM, GEO, 11 Gbps.',
+            tooltip: 'Wideband Global SATCOM. GEO orbit. Ka/X-band, 11+ Gbps aggregate throughput. Mass ~5,987 kg. Primary DoD broadband.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 35786000, speed: 3075, heading: 0, gamma: 0 },
+            _custom: { rcs_m2: 20, mass_kg: 5987 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#44aaff', pixelSize: 7, orbitPath: true, groundTrack: false, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'AEHF',
+            icon: '#ffaa00',
+            description: 'Advanced EHF comms, GEO, jam-resistant.',
+            tooltip: 'Advanced Extremely High Frequency satellite. GEO orbit. Protected, jam-resistant nuclear C3 comms. Mass ~6,168 kg.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 35786000, speed: 3075, heading: 0, gamma: 0 },
+            _custom: { rcs_m2: 18, mass_kg: 6168 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#ffaa00', pixelSize: 7, orbitPath: true, groundTrack: false, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'Iridium NEXT',
+            icon: '#88ddff',
+            description: 'Iridium NEXT, 780km LEO, 86.4° inc.',
+            tooltip: 'Iridium NEXT constellation. 780km altitude, 86.4° near-polar orbit. Mass ~860 kg. L-band voice/data, 66 active + spares.',
+            type: 'satellite',
+            team: 'neutral',
+            defaults: { alt: 780000, speed: 7450, heading: 86.4, gamma: 0 },
+            _custom: { rcs_m2: 5, mass_kg: 860 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#88ddff', pixelSize: 5, orbitPath: true, groundTrack: true, apPeMarkers: false }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'OneWeb',
+            icon: '#44ff88',
+            description: 'OneWeb, 1,200km LEO, 87.9° inc.',
+            tooltip: 'OneWeb broadband constellation. 1,200km altitude, 87.9° near-polar orbit. Mass ~150 kg. Ku-band, 648 satellites.',
+            type: 'satellite',
+            team: 'neutral',
+            defaults: { alt: 1200000, speed: 7300, heading: 87.9, gamma: 0 },
+            _custom: { rcs_m2: 1.5, mass_kg: 150 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#44ff88', pixelSize: 5, orbitPath: true, groundTrack: true, apPeMarkers: false }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'Tiangong',
+            icon: '#ff8844',
+            description: 'Chinese Space Station, 390km, 41.5° inc.',
+            tooltip: 'Tiangong (Chinese Space Station). 390km altitude, 41.5° inclination. Mass ~100,000 kg. Three modules: Tianhe core + Wentian + Mengtian.',
+            type: 'satellite',
+            team: 'red',
+            defaults: { alt: 390000, speed: 7670, heading: 41.5, gamma: 0 },
+            _custom: { rcs_m2: 150, mass_kg: 100000 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#ff8844', pixelSize: 12, orbitPath: true, groundTrack: true, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'Beidou-3 MEO',
+            icon: '#ff6644',
+            description: 'BeiDou-3, 21,528km MEO, 55° inc.',
+            tooltip: 'BeiDou-3 MEO navigation satellite. 21,528km altitude, 55° inclination. Chinese GNSS, 24 MEO + 3 IGSO + 3 GEO.',
+            type: 'satellite',
+            team: 'red',
+            defaults: { alt: 21528000, speed: 3830, heading: 55, gamma: 0 },
+            _custom: { rcs_m2: 8, mass_kg: 1014 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#ff6644', pixelSize: 6, orbitPath: true, groundTrack: true, apPeMarkers: true }
+            }
+        },
+        {
+            category: 'Spacecraft',
+            name: 'GSSAP Inspector',
+            icon: '#aaccff',
+            description: 'Geosync Space Situational Awareness, near-GEO.',
+            tooltip: 'GSSAP (Geosynchronous Space Situational Awareness Program). Near-GEO orbit for close approach inspection of GEO objects. US Space Force.',
+            type: 'satellite',
+            team: 'blue',
+            defaults: { alt: 35800000, speed: 3074, heading: 0, gamma: 0 },
+            _custom: { rcs_m2: 2, mass_kg: 500 },
+            components: {
+                physics: { type: 'orbital_2body', source: 'state' },
+                visual: { type: 'satellite', color: '#aaccff', pixelSize: 8, orbitPath: true, groundTrack: false, apPeMarkers: true }
             }
         },
         // --- Ground ---
@@ -760,6 +1289,139 @@ var ObjectPalette = (function() {
                 weapons: { type: 'sam_battery', maxRange_m: 15000, engagementRules: 'weapons_free' },
                 visual: { type: 'ground_station', color: '#ff4400', label: 'TOR', sensorRange_m: 25000, sensorColor: 'rgba(255,68,0,0.08)', sensorOutlineColor: '#ff4400' }
             }
+        },
+        {
+            category: 'Ground',
+            name: 'S-300PMU2',
+            icon: '#dd3300',
+            description: 'SA-20 Gargoyle, long-range area defense',
+            tooltip: 'S-300PMU2 (SA-20 Gargoyle). Long-range area defense system. 300km detection, 200km engagement. Backbone of Russian-exported IADS.',
+            type: 'ground',
+            team: 'red',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 300000, fov_deg: 360, scanRate_dps: 36, detectionProbability: 0.90 },
+                weapons: { type: 'sam_battery', maxRange_m: 200000, numMissiles: 16, engagementRules: 'weapons_free' },
+                visual: { type: 'ground_station', color: '#dd3300', label: 'S300', sensorRange_m: 300000, sensorColor: 'rgba(221,51,0,0.04)', sensorOutlineColor: '#dd3300' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'HQ-9B',
+            icon: '#cc2200',
+            description: 'PLA long-range SAM, S-300 derivative',
+            tooltip: 'HQ-9B. Chinese long-range SAM system. 250km engagement range. Primary PLA strategic air defense.',
+            type: 'ground',
+            team: 'red',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 300000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.88 },
+                weapons: { type: 'sam_battery', maxRange_m: 250000, numMissiles: 12, engagementRules: 'weapons_free' },
+                visual: { type: 'ground_station', color: '#cc2200', label: 'HQ9', sensorRange_m: 300000, sensorColor: 'rgba(204,34,0,0.04)', sensorOutlineColor: '#cc2200' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'Iron Dome',
+            icon: '#44bbff',
+            description: 'Short-range rocket/missile defense',
+            tooltip: 'Iron Dome. Israeli short-range air defense for rocket/mortar intercept. 70km range, high Pk against short-range threats.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 100000, fov_deg: 360, scanRate_dps: 60, detectionProbability: 0.90 },
+                weapons: { type: 'sam_battery', maxRange_m: 70000, numMissiles: 20, engagementRules: 'weapons_free' },
+                visual: { type: 'ground_station', color: '#44bbff', label: 'IDOM', sensorRange_m: 100000, sensorColor: 'rgba(68,187,255,0.06)', sensorOutlineColor: '#44bbff' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'NASAMS',
+            icon: '#3399ee',
+            description: 'Norwegian/US medium-range AD, AMRAAM-based',
+            tooltip: 'NASAMS. Uses AIM-120 AMRAAM. 25km engagement range. Networked fire distribution.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 120000, fov_deg: 360, scanRate_dps: 50, detectionProbability: 0.88 },
+                weapons: { type: 'sam_battery', maxRange_m: 25000, numMissiles: 12, engagementRules: 'weapons_free' },
+                visual: { type: 'ground_station', color: '#3399ee', label: 'NASM', sensorRange_m: 120000, sensorColor: 'rgba(51,153,238,0.06)', sensorOutlineColor: '#3399ee' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'Aegis Ashore',
+            icon: '#2255cc',
+            description: 'Land-based Aegis BMD, SM-3/SM-6',
+            tooltip: 'Aegis Ashore. Land-based Aegis with AN/SPY-1 radar. SM-3 for ballistic missile defense, SM-6 for air defense. 500km+ detection.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 600000, fov_deg: 360, scanRate_dps: 25, detectionProbability: 0.95 },
+                weapons: { type: 'sam_battery', maxRange_m: 300000, numMissiles: 24, engagementRules: 'weapons_free' },
+                visual: { type: 'ground_station', color: '#2255cc', label: 'AEGIS', sensorRange_m: 600000, sensorColor: 'rgba(34,85,204,0.03)', sensorOutlineColor: '#2255cc' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'AN/TPY-2 Radar',
+            icon: '#55aaff',
+            description: 'X-band BMD radar, forward-deployed sensor',
+            tooltip: 'AN/TPY-2. X-band radar for THAAD and BMD. 1000km+ detection range. High-resolution tracking and discrimination.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 1000000, fov_deg: 120, scanRate_dps: 20, detectionProbability: 0.96 },
+                visual: { type: 'ground_station', color: '#55aaff', label: 'TPY2', sensorRange_m: 1000000, sensorColor: 'rgba(85,170,255,0.02)', sensorOutlineColor: '#55aaff' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'PAVE PAWS',
+            icon: '#7799ff',
+            description: 'UHF phased array, ICBM/SLBM warning',
+            tooltip: 'AN/FPS-132 PAVE PAWS. UHF phased array for missile warning. 5,500km range. Cape Cod, Beale, Clear AFS.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 5500000, fov_deg: 240, scanRate_dps: 10, detectionProbability: 0.98 },
+                visual: { type: 'ground_station', color: '#7799ff', label: 'PAWS', sensorRange_m: 5500000, sensorColor: 'rgba(119,153,255,0.01)', sensorOutlineColor: '#7799ff' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'Cyber Operations Center',
+            icon: '#00ff66',
+            description: 'Offensive/defensive cyber ops node',
+            tooltip: 'Cyber Operations Center. Full-spectrum cyber warfare. Offensive (exploit, DDoS, MITM) and defensive (firewall, IDS, patch).',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                physics: { type: 'static_ground' },
+                visual: { type: 'ground_station', color: '#00ff66', label: 'CYBER' }
+            },
+            _custom: { sensors: [], payloads: [] }
+        },
+        {
+            category: 'Ground',
+            name: 'EW Jammer Site',
+            icon: '#ffaa00',
+            description: 'Ground-based electronic warfare jammer',
+            tooltip: 'Ground-based EW jammer. Broadband jamming against radar and comms. 200km effective range.',
+            type: 'ground',
+            team: 'blue',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 20, detectionProbability: 0.75 },
+                visual: { type: 'ground_station', color: '#ffaa00', label: 'JAM', sensorRange_m: 200000, sensorColor: 'rgba(255,170,0,0.04)', sensorOutlineColor: '#ffaa00' }
+            },
+            _custom: { sensors: [{ type: 'sigint', range_km: 200 }], payloads: ['jammer'] }
         },
         // --- Naval ---
         {

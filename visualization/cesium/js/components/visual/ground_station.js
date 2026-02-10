@@ -72,7 +72,9 @@
             // Resolve config with defaults
             var colorStr = cfg.color || DEFAULTS.color;
             var pixelSize = cfg.pixelSize !== undefined ? cfg.pixelSize : DEFAULTS.pixelSize;
-            var labelText = cfg.label !== undefined ? cfg.label : DEFAULTS.label;
+            var labelText = typeof cfg.label === 'string' ? cfg.label :
+                           cfg.label === true ? entity.name :
+                           cfg.label !== undefined ? String(cfg.label) : DEFAULTS.label;
             var showSensorCone = cfg.showSensorCone !== undefined ? cfg.showSensorCone : DEFAULTS.showSensorCone;
             var sensorRange = cfg.sensorRange_m !== undefined ? cfg.sensorRange_m : DEFAULTS.sensorRange_m;
             var sensorColorStr = cfg.sensorColor || DEFAULTS.sensorColor;
@@ -313,7 +315,9 @@
 
             if (count !== this._lastDetectionCount) {
                 this._lastDetectionCount = count;
-                var baseLbl = this.config.label !== undefined ? this.config.label : DEFAULTS.label;
+                var baseLbl = typeof this.config.label === 'string' ? this.config.label :
+                    this.config.label === true ? this.entity.name :
+                    this.config.label !== undefined ? String(this.config.label) : DEFAULTS.label;
                 if (count > 0) {
                     this._labelText = baseLbl + ' [' + count + ']';
                 } else {

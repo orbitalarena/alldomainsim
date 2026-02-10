@@ -27,6 +27,7 @@ const LiveSimEngine = (function() {
     let _playerConfig = null;   // FighterSimEngine config
     let _playerDef = null;      // Original entity definition
     let _autopilotState = null;
+    let _apPanelOpen = false;
     let _scenarioJson = null;      // Stored scenario data for subsystem init
 
     let _isPaused = false;
@@ -104,6 +105,13 @@ const LiveSimEngine = (function() {
         ir:      { css: 'grayscale(1) invert(0.85) contrast(1.8) brightness(0.6)', noise: 0.08, label: 'FLIR | WHT-HOT', visual: true }
     };
 
+    // Pilot display modes (NVG / FLIR)
+    let _displayMode = 0;  // 0=normal, 1=NVG, 2=FLIR
+    var DISPLAY_MODE_FILTERS = {
+        1: { css: 'brightness(1.5) contrast(1.2) saturate(0) sepia(1) hue-rotate(70deg) brightness(0.8)', label: 'NVG', noise: 0.06 },
+        2: { css: 'brightness(1.1) contrast(1.5) saturate(0) invert(1)', label: 'FLIR', noise: 0.04 }
+    };
+
     // Auto-pointing system
     let _pointingMode = 'manual';  // manual|prograde|retrograde|normal|antinormal|radial|radial_neg|nadir|sun|target
     let _pointingLocked = true;    // when true, pointing is maintained each frame
@@ -162,9 +170,38 @@ const LiveSimEngine = (function() {
     let _audioEnabled = true;
     let _visualFxEnabled = true;
 
+    // Area-of-Interest regions (polygons/circles on globe)
+    let _regionEntities = [];
+
+    // Threat assessment overlay (SAM/radar coverage rings)
+    let _threatOverlayEnabled = false;
+    let _threatOverlayEntities = [];
+
+    // Mission waypoint planner
+    let _missionWaypoints = [];         // { lat, lon, alt, name, cesiumEntity }
+    let _waypointRouteEntity = null;    // Cesium polyline for route
+    let _waypointMode = false;          // When true, clicks add waypoints
+
+    // Performance stats
+    let _perfStats = { fps: 60, frameMs: 0, entityCount: 0, physicsMs: 0, renderMs: 0 };
+    let _perfFrameTimes = [];  // rolling window of last 60 frame times
+    let _perfLastDisplay = 0;
+
+    // Tactical data link (Link 16 style)
+    let _dataLinksEnabled = false;
+    let _dataLinkEntities = [];    // Cesium polyline entities for link lines
+    let _dataLinkLastTick = 0;     // timestamp for 2Hz throttle
+
     // Engine selection panel
     let _enginePanelOpen = false;
     let _propKeyMap = {};  // digit string -> _propModes index
+
+    // Terrain Following / Terrain Avoidance
+    let _tfEnabled = false;
+    let _tfAglTarget = 150;          // target AGL in meters
+    let _tfLastSampleTime = 0;       // throttle terrain queries to 2Hz
+    let _tfTerrainAhead = [];        // [{dist, terrainElev}] for HUD profile
+    let _tfCurrentTerrainElev = 0;   // terrain elevation at current position (m MSL)
 
     // Maneuver dialog
     let _maneuverDialogOpen = false;
@@ -300,7 +337,14 @@ const LiveSimEngine = (function() {
             _initAnalyticsPanel();
             _initCommPanel();
             _initCyberLogPanel();
+            _initAARPanel();
+            _initStatusBoard();
+            _initEngTimeline();
+            _initEngagementStats();
+            _initDataExport();
+            _initAutopilotPanel();
             _setupEntityPicker();
+            _setupWaypointPlacer();
             _buildVizGroups();
 
             // Init entity hover tooltip
@@ -328,17 +372,31 @@ const LiveSimEngine = (function() {
             // 2. Select player entity
             _playerEntity = _selectPlayer(_world, playerIdParam);
             if (!_playerEntity) {
-                throw new Error('No controllable entity found in scenario (need physics component)');
+                console.warn('No controllable entity found — switching to observer mode');
+                _observerMode = true;
             }
 
-            // 3. Hijack player from ECS
-            _hijackPlayer(_playerEntity);
+            if (_playerEntity && !_observerMode) {
+                // 3. Hijack player from ECS
+                _hijackPlayer(_playerEntity);
 
-            // 4. Initialize cockpit systems
-            _initCockpit(_playerEntity);
+                // 4. Initialize cockpit systems
+                _initCockpit(_playerEntity);
 
-            // 5. Create orbit visualization entities
-            _createOrbitEntities();
+                // 5. Create orbit visualization entities
+                _createOrbitEntities();
+            } else if (_observerMode) {
+                // Fallback observer: set camera, hide HUD
+                _cameraMode = 'earth';
+                _viewer.scene.screenSpaceCameraController.enableInputs = true;
+                _viewer.camera.flyHome(0);
+                var hud = document.getElementById('hudCanvas');
+                if (hud) hud.style.display = 'none';
+                _panelVisible.entityList = true;
+                _panelVisible.flightData = false;
+                _panelVisible.systems = false;
+                if (typeof KeyboardHelp !== 'undefined') KeyboardHelp.setMode('observer');
+            }
 
             // 6. Build entity list for UI
             _buildEntityList();
@@ -354,12 +412,19 @@ const LiveSimEngine = (function() {
             _initSearchPanel();
             _initAnalyticsPanel();
             _initCyberLogPanel();
+            _initAARPanel();
+            _initStatusBoard();
+            _initEngTimeline();
+            _initEngagementStats();
+            _initDataExport();
+            _initAutopilotPanel();
 
             // 9b. Init planner click handler (orbit click → create node)
             _initPlannerClickHandler();
 
             // Setup entity picker (works in both modes)
             _setupEntityPicker();
+            _setupWaypointPlacer();
             _buildVizGroups();
 
             // Init entity hover tooltip
@@ -373,26 +438,28 @@ const LiveSimEngine = (function() {
                 if (_isStaticPlayer) CyberCockpit.show();
             }
 
-            // 10. Position camera on player
-            _positionInitialCamera();
+            if (!_observerMode) {
+                // 10. Position camera on player
+                _positionInitialCamera();
 
-            // 10. Init HUD
-            var hudCanvas = document.getElementById('hudCanvas');
-            if (hudCanvas) {
-                hudCanvas.width = hudCanvas.clientWidth;
-                hudCanvas.height = hudCanvas.clientHeight;
-                FighterHUD.init(hudCanvas);
-
-                window.addEventListener('resize', function() {
+                // 10. Init HUD
+                var hudCanvas = document.getElementById('hudCanvas');
+                if (hudCanvas) {
                     hudCanvas.width = hudCanvas.clientWidth;
                     hudCanvas.height = hudCanvas.clientHeight;
-                    FighterHUD.resize();
-                    if (typeof SpaceplaneHUD !== 'undefined') SpaceplaneHUD.resize(hudCanvas);
-                });
-            }
+                    FighterHUD.init(hudCanvas);
 
-            // 11. Init gamepad
-            if (typeof GamepadInput !== 'undefined') GamepadInput.init();
+                    window.addEventListener('resize', function() {
+                        hudCanvas.width = hudCanvas.clientWidth;
+                        hudCanvas.height = hudCanvas.clientHeight;
+                        FighterHUD.resize();
+                        if (typeof SpaceplaneHUD !== 'undefined') SpaceplaneHUD.resize(hudCanvas);
+                    });
+                }
+
+                // 11. Init gamepad
+                if (typeof GamepadInput !== 'undefined') GamepadInput.init();
+            }
         }
 
         // 12. Init simulation subsystems (both modes)
@@ -411,6 +478,9 @@ const LiveSimEngine = (function() {
         if (typeof Minimap !== 'undefined') Minimap.init(document.getElementById('minimapCanvas'));
         if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.init(_world, viewer);
 
+        // Load scenario regions (AOI, exclusion zones, engagement zones)
+        _loadRegions(scenarioJson.regions || []);
+
         _started = true;
         _lastTickTime = null;
 
@@ -421,6 +491,673 @@ const LiveSimEngine = (function() {
             entityCount: _world.entities.size,
             observerMode: _observerMode
         };
+    }
+
+    // -----------------------------------------------------------------------
+    // Area-of-Interest Regions
+    // -----------------------------------------------------------------------
+    var REGION_TYPE_COLORS = {
+        'engagement':  { fill: 'rgba(255,50,50,0.12)',   border: Cesium.Color.fromCssColorString('rgba(255,80,80,0.6)') },
+        'exclusion':   { fill: 'rgba(255,200,0,0.10)',   border: Cesium.Color.fromCssColorString('rgba(255,200,0,0.6)') },
+        'operational': { fill: 'rgba(0,150,255,0.10)',   border: Cesium.Color.fromCssColorString('rgba(0,150,255,0.5)') },
+        'adiz':        { fill: 'rgba(255,100,0,0.10)',   border: Cesium.Color.fromCssColorString('rgba(255,130,30,0.6)') },
+        'safe':        { fill: 'rgba(0,200,100,0.10)',   border: Cesium.Color.fromCssColorString('rgba(0,200,100,0.5)') },
+        'objective':   { fill: 'rgba(200,0,255,0.12)',   border: Cesium.Color.fromCssColorString('rgba(200,100,255,0.6)') },
+        'custom':      { fill: 'rgba(128,128,128,0.10)', border: Cesium.Color.fromCssColorString('rgba(180,180,180,0.5)') }
+    };
+
+    function _loadRegions(regions) {
+        // Remove previous region entities
+        for (var i = 0; i < _regionEntities.length; i++) {
+            _viewer.entities.remove(_regionEntities[i]);
+        }
+        _regionEntities = [];
+
+        if (!regions || regions.length === 0) return;
+
+        for (var r = 0; r < regions.length; r++) {
+            var reg = regions[r];
+            var rType = reg.type || 'custom';
+            var colors = REGION_TYPE_COLORS[rType] || REGION_TYPE_COLORS['custom'];
+            var fillColor = reg.color ? Cesium.Color.fromCssColorString(reg.color).withAlpha(0.12)
+                                      : Cesium.Color.fromCssColorString(colors.fill);
+            var borderColor = reg.borderColor ? Cesium.Color.fromCssColorString(reg.borderColor)
+                                               : colors.border;
+
+            if (reg.shape === 'circle' && reg.center && reg.radius) {
+                // Circle region
+                var ent = _viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(reg.center[1], reg.center[0]),
+                    ellipse: {
+                        semiMajorAxis: reg.radius,
+                        semiMinorAxis: reg.radius,
+                        material: fillColor,
+                        outline: true,
+                        outlineColor: borderColor,
+                        outlineWidth: 2,
+                        height: 0
+                    },
+                    label: reg.name ? {
+                        text: reg.name.toUpperCase(),
+                        font: '12px monospace',
+                        fillColor: borderColor,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        pixelOffset: new Cesium.Cartesian2(0, 0),
+                        disableDepthTestDistance: 5000000
+                    } : undefined
+                });
+                _regionEntities.push(ent);
+            } else if (reg.shape === 'polygon' && reg.points && reg.points.length >= 3) {
+                // Polygon region — points as [[lat,lon], [lat,lon], ...]
+                var coords = [];
+                for (var p = 0; p < reg.points.length; p++) {
+                    coords.push(reg.points[p][1], reg.points[p][0]); // lon, lat
+                }
+                var ent2 = _viewer.entities.add({
+                    polygon: {
+                        hierarchy: Cesium.Cartesian3.fromDegreesArray(coords),
+                        material: fillColor,
+                        outline: true,
+                        outlineColor: borderColor,
+                        outlineWidth: 2,
+                        height: 0
+                    }
+                });
+                _regionEntities.push(ent2);
+
+                // Label at centroid
+                if (reg.name) {
+                    var cLat = 0, cLon = 0;
+                    for (var cp = 0; cp < reg.points.length; cp++) {
+                        cLat += reg.points[cp][0];
+                        cLon += reg.points[cp][1];
+                    }
+                    cLat /= reg.points.length;
+                    cLon /= reg.points.length;
+                    var lbl = _viewer.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(cLon, cLat),
+                        label: {
+                            text: reg.name.toUpperCase(),
+                            font: '13px monospace',
+                            fillColor: borderColor,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 2,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                            disableDepthTestDistance: 5000000
+                        }
+                    });
+                    _regionEntities.push(lbl);
+                }
+            } else if (reg.shape === 'rect' && reg.bounds) {
+                // Rectangle region — bounds: [south, west, north, east] in degrees
+                var ent3 = _viewer.entities.add({
+                    rectangle: {
+                        coordinates: Cesium.Rectangle.fromDegrees(
+                            reg.bounds[1], reg.bounds[0], reg.bounds[3], reg.bounds[2]),
+                        material: fillColor,
+                        outline: true,
+                        outlineColor: borderColor,
+                        outlineWidth: 2,
+                        height: 0
+                    }
+                });
+                _regionEntities.push(ent3);
+
+                // Label at center
+                if (reg.name) {
+                    var rLat = (reg.bounds[0] + reg.bounds[2]) / 2;
+                    var rLon = (reg.bounds[1] + reg.bounds[3]) / 2;
+                    var lbl2 = _viewer.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(rLon, rLat),
+                        label: {
+                            text: reg.name.toUpperCase(),
+                            font: '13px monospace',
+                            fillColor: borderColor,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 2,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                            disableDepthTestDistance: 5000000
+                        }
+                    });
+                    _regionEntities.push(lbl2);
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Threat Assessment Overlay (SAM/radar/weapon engagement zones)
+    // -----------------------------------------------------------------------
+    function _toggleThreatOverlay() {
+        _threatOverlayEnabled = !_threatOverlayEnabled;
+        if (_threatOverlayEnabled) {
+            _buildThreatOverlay();
+        } else {
+            _clearThreatOverlay();
+        }
+    }
+
+    function _clearThreatOverlay() {
+        for (var i = 0; i < _threatOverlayEntities.length; i++) {
+            _viewer.entities.remove(_threatOverlayEntities[i]);
+        }
+        _threatOverlayEntities = [];
+    }
+
+    function _buildThreatOverlay() {
+        _clearThreatOverlay();
+        if (!_world) return;
+
+        _world.entities.forEach(function(entity) {
+            if (!entity.active) return;
+            var s = entity.state || {};
+            var team = entity.team || 'neutral';
+            var lat = s.lat || s.latitude;
+            var lon = s.lon || s.longitude;
+            if (lat == null || lon == null) return;
+
+            var isEnemy = (_playerEntity && _playerEntity.team) ? (team !== _playerEntity.team) : (team === 'red');
+            var threatColor = isEnemy ? Cesium.Color.RED : Cesium.Color.BLUE;
+            var detectColor = isEnemy ? Cesium.Color.YELLOW : Cesium.Color.CYAN;
+
+            // Check for weapon ranges (SAM batteries)
+            var weaponRange = 0;
+            var samComp = entity.getComponent ? entity.getComponent('weapons/sam_battery') : null;
+            if (samComp && samComp.config) {
+                weaponRange = samComp.config.maxRange_m || samComp.config.range_m || 0;
+            }
+            if (!weaponRange && entity._custom && entity._custom.payloads) {
+                var payloads = entity._custom.payloads;
+                if (payloads.indexOf && (payloads.indexOf('sam') >= 0 || payloads.indexOf('SAM') >= 0)) {
+                    weaponRange = 150000; // default SAM range
+                }
+            }
+
+            // Check for sensor ranges (radar)
+            var sensorRange = 0;
+            var radarComp = entity.getComponent ? entity.getComponent('sensors/radar') : null;
+            if (radarComp && radarComp.config) {
+                sensorRange = radarComp.config.maxRange_m || 0;
+            }
+            if (!sensorRange && entity._custom && entity._custom.sensors) {
+                var sensors = entity._custom.sensors;
+                for (var si = 0; si < sensors.length; si++) {
+                    if (sensors[si].type === 'radar' && sensors[si].range_km) {
+                        sensorRange = Math.max(sensorRange, sensors[si].range_km * 1000);
+                    }
+                }
+            }
+
+            var pos = Cesium.Cartesian3.fromDegrees(lon * (180 / Math.PI), lat * (180 / Math.PI));
+            // Loader stores lat/lon in radians for runtime
+            var latDeg = lat * (180 / Math.PI);
+            var lonDeg = lon * (180 / Math.PI);
+
+            // Weapon engagement zone (red/blue filled circle)
+            if (weaponRange > 5000) {
+                var wez = _viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(lonDeg, latDeg),
+                    ellipse: {
+                        semiMajorAxis: weaponRange,
+                        semiMinorAxis: weaponRange,
+                        height: 0,
+                        material: threatColor.withAlpha(0.08),
+                        outline: true,
+                        outlineColor: threatColor.withAlpha(0.5),
+                        outlineWidth: 2
+                    },
+                    label: {
+                        text: (entity.name || entity.id) + ' WEZ',
+                        font: '10px monospace',
+                        fillColor: threatColor.withAlpha(0.7),
+                        style: Cesium.LabelStyle.FILL,
+                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                        pixelOffset: new Cesium.Cartesian2(0, -15),
+                        disableDepthTestDistance: 5000000,
+                        show: weaponRange > 50000
+                    }
+                });
+                _threatOverlayEntities.push(wez);
+            }
+
+            // Detection zone (yellow/cyan ring)
+            if (sensorRange > 10000) {
+                var dz = _viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(lonDeg, latDeg),
+                    ellipse: {
+                        semiMajorAxis: sensorRange,
+                        semiMinorAxis: sensorRange,
+                        height: 0,
+                        material: detectColor.withAlpha(0.04),
+                        outline: true,
+                        outlineColor: detectColor.withAlpha(0.35),
+                        outlineWidth: 1
+                    }
+                });
+                _threatOverlayEntities.push(dz);
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Weather Visual Overlay (rain/snow/fog on cockpit)
+    // -----------------------------------------------------------------------
+    var _lastWeatherClass = '';
+    function _updateWeatherOverlay() {
+        var overlay = document.getElementById('weatherOverlay');
+        if (!overlay) return;
+
+        // Only show in cockpit/chase camera
+        var isCockpitView = (_cameraMode === 'cockpit' || _cameraMode === 'chase');
+        if (!isCockpitView || _observerMode || typeof WeatherSystem === 'undefined') {
+            overlay.style.display = 'none';
+            return;
+        }
+
+        var alt = _playerState ? _playerState.alt || 0 : 0;
+        if (alt > 15000) { overlay.style.display = 'none'; return; } // Above weather
+
+        var vis = WeatherSystem.getVisibility(alt);
+        var cloud = WeatherSystem.getCloudLayer(alt);
+
+        var newClass = '';
+        if (cloud.inCloud) {
+            newClass = 'fog';
+        } else if (vis < 3) {
+            newClass = 'rain'; // Low vis = precipitation
+        } else if (vis < 5) {
+            // Light precip — check temperature proxy (snow above 5000m in cold)
+            newClass = alt > 5000 ? 'snow' : 'rain';
+        }
+
+        if (newClass !== _lastWeatherClass) {
+            overlay.className = newClass;
+            _lastWeatherClass = newClass;
+        }
+        overlay.style.display = newClass ? 'block' : 'none';
+
+        // Fog intensity based on visibility
+        if (newClass === 'fog') {
+            var fogAlpha = Math.min(0.6, (1.0 - vis / 5) * 0.5);
+            overlay.style.background = 'radial-gradient(ellipse at center, rgba(200,200,210,0.0) 20%, rgba(180,180,190,' + (fogAlpha * 0.6) + ') 60%, rgba(160,160,170,' + fogAlpha + ') 100%)';
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Mission Waypoint Planner
+    // -----------------------------------------------------------------------
+    function _toggleWaypointMode() {
+        _waypointMode = !_waypointMode;
+        _showMessage(_waypointMode ? 'WAYPOINT MODE: Click globe to add waypoints. Shift+W again to exit.' : 'WAYPOINT MODE OFF');
+    }
+
+    function _addWaypoint(lat, lon) {
+        var DEG = 180 / Math.PI;
+        var idx = _missionWaypoints.length;
+        var wpName = 'WP' + (idx + 1);
+        var alt = (_playerState && _playerState.alt > 100) ? _playerState.alt : 5000;
+
+        // Create marker entity
+        var marker = _viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(lon, lat, 100),
+            point: {
+                pixelSize: 10,
+                color: Cesium.Color.fromCssColorString('#00ffaa'),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1,
+                disableDepthTestDistance: 5000000
+            },
+            label: {
+                text: wpName,
+                font: '12px monospace',
+                fillColor: Cesium.Color.fromCssColorString('#00ffaa'),
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                pixelOffset: new Cesium.Cartesian2(12, -5),
+                disableDepthTestDistance: 5000000
+            }
+        });
+
+        var wp = {
+            lat: lat * Math.PI / 180,
+            lon: lon * Math.PI / 180,
+            alt: alt,
+            name: wpName,
+            cesiumEntity: marker,
+            latDeg: lat,
+            lonDeg: lon
+        };
+        _missionWaypoints.push(wp);
+        _updateWaypointRoute();
+        _showMessage(wpName + ' placed (' + lat.toFixed(2) + ', ' + lon.toFixed(2) + ')');
+    }
+
+    function _removeLastWaypoint() {
+        if (_missionWaypoints.length === 0) return;
+        var wp = _missionWaypoints.pop();
+        if (wp.cesiumEntity) _viewer.entities.remove(wp.cesiumEntity);
+        _updateWaypointRoute();
+        _showMessage(wp.name + ' removed');
+    }
+
+    function _clearAllWaypoints() {
+        for (var i = 0; i < _missionWaypoints.length; i++) {
+            if (_missionWaypoints[i].cesiumEntity) {
+                _viewer.entities.remove(_missionWaypoints[i].cesiumEntity);
+            }
+        }
+        _missionWaypoints = [];
+        if (_waypointRouteEntity) {
+            _viewer.entities.remove(_waypointRouteEntity);
+            _waypointRouteEntity = null;
+        }
+        _showMessage('All waypoints cleared');
+    }
+
+    function _updateWaypointRoute() {
+        if (_waypointRouteEntity) {
+            _viewer.entities.remove(_waypointRouteEntity);
+            _waypointRouteEntity = null;
+        }
+        if (_missionWaypoints.length < 2) return;
+
+        var positions = [];
+        // Start from player position if available
+        if (_playerState && _playerState.lat != null) {
+            positions.push(Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, 100));
+        }
+        for (var i = 0; i < _missionWaypoints.length; i++) {
+            positions.push(Cesium.Cartesian3.fromDegrees(
+                _missionWaypoints[i].lonDeg,
+                _missionWaypoints[i].latDeg,
+                100
+            ));
+        }
+
+        _waypointRouteEntity = _viewer.entities.add({
+            polyline: {
+                positions: positions,
+                width: 2,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.fromCssColorString('rgba(0,255,170,0.6)'),
+                    dashLength: 16
+                }),
+                clampToGround: false
+            }
+        });
+    }
+
+    function _getWaypointInfo() {
+        if (_missionWaypoints.length === 0) return null;
+        if (!_playerState || _playerState.lat == null) return null;
+
+        var DEG = 180 / Math.PI;
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+
+        // Find nearest unvisited waypoint (simple sequential for now)
+        var result = [];
+        var prevLat = pLat, prevLon = pLon;
+        for (var i = 0; i < _missionWaypoints.length; i++) {
+            var wp = _missionWaypoints[i];
+            var dLat = wp.lat - prevLat;
+            var dLon = wp.lon - prevLon;
+            var dist = Math.sqrt(dLat * dLat + dLon * dLon * Math.cos(prevLat) * Math.cos(prevLat)) * 6371000;
+            var brg = Math.atan2(dLon * Math.cos(wp.lat), dLat);
+            if (brg < 0) brg += 2 * Math.PI;
+            var eta = (_playerState.speed > 10) ? dist / _playerState.speed : Infinity;
+
+            result.push({
+                name: wp.name,
+                dist_m: dist,
+                bearing_rad: brg,
+                eta_s: eta
+            });
+            prevLat = wp.lat;
+            prevLon = wp.lon;
+        }
+        return result;
+    }
+
+    // Setup globe click handler for waypoint placement
+    function _setupWaypointPlacer() {
+        var handler = new Cesium.ScreenSpaceEventHandler(_viewer.scene.canvas);
+        handler.setInputAction(function(click) {
+            if (!_waypointMode) return;
+
+            var ray = _viewer.camera.getPickRay(click.position);
+            if (!ray) return;
+            var cartesian = _viewer.scene.globe.pick(ray, _viewer.scene);
+            if (!cartesian) return;
+            var carto = Cesium.Cartographic.fromCartesian(cartesian);
+            var latDeg = carto.latitude * 180 / Math.PI;
+            var lonDeg = carto.longitude * 180 / Math.PI;
+
+            _addWaypoint(latDeg, lonDeg);
+        }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-Platform Spread Launch — generate N copies with swept parameter
+    // -----------------------------------------------------------------------
+    let _spreadEntities = [];
+
+    function _openSpreadDialog() {
+        // Remove existing dialog
+        var existing = document.getElementById('spreadDialog');
+        if (existing) { existing.remove(); return; }
+
+        var dlg = document.createElement('div');
+        dlg.id = 'spreadDialog';
+        dlg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10001;background:#1a1a2a;border:1px solid #44aaff;border-radius:8px;padding:20px;color:#ccc;font-family:monospace;width:380px;box-shadow:0 0 30px rgba(68,170,255,0.3);';
+
+        dlg.innerHTML = '<div style="font-size:14px;color:#44aaff;font-weight:bold;margin-bottom:12px;letter-spacing:2px;">SPREAD LAUNCH</div>' +
+            '<div style="font-size:10px;color:#888;margin-bottom:10px;">Generate N entities with swept parameter</div>' +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#aaa;">Platform Type:</label><br>' +
+            '<select id="spreadType" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;">' +
+            '<option value="aircraft">Aircraft (F-16)</option>' +
+            '<option value="satellite_leo">Satellite (LEO 400km)</option>' +
+            '<option value="satellite_geo">Satellite (GEO)</option>' +
+            '<option value="launch">Launch Vehicle</option>' +
+            '</select></div>' +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#aaa;">Sweep Parameter:</label><br>' +
+            '<select id="spreadParam" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;">' +
+            '<option value="heading">Heading (0-360°)</option>' +
+            '<option value="inclination">Inclination (0-180°)</option>' +
+            '<option value="raan">RAAN (0-360°)</option>' +
+            '<option value="altitude">Altitude</option>' +
+            '<option value="speed">Speed</option>' +
+            '</select></div>' +
+            '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
+            '<div style="flex:1;"><label style="font-size:11px;color:#aaa;">Count:</label><br>' +
+            '<input id="spreadCount" type="number" value="36" min="2" max="720" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;"></div>' +
+            '<div style="flex:1;"><label style="font-size:11px;color:#aaa;">From:</label><br>' +
+            '<input id="spreadFrom" type="number" value="0" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;"></div>' +
+            '<div style="flex:1;"><label style="font-size:11px;color:#aaa;">To:</label><br>' +
+            '<input id="spreadTo" type="number" value="360" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;"></div>' +
+            '</div>' +
+            '<div style="margin-bottom:8px;"><label style="font-size:11px;color:#aaa;">Team:</label><br>' +
+            '<select id="spreadTeam" style="width:100%;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;">' +
+            '<option value="blue">Blue</option><option value="red">Red</option><option value="neutral">Neutral</option>' +
+            '</select></div>' +
+            '<div style="margin-bottom:12px;"><label style="font-size:11px;color:#aaa;">Origin (if aircraft/launch):</label><br>' +
+            '<div style="display:flex;gap:6px;">' +
+            '<input id="spreadLat" type="number" value="28.5" step="0.1" placeholder="Lat" style="flex:1;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;">' +
+            '<input id="spreadLon" type="number" value="-80.6" step="0.1" placeholder="Lon" style="flex:1;background:#111;color:#ccc;border:1px solid #444;padding:4px;font-family:monospace;">' +
+            '</div></div>' +
+            '<div style="display:flex;gap:8px;">' +
+            '<button id="spreadGo" style="flex:1;padding:8px;background:#224466;color:#44aaff;border:1px solid #44aaff;border-radius:4px;font-family:monospace;cursor:pointer;font-weight:bold;">GENERATE</button>' +
+            '<button id="spreadClear" style="flex:1;padding:8px;background:#442222;color:#ff6644;border:1px solid #ff6644;border-radius:4px;font-family:monospace;cursor:pointer;">CLEAR SPREAD</button>' +
+            '<button id="spreadClose" style="padding:8px;background:#333;color:#aaa;border:1px solid #555;border-radius:4px;font-family:monospace;cursor:pointer;">X</button>' +
+            '</div>';
+
+        document.body.appendChild(dlg);
+
+        // Update defaults when type changes
+        document.getElementById('spreadType').addEventListener('change', function() {
+            var param = document.getElementById('spreadParam');
+            var type = this.value;
+            if (type === 'satellite_leo' || type === 'satellite_geo') {
+                param.value = 'inclination';
+                document.getElementById('spreadFrom').value = '0';
+                document.getElementById('spreadTo').value = '180';
+            } else if (type === 'launch') {
+                param.value = 'heading';
+                document.getElementById('spreadFrom').value = '0';
+                document.getElementById('spreadTo').value = '360';
+            } else {
+                param.value = 'heading';
+                document.getElementById('spreadFrom').value = '0';
+                document.getElementById('spreadTo').value = '360';
+            }
+        });
+
+        document.getElementById('spreadGo').addEventListener('click', function() { _executeSpread(); });
+        document.getElementById('spreadClear').addEventListener('click', function() { _clearSpread(); });
+        document.getElementById('spreadClose').addEventListener('click', function() { dlg.remove(); });
+
+        // Prevent keyboard events from triggering flight controls
+        dlg.addEventListener('keydown', function(e) { e.stopPropagation(); });
+        dlg.addEventListener('keyup', function(e) { e.stopPropagation(); });
+    }
+
+    function _executeSpread() {
+        var type = document.getElementById('spreadType').value;
+        var param = document.getElementById('spreadParam').value;
+        var count = parseInt(document.getElementById('spreadCount').value) || 36;
+        var fromVal = parseFloat(document.getElementById('spreadFrom').value) || 0;
+        var toVal = parseFloat(document.getElementById('spreadTo').value) || 360;
+        var team = document.getElementById('spreadTeam').value;
+        var originLat = parseFloat(document.getElementById('spreadLat').value) || 28.5;
+        var originLon = parseFloat(document.getElementById('spreadLon').value) || -80.6;
+
+        count = Math.min(count, 720);
+        var step = (toVal - fromVal) / count;
+        var DEG_R = Math.PI / 180;
+
+        _showMessage('GENERATING ' + count + ' ENTITIES...');
+
+        for (var i = 0; i < count; i++) {
+            var val = fromVal + i * step;
+            var entityDef = _buildSpreadEntity(type, param, val, i, team, originLat, originLon);
+            if (!entityDef) continue;
+
+            // Add to ECS world via ScenarioLoader
+            var entity = ScenarioLoader.addEntity(_world, entityDef, _viewer);
+            if (entity) {
+                _spreadEntities.push(entity.id);
+            }
+        }
+
+        _buildVizGroups();
+        _buildEntityList();
+        _showMessage(count + ' ENTITIES GENERATED (' + param + ' ' + fromVal + '° to ' + toVal + '°)');
+    }
+
+    function _buildSpreadEntity(type, param, val, index, team, lat, lon) {
+        var id = 'spread_' + index;
+        var name = 'SP-' + (index + 1).toString().padStart(3, '0');
+        var DEG_R = Math.PI / 180;
+
+        // Color gradient across the spread — rainbow from red to violet
+        var hue = (index / Math.max(1, parseInt(document.getElementById('spreadCount').value) || 36)) * 300;
+        var color = 'hsl(' + hue + ', 80%, 55%)';
+
+        if (type === 'aircraft') {
+            var def = {
+                id: id, name: name, type: 'aircraft', team: team,
+                initialState: {
+                    lat: lat, lon: lon, alt: 5000, speed: 250, heading: 90, gamma: 0
+                },
+                components: {
+                    physics: { type: 'flight3dof', config: 'f16' },
+                    visual: { type: 'point', color: color, trail: true, size: 6 }
+                }
+            };
+            if (param === 'heading') def.initialState.heading = val;
+            else if (param === 'altitude') def.initialState.alt = val;
+            else if (param === 'speed') def.initialState.speed = val;
+            return def;
+
+        } else if (type === 'satellite_leo') {
+            var def2 = {
+                id: id, name: name, type: 'satellite', team: team,
+                initialState: {
+                    semiMajorAxis: 6778, eccentricity: 0.001,
+                    inclination: 51.6, raan: 0, argPerigee: 0, meanAnomaly: index * (360 / Math.max(1, parseInt(document.getElementById('spreadCount').value)))
+                },
+                components: {
+                    physics: { type: 'orbital_2body' },
+                    visual: { type: 'satellite', color: color, size: 5, showOrbit: true }
+                }
+            };
+            if (param === 'inclination') def2.initialState.inclination = val;
+            else if (param === 'raan') def2.initialState.raan = val;
+            else if (param === 'altitude') {
+                var sma = 6371 + val; // val in km
+                def2.initialState.semiMajorAxis = sma;
+            }
+            return def2;
+
+        } else if (type === 'satellite_geo') {
+            var def3 = {
+                id: id, name: name, type: 'satellite', team: team,
+                initialState: {
+                    semiMajorAxis: 42164, eccentricity: 0.0001,
+                    inclination: 0.05, raan: 0, argPerigee: 0, meanAnomaly: index * (360 / Math.max(1, parseInt(document.getElementById('spreadCount').value)))
+                },
+                components: {
+                    physics: { type: 'orbital_2body' },
+                    visual: { type: 'satellite', color: color, size: 6, showOrbit: true }
+                }
+            };
+            if (param === 'inclination') def3.initialState.inclination = val;
+            else if (param === 'raan') def3.initialState.raan = val;
+            return def3;
+
+        } else if (type === 'launch') {
+            // Launch vehicles: start from ground, heading swept, with gamma=80° (nearly vertical)
+            var def4 = {
+                id: id, name: name, type: 'aircraft', team: team,
+                initialState: {
+                    lat: lat, lon: lon, alt: 100, speed: 50, heading: 90, gamma: 80
+                },
+                components: {
+                    physics: { type: 'flight3dof', config: 'spaceplane' },
+                    visual: { type: 'point', color: color, trail: true, size: 5 }
+                },
+                _custom: {
+                    propulsion: { modes: ['ROCKET'], rocketEngine: 'RS25' }
+                }
+            };
+            if (param === 'heading') def4.initialState.heading = val;
+            else if (param === 'altitude') def4.initialState.alt = val;
+            else if (param === 'speed') def4.initialState.speed = val;
+            return def4;
+        }
+        return null;
+    }
+
+    function _clearSpread() {
+        for (var i = 0; i < _spreadEntities.length; i++) {
+            var ent = _world.getEntity(_spreadEntities[i]);
+            if (ent) {
+                // Remove Cesium visuals
+                var visComp = ent.getComponent('visual');
+                if (visComp && typeof visComp.cleanup === 'function') visComp.cleanup(_world);
+                _world.removeEntity(_spreadEntities[i]);
+            }
+        }
+        _spreadEntities = [];
+        _buildVizGroups();
+        _buildEntityList();
+        _showMessage('SPREAD ENTITIES CLEARED');
     }
 
     // -----------------------------------------------------------------------
@@ -824,15 +1561,61 @@ const LiveSimEngine = (function() {
 
     function _removeSensorViewEffects() {
         var container = document.getElementById('cesiumContainer');
-        if (container) container.style.filter = '';
         _activeSensorFilter = null;
-        _stopSensorNoise();
 
         // Restore atmospheric glow and fog
         if (_viewer) {
             _viewer.scene.globe.showGroundAtmosphere = true;
             _viewer.scene.fog.enabled = true;
         }
+
+        // If display mode is active, restore its effects instead of clearing
+        if (_displayMode > 0) {
+            var dm = DISPLAY_MODE_FILTERS[_displayMode];
+            if (dm && container) {
+                container.style.filter = dm.css;
+                _startSensorNoise(dm.noise);
+            }
+        } else {
+            if (container) container.style.filter = '';
+            _stopSensorNoise();
+        }
+    }
+
+    // --- Pilot display mode (NVG / FLIR) ---
+    function _cycleDisplayMode() {
+        _displayMode = (_displayMode + 1) % 3;
+        if (_displayMode === 0) {
+            _removeDisplayModeEffects();
+            _showMessage('DISPLAY: NORMAL');
+        } else {
+            var dm = DISPLAY_MODE_FILTERS[_displayMode];
+            _applyDisplayModeEffects();
+            _showMessage('DISPLAY: ' + dm.label);
+        }
+    }
+
+    function _applyDisplayModeEffects() {
+        var dm = DISPLAY_MODE_FILTERS[_displayMode];
+        if (!dm) { _removeDisplayModeEffects(); return; }
+
+        // If sensor view is active, sensor view takes priority — don't override
+        if (_activeSensorFilter) return;
+
+        var container = document.getElementById('cesiumContainer');
+        if (container) container.style.filter = dm.css;
+
+        // Noise overlay for display mode
+        _startSensorNoise(dm.noise);
+    }
+
+    function _removeDisplayModeEffects() {
+        // Only remove if sensor view is not active (sensor view owns the filter when active)
+        if (_activeSensorFilter) return;
+
+        var container = document.getElementById('cesiumContainer');
+        if (container) container.style.filter = '';
+        _stopSensorNoise();
     }
 
     function _startSensorNoise(opacity) {
@@ -1597,6 +2380,7 @@ const LiveSimEngine = (function() {
 
     function _positionInitialCamera() {
         if (!_playerState) return;
+        if (isNaN(_playerState.lat) || isNaN(_playerState.lon) || isNaN(_playerState.alt)) return;
         // Start in chase mode — disable Cesium camera controls so arrow keys go to us
         _viewer.scene.screenSpaceCameraController.enableInputs = false;
         var pos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, _playerState.alt);
@@ -1608,6 +2392,7 @@ const LiveSimEngine = (function() {
 
     function _updateCamera() {
         if (!_playerState || _cameraMode === 'free' || _isGlobeMode()) return;
+        if (isNaN(_playerState.lat) || isNaN(_playerState.lon) || isNaN(_playerState.alt)) return;
 
         var pos = Cesium.Cartesian3.fromRadians(_playerState.lon, _playerState.lat, _playerState.alt);
 
@@ -1800,12 +2585,23 @@ const LiveSimEngine = (function() {
         var hudCanvas = document.getElementById('hudCanvas');
         if (hudCanvas) hudCanvas.style.display = isGlobe ? 'none' : 'block';
 
-        // Remove sensor view effects in globe/free modes (restore on chase/cockpit)
+        // Remove sensor/display view effects in globe/free modes (restore on chase/cockpit)
         if (isGlobe || _cameraMode === 'free') {
-            _removeSensorViewEffects();
+            // Force-clear all visual filters in globe/free modes
+            _activeSensorFilter = null;
+            var container = document.getElementById('cesiumContainer');
+            if (container) container.style.filter = '';
+            _stopSensorNoise();
+            if (_viewer) {
+                _viewer.scene.globe.showGroundAtmosphere = true;
+                _viewer.scene.fog.enabled = true;
+            }
         } else if (_sensorIndex >= 0 && SENSOR_FILTERS[_sensorList[_sensorIndex].type]) {
-            // Restore sensor view effects when returning to chase/cockpit
+            // Restore sensor view effects when returning to chase/cockpit (sensor overrides display mode)
             _applySensorViewEffects(_sensorList[_sensorIndex].type);
+        } else if (_displayMode > 0) {
+            // Restore display mode effects when returning to chase/cockpit
+            _applyDisplayModeEffects();
         }
 
         if (_cameraMode === 'chase') {
@@ -3706,10 +4502,7 @@ const LiveSimEngine = (function() {
                     _showMessage('BRAKES ON');
                     break;
                 case 'KeyA':
-                    if (_autopilotState && typeof FighterAutopilot !== 'undefined') {
-                        FighterAutopilot.toggle(_autopilotState, _playerState);
-                        _showMessage(_autopilotState.enabled ? 'AUTOPILOT ON' : 'AUTOPILOT OFF');
-                    }
+                    _toggleAutopilotPanel();
                     break;
                 case 'KeyT':
                     // Shift+T = manual trim step down, Ctrl+T = manual trim step up
@@ -3747,10 +4540,7 @@ const LiveSimEngine = (function() {
                     _showMessage('TIME WARP: ' + _timeWarp + 'x');
                     break;
                 case 'KeyN':
-                    if (typeof SpaceplanePlanner !== 'undefined') {
-                        SpaceplanePlanner.createNode(_playerState, _simElapsed);
-                        _showMessage('MANEUVER NODE CREATED');
-                    }
+                    _cycleDisplayMode();
                     break;
                 case 'Delete': case 'Backspace':
                     if (typeof SpaceplanePlanner !== 'undefined') {
@@ -4033,6 +4823,573 @@ const LiveSimEngine = (function() {
     });
 
     // -----------------------------------------------------------------------
+    // Tactical Data Link (Link 16 style visualization)
+    // -----------------------------------------------------------------------
+    function _tickDataLinks() {
+        if (!_viewer || !_world) return;
+
+        // If disabled, hide all existing link entities and return
+        if (!_dataLinksEnabled) {
+            for (var di = 0; di < _dataLinkEntities.length; di++) {
+                _dataLinkEntities[di].show = false;
+            }
+            // Update HUD indicator
+            var dlInd = document.getElementById('dataLinkIndicator');
+            if (dlInd) dlInd.style.display = 'none';
+            return;
+        }
+
+        // Throttle to 2Hz (every 500ms)
+        var now = Date.now();
+        if (now - _dataLinkLastTick < 500) return;
+        _dataLinkLastTick = now;
+
+        // Update HUD indicator
+        var dlInd2 = document.getElementById('dataLinkIndicator');
+        if (dlInd2) dlInd2.style.display = 'inline';
+
+        // Determine the player team
+        var playerTeam = _playerEntity ? _playerEntity.team : null;
+        if (_observerMode && !playerTeam) playerTeam = 'blue'; // default for observer
+
+        // Collect all active same-team entities with valid positions
+        var teamEnts = [];
+        _world.entities.forEach(function(ent) {
+            if (!ent.active) return;
+            if (ent.team !== playerTeam) return;
+            var s = ent.state;
+            if (!s || s.lat == null || s.lon == null) return;
+            teamEnts.push({
+                id: ent.id,
+                pos: Cesium.Cartesian3.fromRadians(s.lon, s.lat, s.alt || 0)
+            });
+        });
+
+        // Build pairs within 500km, limited to 50 links
+        var MAX_LINKS = 50;
+        var MAX_RANGE = 500000; // 500km in meters
+        var links = [];
+        for (var i = 0; i < teamEnts.length && links.length < MAX_LINKS; i++) {
+            for (var j = i + 1; j < teamEnts.length && links.length < MAX_LINKS; j++) {
+                var dist = Cesium.Cartesian3.distance(teamEnts[i].pos, teamEnts[j].pos);
+                if (dist <= MAX_RANGE) {
+                    links.push({ a: teamEnts[i], b: teamEnts[j] });
+                }
+            }
+        }
+
+        // Create or update Cesium polyline entities
+        // Reuse existing entities, create new ones if needed, hide extras
+        for (var li = 0; li < links.length; li++) {
+            var link = links[li];
+            if (li < _dataLinkEntities.length) {
+                // Reuse existing entity
+                var ent = _dataLinkEntities[li];
+                ent.show = true;
+                ent.polyline.positions = new Cesium.CallbackProperty((function(a, b) {
+                    return function() { return [a, b]; };
+                })(link.a.pos, link.b.pos), false);
+            } else {
+                // Create new entity
+                var newEnt = _viewer.entities.add({
+                    polyline: {
+                        positions: new Cesium.CallbackProperty((function(a, b) {
+                            return function() { return [a, b]; };
+                        })(link.a.pos, link.b.pos), false),
+                        width: 1,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.CYAN.withAlpha(0.3),
+                            dashLength: 16
+                        })
+                    }
+                });
+                _dataLinkEntities.push(newEnt);
+            }
+        }
+
+        // Hide any extra entities beyond current link count
+        for (var hi = links.length; hi < _dataLinkEntities.length; hi++) {
+            _dataLinkEntities[hi].show = false;
+        }
+    }
+
+    function _cleanupDataLinks() {
+        for (var i = 0; i < _dataLinkEntities.length; i++) {
+            _viewer.entities.remove(_dataLinkEntities[i]);
+        }
+        _dataLinkEntities = [];
+        _dataLinksEnabled = false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Terrain Following / Terrain Avoidance
+    // -----------------------------------------------------------------------
+
+    /**
+     * Sample terrain elevation at current position and look-ahead points,
+     * then drive autopilot altitude hold to maintain target AGL.
+     * Throttled to 2Hz. Auto-disables above 3000m AGL.
+     */
+    function _tickTerrainFollowing(dt) {
+        if (!_tfEnabled || !_playerState || !_viewer) return;
+
+        // Throttle to 2Hz (500ms)
+        var now = Date.now();
+        if (now - _tfLastSampleTime < 500) {
+            // Still pass current state to HUD between samples
+            _playerState._tfEnabled = _tfEnabled;
+            _playerState._tfAgl = _playerState.alt - _tfCurrentTerrainElev;
+            _playerState._tfAglTarget = _tfAglTarget;
+            _playerState._terrainAhead = _tfTerrainAhead;
+            return;
+        }
+        _tfLastSampleTime = now;
+
+        var lat = _playerState.lat;   // radians
+        var lon = _playerState.lon;   // radians
+        var alt = _playerState.alt;   // meters MSL
+        var hdg = _playerState.heading; // radians
+
+        if (lat == null || lon == null) return;
+
+        // Sample terrain at current position using globe.getHeight (synchronous)
+        var globe = _viewer.scene.globe;
+        var currentCarto = new Cesium.Cartographic(lon, lat);
+        var terrainElev = globe.getHeight(currentCarto);
+        if (terrainElev == null || !isFinite(terrainElev)) terrainElev = 0;
+        _tfCurrentTerrainElev = terrainElev;
+
+        var currentAGL = alt - terrainElev;
+
+        // Auto-disable above 3000m AGL
+        if (currentAGL > 3000) {
+            _tfEnabled = false;
+            _showMessage('TF/TA OFF (above 3000m AGL)');
+            _playerState._tfEnabled = false;
+            _playerState._tfAgl = currentAGL;
+            _playerState._tfAglTarget = _tfAglTarget;
+            _playerState._terrainAhead = [];
+            _syncAutopilotPanel();
+            return;
+        }
+
+        // Sample terrain at look-ahead points along heading
+        // Distances: 2km, 5km, 10km ahead
+        var lookAheadDists = [2000, 5000, 10000];
+        var terrainAhead = [];
+        var R_EARTH_M = 6371000;
+
+        for (var i = 0; i < lookAheadDists.length; i++) {
+            var dist = lookAheadDists[i];
+            // Great-circle destination from current position
+            var angDist = dist / R_EARTH_M;
+            var sinLat = Math.sin(lat);
+            var cosLat = Math.cos(lat);
+            var sinAng = Math.sin(angDist);
+            var cosAng = Math.cos(angDist);
+            var sinHdg = Math.sin(hdg);
+            var cosHdg = Math.cos(hdg);
+
+            var newLat = Math.asin(sinLat * cosAng + cosLat * sinAng * cosHdg);
+            var newLon = lon + Math.atan2(sinHdg * sinAng * cosLat, cosAng - sinLat * Math.sin(newLat));
+
+            var aheadCarto = new Cesium.Cartographic(newLon, newLat);
+            var aheadElev = globe.getHeight(aheadCarto);
+            if (aheadElev == null || !isFinite(aheadElev)) aheadElev = 0;
+
+            terrainAhead.push({ dist: dist, terrainElev: aheadElev });
+        }
+        _tfTerrainAhead = terrainAhead;
+
+        // Find the highest terrain ahead (including current position)
+        var maxTerrainElev = terrainElev;
+        for (var j = 0; j < terrainAhead.length; j++) {
+            if (terrainAhead[j].terrainElev > maxTerrainElev) {
+                maxTerrainElev = terrainAhead[j].terrainElev;
+            }
+        }
+
+        // Compute desired MSL altitude = highest terrain ahead + AGL target + safety margin
+        // Use the higher of current terrain and look-ahead terrain for terrain avoidance
+        var desiredAlt = maxTerrainElev + _tfAglTarget;
+
+        // Drive autopilot altitude hold if autopilot is available
+        if (_autopilotState) {
+            // Enable altitude hold if not already enabled
+            if (!_autopilotState.altHold) {
+                _autopilotState.altHold = true;
+                if (!_autopilotState.enabled) _autopilotState.enabled = true;
+            }
+            _autopilotState.targetAlt = desiredAlt;
+        }
+
+        // Pass TF state to playerState for HUD display
+        _playerState._tfEnabled = true;
+        _playerState._tfAgl = currentAGL;
+        _playerState._tfAglTarget = _tfAglTarget;
+        _playerState._terrainAhead = terrainAhead;
+        _playerState._tfDesiredAlt = desiredAlt;
+        _playerState._tfTerrainElev = terrainElev;
+    }
+
+    function _toggleTerrainFollowing() {
+        _tfEnabled = !_tfEnabled;
+        if (_tfEnabled) {
+            // Require low altitude to enable
+            if (_playerState && _playerState.alt > 3500) {
+                _tfEnabled = false;
+                _showMessage('TF/TA: TOO HIGH (descend below 3000m AGL)');
+                return;
+            }
+            _showMessage('TF/TA ON | AGL ' + _tfAglTarget + 'm');
+            // Make sure autopilot is in a state to use
+            if (_autopilotState && !_autopilotState.enabled) {
+                _autopilotState.enabled = true;
+                _autopilotState.altHold = true;
+                if (_playerState) _autopilotState.targetSpeed = _playerState.speed;
+                _autopilotState.spdHold = true;
+            }
+        } else {
+            _showMessage('TF/TA OFF');
+            _playerState._tfEnabled = false;
+            _playerState._terrainAhead = [];
+        }
+        _syncAutopilotPanel();
+    }
+
+    // -----------------------------------------------------------------------
+    // Radar Warning Receiver — populate _playerState._rwr from ECS radar/SAM entities
+    // -----------------------------------------------------------------------
+    var _rwrLastTick = 0;
+
+    function _tickRWR() {
+        if (!_world || !_playerState || !_playerEntity) return;
+
+        // Throttle to 4Hz
+        var now = Date.now();
+        if (now - _rwrLastTick < 250) return;
+        _rwrLastTick = now;
+
+        var playerTeam = _playerEntity.team;
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+        var pHeading = _playerState.heading || 0; // radians
+
+        if (pLat == null || pLon == null) {
+            _playerState._rwr = [];
+            return;
+        }
+
+        var threats = [];
+        var playerId = _playerEntity.id;
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.active) return;
+            if (ent.id === playerId) return;
+            if (ent.team === playerTeam) return;
+
+            var s = ent.state;
+            if (!s || s.lat == null || s.lon == null) return;
+
+            // Must have a radar sensor component
+            var radarComp = ent.getComponent('sensors');
+            if (!radarComp || !radarComp._maxRange) return;
+
+            var maxRange = radarComp._maxRange;
+
+            // Compute bearing from player to this entity (great circle)
+            var lat1 = pLat;
+            var lon1 = pLon;
+            var lat2 = s.lat;
+            var lon2 = s.lon;
+            var dlon = lon2 - lon1;
+            var y = Math.sin(dlon) * Math.cos(lat2);
+            var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dlon);
+            var bearing = Math.atan2(y, x); // radians, CW from north
+
+            // Convert to degrees relative to player heading
+            var relBearingRad = bearing - pHeading;
+            var relBearingDeg = relBearingRad * 180 / Math.PI;
+            // Normalize to 0-360
+            relBearingDeg = ((relBearingDeg % 360) + 360) % 360;
+
+            // Compute slant range for normalized distance
+            var R = 6371000;
+            var dlat = lat2 - lat1;
+            var a2 = Math.sin(dlat / 2) * Math.sin(dlat / 2) +
+                     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+            var surfDist = R * c;
+            var dAlt = (s.alt || 0) - (_playerState.alt || 0);
+            var range = Math.sqrt(surfDist * surfDist + dAlt * dAlt);
+
+            // Normalized range (0 = at entity, 1 = at max radar range)
+            var rangeNorm = Math.min(range / maxRange, 1);
+
+            // Skip if well beyond radar range (> 1.5x maxRange)
+            if (range > maxRange * 1.5) return;
+
+            // Determine threat type
+            var threatType = 'search';
+            var weapComp = ent.getComponent('weapons');
+            if (weapComp && s._engagements && s._engagements.length > 0) {
+                for (var ei = 0; ei < s._engagements.length; ei++) {
+                    var eng = s._engagements[ei];
+                    if (eng.targetId === playerId) {
+                        if (eng.state === 'ENGAGE') {
+                            threatType = 'lock';
+                            break;
+                        } else if (eng.state === 'TRACK' || eng.state === 'DETECT') {
+                            threatType = 'track';
+                        }
+                    }
+                }
+            }
+
+            // Label: entity name shortened to 6 chars
+            var label = (ent.name || ent.id || '?').substring(0, 6);
+
+            threats.push({
+                bearing: relBearingDeg,
+                type: threatType,
+                range_norm: rangeNorm,
+                label: label
+            });
+        });
+
+        _playerState._rwr = threats;
+    }
+
+    // -----------------------------------------------------------------------
+    // Missile Warning System — detect active missiles targeting player
+    // -----------------------------------------------------------------------
+    var _mwsLastTick = 0;
+
+    function _tickMWS() {
+        if (!_world || !_playerState || !_playerEntity) return;
+        var now = Date.now();
+        if (now - _mwsLastTick < 200) return; // 5Hz
+        _mwsLastTick = now;
+
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+        if (pLat == null || pLon == null) { _playerState._mws = []; return; }
+
+        var playerId = _playerEntity.id;
+        var missiles = [];
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.active) return;
+            var s = ent.state;
+            if (!s) return;
+
+            // Check for SAM battery engagements targeting player
+            var samComp = ent.getComponent ? ent.getComponent('weapons/sam_battery') : null;
+            if (samComp && s._engagements) {
+                for (var i = 0; i < s._engagements.length; i++) {
+                    var eng = s._engagements[i];
+                    if (eng.targetId === playerId && eng.state === 'ENGAGE') {
+                        // Active missile from this SAM
+                        var bearing = _bearingTo(pLat, pLon, s.lat, s.lon);
+                        var range = _rangeTo(pLat, pLon, s.lat, s.lon, _playerState.alt || 0, s.alt || 0);
+                        missiles.push({
+                            type: 'SAM',
+                            bearing: bearing,
+                            range: range,
+                            label: (ent.name || 'SAM').substring(0, 6),
+                            tof: eng.tof || 0
+                        });
+                    }
+                }
+            }
+
+            // Check for A2A missile engagements
+            var a2aComp = ent.getComponent ? ent.getComponent('weapons/a2a_missile') : null;
+            if (a2aComp && s._engagements) {
+                for (var j = 0; j < s._engagements.length; j++) {
+                    var eng2 = s._engagements[j];
+                    if (eng2.targetId === playerId && (eng2.state === 'ENGAGE' || eng2.state === 'FIRE')) {
+                        var bearing2 = _bearingTo(pLat, pLon, s.lat, s.lon);
+                        var range2 = _rangeTo(pLat, pLon, s.lat, s.lon, _playerState.alt || 0, s.alt || 0);
+                        missiles.push({
+                            type: 'A2A',
+                            bearing: bearing2,
+                            range: range2,
+                            label: (ent.name || 'AIR').substring(0, 6),
+                            tof: eng2.tof || 0
+                        });
+                    }
+                }
+            }
+        });
+
+        _playerState._mws = missiles;
+    }
+
+    function _bearingTo(lat1, lon1, lat2, lon2) {
+        var dlon = lon2 - lon1;
+        var y = Math.sin(dlon) * Math.cos(lat2);
+        var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dlon);
+        return Math.atan2(y, x) * (180 / Math.PI);
+    }
+
+    function _rangeTo(lat1, lon1, lat2, lon2, alt1, alt2) {
+        var R = 6371000;
+        var dlat = lat2 - lat1;
+        var dlon = lon2 - lon1;
+        var a2 = Math.sin(dlat / 2) * Math.sin(dlat / 2) +
+                 Math.cos(lat1) * Math.cos(lat2) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+        var c = 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+        var surfDist = R * c;
+        var dAlt = alt2 - alt1;
+        return Math.sqrt(surfDist * surfDist + dAlt * dAlt);
+    }
+
+    // -----------------------------------------------------------------------
+    // Formation Status — identify wingmen targeting the player
+    // -----------------------------------------------------------------------
+    var _formationLastTick = 0;
+
+    function _tickFormation() {
+        if (!_world || !_playerState || !_playerEntity) return;
+        var now = Date.now();
+        if (now - _formationLastTick < 500) return; // 2Hz
+        _formationLastTick = now;
+
+        var playerId = _playerEntity.id;
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+        if (pLat == null || pLon == null) { _playerState._formation = []; return; }
+
+        var wingmen = [];
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.active || ent.id === playerId) return;
+            if (ent.team !== _playerEntity.team) return;
+            var s = ent.state;
+            if (!s || s.lat == null || s.lon == null) return;
+
+            // Check if this entity follows the player (intercept AI or formation component)
+            var isFollower = false;
+            var formationType = 'LOOSE';
+
+            var interceptComp = ent.getComponent ? ent.getComponent('ai/intercept') : null;
+            if (interceptComp && interceptComp.config && interceptComp.config.targetId === playerId) {
+                isFollower = true;
+            }
+            // Also check formation AI
+            var formComp = ent.getComponent ? ent.getComponent('ai/formation') : null;
+            if (formComp && formComp.config) {
+                if (formComp.config.leaderId === playerId) {
+                    isFollower = true;
+                    formationType = (formComp.config.pattern || 'ECHELON').toUpperCase();
+                }
+            }
+
+            if (!isFollower) return;
+
+            var bearing = _bearingTo(pLat, pLon, s.lat, s.lon);
+            var relBearing = bearing - (_playerState.heading || 0) * (180 / Math.PI);
+            relBearing = ((relBearing % 360) + 360) % 360;
+            var range = _rangeTo(pLat, pLon, s.lat, s.lon, _playerState.alt || 0, s.alt || 0);
+            var altDiff = (s.alt || 0) - (_playerState.alt || 0);
+
+            var status = 'ON STATION';
+            if (range > 10000) status = 'REJOINING';
+            if (range > 50000) status = 'LOST';
+
+            wingmen.push({
+                name: (ent.name || ent.id).substring(0, 10),
+                bearing: relBearing,
+                range: range,
+                altDiff: altDiff,
+                status: status,
+                formation: formationType
+            });
+        });
+
+        _playerState._formation = wingmen;
+    }
+
+    // -----------------------------------------------------------------------
+    // ILS Approach Data — compute glideslope/localizer deviation for HUD
+    // -----------------------------------------------------------------------
+    function _computeILSData() {
+        if (!_playerState || !_world) return;
+        _playerState._ilsData = null;
+
+        // Only compute when below 1600m (5000ft)
+        if (_playerState.alt > 1600) return;
+
+        var DEG = Math.PI / 180;
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+        var pAlt = _playerState.alt;
+        var pHdg = _playerState.heading || 0;
+
+        // Find nearest ground station (airport) within 30nm
+        var bestDist = Infinity;
+        var bestStation = null;
+
+        _world.entities.forEach(function(ent) {
+            if (!ent || !ent.state) return;
+            var eType = ent.type || '';
+            if (eType !== 'ground_station' && eType !== 'ground' && eType !== 'static') return;
+            var s = ent.state;
+            if (s.lat == null || s.lon == null) return;
+
+            var dist = FighterSimEngine.distance(pLat, pLon, s.lat, s.lon);
+            if (dist < bestDist && dist < 55000) {  // Within 30nm
+                bestDist = dist;
+                bestStation = ent;
+            }
+        });
+
+        if (!bestStation) return;
+
+        var sLat = bestStation.state.lat;
+        var sLon = bestStation.state.lon;
+        var sAlt = bestStation.state.alt || 0;
+
+        // Compute bearing from station to player
+        var brg = FighterSimEngine.bearing(sLat, sLon, pLat, pLon);
+
+        // Guess runway heading — use player approach heading rounded to nearest 10 deg
+        var approachHdg = ((pHdg * 180 / Math.PI + 180) % 360);  // reciprocal of player heading
+        var rwyHdg = Math.round(approachHdg / 10) * 10;
+        var rwyHdgRad = rwyHdg * DEG;
+
+        // Localizer deviation: angular difference between bearing-from-station and runway heading
+        var locDev = brg - rwyHdgRad;
+        while (locDev > Math.PI) locDev -= 2 * Math.PI;
+        while (locDev < -Math.PI) locDev += 2 * Math.PI;
+        var locDevDeg = locDev * 180 / Math.PI;
+
+        // Glideslope deviation: compare actual angle to 3 deg glidepath
+        var horizDist = bestDist;
+        var altAboveRwy = pAlt - sAlt;
+        var actualAngle = Math.atan2(altAboveRwy, horizDist) * 180 / Math.PI;
+        var gsDevDeg = actualAngle - 3.0;  // positive = above glidepath
+
+        // Distance in NM
+        var distNm = bestDist / 1852;
+
+        // Runway identifier from heading
+        var rwyId = Math.round(rwyHdg / 10).toString().padStart(2, '0');
+
+        var stationName = (bestStation.name || '').toUpperCase();
+
+        _playerState._ilsData = {
+            gsDeviation: gsDevDeg,
+            locDeviation: locDevDeg,
+            distNm: distNm,
+            rwyAlt: sAlt,
+            rwyId: rwyId,
+            stationName: stationName
+        };
+    }
+
+    // -----------------------------------------------------------------------
     // Main tick
     // -----------------------------------------------------------------------
     function tick() {
@@ -4088,6 +5445,12 @@ const LiveSimEngine = (function() {
 
             // Cyber event scanner (observer mode)
             _scanCyberEvents(totalDt);
+
+            // Tactical data links (observer mode)
+            _tickDataLinks();
+
+            // Engagement stats (observer mode)
+            _tickEngagementStats();
             return;
         }
         if (!_playerState) return;
@@ -4176,7 +5539,10 @@ const LiveSimEngine = (function() {
         // 3c. Auto-execute state machine (warp/orient/burn)
         if (_autoExecState) _tickAutoExec(totalDt);
 
-        // 3d. Quest system update
+        // 3d. Terrain following / terrain avoidance
+        if (_tfEnabled) _tickTerrainFollowing(totalDt);
+
+        // 3e. Quest system update
         if (_questActive) _tickQuest();
 
         // 4. Update player trail (with time-based trimming)
@@ -4320,6 +5686,24 @@ const LiveSimEngine = (function() {
         // Cyber event scanner — detect state transitions for log panel
         _scanCyberEvents(totalDt);
 
+        // Tactical data links (player mode)
+        _tickDataLinks();
+
+        // Radar Warning Receiver — populate _rwr from hostile radar/SAM entities
+        _tickRWR();
+        // Missile Warning System — detect active missiles targeting player
+        _tickMWS();
+        // Formation status — track wingmen
+        _tickFormation();
+        // ILS approach guidance — glideslope/localizer for HUD
+        _computeILSData();
+        // Engagement log — record weapon events
+        _tickEngagementLog();
+        // Engagement stats — aggregated weapon statistics
+        _tickEngagementStats();
+        // Auto-refresh engagement timeline if open
+        if (_engTimelineOpen && Math.floor(_simElapsed) % 2 === 0) _renderEngTimeline();
+
         // --- COCKPIT RENDERING ---
 
         // 8. Update camera
@@ -4355,6 +5739,9 @@ const LiveSimEngine = (function() {
                 _playerState._pointingMode = _pointingMode;
                 _playerState._pointingLocked = _pointingLocked;
                 _playerState._timeWarp = _timeWarp;
+                _playerState._displayMode = _displayMode > 0 ? DISPLAY_MODE_FILTERS[_displayMode].label : null;
+                _playerState._simEpochJD = _JD_SIM_EPOCH_LOCAL;
+                _playerState._simElapsed = _simElapsed;
                 // Build nearby entity list for minimap
                 var nearbyList = [];
                 _world.entities.forEach(function(ent) {
@@ -4377,6 +5764,18 @@ const LiveSimEngine = (function() {
                 if (_mode === 'ROCKET') _playerState._currentThrust = (_curPropEntry && _curPropEntry.thrust) || (_playerConfig && _playerConfig.thrust_rocket) || 5000000;
                 else if (_mode === 'HYPERSONIC') _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_hypersonic) || 800000;
                 else _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_ab) || (_playerConfig && _playerConfig.thrust_mil) || 130000;
+                // Pass waypoint info to state for HUD rendering
+                _playerState._waypointInfo = _getWaypointInfo();
+                // Pass engagement stats for HUD display
+                _playerState._engagementStats = _engagementStats;
+                // Pass terrain following state for HUD display
+                _playerState._tfEnabled = _tfEnabled;
+                _playerState._tfAglTarget = _tfAglTarget;
+                if (!_tfEnabled) {
+                    _playerState._tfAgl = 0;
+                    _playerState._terrainAhead = [];
+                }
+
                 // Skip flight HUD for static ground entities (cyber cockpit is primary UI)
                 if (!_isStaticPlayer) {
                     FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
@@ -4387,6 +5786,9 @@ const LiveSimEngine = (function() {
                 }
             }
         }
+
+        // 9b. Weather visual overlay (cockpit/chase mode only)
+        _updateWeatherOverlay();
 
         // 10. Update UI panels
         _updateFlightDataPanel();
@@ -4401,6 +5803,9 @@ const LiveSimEngine = (function() {
         _recordAnalyticsSnapshot();
         _refreshAnalyticsIfOpen();
 
+        // Autopilot panel sync (~4Hz)
+        if (_apPanelOpen && _analyticsRecordCounter % 15 === 0) _syncAutopilotPanel();
+
         // Minimap (player mode)
         if (typeof Minimap !== 'undefined' && Minimap.isVisible()) {
             // Tag player state with entity ID so minimap can skip player in entity list
@@ -4409,6 +5814,12 @@ const LiveSimEngine = (function() {
         }
         // Conjunction detection (player mode)
         if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.update(_world, _simElapsed);
+
+        // Record frame time for performance stats
+        var frameEndTime = Date.now();
+        var frameMs = frameEndTime - (now || frameEndTime);
+        _perfFrameTimes.push(frameMs);
+        if (_perfFrameTimes.length > 60) _perfFrameTimes.shift();
     }
 
     // -----------------------------------------------------------------------
@@ -4610,9 +6021,45 @@ const LiveSimEngine = (function() {
         if (_observerMode) camLabel = 'OBSERVER';
         _setText('cameraModeDisplay', camLabel);
 
-        // Entity count
+        // Entity count with domain breakdown
         var count = _world ? _world.entities.size : 0;
-        _setText('entityCountDisplay', count + ' ENT');
+        var air = 0, space = 0, gnd = 0, nav = 0;
+        if (_world && count > 0 && count < 5000) {
+            _world.entities.forEach(function(e) {
+                var t = (e.type || '').toLowerCase();
+                if (t === 'aircraft') air++;
+                else if (t === 'satellite') space++;
+                else if (t === 'naval') nav++;
+                else gnd++;
+            });
+            var parts = [];
+            if (air > 0) parts.push(air + 'A');
+            if (space > 0) parts.push(space + 'S');
+            if (gnd > 0) parts.push(gnd + 'G');
+            if (nav > 0) parts.push(nav + 'N');
+            _setText('entityCountDisplay', count + ' [' + parts.join('/') + ']');
+        } else {
+            _setText('entityCountDisplay', count + ' ENT');
+        }
+
+        // FPS display (update every second)
+        var now2 = Date.now();
+        if (now2 - _perfLastDisplay > 1000) {
+            _perfLastDisplay = now2;
+            if (_perfFrameTimes.length > 0) {
+                var avgMs = 0;
+                for (var fi = 0; fi < _perfFrameTimes.length; fi++) avgMs += _perfFrameTimes[fi];
+                avgMs /= _perfFrameTimes.length;
+                _perfStats.fps = Math.round(1000 / avgMs);
+                _perfStats.frameMs = avgMs.toFixed(1);
+                _perfStats.entityCount = count;
+            }
+            var fpsEl = document.getElementById('fpsDisplay');
+            if (fpsEl) {
+                var fpsColor = _perfStats.fps >= 50 ? '#44ff44' : _perfStats.fps >= 30 ? '#ffaa44' : '#ff4444';
+                fpsEl.innerHTML = '<span style="color:' + fpsColor + '">' + _perfStats.fps + ' FPS</span> <span style="color:#666">' + _perfStats.frameMs + 'ms</span>';
+            }
+        }
     }
 
     var _entityListThrottle = 0;
@@ -4744,6 +6191,22 @@ const LiveSimEngine = (function() {
                     }
                 }
                 return true;
+            case 'KeyA':
+                if (e && e.shiftKey) {
+                    // Shift+A = After-Action Report
+                    _toggleAAR();
+                    _showMessage(_aarPanelOpen ? 'AAR OPEN' : 'AAR CLOSED');
+                    return true;
+                }
+                return false;
+            case 'KeyE':
+                if (e && e.shiftKey) {
+                    // Shift+E = Force Status Board
+                    _toggleStatusBoard();
+                    _showMessage(_statusBoardOpen ? 'STATUS BOARD OPEN' : 'STATUS BOARD CLOSED');
+                    return true;
+                }
+                return false;
             case 'KeyC':
                 if (e && e.shiftKey) {
                     // Shift+C = Cyber Incident Log
@@ -4758,11 +6221,44 @@ const LiveSimEngine = (function() {
                     _showMessage(cjVis ? 'CONJUNCTION ALERTS ON' : 'CONJUNCTION ALERTS OFF');
                 }
                 return true;
+            case 'KeyG':
+                _dataLinksEnabled = !_dataLinksEnabled;
+                _showMessage(_dataLinksEnabled ? 'DATALINK ON' : 'DATALINK OFF');
+                return true;
+            case 'KeyT':
+                if (e && e.shiftKey) {
+                    // Shift+T = Threat assessment overlay
+                    _toggleThreatOverlay();
+                    _showMessage(_threatOverlayEnabled ? 'THREAT OVERLAY ON' : 'THREAT OVERLAY OFF');
+                    return true;
+                }
+                return false;
+            case 'KeyW':
+                if (e && e.shiftKey) {
+                    // Shift+W = Toggle waypoint placement mode
+                    _toggleWaypointMode();
+                    return true;
+                }
+                return false;
+            case 'Backspace':
+                if (_waypointMode) {
+                    if (e && e.shiftKey) {
+                        _clearAllWaypoints();
+                    } else {
+                        _removeLastWaypoint();
+                    }
+                    return true;
+                }
+                return false;
             default: return false;
         }
     }
 
     function _togglePanel(name) {
+        if (name === 'threats') {
+            _toggleThreatOverlay();
+            return;
+        }
         if (name === 'search') {
             _toggleSearchPanel();
             return;
@@ -4781,6 +6277,34 @@ const LiveSimEngine = (function() {
         }
         if (name === 'cyberLog') {
             _toggleCyberLogPanel();
+            return;
+        }
+        if (name === 'aar') {
+            _toggleAAR();
+            return;
+        }
+        if (name === 'statusboard') {
+            _toggleStatusBoard();
+            return;
+        }
+        if (name === 'spread') {
+            _openSpreadDialog();
+            return;
+        }
+        if (name === 'engTimeline') {
+            _toggleEngTimeline();
+            return;
+        }
+        if (name === 'dataExport') {
+            _toggleDataExport();
+            return;
+        }
+        if (name === 'autopilot') {
+            _toggleAutopilotPanel();
+            return;
+        }
+        if (name === 'engagement') {
+            _toggleEngagementStats();
             return;
         }
         if (name === 'orbital') {
@@ -5426,6 +6950,237 @@ const LiveSimEngine = (function() {
         _playerGroundTrack = [];
         _playerTrailTimes = [];
         _predictedGroundTrackPositions = [];
+    }
+
+    // -----------------------------------------------------------------------
+    // Mission Briefing
+    // -----------------------------------------------------------------------
+    function _showMissionBriefing(scenario) {
+        var panel = document.getElementById('missionBriefing');
+        if (!panel) return Promise.resolve();
+
+        // Skip briefing for observer mode
+        if (_observerMode) return Promise.resolve();
+
+        // Skip for TLE catalog loads (no meaningful scenario metadata)
+        if (scenario && scenario.metadata) {
+            var mname = (scenario.metadata.name || '').toLowerCase();
+            if (mname.indexOf('tle') >= 0 && mname.indexOf('catalog') >= 0) return Promise.resolve();
+        }
+
+        // Skip if no entities (empty scenario)
+        var entities = (scenario && scenario.entities) ? scenario.entities : [];
+        if (entities.length === 0) return Promise.resolve();
+
+        // --- Populate header ---
+        var meta = scenario.metadata || {};
+        var titleEl = document.getElementById('mbTitle');
+        var descEl = document.getElementById('mbDescription');
+        if (titleEl) titleEl.textContent = meta.name || 'UNNAMED SCENARIO';
+        if (descEl) descEl.textContent = meta.description || '';
+
+        // --- Force composition ---
+        var playerTeam = _playerEntity ? (_playerEntity.team || 'blue') : 'blue';
+        var forceCount = {};
+        var typeOrder = ['aircraft', 'satellite', 'ground_station', 'naval', 'sam', 'ground', 'other'];
+        var typeLabels = {
+            aircraft: 'Aircraft',
+            satellite: 'Satellite',
+            ground_station: 'Ground Station',
+            naval: 'Naval',
+            sam: 'SAM Battery',
+            ground: 'Ground Unit',
+            other: 'Other'
+        };
+
+        for (var ei = 0; ei < entities.length; ei++) {
+            var ent = entities[ei];
+            var etype = ent.type || 'other';
+            if (!typeLabels[etype]) etype = 'other';
+            if (!forceCount[etype]) forceCount[etype] = { friendly: 0, hostile: 0, neutral: 0 };
+
+            var eteam = ent.team || 'neutral';
+            if (eteam === playerTeam) {
+                forceCount[etype].friendly++;
+            } else if (eteam === 'neutral' || eteam === 'civilian') {
+                forceCount[etype].neutral++;
+            } else {
+                forceCount[etype].hostile++;
+            }
+        }
+
+        var forceBody = document.getElementById('mbForceBody');
+        if (forceBody) {
+            var html = '';
+            var totalFriendly = 0, totalHostile = 0, totalNeutral = 0;
+            for (var ti = 0; ti < typeOrder.length; ti++) {
+                var tkey = typeOrder[ti];
+                var fc = forceCount[tkey];
+                if (!fc) continue;
+                if (fc.friendly === 0 && fc.hostile === 0 && fc.neutral === 0) continue;
+                totalFriendly += fc.friendly;
+                totalHostile += fc.hostile;
+                totalNeutral += fc.neutral;
+                html += '<tr>' +
+                    '<td class="type-label">' + typeLabels[tkey] + '</td>' +
+                    '<td class="count-cell team-friendly">' + (fc.friendly > 0 ? fc.friendly : '-') + '</td>' +
+                    '<td class="count-cell team-hostile">' + (fc.hostile > 0 ? fc.hostile : '-') + '</td>' +
+                    '<td class="count-cell team-neutral">' + (fc.neutral > 0 ? fc.neutral : '-') + '</td>' +
+                    '</tr>';
+            }
+            html += '<tr style="border-top:1px solid #335500;font-weight:bold">' +
+                '<td class="type-label">TOTAL</td>' +
+                '<td class="count-cell team-friendly">' + totalFriendly + '</td>' +
+                '<td class="count-cell team-hostile">' + totalHostile + '</td>' +
+                '<td class="count-cell team-neutral">' + (totalNeutral > 0 ? totalNeutral : '-') + '</td>' +
+                '</tr>';
+            forceBody.innerHTML = html;
+        }
+
+        // --- Environment ---
+        var envGrid = document.getElementById('mbEnvGrid');
+        if (envGrid) {
+            var env = scenario.environment || {};
+            var envHtml = '';
+
+            var atmo = env.atmosphere || 'standard';
+            envHtml += '<div class="mb-env-label">Atmosphere</div><div class="mb-env-value">' +
+                atmo.replace(/_/g, ' ').toUpperCase() + '</div>';
+
+            if (env.weather) {
+                var wx = env.weather;
+                var wxStr = '';
+                if (typeof wx === 'string') {
+                    wxStr = wx.toUpperCase();
+                } else if (wx.preset) {
+                    wxStr = wx.preset.toUpperCase();
+                    if (wx.windSpeed) wxStr += ' / WIND ' + wx.windSpeed + ' m/s';
+                    if (wx.visibility) wxStr += ' / VIS ' + wx.visibility + 'm';
+                } else {
+                    wxStr = 'CLEAR';
+                }
+                envHtml += '<div class="mb-env-label">Weather</div><div class="mb-env-value">' + wxStr + '</div>';
+            }
+
+            if (env.simStartTime) {
+                try {
+                    var dt = new Date(env.simStartTime);
+                    var hours = dt.getUTCHours();
+                    var tod = 'NIGHT';
+                    if (hours >= 6 && hours < 12) tod = 'MORNING';
+                    else if (hours >= 12 && hours < 18) tod = 'AFTERNOON';
+                    else if (hours >= 18 && hours < 21) tod = 'EVENING';
+                    envHtml += '<div class="mb-env-label">Time (UTC)</div><div class="mb-env-value">' +
+                        dt.toISOString().replace('T', ' ').replace(/\.\d+Z/, 'Z') + ' (' + tod + ')</div>';
+                } catch(e) {}
+            }
+
+            if (env.gravity) {
+                envHtml += '<div class="mb-env-label">Gravity Model</div><div class="mb-env-value">' +
+                    (env.gravity || 'constant').toUpperCase() + '</div>';
+            }
+
+            if (env.maxTimeWarp) {
+                envHtml += '<div class="mb-env-label">Max Time Warp</div><div class="mb-env-value">' +
+                    env.maxTimeWarp + 'x</div>';
+            }
+
+            envGrid.innerHTML = envHtml;
+        }
+
+        // --- Mission objectives (from player quest) ---
+        var objSection = document.getElementById('mbObjectiveSection');
+        var objDiv = document.getElementById('mbObjective');
+        if (objSection && objDiv) {
+            var questDef = null;
+            if (_playerEntity && _playerDef && _playerDef._quest) {
+                questDef = _playerDef._quest;
+            } else {
+                for (var qi = 0; qi < entities.length; qi++) {
+                    if (entities[qi].id === (_playerEntity ? _playerEntity.id : null)) {
+                        if (entities[qi]._quest) questDef = entities[qi]._quest;
+                        break;
+                    }
+                }
+            }
+
+            if (questDef) {
+                objSection.style.display = 'block';
+                var objHtml = '';
+                if (questDef.initialMsg) {
+                    objHtml += '<div class="mb-objective-title">Primary Objective</div>';
+                    objHtml += '<div>' + questDef.initialMsg + '</div>';
+                }
+                if (questDef.initialHint) {
+                    objHtml += '<div style="color:#aa8800;font-size:11px;margin-top:4px">' + questDef.initialHint + '</div>';
+                }
+                if (questDef.waypoints && questDef.waypoints.length > 0) {
+                    objHtml += '<div style="color:#007744;font-size:10px;margin-top:6px">' +
+                        questDef.waypoints.length + ' waypoint(s) | Mode: ' +
+                        (questDef.mode || 'takeoff').toUpperCase() + '</div>';
+                }
+                objDiv.innerHTML = objHtml;
+            } else {
+                objSection.style.display = 'none';
+            }
+        }
+
+        // --- Key controls ---
+        var ctrlDiv = document.getElementById('mbControls');
+        if (ctrlDiv) {
+            var controls = [
+                ['W / S', 'Throttle Up / Down'],
+                ['Arrow Keys', 'Pitch / Roll'],
+                ['Q / E', 'Yaw'],
+                ['P', 'Engine Selection'],
+                ['Space', 'Fire Weapon'],
+                ['R', 'Cycle Weapon'],
+                ['V', 'Cycle Sensor'],
+                ['C', 'Cycle Camera'],
+                ['M', 'Maneuver Planner'],
+                ['I', 'Pointing Mode'],
+                ['Esc', 'Pause / Resume'],
+                ['+/-', 'Time Warp'],
+                ['F', 'Search Panel'],
+                ['H', 'Controls Help'],
+                ['Tab', 'Toggle All UI'],
+                ['1/2/3', 'Panel Toggles']
+            ];
+            var ctrlHtml = '';
+            for (var ci = 0; ci < controls.length; ci++) {
+                ctrlHtml += '<div><span class="mb-ctrl-key">' + controls[ci][0] +
+                    '</span> <span class="mb-ctrl-desc">' + controls[ci][1] + '</span></div>';
+            }
+            ctrlDiv.innerHTML = ctrlHtml;
+        }
+
+        // --- Player info ---
+        var playerInfo = document.getElementById('mbPlayerInfo');
+        if (playerInfo && _playerEntity) {
+            playerInfo.textContent = 'Controlling: ' + _playerEntity.name +
+                ' (' + (_playerEntity.type || 'unknown') + ') | Team: ' +
+                (_playerEntity.team || 'none').toUpperCase();
+        }
+
+        // --- Pause sim and show ---
+        _isPaused = true;
+        panel.style.display = 'flex';
+
+        // Return promise that resolves when BEGIN MISSION is clicked
+        return new Promise(function(resolve) {
+            var btn = document.getElementById('mbBeginBtn');
+            if (!btn) { resolve(); return; }
+
+            function handleBegin() {
+                btn.removeEventListener('click', handleBegin);
+                panel.style.display = 'none';
+                _isPaused = false;
+                _lastTickTime = null;
+                resolve();
+            }
+
+            btn.addEventListener('click', handleBegin);
+        });
     }
 
     function showUI() {
@@ -6282,6 +8037,574 @@ const LiveSimEngine = (function() {
 
         var closeBtn = document.getElementById('analyticsClose');
         if (closeBtn) closeBtn.addEventListener('click', _toggleAnalyticsPanel);
+
+        // CSV/JSON export buttons in analytics panel
+        var csvBtn = document.getElementById('analyticsExportCSV');
+        if (csvBtn) csvBtn.addEventListener('click', function() { _exportAnalyticsCSV(); });
+        var jsonBtn = document.getElementById('analyticsExportJSON');
+        if (jsonBtn) jsonBtn.addEventListener('click', function() { _exportEntityStatesJSON(); });
+    }
+
+    // -----------------------------------------------------------------------
+    // Engagement Log — records all weapon events across the sim
+    // -----------------------------------------------------------------------
+    let _engagementLog = [];
+    let _engLastScanTime = 0;
+
+    function _tickEngagementLog() {
+        if (!_world) return;
+        var now = _simElapsed;
+        if (now - _engLastScanTime < 0.5) return; // 2Hz scan
+        _engLastScanTime = now;
+
+        // Scan for new engagements from SAM and A2A components
+        var entities = _world.entitiesWith('weapons');
+        if (!entities || entities.length === 0) {
+            entities = [];
+            // Also check individual weapon component types
+            var samEnts = _world.entitiesWith('weapons/sam_battery') || [];
+            var a2aEnts = _world.entitiesWith('weapons/a2a_missile') || [];
+            var kkvEnts = _world.entitiesWith('weapons/kinetic_kill') || [];
+            entities = entities.concat(samEnts, a2aEnts, kkvEnts);
+        }
+
+        // Also scan for SAM/A2A/KKV component states directly
+        _world._entities && _world._entities.forEach(function(entity) {
+            var s = entity.state;
+            if (!s || !s._engagements) return;
+            for (var i = 0; i < s._engagements.length; i++) {
+                var eng = s._engagements[i];
+                if (!eng._logged) {
+                    eng._logged = true;
+                    _engagementLog.push({
+                        time: now,
+                        type: eng.phase || 'ENGAGE',
+                        source: entity.name || entity.id,
+                        sourceId: entity.id,
+                        target: eng.targetName || eng.targetId || '?',
+                        targetId: eng.targetId,
+                        weapon: eng.weaponType || 'UNKNOWN',
+                        result: eng.result || 'ACTIVE',
+                        range: eng.range_m ? Math.round(eng.range_m / 1000) + ' km' : '?'
+                    });
+                }
+                // Check if engagement has completed (KILL/MISS)
+                if ((eng.phase === 'ASSESS' || eng.result === 'KILL' || eng.result === 'MISS') && !eng._resultLogged) {
+                    eng._resultLogged = true;
+                    _engagementLog.push({
+                        time: now,
+                        type: eng.result || 'ASSESS',
+                        source: entity.name || entity.id,
+                        sourceId: entity.id,
+                        target: eng.targetName || eng.targetId || '?',
+                        targetId: eng.targetId,
+                        weapon: eng.weaponType || 'UNKNOWN',
+                        result: eng.result || 'UNKNOWN',
+                        range: '—'
+                    });
+                }
+            }
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Engagement Timeline Panel
+    // -----------------------------------------------------------------------
+    let _engTimelineOpen = false;
+
+    function _toggleEngTimeline() {
+        var panel = document.getElementById('engTimelinePanel');
+        if (!panel) return;
+        _engTimelineOpen = !_engTimelineOpen;
+        panel.style.display = _engTimelineOpen ? '' : 'none';
+        if (_engTimelineOpen) _renderEngTimeline();
+    }
+
+    function _initEngTimeline() {
+        var closeBtn = document.getElementById('engTimelineClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleEngTimeline);
+        var exportBtn = document.getElementById('engTimelineExport');
+        if (exportBtn) exportBtn.addEventListener('click', function() { _exportEngagementCSV(); });
+    }
+
+    function _renderEngTimeline() {
+        var content = document.getElementById('engTimelineContent');
+        var countEl = document.getElementById('engTimelineCount');
+        if (!content) return;
+
+        if (countEl) countEl.textContent = _engagementLog.length + ' events';
+
+        if (_engagementLog.length === 0) {
+            content.innerHTML = '<div style="color:#666;text-align:center;padding:20px">No engagement events yet.<br><span style="font-size:10px">Events will appear when weapons are fired or detections occur.</span></div>';
+            return;
+        }
+
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:10px">';
+        html += '<tr style="border-bottom:1px solid #2a4a6a;color:#5a7a9a;font-weight:bold;text-align:left">';
+        html += '<td style="padding:3px 4px">TIME</td><td>TYPE</td><td>SOURCE</td><td>TARGET</td><td>WEAPON</td><td>RESULT</td>';
+        html += '</tr>';
+
+        // Show most recent first
+        var sorted = _engagementLog.slice().reverse();
+        var maxShow = 100;
+        for (var i = 0; i < Math.min(sorted.length, maxShow); i++) {
+            var ev = sorted[i];
+            var typeColor = ev.result === 'KILL' ? '#ff4444' :
+                            ev.result === 'MISS' ? '#ffcc44' :
+                            ev.type === 'ENGAGE' || ev.type === 'LAUNCH' ? '#ff8844' :
+                            '#4a9eff';
+            var mins = Math.floor(ev.time / 60);
+            var secs = Math.floor(ev.time % 60);
+            var timeStr = mins + ':' + secs.toString().padStart(2, '0');
+
+            html += '<tr style="border-bottom:1px solid #1a2a3a">';
+            html += '<td style="padding:2px 4px;color:#5a7a9a">' + timeStr + '</td>';
+            html += '<td style="color:' + typeColor + ';font-weight:bold">' + (ev.type || '').toUpperCase() + '</td>';
+            html += '<td style="color:#a0b8d0">' + _escapeHtmlStr(ev.source) + '</td>';
+            html += '<td style="color:#a0b8d0">' + _escapeHtmlStr(ev.target) + '</td>';
+            html += '<td style="color:#888">' + (ev.weapon || '') + '</td>';
+            html += '<td style="color:' + typeColor + '">' + (ev.result || '') + '</td>';
+            html += '</tr>';
+        }
+        html += '</table>';
+        if (sorted.length > maxShow) {
+            html += '<div style="color:#666;text-align:center;padding:4px;font-size:10px">Showing ' + maxShow + ' of ' + sorted.length + ' events</div>';
+        }
+        content.innerHTML = html;
+    }
+
+    function _escapeHtmlStr(s) {
+        if (s == null) return '';
+        if (typeof s !== 'string') s = String(s);
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // -----------------------------------------------------------------------
+    // Engagement Stats — aggregated weapon statistics overlay
+    // -----------------------------------------------------------------------
+    let _engagementStats = {
+        kills:   { a2a: 0, sam: 0, kkv: 0, total: 0 },
+        launches:{ a2a: 0, sam: 0, kkv: 0, total: 0 },
+        misses:  { a2a: 0, sam: 0, kkv: 0, total: 0 },
+        playerKills: 0,
+        playerDeaths: 0,
+        events: []   // { time, type, source, target, weapon, result }
+    };
+    let _engStatsLastScanTime = 0;
+    let _engStatsOpen = false;
+    // Track which engagements have already been counted (by unique key)
+    let _engStatsCounted = {};
+
+    function _tickEngagementStats(dt) {
+        if (!_world) return;
+        var now = _simElapsed;
+        if (now - _engStatsLastScanTime < 0.5) return; // 2Hz
+        _engStatsLastScanTime = now;
+
+        var playerId = _playerEntity ? _playerEntity.id : null;
+
+        // Scan all entities for weapon component state
+        _world._entities && _world._entities.forEach(function(entity) {
+            var s = entity.state;
+            if (!s) return;
+
+            // --- SAM engagements (stored in s._engagements on SAM entities) ---
+            if (s._samState && s._engagements) {
+                for (var i = 0; i < s._engagements.length; i++) {
+                    var eng = s._engagements[i];
+                    _processEngStatEntry(eng, 'SAM', entity, playerId, now);
+                }
+            }
+
+            // --- A2A engagements (stored in s._a2aEngagements) ---
+            if (s._a2aEngagements) {
+                for (var i = 0; i < s._a2aEngagements.length; i++) {
+                    var eng = s._a2aEngagements[i];
+                    var wpnLabel = eng.weaponType ? ('A2A/' + eng.weaponType) : 'A2A';
+                    _processEngStatEntry(eng, 'A2A', entity, playerId, now, wpnLabel);
+                }
+            }
+
+            // --- KKV engagements (stored in s._kkEngagements) ---
+            if (s._kkEngagements) {
+                for (var i = 0; i < s._kkEngagements.length; i++) {
+                    var eng = s._kkEngagements[i];
+                    _processEngStatEntry(eng, 'KKV', entity, playerId, now);
+                }
+            }
+        });
+
+        // Auto-refresh stats panel if visible (~2Hz)
+        if (_engStatsOpen) _renderEngagementStats();
+    }
+
+    function _processEngStatEntry(eng, weaponClass, sourceEntity, playerId, now, displayWeapon) {
+        // Build a unique key for this engagement action
+        var targetId = eng.targetId || '?';
+        var sourceId = sourceEntity.id;
+        var result = eng.result;
+        if (!result) return; // no result yet (still in progress)
+
+        // For SAM/A2A: result is 'KILL' or 'MISS' (set when engagement resolves)
+        // For KKV: result is 'LAUNCH', 'KILL', 'MISS', or 'KILLED_BY'
+        var key = sourceId + '|' + targetId + '|' + result + '|' + (eng.time || 0);
+        if (_engStatsCounted[key]) return;
+        _engStatsCounted[key] = true;
+
+        var wc = weaponClass.toLowerCase(); // 'a2a', 'sam', 'kkv'
+        var weapon = displayWeapon || weaponClass;
+
+        if (result === 'KILL') {
+            _engagementStats.kills[wc] = (_engagementStats.kills[wc] || 0) + 1;
+            _engagementStats.kills.total++;
+            // SAM/A2A have no separate LAUNCH entry, so count launch here.
+            // KKV has a separate LAUNCH entry that already counted the launch.
+            if (wc !== 'kkv') {
+                _engagementStats.launches[wc] = (_engagementStats.launches[wc] || 0) + 1;
+                _engagementStats.launches.total++;
+            }
+            // Check player involvement
+            if (sourceId === playerId) _engagementStats.playerKills++;
+            if (targetId === playerId) _engagementStats.playerDeaths++;
+            _engagementStats.events.push({
+                time: now, type: 'KILL', source: sourceEntity.name || sourceId,
+                target: eng.targetName || targetId, weapon: weapon, result: 'KILL'
+            });
+        } else if (result === 'MISS') {
+            _engagementStats.misses[wc] = (_engagementStats.misses[wc] || 0) + 1;
+            _engagementStats.misses.total++;
+            // SAM/A2A have no separate LAUNCH entry, so count launch here.
+            if (wc !== 'kkv') {
+                _engagementStats.launches[wc] = (_engagementStats.launches[wc] || 0) + 1;
+                _engagementStats.launches.total++;
+            }
+            _engagementStats.events.push({
+                time: now, type: 'MISS', source: sourceEntity.name || sourceId,
+                target: eng.targetName || targetId, weapon: weapon, result: 'MISS'
+            });
+        } else if (result === 'LAUNCH') {
+            // KKV LAUNCH events — counted as launch (only KKV produces separate LAUNCH entries)
+            _engagementStats.launches[wc] = (_engagementStats.launches[wc] || 0) + 1;
+            _engagementStats.launches.total++;
+            _engagementStats.events.push({
+                time: now, type: 'LAUNCH', source: sourceEntity.name || sourceId,
+                target: eng.targetName || targetId, weapon: weapon, result: 'LAUNCH'
+            });
+        } else if (result === 'KILLED_BY') {
+            // KKV mutual destruction — the entity was killed by its target
+            if (sourceId === playerId) _engagementStats.playerDeaths++;
+            _engagementStats.events.push({
+                time: now, type: 'KILLED_BY', source: sourceEntity.name || sourceId,
+                target: eng.targetName || targetId, weapon: weapon, result: 'KILLED_BY'
+            });
+        }
+    }
+
+    function _toggleEngagementStats() {
+        var panel = document.getElementById('engagementStatsPanel');
+        if (!panel) return;
+        _engStatsOpen = !_engStatsOpen;
+        panel.style.display = _engStatsOpen ? '' : 'none';
+        if (_engStatsOpen) _renderEngagementStats();
+    }
+
+    function _initEngagementStats() {
+        var closeBtn = document.getElementById('engStatsClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleEngagementStats);
+    }
+
+    function _renderEngagementStats() {
+        var content = document.getElementById('engStatsContent');
+        if (!content) return;
+
+        var st = _engagementStats;
+        var html = '';
+
+        // --- Stats table ---
+        html += '<table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px">';
+        html += '<tr style="border-bottom:1px solid #2a4a6a;color:#5a7a9a;font-weight:bold">';
+        html += '<td style="padding:3px 6px">WEAPON</td><td style="text-align:center">FIRED</td>';
+        html += '<td style="text-align:center">HIT</td><td style="text-align:center">MISS</td>';
+        html += '<td style="text-align:center">Pk</td></tr>';
+
+        var rows = [
+            { label: 'A2A', key: 'a2a', color: '#4a9eff' },
+            { label: 'SAM', key: 'sam', color: '#ff6644' },
+            { label: 'KKV', key: 'kkv', color: '#cc88ff' }
+        ];
+
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var fired = st.launches[r.key] || 0;
+            var hits = st.kills[r.key] || 0;
+            var misses = st.misses[r.key] || 0;
+            var pk = fired > 0 ? ((hits / fired) * 100).toFixed(0) + '%' : '\u2014';
+            html += '<tr style="border-bottom:1px solid #1a2a3a">';
+            html += '<td style="padding:3px 6px;color:' + r.color + ';font-weight:bold">' + r.label + '</td>';
+            html += '<td style="text-align:center;color:#c0d0e0">' + fired + '</td>';
+            html += '<td style="text-align:center;color:#44ff88">' + hits + '</td>';
+            html += '<td style="text-align:center;color:#ff4444">' + misses + '</td>';
+            html += '<td style="text-align:center;color:#ffcc44">' + pk + '</td>';
+            html += '</tr>';
+        }
+
+        // Totals row
+        var totalFired = st.launches.total || 0;
+        var totalHits = st.kills.total || 0;
+        var totalMisses = st.misses.total || 0;
+        var totalPk = totalFired > 0 ? ((totalHits / totalFired) * 100).toFixed(0) + '%' : '\u2014';
+        html += '<tr style="border-top:2px solid #3a5a7a;font-weight:bold">';
+        html += '<td style="padding:4px 6px;color:#e0e0e0">TOTAL</td>';
+        html += '<td style="text-align:center;color:#e0e0e0">' + totalFired + '</td>';
+        html += '<td style="text-align:center;color:#44ff88">' + totalHits + '</td>';
+        html += '<td style="text-align:center;color:#ff4444">' + totalMisses + '</td>';
+        html += '<td style="text-align:center;color:#ffcc44">' + totalPk + '</td>';
+        html += '</tr></table>';
+
+        // --- Player stats ---
+        html += '<div style="display:flex;gap:12px;margin-bottom:10px;padding:4px 6px;background:rgba(30,50,70,0.5);border-radius:3px">';
+        html += '<span style="color:#5a7a9a;font-size:10px">PLAYER</span>';
+        html += '<span style="color:#44ff88;font-size:11px;font-weight:bold">KILLS: ' + st.playerKills + '</span>';
+        html += '<span style="color:#ff4444;font-size:11px;font-weight:bold">DEATHS: ' + st.playerDeaths + '</span>';
+        html += '</div>';
+
+        // --- Recent events log (last 10) ---
+        html += '<div style="color:#5a7a9a;font-size:10px;font-weight:bold;margin-bottom:4px">RECENT EVENTS</div>';
+
+        if (st.events.length === 0) {
+            html += '<div style="color:#444;font-size:10px;text-align:center;padding:8px">No engagements yet</div>';
+        } else {
+            html += '<div style="max-height:140px;overflow-y:auto">';
+            html += '<table style="width:100%;border-collapse:collapse;font-size:10px">';
+            var evStart = Math.max(0, st.events.length - 10);
+            for (var i = st.events.length - 1; i >= evStart; i--) {
+                var ev = st.events[i];
+                var tStr = _fmtEngStatTime(ev.time);
+                var resColor = ev.result === 'KILL' ? '#ff4444' :
+                               ev.result === 'MISS' ? '#888' :
+                               ev.result === 'LAUNCH' ? '#ffcc44' :
+                               ev.result === 'KILLED_BY' ? '#ff6644' : '#aaa';
+                html += '<tr style="border-bottom:1px solid #0a1520">';
+                html += '<td style="padding:2px 4px;color:#5a7a9a;white-space:nowrap">' + tStr + '</td>';
+                html += '<td style="color:' + resColor + ';font-weight:bold">' + (ev.result || '') + '</td>';
+                html += '<td style="color:#a0b8d0">' + _escapeHtmlStr(ev.source) + '</td>';
+                html += '<td style="color:#666">&rarr;</td>';
+                html += '<td style="color:#a0b8d0">' + _escapeHtmlStr(ev.target) + '</td>';
+                html += '<td style="color:#888">' + (ev.weapon || '') + '</td>';
+                html += '</tr>';
+            }
+            html += '</table></div>';
+        }
+
+        content.innerHTML = html;
+    }
+
+    function _fmtEngStatTime(seconds) {
+        if (seconds == null) return '\u2014';
+        var m = Math.floor(seconds / 60);
+        var s = Math.floor(seconds % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    // -----------------------------------------------------------------------
+    // Data Export Panel
+    // -----------------------------------------------------------------------
+    let _dataExportOpen = false;
+
+    function _toggleDataExport() {
+        var panel = document.getElementById('dataExportPanel');
+        if (!panel) return;
+        _dataExportOpen = !_dataExportOpen;
+        panel.style.display = _dataExportOpen ? '' : 'none';
+    }
+
+    function _initDataExport() {
+        var closeBtn = document.getElementById('dataExportClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleDataExport);
+
+        var btn1 = document.getElementById('deEntityStates');
+        if (btn1) btn1.addEventListener('click', function() { _exportEntityStatesJSON(); });
+        var btn2 = document.getElementById('deAnalyticsCSV');
+        if (btn2) btn2.addEventListener('click', function() { _exportAnalyticsCSV(); });
+        var btn3 = document.getElementById('deEngagementLog');
+        if (btn3) btn3.addEventListener('click', function() { _exportEngagementCSV(); });
+        var btn4 = document.getElementById('deScenarioJSON');
+        if (btn4) btn4.addEventListener('click', function() { _exportScenarioSnapshot(); });
+        var btn5 = document.getElementById('deOrbitalElements');
+        if (btn5) btn5.addEventListener('click', function() { _exportOrbitalElementsCSV(); });
+    }
+
+    function _downloadFile(filename, content, mimeType) {
+        var blob = new Blob([content], { type: mimeType || 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        var statusEl = document.getElementById('deStatus');
+        if (statusEl) statusEl.textContent = 'Downloaded: ' + filename;
+    }
+
+    function _exportAnalyticsCSV() {
+        if (_analyticsHistory.length === 0) {
+            _showMessage('No analytics data to export');
+            return;
+        }
+        var headers = ['time_s', 'alive', 'dead', 'hasFuel', 'avgAlt_km', 'avgSpeed_mps',
+            'LEO', 'MEO', 'GEO', 'HEO', 'commDeliveryRate', 'commAvgLatency', 'commActiveLinks'];
+        var rows = [headers.join(',')];
+        _analyticsHistory.forEach(function(s) {
+            rows.push([
+                s.t.toFixed(1), s.alive, s.dead, s.hasFuel,
+                s.avgAlt.toFixed(2), s.avgSpeed.toFixed(1),
+                s.leo || 0, s.meo || 0, s.geo || 0, s.heo || 0,
+                (s.commDeliveryRate || 0).toFixed(1), (s.commAvgLatency || 0).toFixed(1),
+                s.commActiveLinks || 0
+            ].join(','));
+        });
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        _downloadFile('analytics_' + timestamp + '.csv', rows.join('\n'), 'text/csv');
+    }
+
+    function _exportEntityStatesJSON() {
+        if (!_world || !_world._entities) {
+            _showMessage('No entities to export');
+            return;
+        }
+        var entities = [];
+        _world._entities.forEach(function(entity) {
+            var s = entity.state;
+            var record = {
+                id: entity.id,
+                name: entity.name,
+                type: entity.type,
+                team: entity.team,
+                lat: s.lat != null ? (s.lat * 180 / Math.PI).toFixed(6) : null,
+                lon: s.lon != null ? (s.lon * 180 / Math.PI).toFixed(6) : null,
+                alt_m: s.alt != null ? Math.round(s.alt) : null,
+                speed_mps: s.speed != null ? s.speed.toFixed(2) : null,
+                heading_deg: s.heading != null ? (s.heading * 180 / Math.PI).toFixed(2) : null,
+                alive: s._alive !== false,
+                phase: s.phase || null
+            };
+            if (s._orbital) {
+                record.orbital = {
+                    sma_km: (s._orbital.sma / 1000).toFixed(3),
+                    ecc: s._orbital.ecc != null ? s._orbital.ecc.toFixed(6) : null,
+                    inc_deg: s._orbital.inc != null ? (s._orbital.inc * 180 / Math.PI).toFixed(4) : null,
+                    raan_deg: s._orbital.raan != null ? (s._orbital.raan * 180 / Math.PI).toFixed(4) : null,
+                    regime: s._orbital.regime || null
+                };
+            }
+            entities.push(record);
+        });
+        var output = JSON.stringify({ simTime: _simElapsed, entityCount: entities.length, entities: entities }, null, 2);
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        _downloadFile('entities_' + timestamp + '.json', output, 'application/json');
+    }
+
+    function _exportEngagementCSV() {
+        if (_engagementLog.length === 0) {
+            _showMessage('No engagement events to export');
+            return;
+        }
+        var headers = ['time_s', 'type', 'source', 'sourceId', 'target', 'targetId', 'weapon', 'result', 'range'];
+        var rows = [headers.join(',')];
+        _engagementLog.forEach(function(e) {
+            rows.push([
+                e.time.toFixed(1),
+                '"' + (e.type || '') + '"',
+                '"' + (e.source || '') + '"',
+                '"' + (e.sourceId || '') + '"',
+                '"' + (e.target || '') + '"',
+                '"' + (e.targetId || '') + '"',
+                '"' + (e.weapon || '') + '"',
+                '"' + (e.result || '') + '"',
+                '"' + (e.range || '') + '"'
+            ].join(','));
+        });
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        _downloadFile('engagements_' + timestamp + '.csv', rows.join('\n'), 'text/csv');
+    }
+
+    function _exportScenarioSnapshot() {
+        if (!_scenarioJson) {
+            _showMessage('No scenario loaded');
+            return;
+        }
+        // Clone scenario and update entity states with current positions
+        var snapshot = JSON.parse(JSON.stringify(_scenarioJson));
+        if (_world && _world._entities) {
+            snapshot.entities = [];
+            _world._entities.forEach(function(entity) {
+                var s = entity.state;
+                var def = {
+                    id: entity.id,
+                    name: entity.name,
+                    type: entity.type,
+                    team: entity.team,
+                    initialState: {
+                        lat: s.lat != null ? (s.lat * 180 / Math.PI) : 0,
+                        lon: s.lon != null ? (s.lon * 180 / Math.PI) : 0,
+                        alt: s.alt || 0,
+                        speed: s.speed || 0,
+                        heading: s.heading != null ? (s.heading * 180 / Math.PI) : 0,
+                        gamma: s.gamma != null ? (s.gamma * 180 / Math.PI) : 0,
+                        throttle: s.throttle || 0,
+                        engineOn: !!s.engineOn
+                    }
+                };
+                snapshot.entities.push(def);
+            });
+        }
+        snapshot.metadata = snapshot.metadata || {};
+        snapshot.metadata.snapshotTime = _simElapsed;
+        snapshot.metadata.exportedAt = new Date().toISOString();
+        var output = JSON.stringify(snapshot, null, 2);
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        _downloadFile('snapshot_' + timestamp + '.json', output, 'application/json');
+    }
+
+    function _exportOrbitalElementsCSV() {
+        if (!_world || !_world._entities) {
+            _showMessage('No entities to export');
+            return;
+        }
+        var headers = ['id', 'name', 'team', 'sma_km', 'ecc', 'inc_deg', 'raan_deg', 'argPe_deg', 'meanAnomaly_deg', 'regime', 'alt_km', 'period_min'];
+        var rows = [headers.join(',')];
+        var count = 0;
+        _world._entities.forEach(function(entity) {
+            var s = entity.state;
+            if (!s._orbital) return;
+            var o = s._orbital;
+            var DEG = 180 / Math.PI;
+            var sma_km = o.sma ? (o.sma / 1000) : 0;
+            var period_min = o.period ? (o.period / 60) : 0;
+            rows.push([
+                '"' + entity.id + '"',
+                '"' + (entity.name || '') + '"',
+                '"' + (entity.team || '') + '"',
+                sma_km.toFixed(3),
+                o.ecc != null ? o.ecc.toFixed(6) : '',
+                o.inc != null ? (o.inc * DEG).toFixed(4) : '',
+                o.raan != null ? (o.raan * DEG).toFixed(4) : '',
+                o.argPe != null ? (o.argPe * DEG).toFixed(4) : '',
+                o.meanAnomaly != null ? (o.meanAnomaly * DEG).toFixed(4) : '',
+                '"' + (o.regime || '') + '"',
+                (s.alt ? (s.alt / 1000).toFixed(3) : ''),
+                period_min.toFixed(2)
+            ].join(','));
+            count++;
+        });
+        if (count === 0) {
+            _showMessage('No orbital entities found');
+            return;
+        }
+        var timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+        _downloadFile('orbital_elements_' + timestamp + '.csv', rows.join('\n'), 'text/csv');
     }
 
     // -----------------------------------------------------------------------
@@ -6796,12 +9119,691 @@ const LiveSimEngine = (function() {
     }
 
     // -----------------------------------------------------------------------
+    // Autopilot Panel
+    // -----------------------------------------------------------------------
+
+    function _toggleAutopilotPanel() {
+        _apPanelOpen = !_apPanelOpen;
+        var panel = document.getElementById('autopilotPanel');
+        if (panel) panel.style.display = _apPanelOpen ? 'block' : 'none';
+        if (_apPanelOpen) _syncAutopilotPanel();
+    }
+
+    function _syncAutopilotPanel() {
+        if (!_autopilotState) return;
+        var ap = _autopilotState;
+
+        // Master toggle button
+        var masterBtn = document.getElementById('apMasterToggle');
+        if (masterBtn) {
+            masterBtn.textContent = ap.enabled ? 'AP ON' : 'AP OFF';
+            masterBtn.style.color = ap.enabled ? '#00ff88' : '#ff4444';
+            masterBtn.style.borderColor = ap.enabled ? '#00ff88' : '#ff4444';
+            masterBtn.style.background = ap.enabled ? 'rgba(0,255,100,0.15)' : 'rgba(255,50,50,0.15)';
+        }
+
+        // Mode buttons
+        var modes = { alt: ap.altHold, hdg: ap.hdgHold, spd: ap.spdHold, wp: ap.wpNav };
+        Object.keys(modes).forEach(function(mode) {
+            var btn = document.getElementById('ap' + mode.charAt(0).toUpperCase() + mode.slice(1) + 'Toggle');
+            if (!btn) return;
+            var active = modes[mode];
+            btn.style.color = active ? '#00ff88' : '#888';
+            btn.style.borderColor = active ? '#00ff88' : '#555';
+            btn.style.background = active ? 'rgba(0,255,100,0.15)' : 'rgba(0,0,0,0.3)';
+        });
+
+        // Target value inputs (only update if not focused)
+        var altInput = document.getElementById('apAltInput');
+        if (altInput && document.activeElement !== altInput) {
+            altInput.value = Math.round(ap.targetAlt * M_TO_FT);
+        }
+        var hdgInput = document.getElementById('apHdgInput');
+        if (hdgInput && document.activeElement !== hdgInput) {
+            hdgInput.value = Math.round(((ap.targetHdg * RAD) + 360) % 360);
+        }
+        var spdInput = document.getElementById('apSpdInput');
+        if (spdInput && document.activeElement !== spdInput) {
+            spdInput.value = Math.round(ap.targetSpeed * MPS_TO_KNOTS);
+        }
+
+        // WP section visibility
+        var wpSection = document.getElementById('apWpSection');
+        if (wpSection) wpSection.style.display = ap.wpNav ? 'block' : 'none';
+
+        // WP info
+        if (ap.wpNav && ap.waypoints.length > 0) {
+            var wp = ap.waypoints[ap.currentWpIndex];
+            var wpInfo = document.getElementById('apWpInfo');
+            if (wpInfo) wpInfo.textContent = (wp ? wp.name : '?') + ' (' + (ap.currentWpIndex + 1) + '/' + ap.waypoints.length + ')';
+        }
+
+        // TF/TA button state
+        var tfBtn = document.getElementById('apTfToggle');
+        if (tfBtn) {
+            tfBtn.textContent = _tfEnabled ? 'TF ON' : 'TF/TA';
+            tfBtn.style.color = _tfEnabled ? '#00ff88' : '#888';
+            tfBtn.style.borderColor = _tfEnabled ? '#00ff88' : '#555';
+            tfBtn.style.background = _tfEnabled ? 'rgba(0,255,100,0.2)' : 'rgba(0,0,0,0.3)';
+        }
+        // TF section visibility
+        var tfSection = document.getElementById('apTfSection');
+        if (tfSection) tfSection.style.display = _tfEnabled ? 'block' : 'none';
+        // TF AGL input
+        var tfAglInput = document.getElementById('apTfAglInput');
+        if (tfAglInput) tfAglInput.value = _tfAglTarget;
+        // TF AGL readout
+        var tfAglStatus = document.getElementById('apTfAglStatus');
+        if (tfAglStatus && _playerState) {
+            var curAgl = _playerState._tfAgl || (_playerState.alt - _tfCurrentTerrainElev);
+            tfAglStatus.textContent = 'AGL: ' + Math.round(curAgl) + 'm | TERRAIN: ' + Math.round(_tfCurrentTerrainElev) + 'm';
+        }
+    }
+
+    function _initAutopilotPanel() {
+        var closeBtn = document.getElementById('apPanelClose');
+        if (closeBtn) closeBtn.onclick = function() { _toggleAutopilotPanel(); };
+
+        var masterBtn = document.getElementById('apMasterToggle');
+        if (masterBtn) masterBtn.onclick = function() {
+            if (_autopilotState && typeof FighterAutopilot !== 'undefined') {
+                FighterAutopilot.toggle(_autopilotState, _playerState);
+                _showMessage(_autopilotState.enabled ? 'AUTOPILOT ON' : 'AUTOPILOT OFF');
+                _syncAutopilotPanel();
+            }
+        };
+
+        // Mode toggle buttons
+        ['alt', 'hdg', 'spd', 'wp'].forEach(function(mode) {
+            var btn = document.getElementById('ap' + mode.charAt(0).toUpperCase() + mode.slice(1) + 'Toggle');
+            if (!btn) return;
+            btn.onclick = function() {
+                if (!_autopilotState) return;
+                if (mode === 'alt') {
+                    _autopilotState.altHold = !_autopilotState.altHold;
+                    if (_autopilotState.altHold && _playerState) _autopilotState.targetAlt = _playerState.alt;
+                } else if (mode === 'hdg') {
+                    _autopilotState.hdgHold = !_autopilotState.hdgHold;
+                    if (_autopilotState.hdgHold && _playerState) _autopilotState.targetHdg = _playerState.heading;
+                } else if (mode === 'spd') {
+                    _autopilotState.spdHold = !_autopilotState.spdHold;
+                    if (_autopilotState.spdHold && _playerState) _autopilotState.targetSpeed = _playerState.speed;
+                } else if (mode === 'wp') {
+                    if (_autopilotState.wpNav) {
+                        _autopilotState.wpNav = false;
+                    } else if (typeof FighterAutopilot !== 'undefined') {
+                        // Load mission waypoints into autopilot if available
+                        if (_missionWaypoints && _missionWaypoints.length > 0) {
+                            _autopilotState.waypoints = _missionWaypoints.map(function(wp) {
+                                return { name: wp.name, lat: wp.lat, lon: wp.lon, alt: wp.alt || (_playerState ? _playerState.alt : 5000), speed: wp.speed || (_playerState ? _playerState.speed : 200) };
+                            });
+                            _autopilotState.currentWpIndex = 0;
+                        }
+                        FighterAutopilot.enableWpNav(_autopilotState);
+                        _autopilotState.enabled = true;
+                    }
+                }
+                if (!_autopilotState.enabled && (_autopilotState.altHold || _autopilotState.hdgHold || _autopilotState.spdHold)) {
+                    _autopilotState.enabled = true;
+                }
+                _syncAutopilotPanel();
+            };
+        });
+
+        // Target value inputs
+        var altInput = document.getElementById('apAltInput');
+        if (altInput) altInput.onchange = function() {
+            if (_autopilotState) _autopilotState.targetAlt = parseFloat(altInput.value) / M_TO_FT;
+        };
+        var hdgInput = document.getElementById('apHdgInput');
+        if (hdgInput) hdgInput.onchange = function() {
+            if (_autopilotState) _autopilotState.targetHdg = parseFloat(hdgInput.value) * DEG;
+        };
+        var spdInput = document.getElementById('apSpdInput');
+        if (spdInput) spdInput.onchange = function() {
+            if (_autopilotState) _autopilotState.targetSpeed = parseFloat(spdInput.value) / MPS_TO_KNOTS;
+        };
+
+        // WP nav prev/next
+        var wpPrev = document.getElementById('apWpPrev');
+        if (wpPrev) wpPrev.onclick = function() {
+            if (_autopilotState && _autopilotState.waypoints.length > 0) {
+                _autopilotState.currentWpIndex = (_autopilotState.currentWpIndex - 1 + _autopilotState.waypoints.length) % _autopilotState.waypoints.length;
+                var wp = _autopilotState.waypoints[_autopilotState.currentWpIndex];
+                if (wp) {
+                    _autopilotState.targetAlt = wp.alt;
+                    _autopilotState.targetSpeed = wp.speed;
+                }
+                _syncAutopilotPanel();
+            }
+        };
+        var wpNext = document.getElementById('apWpNext');
+        if (wpNext) wpNext.onclick = function() {
+            if (_autopilotState && typeof FighterAutopilot !== 'undefined') {
+                FighterAutopilot.nextWaypoint(_autopilotState);
+                _syncAutopilotPanel();
+            }
+        };
+
+        // Prevent keyboard events from reaching flight controls when inputs are focused
+        ['apAltInput', 'apHdgInput', 'apSpdInput', 'apTfAglInput'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('keydown', function(e) { e.stopPropagation(); });
+                el.addEventListener('keyup', function(e) { e.stopPropagation(); });
+            }
+        });
+
+        // TF/TA toggle button
+        var tfBtn = document.getElementById('apTfToggle');
+        if (tfBtn) tfBtn.onclick = function() { _toggleTerrainFollowing(); };
+
+        // TF AGL target input
+        var tfAglInput = document.getElementById('apTfAglInput');
+        if (tfAglInput) {
+            tfAglInput.value = _tfAglTarget;
+            tfAglInput.onchange = function() {
+                var val = parseFloat(tfAglInput.value);
+                if (!isNaN(val) && val >= 30 && val <= 2000) {
+                    _tfAglTarget = val;
+                    if (_tfEnabled) _showMessage('TF/TA AGL: ' + _tfAglTarget + 'm');
+                }
+            };
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // After-Action Report (AAR)
+    // -----------------------------------------------------------------------
+    var _aarPanelOpen = false;
+
+    function _toggleAAR() {
+        var panel = document.getElementById('aarPanel');
+        if (!panel) return;
+        _aarPanelOpen = !_aarPanelOpen;
+        if (_aarPanelOpen) {
+            _generateAAR();
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    }
+
+    function _initAARPanel() {
+        var closeBtn = document.getElementById('aarClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleAAR);
+    }
+
+    function _formatAARTime(seconds) {
+        var h = Math.floor(seconds / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        var s = Math.floor(seconds % 60);
+        return (h < 10 ? '0' : '') + h + ':' +
+               (m < 10 ? '0' : '') + m + ':' +
+               (s < 10 ? '0' : '') + s;
+    }
+
+    function _generateAAR() {
+        var content = document.getElementById('aarContent');
+        if (!content || !_world) return;
+
+        var html = '';
+        var teamColors = { blue: '#4488ff', red: '#ff4444', green: '#44ff44', neutral: '#888888' };
+
+        // ---- Collect entity data ----
+        var totalEntities = 0;
+        var domainCounts = { Air: 0, Space: 0, Ground: 0, Naval: 0, Cyber: 0 };
+        var teamData = {};   // { teamName: { total, alive, dead, types: {} } }
+        var weaponsFired = 0;
+        var totalKills = 0;
+        var teamKills = {};
+        var teamLosses = {};
+
+        // Domain activity accumulators
+        var airEntities = [];
+        var spaceEntities = [];
+        var navalEntities = [];
+        var groundEntities = [];
+        var cyberEntities = [];
+
+        _world.entities.forEach(function(entity) {
+            totalEntities++;
+            var team = entity.team || 'neutral';
+            var type = entity.type || 'unknown';
+            var state = entity.state;
+            var isAlive = entity.active && !state.dead;
+            var isDead = !entity.active || !!state.dead;
+
+            // Init team data
+            if (!teamData[team]) {
+                teamData[team] = { total: 0, alive: 0, dead: 0, types: {} };
+                teamKills[team] = 0;
+                teamLosses[team] = 0;
+            }
+            teamData[team].total++;
+            if (isAlive) teamData[team].alive++;
+            if (isDead) {
+                teamData[team].dead++;
+                teamLosses[team]++;
+                totalKills++;
+            }
+            teamData[team].types[type] = (teamData[team].types[type] || 0) + 1;
+
+            // Weapons fired
+            if (state._weaponsFired > 0) weaponsFired += state._weaponsFired;
+
+            // Count kills attributed to this entity
+            if (state._killCount > 0) {
+                teamKills[team] += state._killCount;
+            }
+
+            // Domain classification
+            var domain = _classifyDomain(entity);
+            if (domain === 'Air') {
+                domainCounts.Air++;
+                airEntities.push(entity);
+            } else if (domain === 'Space') {
+                domainCounts.Space++;
+                spaceEntities.push(entity);
+            } else if (domain === 'Naval') {
+                domainCounts.Naval++;
+                navalEntities.push(entity);
+            } else if (domain === 'Ground') {
+                domainCounts.Ground++;
+                groundEntities.push(entity);
+            }
+
+            // Cyber domain detection
+            if (state._cyberExploited || state._cyberControlled ||
+                state._cyberScanning || state._cyberDenied ||
+                state._cyberAccessLevel > 0) {
+                cyberEntities.push(entity);
+                domainCounts.Cyber++;
+            }
+        });
+
+        // ---- Section 1: Mission Summary ----
+        html += '<div style="margin-bottom:16px;">';
+        html += '<div style="color:#00ff88;font-size:13px;font-weight:bold;border-bottom:1px solid #005533;padding-bottom:4px;margin-bottom:8px;letter-spacing:1px;">MISSION SUMMARY</div>';
+        html += '<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+        html += '<tr><td style="color:#888;padding:3px 8px;">Sim Time Elapsed</td><td style="color:#00ff88;padding:3px 8px;text-align:right;font-weight:bold;">' + _formatAARTime(_simElapsed) + '</td></tr>';
+        html += '<tr><td style="color:#888;padding:3px 8px;">Total Entities</td><td style="color:#ccc;padding:3px 8px;text-align:right;">' + totalEntities + '</td></tr>';
+
+        var domainStr = [];
+        for (var dk in domainCounts) {
+            if (domainCounts[dk] > 0) domainStr.push(dk + ': ' + domainCounts[dk]);
+        }
+        html += '<tr><td style="color:#888;padding:3px 8px;">Entities by Domain</td><td style="color:#ccc;padding:3px 8px;text-align:right;">' + (domainStr.length > 0 ? domainStr.join(', ') : 'N/A') + '</td></tr>';
+
+        var playerName = _playerEntity ? (_playerEntity.name || _playerEntity.id) : '(Observer)';
+        var playerStatus = 'N/A';
+        if (_playerEntity) {
+            playerStatus = (_playerEntity.active && !_playerEntity.state.dead) ? '<span style="color:#44ff44;">ACTIVE</span>' : '<span style="color:#ff4444;">DESTROYED</span>';
+        } else if (_observerMode) {
+            playerStatus = '<span style="color:#aaa;">OBSERVER</span>';
+        }
+        html += '<tr><td style="color:#888;padding:3px 8px;">Player Entity</td><td style="color:#ccc;padding:3px 8px;text-align:right;">' + playerName + '</td></tr>';
+        html += '<tr><td style="color:#888;padding:3px 8px;">Player Status</td><td style="padding:3px 8px;text-align:right;">' + playerStatus + '</td></tr>';
+        html += '</table></div>';
+
+        // ---- Section 2: Force Disposition ----
+        html += '<div style="margin-bottom:16px;">';
+        html += '<div style="color:#00ff88;font-size:13px;font-weight:bold;border-bottom:1px solid #005533;padding-bottom:4px;margin-bottom:8px;letter-spacing:1px;">FORCE DISPOSITION</div>';
+        html += '<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+        html += '<tr style="border-bottom:1px solid #333;">';
+        html += '<th style="color:#666;padding:4px 8px;text-align:left;">Team</th>';
+        html += '<th style="color:#666;padding:4px 8px;text-align:right;">Total</th>';
+        html += '<th style="color:#666;padding:4px 8px;text-align:right;">Alive</th>';
+        html += '<th style="color:#666;padding:4px 8px;text-align:right;">Destroyed</th>';
+        html += '<th style="color:#666;padding:4px 8px;text-align:left;">Types</th>';
+        html += '</tr>';
+
+        var sortedTeams = Object.keys(teamData).sort();
+        for (var ti = 0; ti < sortedTeams.length; ti++) {
+            var tName = sortedTeams[ti];
+            var td = teamData[tName];
+            var tColor = teamColors[tName] || '#aaa';
+            var typesList = [];
+            for (var tp in td.types) {
+                typesList.push(tp + ':' + td.types[tp]);
+            }
+            html += '<tr style="border-bottom:1px solid #222;">';
+            html += '<td style="color:' + tColor + ';padding:4px 8px;font-weight:bold;text-transform:uppercase;">' + tName + '</td>';
+            html += '<td style="color:#ccc;padding:4px 8px;text-align:right;">' + td.total + '</td>';
+            html += '<td style="color:#44ff44;padding:4px 8px;text-align:right;">' + td.alive + '</td>';
+            html += '<td style="color:' + (td.dead > 0 ? '#ff4444' : '#666') + ';padding:4px 8px;text-align:right;">' + td.dead + '</td>';
+            html += '<td style="color:#888;padding:4px 8px;font-size:10px;">' + typesList.join(', ') + '</td>';
+            html += '</tr>';
+        }
+        html += '</table></div>';
+
+        // ---- Section 3: Engagement Summary ----
+        html += '<div style="margin-bottom:16px;">';
+        html += '<div style="color:#00ff88;font-size:13px;font-weight:bold;border-bottom:1px solid #005533;padding-bottom:4px;margin-bottom:8px;letter-spacing:1px;">ENGAGEMENT SUMMARY</div>';
+        html += '<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+        html += '<tr><td style="color:#888;padding:3px 8px;">Total Weapons Fired</td><td style="color:#ffcc44;padding:3px 8px;text-align:right;font-weight:bold;">' + weaponsFired + '</td></tr>';
+        html += '<tr><td style="color:#888;padding:3px 8px;">Total Kills</td><td style="color:#ff4444;padding:3px 8px;text-align:right;font-weight:bold;">' + totalKills + '</td></tr>';
+        html += '</table>';
+
+        // Kill-to-loss ratio per team
+        if (sortedTeams.length > 0) {
+            html += '<table style="width:100%;font-size:11px;border-collapse:collapse;margin-top:6px;">';
+            html += '<tr style="border-bottom:1px solid #333;">';
+            html += '<th style="color:#666;padding:4px 8px;text-align:left;">Team</th>';
+            html += '<th style="color:#666;padding:4px 8px;text-align:right;">Kills</th>';
+            html += '<th style="color:#666;padding:4px 8px;text-align:right;">Losses</th>';
+            html += '<th style="color:#666;padding:4px 8px;text-align:right;">K/L Ratio</th>';
+            html += '</tr>';
+            for (var ki = 0; ki < sortedTeams.length; ki++) {
+                var kTeam = sortedTeams[ki];
+                var kColor = teamColors[kTeam] || '#aaa';
+                var kills = teamKills[kTeam] || 0;
+                var losses = teamLosses[kTeam] || 0;
+                var ratio = losses > 0 ? (kills / losses).toFixed(2) : (kills > 0 ? 'INF' : '---');
+                html += '<tr style="border-bottom:1px solid #222;">';
+                html += '<td style="color:' + kColor + ';padding:4px 8px;font-weight:bold;text-transform:uppercase;">' + kTeam + '</td>';
+                html += '<td style="color:#ccc;padding:4px 8px;text-align:right;">' + kills + '</td>';
+                html += '<td style="color:' + (losses > 0 ? '#ff6644' : '#666') + ';padding:4px 8px;text-align:right;">' + losses + '</td>';
+                html += '<td style="color:#ffcc44;padding:4px 8px;text-align:right;font-weight:bold;">' + ratio + '</td>';
+                html += '</tr>';
+            }
+            html += '</table>';
+        }
+        html += '</div>';
+
+        // ---- Section 4: Domain Activity ----
+        html += '<div style="margin-bottom:16px;">';
+        html += '<div style="color:#00ff88;font-size:13px;font-weight:bold;border-bottom:1px solid #005533;padding-bottom:4px;margin-bottom:8px;letter-spacing:1px;">DOMAIN ACTIVITY</div>';
+
+        // Air
+        if (airEntities.length > 0) {
+            var airTotalAlt = 0, airTotalSpeed = 0, airAltCount = 0, airSpeedCount = 0;
+            for (var ai = 0; ai < airEntities.length; ai++) {
+                var aState = airEntities[ai].state;
+                if (aState.alt != null) { airTotalAlt += aState.alt; airAltCount++; }
+                if (aState.speed != null) { airTotalSpeed += aState.speed; airSpeedCount++; }
+            }
+            html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(68,136,255,0.08);border-left:2px solid #4488ff;border-radius:2px;">';
+            html += '<div style="color:#4488ff;font-weight:bold;font-size:11px;margin-bottom:4px;">AIR (' + airEntities.length + ')</div>';
+            html += '<div style="color:#888;font-size:10px;">';
+            if (airAltCount > 0) html += 'Avg Altitude: <span style="color:#ccc;">' + (airTotalAlt / airAltCount / 1000).toFixed(1) + ' km</span> &nbsp; ';
+            if (airSpeedCount > 0) html += 'Avg Speed: <span style="color:#ccc;">' + (airTotalSpeed / airSpeedCount).toFixed(0) + ' m/s</span>';
+            html += '</div></div>';
+        }
+
+        // Space
+        if (spaceEntities.length > 0) {
+            var regimeCounts = { LEO: 0, MEO: 0, GEO: 0, HEO: 0, OTHER: 0 };
+            for (var si = 0; si < spaceEntities.length; si++) {
+                var sOrbital = spaceEntities[si].state._orbital;
+                var sRegime = _classifyRegime(sOrbital);
+                regimeCounts[sRegime]++;
+            }
+            html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(68,204,255,0.08);border-left:2px solid #44ccff;border-radius:2px;">';
+            html += '<div style="color:#44ccff;font-weight:bold;font-size:11px;margin-bottom:4px;">SPACE (' + spaceEntities.length + ')</div>';
+            html += '<div style="color:#888;font-size:10px;">';
+            var regimeStrs = [];
+            for (var rk in regimeCounts) {
+                if (regimeCounts[rk] > 0) regimeStrs.push(rk + ': <span style="color:#ccc;">' + regimeCounts[rk] + '</span>');
+            }
+            html += regimeStrs.join(' &nbsp; ');
+            html += '</div></div>';
+        }
+
+        // Maritime / Naval
+        if (navalEntities.length > 0) {
+            html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(0,170,255,0.08);border-left:2px solid #00aaff;border-radius:2px;">';
+            html += '<div style="color:#00aaff;font-weight:bold;font-size:11px;margin-bottom:4px;">MARITIME (' + navalEntities.length + ')</div>';
+            html += '<div style="color:#888;font-size:10px;">';
+            for (var ni = 0; ni < navalEntities.length && ni < 10; ni++) {
+                var nEnt = navalEntities[ni];
+                var nState = nEnt.state;
+                var nLat = nState.lat != null ? (nState.lat * RAD).toFixed(2) : '?';
+                var nLon = nState.lon != null ? (nState.lon * RAD).toFixed(2) : '?';
+                html += '<span style="color:#ccc;">' + (nEnt.name || nEnt.id) + '</span> (' + nLat + ', ' + nLon + ')';
+                if (ni < navalEntities.length - 1 && ni < 9) html += ' &nbsp; ';
+            }
+            if (navalEntities.length > 10) html += ' &nbsp; +' + (navalEntities.length - 10) + ' more';
+            html += '</div></div>';
+        }
+
+        // Ground
+        if (groundEntities.length > 0) {
+            html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(136,136,68,0.08);border-left:2px solid #888844;border-radius:2px;">';
+            html += '<div style="color:#888844;font-weight:bold;font-size:11px;margin-bottom:4px;">GROUND (' + groundEntities.length + ')</div>';
+            html += '<div style="color:#888;font-size:10px;">';
+            var groundNames = [];
+            for (var gi = 0; gi < groundEntities.length && gi < 10; gi++) {
+                groundNames.push(groundEntities[gi].name || groundEntities[gi].id);
+            }
+            html += groundNames.join(', ');
+            if (groundEntities.length > 10) html += ', +' + (groundEntities.length - 10) + ' more';
+            html += '</div></div>';
+        }
+
+        // Cyber
+        if (cyberEntities.length > 0) {
+            var cyberExploited = 0, cyberControlled = 0, cyberDenied = 0, cyberScanning = 0;
+            for (var ci = 0; ci < cyberEntities.length; ci++) {
+                var cState = cyberEntities[ci].state;
+                if (cState._cyberExploited) cyberExploited++;
+                if (cState._cyberControlled) cyberControlled++;
+                if (cState._cyberDenied) cyberDenied++;
+                if (cState._cyberScanning) cyberScanning++;
+            }
+            html += '<div style="margin-bottom:8px;padding:6px 8px;background:rgba(0,255,136,0.08);border-left:2px solid #00ff88;border-radius:2px;">';
+            html += '<div style="color:#00ff88;font-weight:bold;font-size:11px;margin-bottom:4px;">CYBER (' + cyberEntities.length + ' affected)</div>';
+            html += '<div style="color:#888;font-size:10px;">';
+            html += 'Scanning: <span style="color:#ffcc44;">' + cyberScanning + '</span> &nbsp; ';
+            html += 'Exploited: <span style="color:#ff8844;">' + cyberExploited + '</span> &nbsp; ';
+            html += 'Controlled: <span style="color:#ff4444;">' + cyberControlled + '</span> &nbsp; ';
+            html += 'Denied: <span style="color:#ff2222;">' + cyberDenied + '</span>';
+            html += '</div></div>';
+        }
+
+        if (airEntities.length === 0 && spaceEntities.length === 0 &&
+            navalEntities.length === 0 && groundEntities.length === 0 &&
+            cyberEntities.length === 0) {
+            html += '<div style="color:#666;font-size:11px;font-style:italic;">No domain activity detected</div>';
+        }
+        html += '</div>';
+
+        // ---- Section 5: Communications ----
+        if (typeof CommEngine !== 'undefined' && CommEngine.isInitialized()) {
+            var commMetrics = CommEngine.getMetrics();
+            html += '<div style="margin-bottom:16px;">';
+            html += '<div style="color:#00ff88;font-size:13px;font-weight:bold;border-bottom:1px solid #005533;padding-bottom:4px;margin-bottom:8px;letter-spacing:1px;">COMMUNICATIONS</div>';
+            html += '<table style="width:100%;font-size:11px;border-collapse:collapse;">';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Total Packets Routed</td><td style="color:#00ffcc;padding:3px 8px;text-align:right;font-weight:bold;">' + (commMetrics.totalPacketsRouted || 0) + '</td></tr>';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Active Links</td><td style="color:#4488ff;padding:3px 8px;text-align:right;">' + (commMetrics.activeLinks || 0) + ' / ' + (commMetrics.totalLinks || 0) + '</td></tr>';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Jammed Links</td><td style="color:' + ((commMetrics.jammedLinks || 0) > 0 ? '#ff4444' : '#666') + ';padding:3px 8px;text-align:right;">' + (commMetrics.jammedLinks || 0) + '</td></tr>';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Active Jammers</td><td style="color:' + ((commMetrics.activeJammers || 0) > 0 ? '#ff4444' : '#666') + ';padding:3px 8px;text-align:right;">' + (commMetrics.activeJammers || 0) + '</td></tr>';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Cyber Attacks</td><td style="color:' + ((commMetrics.activeCyberAttacks || 0) > 0 ? '#ffcc44' : '#666') + ';padding:3px 8px;text-align:right;">' + (commMetrics.activeCyberAttacks || 0) + '</td></tr>';
+            html += '<tr><td style="color:#888;padding:3px 8px;">Delivery Rate</td><td style="color:#ccc;padding:3px 8px;text-align:right;">' + ((commMetrics.packetDeliveryRate || 0) * 100).toFixed(1) + '%</td></tr>';
+            html += '</table></div>';
+        }
+
+        // ---- Footer ----
+        html += '<div style="color:#444;font-size:9px;text-align:center;margin-top:12px;border-top:1px solid #333;padding-top:8px;">';
+        html += 'Report generated at T+' + _formatAARTime(_simElapsed) + ' | All-Domain Sim AAR';
+        html += '</div>';
+
+        content.innerHTML = html;
+    }
+
+    // -----------------------------------------------------------------------
+    // Force Status Board
+    // -----------------------------------------------------------------------
+    var _statusBoardOpen = false;
+    var _statusBoardSortCol = 'name';
+    var _statusBoardSortAsc = true;
+    var _statusBoardFilter = 'all';
+    var _statusBoardInterval = null;
+
+    function _initStatusBoard() {
+        // Filter buttons
+        document.querySelectorAll('.sb-filter-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.sb-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                _statusBoardFilter = btn.getAttribute('data-sb-filter');
+                _updateStatusBoard();
+            });
+        });
+        // Sort headers
+        document.querySelectorAll('#statusBoard th[data-sb-sort]').forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col = th.getAttribute('data-sb-sort');
+                if (_statusBoardSortCol === col) {
+                    _statusBoardSortAsc = !_statusBoardSortAsc;
+                } else {
+                    _statusBoardSortCol = col;
+                    _statusBoardSortAsc = true;
+                }
+                // Update sort arrows
+                document.querySelectorAll('#statusBoard th .sort-arrow').forEach(function(s) { s.textContent = ''; });
+                th.querySelector('.sort-arrow').textContent = _statusBoardSortAsc ? '\u25B2' : '\u25BC';
+                _updateStatusBoard();
+            });
+        });
+    }
+
+    function _toggleStatusBoard() {
+        _statusBoardOpen = !_statusBoardOpen;
+        var panel = document.getElementById('statusBoard');
+        if (!panel) return;
+        panel.style.display = _statusBoardOpen ? 'block' : 'none';
+        if (_statusBoardOpen) {
+            _updateStatusBoard();
+            if (!_statusBoardInterval) {
+                _statusBoardInterval = setInterval(_updateStatusBoard, 2000);
+            }
+        } else {
+            if (_statusBoardInterval) {
+                clearInterval(_statusBoardInterval);
+                _statusBoardInterval = null;
+            }
+        }
+    }
+
+    function _updateStatusBoard() {
+        var tbody = document.getElementById('statusBoardBody');
+        if (!tbody) return;
+
+        var rows = [];
+        _world.entities.forEach(function(entity) {
+            var s = entity.state || {};
+            var type = entity.type || 'unknown';
+            var team = entity.team || 'neutral';
+            var isDead = s._dead || s._destroyed || false;
+            var alt = s.alt || s.altitude || 0;
+            var speed = s.speed || 0;
+            var fuel = s.fuel != null ? s.fuel : -1;
+
+            // Apply filter
+            if (_statusBoardFilter !== 'all') {
+                if (_statusBoardFilter === 'blue' || _statusBoardFilter === 'red') {
+                    if (team !== _statusBoardFilter) return;
+                } else {
+                    if (type !== _statusBoardFilter) return;
+                }
+            }
+
+            rows.push({
+                name: entity.name || entity.id,
+                team: team,
+                type: type,
+                status: isDead ? 'DEAD' : (s._cyberDenied ? 'DENIED' : (s._cyberExploited ? 'COMPROMISED' : 'ACTIVE')),
+                alt: alt,
+                speed: speed,
+                fuel: fuel,
+                isDead: isDead,
+                entityId: entity.id
+            });
+        });
+
+        // Sort
+        rows.sort(function(a, b) {
+            var va = a[_statusBoardSortCol];
+            var vb = b[_statusBoardSortCol];
+            if (typeof va === 'string') va = va.toLowerCase();
+            if (typeof vb === 'string') vb = vb.toLowerCase();
+            if (va < vb) return _statusBoardSortAsc ? -1 : 1;
+            if (va > vb) return _statusBoardSortAsc ? 1 : -1;
+            return 0;
+        });
+
+        var html = '';
+        rows.forEach(function(r) {
+            var teamClass = 'team-' + r.team;
+            var statusClass = r.isDead ? 'status-dead' : (r.status === 'ACTIVE' ? 'status-ok' : 'status-damaged');
+            var rowClass = r.isDead ? 'dead' : '';
+            var altStr = r.alt > 100000 ? (r.alt / 1000).toFixed(0) + 'km' : (r.alt > 1000 ? (r.alt / 1000).toFixed(1) + 'km' : r.alt.toFixed(0) + 'm');
+            var spdStr = r.speed > 1000 ? (r.speed / 1000).toFixed(1) + 'km/s' : r.speed.toFixed(0) + 'm/s';
+            var fuelStr = r.fuel < 0 ? '---' : (r.fuel > 100 ? r.fuel.toFixed(0) + 'kg' : r.fuel.toFixed(0) + '%');
+
+            html += '<tr class="' + rowClass + '" data-entity-id="' + r.entityId + '">';
+            html += '<td>' + r.name + '</td>';
+            html += '<td class="' + teamClass + '">' + r.team.toUpperCase() + '</td>';
+            html += '<td>' + r.type + '</td>';
+            html += '<td class="' + statusClass + '">' + r.status + '</td>';
+            html += '<td>' + altStr + '</td>';
+            html += '<td>' + spdStr + '</td>';
+            html += '<td>' + fuelStr + '</td>';
+            html += '</tr>';
+        });
+
+        tbody.innerHTML = html;
+
+        // Click to track
+        tbody.querySelectorAll('tr').forEach(function(tr) {
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', function() {
+                var eid = tr.getAttribute('data-entity-id');
+                var entity = _world.entities.get(eid);
+                if (entity && typeof _trackEntity === 'function') {
+                    _trackEntity(entity);
+                }
+            });
+        });
+    }
+
+    function _classifyDomain(entity) {
+        var type = entity.type || '';
+        var state = entity.state;
+
+        // Check entity type field
+        if (type === 'aircraft' || type === 'fighter' || type === 'bomber' || type === 'transport' || type === 'uav') return 'Air';
+        if (type === 'satellite' || type === 'spacecraft' || type === 'spaceplane') return 'Space';
+        if (type === 'naval' || type === 'ship' || type === 'submarine') return 'Naval';
+        if (type === 'ground' || type === 'sam' || type === 'ground_station' || type === 'radar' || type === 'static') return 'Ground';
+
+        // Fallback: check physics component or altitude
+        var physComp = entity.getComponent('physics');
+        if (physComp) {
+            var compType = physComp._type || physComp.constructor.name || '';
+            if (compType.indexOf('orbital') !== -1 || compType.indexOf('Orbital') !== -1) return 'Space';
+            if (compType.indexOf('flight') !== -1 || compType.indexOf('Flight') !== -1) return 'Air';
+            if (compType.indexOf('naval') !== -1 || compType.indexOf('Naval') !== -1) return 'Naval';
+        }
+
+        // Altitude-based fallback
+        if (state.alt != null) {
+            if (state.alt > 100000) return 'Space';
+            if (state.alt > 50) return 'Air';
+        }
+
+        return 'Ground';
+    }
+
+    // -----------------------------------------------------------------------
     // Public API
     // -----------------------------------------------------------------------
     return {
         init: init,
         tick: tick,
         showUI: showUI,
+        showMissionBriefing: _showMissionBriefing,
         assumeControl: _assumeControl,
 
         get isPaused() { return _isPaused; },

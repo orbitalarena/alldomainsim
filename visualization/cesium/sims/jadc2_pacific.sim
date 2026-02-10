@@ -1,0 +1,2622 @@
+{
+  "metadata": {
+    "name": "JADC2 Pacific Theater",
+    "version": "2.0",
+    "author": "scenario_builder",
+    "description": "Joint All-Domain Command & Control scenario in the Western Pacific (Taiwan Strait). Features all five warfighting domains: Air (F-35A, F-22, E-3 AWACS, MQ-9 vs J-20, J-16), Space (GPS III, SBIRS, WGS), Maritime (CVN-78 CSG vs Type 055/075), Ground (THAAD/Patriot vs HQ-9/DF-21D), and Cyber (PACOM/Forward Ops vs PLA SSF). Blue mesh comm network with Link 16, red star topology centered on PLA SSF. Full F2T2EA kill chain integration across domains."
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "viper_1",
+      "name": "VIPER 1 (F-35A)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.5,
+        "lon": 123.0,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.5,
+              "lon": 123.0,
+              "alt": 10000
+            },
+            {
+              "lat": 25.0,
+              "lon": 122.0,
+              "alt": 10000
+            },
+            {
+              "lat": 25.5,
+              "lon": 123.0,
+              "alt": 10000
+            },
+            {
+              "lat": 25.0,
+              "lon": 124.0,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 160000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.85,
+          "numMissiles": 6,
+          "lockTime_s": 3.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "VIPER 1"
+        }
+      },
+      "_custom": {
+        "notes": "F-35A Lightning II, 5th gen stealth multirole. AN/APG-81 AESA. AIM-120D AMRAAM.",
+        "rcs_m2": 0.005,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-81 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "viper_2",
+      "name": "VIPER 2 (F-35A)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.3,
+        "lon": 123.2,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.3,
+              "lon": 123.2,
+              "alt": 10000
+            },
+            {
+              "lat": 24.8,
+              "lon": 122.2,
+              "alt": 10000
+            },
+            {
+              "lat": 25.3,
+              "lon": 123.2,
+              "alt": 10000
+            },
+            {
+              "lat": 24.8,
+              "lon": 124.2,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 160000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.85,
+          "numMissiles": 6,
+          "lockTime_s": 3.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "VIPER 2"
+        }
+      },
+      "_custom": {
+        "notes": "F-35A Lightning II, 5th gen stealth multirole. AN/APG-81 AESA. AIM-120D AMRAAM.",
+        "rcs_m2": 0.005,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-81 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "viper_3",
+      "name": "VIPER 3 (F-35A)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.2,
+        "lon": 123.5,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.2,
+              "lon": 123.5,
+              "alt": 10000
+            },
+            {
+              "lat": 25.7,
+              "lon": 122.5,
+              "alt": 10000
+            },
+            {
+              "lat": 26.0,
+              "lon": 123.5,
+              "alt": 10000
+            },
+            {
+              "lat": 25.5,
+              "lon": 124.5,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 160000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.85,
+          "numMissiles": 6,
+          "lockTime_s": 3.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "VIPER 3"
+        }
+      },
+      "_custom": {
+        "notes": "F-35A Lightning II, 5th gen stealth multirole. AN/APG-81 AESA. AIM-120D AMRAAM.",
+        "rcs_m2": 0.005,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-81 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "viper_4",
+      "name": "VIPER 4 (F-35A)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.0,
+        "lon": 123.7,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.0,
+              "lon": 123.7,
+              "alt": 10000
+            },
+            {
+              "lat": 25.5,
+              "lon": 122.7,
+              "alt": 10000
+            },
+            {
+              "lat": 25.8,
+              "lon": 123.7,
+              "alt": 10000
+            },
+            {
+              "lat": 25.3,
+              "lon": 124.7,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 160000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.85,
+          "numMissiles": 6,
+          "lockTime_s": 3.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "VIPER 4"
+        }
+      },
+      "_custom": {
+        "notes": "F-35A Lightning II, 5th gen stealth multirole. AN/APG-81 AESA. AIM-120D AMRAAM.",
+        "rcs_m2": 0.005,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-81 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "raptor_1",
+      "name": "RAPTOR 1 (F-22)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.8,
+        "lon": 123.5,
+        "alt": 12000,
+        "speed": 300,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "intercept",
+          "targetTeam": "red",
+          "engageRange_m": 150000
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.5
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 180000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1400,
+          "killProbability": 0.9,
+          "numMissiles": 8,
+          "lockTime_s": 2.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#66aaff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "RAPTOR 1"
+        }
+      },
+      "_custom": {
+        "notes": "F-22A Raptor, air superiority. AN/APG-77 AESA. Supercruise capable.",
+        "rcs_m2": 0.001,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-77 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "raptor_2",
+      "name": "RAPTOR 2 (F-22)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.2,
+        "lon": 123.3,
+        "alt": 12000,
+        "speed": 300,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "intercept",
+          "targetTeam": "red",
+          "engageRange_m": 150000
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.5
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 180000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1400,
+          "killProbability": 0.9,
+          "numMissiles": 8,
+          "lockTime_s": 2.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#66aaff",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "RAPTOR 2"
+        }
+      },
+      "_custom": {
+        "notes": "F-22A Raptor, air superiority. AN/APG-77 AESA. Supercruise capable.",
+        "rcs_m2": 0.001,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APG-77 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "magic_1",
+      "name": "MAGIC 1 (E-3 AWACS)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.0,
+        "lon": 125.0,
+        "alt": 11000,
+        "speed": 200,
+        "heading": 270,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.0,
+              "lon": 125.0,
+              "alt": 11000
+            },
+            {
+              "lat": 25.0,
+              "lon": 125.5,
+              "alt": 11000
+            },
+            {
+              "lat": 26.0,
+              "lon": 125.0,
+              "alt": 11000
+            },
+            {
+              "lat": 25.0,
+              "lon": 124.5,
+              "alt": 11000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "point",
+          "color": "#88ccff",
+          "trail": true,
+          "pixelSize": 10,
+          "label": "MAGIC 1 AWACS"
+        }
+      },
+      "_custom": {
+        "notes": "E-3G Sentry AWACS. AN/APY-2 rotodome, 400km detection. Battlespace C2 node.",
+        "rcs_m2": 50.0,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/APY-2 Rotodome"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reaper_1",
+      "name": "REAPER 1 (MQ-9)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.5,
+        "lon": 122.0,
+        "alt": 8000,
+        "speed": 80,
+        "heading": 0,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.5,
+              "lon": 122.0,
+              "alt": 8000
+            },
+            {
+              "lat": 25.5,
+              "lon": 121.5,
+              "alt": 8000
+            },
+            {
+              "lat": 25.5,
+              "lon": 120.5,
+              "alt": 8000
+            },
+            {
+              "lat": 24.5,
+              "lon": 121.0,
+              "alt": 8000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.8,
+          "updateInterval": 3.0
+        },
+        "visual": {
+          "type": "point",
+          "color": "#aaccff",
+          "trail": true,
+          "pixelSize": 6,
+          "label": "REAPER 1"
+        }
+      },
+      "_custom": {
+        "notes": "MQ-9A Reaper ISR/strike UCAV. MTS-B EO/IR. Maritime surveillance orbit.",
+        "rcs_m2": 1.0,
+        "sensors": [
+          {
+            "type": "eo",
+            "name": "MTS-B EO/IR"
+          },
+          {
+            "type": "radar",
+            "name": "Lynx SAR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "reaper_2",
+      "name": "REAPER 2 (MQ-9)",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.5,
+        "lon": 122.5,
+        "alt": 8000,
+        "speed": 80,
+        "heading": 180,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.5,
+              "lon": 122.5,
+              "alt": 8000
+            },
+            {
+              "lat": 26.0,
+              "lon": 121.5,
+              "alt": 8000
+            },
+            {
+              "lat": 25.0,
+              "lon": 120.0,
+              "alt": 8000
+            },
+            {
+              "lat": 24.5,
+              "lon": 121.5,
+              "alt": 8000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 120,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.8,
+          "updateInterval": 3.0
+        },
+        "visual": {
+          "type": "point",
+          "color": "#aaccff",
+          "trail": true,
+          "pixelSize": 6,
+          "label": "REAPER 2"
+        }
+      },
+      "_custom": {
+        "notes": "MQ-9A Reaper ISR/strike UCAV. MTS-B EO/IR. Maritime surveillance orbit.",
+        "rcs_m2": 1.0,
+        "sensors": [
+          {
+            "type": "eo",
+            "name": "MTS-B EO/IR"
+          },
+          {
+            "type": "radar",
+            "name": "Lynx SAR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "gps3_sv01",
+      "name": "GPS III SV01",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.001,
+          "inc": 55,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 60
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS III SV01"
+        }
+      },
+      "_custom": {
+        "notes": "GPS III SV01, Block IIIA. L1C/A, L1C, L2C, L5, M-code. MEO orbit.",
+        "sensors": [
+          {
+            "type": "sigint",
+            "name": "GPS L-band Navigation Payload"
+          }
+        ]
+      }
+    },
+    {
+      "id": "gps3_sv02",
+      "name": "GPS III SV02",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26571000,
+          "ecc": 0.001,
+          "inc": 55,
+          "raan": 180,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#44ff88",
+          "pixelSize": 8,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "GPS III SV02"
+        }
+      },
+      "_custom": {
+        "notes": "GPS III SV02, Block IIIA. L1C/A, L1C, L2C, L5, M-code. MEO orbit.",
+        "sensors": [
+          {
+            "type": "sigint",
+            "name": "GPS L-band Navigation Payload"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sbirs_geo_5",
+      "name": "SBIRS GEO-5",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 240
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 5000000,
+          "fov_deg": 360,
+          "scanRate_dps": 360,
+          "detectionProbability": 0.95,
+          "updateInterval": 0.5
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "SBIRS GEO-5"
+        }
+      },
+      "_custom": {
+        "notes": "Space-Based Infrared System GEO-5. Missile warning. Scanning/staring IR sensors detect ballistic missile launches.",
+        "sensors": [
+          {
+            "type": "ir",
+            "name": "Scanning IR Sensor"
+          },
+          {
+            "type": "ir",
+            "name": "Staring IR Sensor"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wgs_9",
+      "name": "WGS-9",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 42164000,
+          "ecc": 0.0001,
+          "inc": 0.05,
+          "raan": 125,
+          "argPerigee": 0,
+          "meanAnomaly": 260
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": false,
+          "label": "WGS-9"
+        }
+      },
+      "_custom": {
+        "notes": "Wideband Global SATCOM-9. Ka/X-band military comms. 11 Gbps. JADC2 SATCOM backbone.",
+        "sensors": [
+          {
+            "type": "sigint",
+            "name": "Ka/X-band Transponder"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cvn78_ford",
+      "name": "CVN-78 GERALD R. FORD",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 24.0,
+        "lon": 124.0,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 270
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4466aa",
+          "label": "CVN-78 FORD",
+          "pixelSize": 14,
+          "sensorRange_m": 250000,
+          "sensorColor": "rgba(68,102,170,0.04)",
+          "sensorOutlineColor": "#4466aa"
+        }
+      },
+      "_custom": {
+        "notes": "CVN-78 USS Gerald R. Ford. EMALS, AAG. CAW with F-35C, F/A-18E/F, EA-18G, E-2D. CSG-12 flagship.",
+        "rcs_m2": 50000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/SPY-6(V)3 EASR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ddg_burke_1",
+      "name": "DDG-117 PAUL IGNATIUS",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 24.1,
+        "lon": 123.8,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 270
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 170000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 96,
+          "salvoSize": 2,
+          "reloadTime_s": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488cc",
+          "label": "DDG-117",
+          "pixelSize": 12,
+          "sensorRange_m": 350000,
+          "sensorColor": "rgba(68,136,204,0.03)",
+          "sensorOutlineColor": "#4488cc"
+        }
+      },
+      "_custom": {
+        "notes": "DDG-117 PAUL IGNATIUS, Flight III Arleigh Burke. AN/SPY-6(V)1 AMDR. 96-cell Mk 41 VLS.",
+        "rcs_m2": 3000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/SPY-6(V)1 AMDR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ddg_burke_2",
+      "name": "DDG-118 DANIEL INOUYE",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 23.9,
+        "lon": 124.2,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 270
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 170000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 96,
+          "salvoSize": 2,
+          "reloadTime_s": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#4488cc",
+          "label": "DDG-118",
+          "pixelSize": 12,
+          "sensorRange_m": 350000,
+          "sensorColor": "rgba(68,136,204,0.03)",
+          "sensorOutlineColor": "#4488cc"
+        }
+      },
+      "_custom": {
+        "notes": "DDG-118 DANIEL INOUYE, Flight III Arleigh Burke. AN/SPY-6(V)1 AMDR. 96-cell Mk 41 VLS.",
+        "rcs_m2": 3000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/SPY-6(V)1 AMDR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "cg_tico",
+      "name": "CG-73 PORT ROYAL",
+      "type": "naval",
+      "team": "blue",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 24.05,
+        "lon": 124.1,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 270
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 400000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.93,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 3000,
+          "maxAlt_m": 33000,
+          "missileSpeed_mps": 1300,
+          "killProbability": 0.85,
+          "numMissiles": 122,
+          "salvoSize": 2,
+          "reloadTime_s": 4.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#5599dd",
+          "label": "CG-73 PORT ROYAL",
+          "pixelSize": 13,
+          "sensorRange_m": 400000,
+          "sensorColor": "rgba(85,153,221,0.03)",
+          "sensorOutlineColor": "#5599dd"
+        }
+      },
+      "_custom": {
+        "notes": "CG-73 USS Port Royal, Ticonderoga-class. AN/SPY-1B Aegis. 122-cell Mk 41 VLS. Air defense commander.",
+        "rcs_m2": 5000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "AN/SPY-1B Aegis"
+          }
+        ]
+      }
+    },
+    {
+      "id": "thaad_taiwan",
+      "name": "THAAD BATTERY ALPHA",
+      "type": "ground",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 25.0,
+        "lon": 121.5,
+        "alt": 50,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 500000,
+          "fov_deg": 360,
+          "scanRate_dps": 180,
+          "detectionProbability": 0.95,
+          "updateInterval": 0.5
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 20000,
+          "maxAlt_m": 150000,
+          "missileSpeed_mps": 2500,
+          "killProbability": 0.9,
+          "numMissiles": 48,
+          "salvoSize": 1,
+          "reloadTime_s": 8.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.8,
+          "patchLevel": 0.7,
+          "firewallRating": 0.7,
+          "hackableSubsystems": [
+            "sensors",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44aaff",
+          "label": "THAAD ALPHA",
+          "pixelSize": 12,
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(68,170,255,0.06)",
+          "sensorOutlineColor": "#44aaff"
+        }
+      },
+      "_custom": {
+        "notes": "THAAD battery. AN/TPY-2 X-band radar. 48 interceptors. Endo/exo-atmospheric (40-150km)."
+      }
+    },
+    {
+      "id": "patriot_taiwan",
+      "name": "PATRIOT PAC-3 BRAVO",
+      "type": "ground",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 25.05,
+        "lon": 121.55,
+        "alt": 50,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 160000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1700,
+          "killProbability": 0.85,
+          "numMissiles": 64,
+          "salvoSize": 2,
+          "reloadTime_s": 6.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "mil_spec",
+          "hardening": 0.7,
+          "patchLevel": 0.7,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#44aaff",
+          "label": "PATRIOT BRAVO",
+          "pixelSize": 11,
+          "sensorRange_m": 160000,
+          "sensorColor": "rgba(68,170,255,0.05)",
+          "sensorOutlineColor": "#44aaff"
+        }
+      },
+      "_custom": {
+        "notes": "MIM-104 Patriot PAC-3 MSE. AN/MPQ-65A radar. 64 PAC-3 MSE interceptors."
+      }
+    },
+    {
+      "id": "pacom_hq",
+      "name": "USINDOPACOM HQ",
+      "type": "ground",
+      "team": "blue",
+      "vizCategory": "Cyber",
+      "initialState": {
+        "lat": 21.35,
+        "lon": -157.95,
+        "alt": 30,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.9,
+          "patchLevel": 0.9,
+          "firewallRating": 0.9,
+          "hackableSubsystems": [
+            "comms",
+            "navigation"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.9,
+          "ids": true,
+          "rules": "strict"
+        },
+        "ai_cyber": {
+          "type": "cyber_defense",
+          "scanInterval": 5,
+          "autoHarden": true,
+          "alertThreshold": 0.3
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ccff",
+          "label": "PACOM HQ",
+          "pixelSize": 14
+        }
+      },
+      "_custom": {
+        "notes": "US Indo-Pacific Command HQ, Camp H.M. Smith, Hawaii. JADC2 command node. Theater-level C2."
+      }
+    },
+    {
+      "id": "fwd_cyber_ops",
+      "name": "FWD CYBER OPS CENTER",
+      "type": "ground",
+      "team": "blue",
+      "vizCategory": "Cyber",
+      "initialState": {
+        "lat": 25.0,
+        "lon": 121.6,
+        "alt": 30,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.8,
+          "patchLevel": 0.8,
+          "firewallRating": 0.8,
+          "hackableSubsystems": [
+            "sensors",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.8,
+          "ids": true,
+          "rules": "strict"
+        },
+        "ai_cyber": {
+          "type": "cyber_defense",
+          "scanInterval": 3,
+          "autoHarden": true,
+          "alertThreshold": 0.2
+        },
+        "cyber": {
+          "type": "cyber_actor",
+          "capabilities": [
+            "exploit",
+            "ddos",
+            "mitm"
+          ],
+          "autoTarget": true,
+          "stealthLevel": 0.7,
+          "attackDuration_s": 45,
+          "accessTime_s": 20
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ccff",
+          "label": "FWD CYBER OPS",
+          "pixelSize": 12
+        }
+      },
+      "_custom": {
+        "notes": "Forward-deployed Cyber Operations Center, Taiwan. DCO for friendly networks, OCO against adversary C2."
+      }
+    },
+    {
+      "id": "j20_dragon_1",
+      "name": "DRAGON 1 (J-20)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.0,
+        "lon": 119.5,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.0,
+              "lon": 119.5,
+              "alt": 10000
+            },
+            {
+              "lat": 25.5,
+              "lon": 120.5,
+              "alt": 10000
+            },
+            {
+              "lat": 25.0,
+              "lon": 121.0,
+              "alt": 10000
+            },
+            {
+              "lat": 24.5,
+              "lon": 120.0,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.82,
+          "numMissiles": 6,
+          "lockTime_s": 3.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "DRAGON 1"
+        }
+      },
+      "_custom": {
+        "notes": "Chengdu J-20 Mighty Dragon, 5th gen stealth. Type 1475 AESA. PL-15 BVR.",
+        "rcs_m2": 0.01,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1475 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "j20_dragon_2",
+      "name": "DRAGON 2 (J-20)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.8,
+        "lon": 119.3,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.8,
+              "lon": 119.3,
+              "alt": 10000
+            },
+            {
+              "lat": 25.3,
+              "lon": 120.3,
+              "alt": 10000
+            },
+            {
+              "lat": 24.8,
+              "lon": 121.0,
+              "alt": 10000
+            },
+            {
+              "lat": 24.3,
+              "lon": 120.0,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.82,
+          "numMissiles": 6,
+          "lockTime_s": 3.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "DRAGON 2"
+        }
+      },
+      "_custom": {
+        "notes": "Chengdu J-20 Mighty Dragon, 5th gen stealth. Type 1475 AESA. PL-15 BVR.",
+        "rcs_m2": 0.01,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1475 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "j20_dragon_3",
+      "name": "DRAGON 3 (J-20)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.5,
+        "lon": 119.0,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.5,
+              "lon": 119.0,
+              "alt": 10000
+            },
+            {
+              "lat": 26.0,
+              "lon": 120.0,
+              "alt": 10000
+            },
+            {
+              "lat": 25.5,
+              "lon": 121.0,
+              "alt": 10000
+            },
+            {
+              "lat": 25.0,
+              "lon": 120.0,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.82,
+          "numMissiles": 6,
+          "lockTime_s": 3.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "DRAGON 3"
+        }
+      },
+      "_custom": {
+        "notes": "Chengdu J-20 Mighty Dragon, 5th gen stealth. Type 1475 AESA. PL-15 BVR.",
+        "rcs_m2": 0.01,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1475 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "j20_dragon_4",
+      "name": "DRAGON 4 (J-20)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 25.3,
+        "lon": 119.2,
+        "alt": 10000,
+        "speed": 280,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 25.3,
+              "lon": 119.2,
+              "alt": 10000
+            },
+            {
+              "lat": 25.8,
+              "lon": 120.2,
+              "alt": 10000
+            },
+            {
+              "lat": 25.3,
+              "lon": 121.2,
+              "alt": 10000
+            },
+            {
+              "lat": 24.8,
+              "lon": 120.2,
+              "alt": 10000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 200000,
+          "fov_deg": 120,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.85,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.82,
+          "numMissiles": 6,
+          "lockTime_s": 3.5,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "DRAGON 4"
+        }
+      },
+      "_custom": {
+        "notes": "Chengdu J-20 Mighty Dragon, 5th gen stealth. Type 1475 AESA. PL-15 BVR.",
+        "rcs_m2": 0.01,
+        "payloads": [
+          "a2a"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1475 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "j16_flanker_1",
+      "name": "FLANKER 1 (J-16)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.5,
+        "lon": 119.0,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.5,
+              "lon": 119.0,
+              "alt": 8000
+            },
+            {
+              "lat": 24.5,
+              "lon": 120.5,
+              "alt": 8000
+            },
+            {
+              "lat": 25.0,
+              "lon": 121.0,
+              "alt": 8000
+            },
+            {
+              "lat": 25.0,
+              "lon": 119.5,
+              "alt": 8000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.82,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1100,
+          "killProbability": 0.78,
+          "numMissiles": 8,
+          "lockTime_s": 4.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6644",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "FLANKER 1"
+        }
+      },
+      "_custom": {
+        "notes": "Shenyang J-16, 4.5 gen multirole. Type 1493 AESA. PL-15, YJ-83.",
+        "rcs_m2": 3.0,
+        "payloads": [
+          "a2a",
+          "a2g"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1493 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "j16_flanker_2",
+      "name": "FLANKER 2 (J-16)",
+      "type": "aircraft",
+      "team": "red",
+      "vizCategory": "Air",
+      "initialState": {
+        "lat": 24.3,
+        "lon": 119.2,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 90,
+        "gamma": 0
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 24.3,
+              "lon": 119.2,
+              "alt": 8000
+            },
+            {
+              "lat": 24.3,
+              "lon": 120.7,
+              "alt": 8000
+            },
+            {
+              "lat": 24.8,
+              "lon": 121.2,
+              "alt": 8000
+            },
+            {
+              "lat": 24.8,
+              "lon": 119.7,
+              "alt": 8000
+            }
+          ],
+          "loop": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 180000,
+          "fov_deg": 120,
+          "scanRate_dps": 50,
+          "detectionProbability": 0.82,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "a2a_missile",
+          "maxRange_m": 150000,
+          "minRange_m": 1000,
+          "missileSpeed_mps": 1100,
+          "killProbability": 0.78,
+          "numMissiles": 8,
+          "lockTime_s": 4.0,
+          "salvoSize": 1
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6644",
+          "trail": true,
+          "pixelSize": 8,
+          "label": "FLANKER 2"
+        }
+      },
+      "_custom": {
+        "notes": "Shenyang J-16, 4.5 gen multirole. Type 1493 AESA. PL-15, YJ-83.",
+        "rcs_m2": 3.0,
+        "payloads": [
+          "a2a",
+          "a2g"
+        ],
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 1493 AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type055_nanchang",
+      "name": "NANCHANG (Type 055)",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 25.3,
+        "lon": 119.5,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 90
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 112,
+          "salvoSize": 2,
+          "reloadTime_s": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc4444",
+          "label": "NANCHANG",
+          "pixelSize": 13,
+          "sensorRange_m": 350000,
+          "sensorColor": "rgba(204,68,68,0.03)",
+          "sensorOutlineColor": "#cc4444"
+        }
+      },
+      "_custom": {
+        "notes": "PLANS NANCHANG, Type 055 Renhai-class. Type 346B AESA. 112-cell VLS.",
+        "rcs_m2": 4000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 346B S-band AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type055_lhasa",
+      "name": "LHASA (Type 055)",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 25.5,
+        "lon": 119.3,
+        "alt": 0,
+        "speed": 7.7,
+        "heading": 90
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 15
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 350000,
+          "fov_deg": 360,
+          "scanRate_dps": 40,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 3000,
+          "maxAlt_m": 30000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 112,
+          "salvoSize": 2,
+          "reloadTime_s": 5.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#cc4444",
+          "label": "LHASA",
+          "pixelSize": 13,
+          "sensorRange_m": 350000,
+          "sensorColor": "rgba(204,68,68,0.03)",
+          "sensorOutlineColor": "#cc4444"
+        }
+      },
+      "_custom": {
+        "notes": "PLANS LHASA, Type 055 Renhai-class. Type 346B AESA. 112-cell VLS.",
+        "rcs_m2": 4000,
+        "sensors": [
+          {
+            "type": "radar",
+            "name": "Type 346B S-band AESA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "type075_hainan",
+      "name": "HAINAN (Type 075 LHD)",
+      "type": "naval",
+      "team": "red",
+      "vizCategory": "Maritime",
+      "initialState": {
+        "lat": 25.0,
+        "lon": 119.8,
+        "alt": 0,
+        "speed": 5.1,
+        "heading": 90
+      },
+      "components": {
+        "physics": {
+          "type": "naval",
+          "cruiseSpeed": 10
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 30,
+          "detectionProbability": 0.8,
+          "updateInterval": 2.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#dd6644",
+          "label": "HAINAN LHD",
+          "pixelSize": 14,
+          "sensorRange_m": 150000,
+          "sensorColor": "rgba(221,102,68,0.03)",
+          "sensorOutlineColor": "#dd6644"
+        }
+      },
+      "_custom": {
+        "notes": "PLANS Hainan (31), Type 075 LHD. 36,000t, 30 helos, well deck. PLAN amphibious flagship."
+      }
+    },
+    {
+      "id": "hq9_coastal_1",
+      "name": "HQ-9B BATTERY NORTH",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 25.2,
+        "lon": 118.5,
+        "alt": 100,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 5000,
+          "maxAlt_m": 27000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 32,
+          "salvoSize": 2,
+          "reloadTime_s": 8.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.6,
+          "patchLevel": 0.5,
+          "firewallRating": 0.5,
+          "hackableSubsystems": [
+            "sensors",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "HQ-9B NORTH",
+          "pixelSize": 11,
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,68,68,0.06)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      },
+      "_custom": {
+        "notes": "HQ-9B BATTERY NORTH, Fujian coast. HT-233 phased array. 32 missiles, 200km range. A2/AD umbrella."
+      }
+    },
+    {
+      "id": "hq9_coastal_2",
+      "name": "HQ-9B BATTERY SOUTH",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 24.8,
+        "lon": 118.3,
+        "alt": 80,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.9,
+          "updateInterval": 1.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 200000,
+          "minRange_m": 5000,
+          "maxAlt_m": 27000,
+          "missileSpeed_mps": 1200,
+          "killProbability": 0.8,
+          "numMissiles": 32,
+          "salvoSize": 2,
+          "reloadTime_s": 8.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.6,
+          "patchLevel": 0.5,
+          "firewallRating": 0.5,
+          "hackableSubsystems": [
+            "sensors",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff4444",
+          "label": "HQ-9B SOUTH",
+          "pixelSize": 11,
+          "sensorRange_m": 200000,
+          "sensorColor": "rgba(255,68,68,0.06)",
+          "sensorOutlineColor": "#ff4444"
+        }
+      },
+      "_custom": {
+        "notes": "HQ-9B BATTERY SOUTH, Fujian coast. HT-233 phased array. 32 missiles, 200km range. A2/AD umbrella."
+      }
+    },
+    {
+      "id": "df21d_launcher",
+      "name": "DF-21D ASBM TEL",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 25.5,
+        "lon": 117.5,
+        "alt": 200,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 50000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.7,
+          "updateInterval": 5.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 1500000,
+          "minRange_m": 200000,
+          "maxAlt_m": 500000,
+          "missileSpeed_mps": 3000,
+          "killProbability": 0.6,
+          "numMissiles": 4,
+          "salvoSize": 2,
+          "reloadTime_s": 300.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff2222",
+          "label": "DF-21D TEL",
+          "pixelSize": 12,
+          "sensorRange_m": 50000,
+          "sensorColor": "rgba(255,34,34,0.04)",
+          "sensorOutlineColor": "#ff2222"
+        }
+      },
+      "_custom": {
+        "notes": "DF-21D ASBM TEL, inland Fujian. 1500km range, Mach 10 terminal. Carrier Killer. Needs external targeting."
+      }
+    },
+    {
+      "id": "pla_ssf_beijing",
+      "name": "PLA STRATEGIC SUPPORT FORCE",
+      "type": "ground",
+      "team": "red",
+      "vizCategory": "Cyber",
+      "initialState": {
+        "lat": 39.9,
+        "lon": 116.4,
+        "alt": 50,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.8,
+          "patchLevel": 0.7,
+          "firewallRating": 0.8,
+          "hackableSubsystems": [
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.8,
+          "ids": true,
+          "rules": "strict"
+        },
+        "cyber": {
+          "type": "cyber_actor",
+          "capabilities": [
+            "exploit",
+            "brick",
+            "ddos",
+            "mitm",
+            "inject"
+          ],
+          "autoTarget": true,
+          "stealthLevel": 0.8,
+          "attackDuration_s": 60,
+          "accessTime_s": 30
+        },
+        "ai_cyber": {
+          "type": "cyber_ops",
+          "preferredAttack": "comms",
+          "scanInterval": 10,
+          "baseExploitTime": 20,
+          "baseProbability": 0.7,
+          "cooldownTime": 30,
+          "maxSimultaneous": 3,
+          "aggressiveness": 0.8,
+          "stealthLevel": 0.7
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#ff00aa",
+          "label": "PLA SSF",
+          "pixelSize": 14
+        }
+      },
+      "_custom": {
+        "notes": "PLA Strategic Support Force, Beijing. Space, cyber, EW command. OCO against US/allied C2. Star topology hub."
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_jadc2_mesh",
+      "name": "JADC2 Mesh (Link 16 / CEC / SATCOM)",
+      "type": "mesh",
+      "members": [
+        "viper_1",
+        "viper_2",
+        "viper_3",
+        "viper_4",
+        "raptor_1",
+        "raptor_2",
+        "magic_1",
+        "reaper_1",
+        "reaper_2",
+        "cvn78_ford",
+        "ddg_burke_1",
+        "ddg_burke_2",
+        "cg_tico",
+        "thaad_taiwan",
+        "patriot_taiwan",
+        "pacom_hq",
+        "fwd_cyber_ops"
+      ],
+      "rfConfig": {
+        "preset": "link16",
+        "freq_ghz": 1.2,
+        "bandwidth_hz": 50000000,
+        "txPower_dbw": 20,
+        "txGain_dbi": 6,
+        "rxGain_dbi": 6,
+        "noiseFigure_db": 4,
+        "requiredSNR_db": 10,
+        "dataRate_bps": 50000000,
+        "linkType": "rf"
+      }
+    },
+    {
+      "id": "blue_satcom_backbone",
+      "name": "WGS SATCOM Backbone",
+      "type": "mesh",
+      "members": [
+        "wgs_9",
+        "pacom_hq",
+        "cvn78_ford",
+        "magic_1",
+        "fwd_cyber_ops"
+      ],
+      "rfConfig": {
+        "preset": "satcom",
+        "freq_ghz": 20.0,
+        "bandwidth_hz": 500000000,
+        "txPower_dbw": 30,
+        "txGain_dbi": 40,
+        "rxGain_dbi": 40,
+        "noiseFigure_db": 3,
+        "requiredSNR_db": 8,
+        "dataRate_bps": 500000000,
+        "linkType": "rf"
+      }
+    },
+    {
+      "id": "red_pla_star",
+      "name": "PLA Integrated C2 Network",
+      "type": "star",
+      "hub": "pla_ssf_beijing",
+      "members": [
+        "pla_ssf_beijing",
+        "j20_dragon_1",
+        "j20_dragon_2",
+        "j20_dragon_3",
+        "j20_dragon_4",
+        "j16_flanker_1",
+        "j16_flanker_2",
+        "type055_nanchang",
+        "type055_lhasa",
+        "type075_hainan",
+        "hq9_coastal_1",
+        "hq9_coastal_2",
+        "df21d_launcher"
+      ],
+      "rfConfig": {
+        "preset": "custom",
+        "freq_ghz": 1.0,
+        "bandwidth_hz": 25000000,
+        "txPower_dbw": 18,
+        "txGain_dbi": 5,
+        "rxGain_dbi": 5,
+        "noiseFigure_db": 5,
+        "requiredSNR_db": 12,
+        "dataRate_bps": 25000000,
+        "linkType": "rf"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "evt_thaad_active",
+      "type": "timed",
+      "time": 15,
+      "action": {
+        "type": "set_state",
+        "entityId": "thaad_taiwan",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "THAAD battery goes active at T+15s"
+    },
+    {
+      "id": "evt_patriot_active",
+      "type": "timed",
+      "time": 15,
+      "action": {
+        "type": "set_state",
+        "entityId": "patriot_taiwan",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "Patriot battery goes active at T+15s"
+    },
+    {
+      "id": "evt_aegis1_weapons_free",
+      "type": "timed",
+      "time": 20,
+      "action": {
+        "type": "set_state",
+        "entityId": "ddg_burke_1",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "DDG-117 Aegis weapons free at T+20s"
+    },
+    {
+      "id": "evt_aegis2_weapons_free",
+      "type": "timed",
+      "time": 20,
+      "action": {
+        "type": "set_state",
+        "entityId": "ddg_burke_2",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "DDG-118 Aegis weapons free at T+20s"
+    },
+    {
+      "id": "evt_tico_weapons_free",
+      "type": "timed",
+      "time": 20,
+      "action": {
+        "type": "set_state",
+        "entityId": "cg_tico",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "CG-73 Port Royal weapons free at T+20s"
+    },
+    {
+      "id": "evt_type055_1_weapons_free",
+      "type": "timed",
+      "time": 25,
+      "action": {
+        "type": "set_state",
+        "entityId": "type055_nanchang",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "Type 055 Nanchang weapons free at T+25s"
+    },
+    {
+      "id": "evt_type055_2_weapons_free",
+      "type": "timed",
+      "time": 25,
+      "action": {
+        "type": "set_state",
+        "entityId": "type055_lhasa",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "Type 055 Lhasa weapons free at T+25s"
+    },
+    {
+      "id": "evt_hq9_north_weapons_free",
+      "type": "timed",
+      "time": 30,
+      "action": {
+        "type": "set_state",
+        "entityId": "hq9_coastal_1",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "HQ-9B North battery goes weapons free at T+30s"
+    },
+    {
+      "id": "evt_hq9_south_weapons_free",
+      "type": "timed",
+      "time": 30,
+      "action": {
+        "type": "set_state",
+        "entityId": "hq9_coastal_2",
+        "state": {
+          "weaponsFree": true
+        }
+      },
+      "description": "HQ-9B South battery goes weapons free at T+30s"
+    },
+    {
+      "id": "evt_reaper_isr_active",
+      "type": "timed",
+      "time": 30,
+      "action": {
+        "type": "message",
+        "text": "ISR: MQ-9 Reapers on station. Beginning target surveillance."
+      },
+      "description": "Reaper ISR goes active at T+30s"
+    },
+    {
+      "id": "evt_j20_scramble",
+      "type": "timed",
+      "time": 60,
+      "action": {
+        "type": "message",
+        "text": "INTEL: PLAAF J-20 flight airborne from Longtian AB. Heading east toward ADIZ boundary."
+      },
+      "description": "J-20 scramble alert"
+    },
+    {
+      "id": "evt_awacs_contact",
+      "type": "timed",
+      "time": 90,
+      "action": {
+        "type": "message",
+        "text": "MAGIC 1: Multiple contacts bearing 270. Classifying as hostile. ROE is weapons free within engagement zone."
+      },
+      "description": "AWACS calls contacts"
+    },
+    {
+      "id": "evt_cyber_probe",
+      "type": "timed",
+      "time": 120,
+      "action": {
+        "type": "message",
+        "text": "CYBER: PLA SSF conducting network reconnaissance against PACOM C2 nodes. Implementing countermeasures."
+      },
+      "description": "Red cyber probe begins"
+    },
+    {
+      "id": "evt_df21_launch_warning",
+      "type": "timed",
+      "time": 240,
+      "action": {
+        "type": "message",
+        "text": "WARNING: SBIRS detects IR signature at DF-21D launch site. THAAD battery tracking. Estimated impact zone: CVN-78 operating area."
+      },
+      "description": "Ballistic missile launch warning from SBIRS"
+    },
+    {
+      "id": "evt_phase2_roe",
+      "type": "timed",
+      "time": 300,
+      "action": {
+        "type": "message",
+        "text": "PACOM: Phase 2 authorized. All units weapons free. Commence offensive counter-air operations."
+      },
+      "description": "ROE escalation to Phase 2"
+    },
+    {
+      "id": "evt_type055_underway",
+      "type": "timed",
+      "time": 180,
+      "action": {
+        "type": "message",
+        "text": "INTEL: Type 055 destroyer group departing Sanya naval base. Two destroyers plus one LHD detected."
+      },
+      "description": "PLAN surface action group alert"
+    },
+    {
+      "id": "evt_gps_jamming",
+      "type": "timed",
+      "time": 360,
+      "action": {
+        "type": "message",
+        "text": "NAVWAR: GPS jamming detected across Taiwan Strait. Switching to INS/LORAN backup navigation."
+      },
+      "description": "GPS denial begins"
+    }
+  ],
+  "camera": {
+    "mode": "free",
+    "lat": 25.0,
+    "lon": 121.0,
+    "alt": 500000,
+    "heading": 0,
+    "pitch": -90,
+    "range": 500000
+  },
+  "regions": [
+    {
+      "name": "Taiwan Strait ADIZ",
+      "type": "adiz",
+      "shape": "polygon",
+      "points": [
+        [
+          26.5,
+          119.0
+        ],
+        [
+          26.5,
+          122.5
+        ],
+        [
+          22.0,
+          122.5
+        ],
+        [
+          22.0,
+          119.0
+        ]
+      ]
+    },
+    {
+      "name": "Blue Ops Area",
+      "type": "operational",
+      "shape": "polygon",
+      "points": [
+        [
+          27.0,
+          122.5
+        ],
+        [
+          27.0,
+          128.0
+        ],
+        [
+          21.0,
+          128.0
+        ],
+        [
+          21.0,
+          122.5
+        ]
+      ]
+    },
+    {
+      "name": "Red Engagement Zone",
+      "type": "engagement",
+      "shape": "circle",
+      "center": [
+        25.0,
+        119.5
+      ],
+      "radius": 300000
+    },
+    {
+      "name": "CVN-78 Protected Zone",
+      "type": "safe",
+      "shape": "circle",
+      "center": [
+        23.5,
+        126.0
+      ],
+      "radius": 150000
+    },
+    {
+      "name": "DF-21D Exclusion Zone",
+      "type": "exclusion",
+      "shape": "circle",
+      "center": [
+        26.0,
+        120.0
+      ],
+      "radius": 1500000
+    }
+  ]
+}

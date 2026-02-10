@@ -244,5 +244,19 @@ const ScenarioLoader = (function() {
         return _buildEntity(def);
     }
 
-    return { load: load, build: build, buildEntity: buildEntity };
+    /**
+     * Add a new entity to an existing running world from a definition.
+     * Builds the entity, adds it to the world, and initializes its components.
+     */
+    function addEntity(world, def, viewer) {
+        var entity = _buildEntity(def);
+        world.addEntity(entity);
+        // Initialize all components on this new entity
+        entity.components.forEach(function(comp) {
+            if (typeof comp.init === 'function') comp.init(world);
+        });
+        return entity;
+    }
+
+    return { load: load, build: build, buildEntity: buildEntity, addEntity: addEntity };
 })();

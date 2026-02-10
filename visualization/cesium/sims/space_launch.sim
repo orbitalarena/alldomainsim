@@ -1,0 +1,197 @@
+{
+  "metadata": {
+    "name": "Space Launch Demo",
+    "description": "Cape Canaveral space launch demonstration. A Falcon 9 Block 5 sits on the pad ready for launch (gamma 90, vertical orientation). A tracking station monitors the launch corridor with a 2000km radar. Overhead assets include 2 GPS III satellites in MEO providing navigation coverage, and the International Space Station in its 51.6-degree inclination LEO orbit as a potential rendezvous target. Use P key to open engine panel, select ROCKET, then throttle up (W) and watch the gravity turn. Switch to chase camera (C) for launch views.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 64
+  },
+  "entities": [
+    {
+      "id": "falcon9",
+      "name": "FALCON 9",
+      "type": "aircraft",
+      "team": "blue",
+      "vizCategory": "Launch Vehicle",
+      "initialState": {
+        "lat": 28.562,
+        "lon": -80.577,
+        "alt": 10,
+        "speed": 0,
+        "heading": 90,
+        "gamma": 90,
+        "throttle": 0,
+        "engineOn": false,
+        "infiniteFuel": true
+      },
+      "_custom": {
+        "propulsion": { "modes": ["ROCKET"], "rocketEngine": "RS25" },
+        "mass": 549054,
+        "description": "SpaceX Falcon 9 Block 5 - LEO capacity 22,800 kg"
+      },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "spaceplane" },
+        "control": { "type": "player_input", "config": "spaceplane" },
+        "visual": {
+          "type": "point",
+          "color": "#00bbff",
+          "pixelSize": 14,
+          "trail": true,
+          "label": "FALCON 9"
+        }
+      }
+    },
+    {
+      "id": "cape_tracking",
+      "name": "CAPE CANAVERAL TRACKING",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 28.49,
+        "lon": -80.58,
+        "alt": 3,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "CAPE TRACK",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "C-band Tracking Radar", "range_km": 2000, "fov_deg": 360 }
+        ],
+        "notes": "Cape Canaveral Space Force Station tracking facility. C-band radar provides launch vehicle tracking through all phases of ascent. Primary range safety and telemetry station."
+      }
+    },
+    {
+      "id": "gps_overhead_1",
+      "name": "GPS III SV05",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26560000,
+          "ecc": 0.005,
+          "inc": 55,
+          "raan": 300,
+          "argPerigee": 0,
+          "meanAnomaly": 100
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 7,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS III SV05"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 10,
+        "mass_kg": 2161,
+        "notes": "GPS Block III satellite in Plane D, Slot 5. Provides L1/L2/L5 navigation signals. 20,180 km MEO, 55-degree inclination, ~12 hour period."
+      }
+    },
+    {
+      "id": "gps_overhead_2",
+      "name": "GPS III SV08",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 26560000,
+          "ecc": 0.004,
+          "inc": 55,
+          "raan": 60,
+          "argPerigee": 0,
+          "meanAnomaly": 220
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc44",
+          "pixelSize": 7,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "GPS III SV08"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 10,
+        "mass_kg": 2161,
+        "notes": "GPS Block III satellite in Plane B, Slot 8. Provides L1/L2/L5 navigation signals. 20,180 km MEO, 55-degree inclination, ~12 hour period."
+      }
+    },
+    {
+      "id": "iss",
+      "name": "ISS",
+      "type": "satellite",
+      "team": "neutral",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6771000,
+          "ecc": 0.0001,
+          "inc": 51.6,
+          "raan": 120,
+          "argPerigee": 0,
+          "meanAnomaly": 45
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffffff",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "ISS"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 400,
+        "mass_kg": 420000,
+        "notes": "International Space Station. 400 km altitude, 51.6-degree inclination, ~92 minute period. Potential rendezvous target for Falcon 9 crew missions."
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "free",
+    "range": 500000
+  }
+}

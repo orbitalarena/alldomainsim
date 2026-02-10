@@ -1,0 +1,232 @@
+{
+  "metadata": {
+    "name": "Orbital Mechanics Tutorial",
+    "description": "Learn orbital mechanics: Hohmann transfers, plane changes, and rendezvous. Start in 200km LEO and reach the ISS at 408km, 51.6\u00b0 inclination.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "inverse_square",
+    "maxTimeWarp": 1024
+  },
+  "entities": [
+    {
+      "id": "tutorial_craft",
+      "name": "TUTORIAL CRAFT",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6571000,
+          "ecc": 0.001,
+          "inc": 28.5,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 0
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#00ff88",
+          "pixelSize": 12,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "TUTORIAL CRAFT"
+        }
+      },
+      "_custom": {
+        "propulsion": {
+          "modes": ["ROCKET", "RCS"],
+          "rocketEngine": "AJ10"
+        },
+        "mass_kg": 8000,
+        "notes": "Tutorial spacecraft in 200km LEO. Use the maneuver planner (M) to set up Hohmann transfers and plane changes to reach the ISS."
+      },
+      "_quest": {
+        "mode": "takeoff",
+        "initialMsg": "ORBITAL MECHANICS TUTORIAL",
+        "initialHint": "Press M to open the maneuver planner. Press N to create a node. Use +/- prograde to set up a Hohmann transfer to 408km.",
+        "milestones": [
+          {
+            "type": "alt",
+            "value": 300000,
+            "msg": "Altitude 300km reached!",
+            "hint": "You're in the transfer orbit. Wait until you reach apoapsis, then burn prograde to circularize."
+          },
+          {
+            "type": "alt",
+            "value": 390000,
+            "msg": "Approaching ISS altitude! 390km+",
+            "hint": "Near your target altitude. Circularize your orbit using a prograde burn at apoapsis."
+          },
+          {
+            "type": "alt",
+            "value": 405000,
+            "msg": "ISS altitude band reached! 405km+",
+            "hint": "Now you need a plane change. Use normal/anti-normal burns to match ISS inclination of 51.6\u00b0."
+          }
+        ]
+      }
+    },
+    {
+      "id": "iss_target",
+      "name": "ISS (TARGET)",
+      "type": "satellite",
+      "team": "blue",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6779000,
+          "ecc": 0.0005,
+          "inc": 51.6,
+          "raan": 15,
+          "argPerigee": 0,
+          "meanAnomaly": 180
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ffcc00",
+          "pixelSize": 14,
+          "orbitPath": true,
+          "groundTrack": true,
+          "apPeMarkers": true,
+          "label": "ISS (TARGET)"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 400,
+        "mass_kg": 420000,
+        "notes": "International Space Station at 408km altitude, 51.6-degree inclination. This is the rendezvous target. Notice the different RAAN (15 deg) and inclination (51.6 deg) compared to the tutorial craft (RAAN 0 deg, inc 28.5 deg)."
+      }
+    },
+    {
+      "id": "hubble_ref",
+      "name": "HUBBLE (REFERENCE)",
+      "type": "satellite",
+      "team": "neutral",
+      "vizCategory": "Space",
+      "initialState": {},
+      "components": {
+        "physics": {
+          "type": "orbital_2body",
+          "source": "elements",
+          "sma": 6911000,
+          "ecc": 0.001,
+          "inc": 28.5,
+          "raan": 0,
+          "argPerigee": 0,
+          "meanAnomaly": 120
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#8888ff",
+          "pixelSize": 10,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true,
+          "label": "HUBBLE (REF)"
+        }
+      },
+      "_custom": {
+        "rcs_m2": 50,
+        "mass_kg": 11110,
+        "notes": "Hubble Space Telescope at 540km altitude, 28.5-degree inclination. Same orbital plane as your starting orbit but higher altitude. A Hohmann transfer from 200km to 540km would raise your apoapsis by 340km. Useful as a visual reference for co-planar transfers."
+      }
+    },
+    {
+      "id": "cape_tracking",
+      "name": "CAPE CANAVERAL",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 28.396,
+        "lon": -80.605,
+        "alt": 3,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.95,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "CAPE CANAVERAL",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "C-band Tracking Radar", "range_km": 2000, "fov_deg": 360 }
+        ],
+        "notes": "Cape Canaveral Space Force Station. Primary launch and tracking facility at 28.4 N latitude, which defines the minimum orbital inclination for eastward launches (28.5 deg)."
+      }
+    },
+    {
+      "id": "houston_mcc",
+      "name": "HOUSTON MCC",
+      "type": "ground_station",
+      "team": "blue",
+      "vizCategory": "Ground",
+      "initialState": {
+        "lat": 29.559,
+        "lon": -95.090,
+        "alt": 15,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "physics": {
+          "type": "static_ground"
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 2000000,
+          "fov_deg": 360,
+          "scanRate_dps": 60,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "HOUSTON MCC",
+          "sensorRange_m": 2000000,
+          "sensorColor": "rgba(0,255,136,0.02)",
+          "sensorOutlineColor": "#00ff88"
+        }
+      },
+      "_custom": {
+        "sensors": [
+          { "type": "radar", "name": "S-band Tracking Radar", "range_km": 2000, "fov_deg": 360 }
+        ],
+        "notes": "NASA Johnson Space Center Mission Control. Manages ISS operations and crew vehicle rendezvous. TDRS relay provides near-continuous coverage."
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "chase",
+    "range": 500000
+  }
+}

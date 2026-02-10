@@ -81,6 +81,10 @@
     var _selectedNetworkId = null;
     var _selectedNodeId = null;
 
+    // Multi-select state for entity list
+    var _selectedEntityIds = new Set();
+    var _lastClickedEntityId = null;
+
     // Canvas / SVG state
     var _svgEl = null;
     var _nodePositions = {};     // nodeId -> {x, y}
@@ -150,6 +154,20 @@
             '<div class="cd-panel-header">ENTITIES & NETWORKS</div>' +
             '<div class="cd-search-bar">' +
                 '<input type="text" id="cd-entity-search" placeholder="Search entities..." />' +
+            '</div>' +
+            '<div class="cd-bulk-bar" id="cd-bulk-bar">' +
+                '<div class="cd-bulk-row">' +
+                    '<button class="cd-bulk-btn" id="cd-select-all" title="Select/deselect all visible (Ctrl+A)">All</button>' +
+                    '<select class="cd-bulk-select" id="cd-select-by-type" title="Select all of type">' +
+                        '<option value="">By Type...</option>' +
+                    '</select>' +
+                    '<select class="cd-bulk-select" id="cd-select-by-team" title="Select all of team">' +
+                        '<option value="">By Team...</option>' +
+                    '</select>' +
+                '</div>' +
+                '<div class="cd-bulk-row">' +
+                    '<button class="cd-bulk-btn cd-bulk-add" id="cd-add-selected" title="Add selected entities to current network" disabled>Add Selected (0)</button>' +
+                '</div>' +
             '</div>' +
             '<div class="cd-entity-list" id="cd-entity-list"></div>' +
             '<div class="cd-panel-divider"></div>' +
@@ -235,7 +253,55 @@
 
         // Entity search
         document.getElementById('cd-entity-search').addEventListener('input', function() {
+            _selectedEntityIds.clear();
+            _lastClickedEntityId = null;
             _renderEntityList();
+            _updateBulkBar();
+        });
+
+        // Bulk select all
+        document.getElementById('cd-select-all').addEventListener('click', function() {
+            var visible = _getVisibleEntities();
+            if (_selectedEntityIds.size === visible.length && visible.length > 0) {
+                _selectedEntityIds.clear();
+            } else {
+                visible.forEach(function(ent) { _selectedEntityIds.add(ent.id); });
+            }
+            _renderEntityList();
+            _updateBulkBar();
+        });
+
+        // Select by type
+        document.getElementById('cd-select-by-type').addEventListener('change', function() {
+            var type = this.value;
+            if (!type) return;
+            _entities.forEach(function(ent) {
+                if ((ent.type || '').toLowerCase() === type.toLowerCase()) {
+                    _selectedEntityIds.add(ent.id);
+                }
+            });
+            this.value = '';
+            _renderEntityList();
+            _updateBulkBar();
+        });
+
+        // Select by team
+        document.getElementById('cd-select-by-team').addEventListener('change', function() {
+            var team = this.value;
+            if (!team) return;
+            _entities.forEach(function(ent) {
+                if ((ent.team || '').toLowerCase() === team.toLowerCase()) {
+                    _selectedEntityIds.add(ent.id);
+                }
+            });
+            this.value = '';
+            _renderEntityList();
+            _updateBulkBar();
+        });
+
+        // Add selected to network
+        document.getElementById('cd-add-selected').addEventListener('click', function() {
+            _addSelectedToNetwork();
         });
 
         // Canvas tools
@@ -307,6 +373,18 @@
                 _selectedNodeId = null;
                 e.stopPropagation();
             }
+            // Ctrl+A select all entities
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                var searchEl = document.getElementById('cd-entity-search');
+                if (document.activeElement !== searchEl) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var visible = _getVisibleEntities();
+                    visible.forEach(function(ent) { _selectedEntityIds.add(ent.id); });
+                    _renderEntityList();
+                    _updateBulkBar();
+                }
+            }
         });
     }
 
@@ -326,14 +404,18 @@
         });
         _selectedNetworkId = _networks.length > 0 ? _networks[0].id : null;
         _selectedNodeId = null;
+        _selectedEntityIds.clear();
+        _lastClickedEntityId = null;
         _isDrawingLink = false;
         _drawLinkFrom = null;
 
+        _populateFilterDropdowns();
         _renderEntityList();
         _renderSavedNetworkList();
         _renderCanvas();
         _renderProperties();
         _updateSummary();
+        _updateBulkBar();
 
         _overlay.style.display = 'flex';
     }
@@ -422,53 +504,239 @@
     // Entity List (Left Panel)
     // =========================================================================
 
-    function _renderEntityList() {
-        var listEl = document.getElementById('cd-entity-list');
-        if (!listEl) return;
-        listEl.innerHTML = '';
-
+    function _getVisibleEntities() {
         var searchEl = document.getElementById('cd-entity-search');
         var filter = searchEl ? searchEl.value.toLowerCase() : '';
-
-        var filtered = _entities.filter(function(ent) {
+        return _entities.filter(function(ent) {
             if (!filter) return true;
             return (ent.name || '').toLowerCase().indexOf(filter) >= 0 ||
                    (ent.type || '').toLowerCase().indexOf(filter) >= 0 ||
                    (ent.id || '').toLowerCase().indexOf(filter) >= 0;
         });
+    }
+
+    function _renderEntityList() {
+        var listEl = document.getElementById('cd-entity-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        var filtered = _getVisibleEntities();
 
         if (filtered.length === 0) {
             listEl.innerHTML = '<div class="cd-entity-empty">No entities found</div>';
             return;
         }
 
+        // Group by type for easier navigation
+        var groups = {};
+        var groupOrder = [];
         filtered.forEach(function(ent) {
-            var card = document.createElement('div');
-            card.className = 'cd-entity-card';
-            card.setAttribute('draggable', 'true');
-            card.setAttribute('data-entity-id', ent.id);
-
-            var teamColor = TEAM_COLORS[ent.team] || '#888';
-            var typeLabel = (ent.type || 'unknown').toUpperCase();
-
-            card.innerHTML =
-                '<div class="cd-entity-dot" style="background:' + teamColor + '"></div>' +
-                '<div class="cd-entity-info">' +
-                    '<div class="cd-entity-name">' + _escapeHtml(ent.name) + '</div>' +
-                    '<div class="cd-entity-type">' + typeLabel + '</div>' +
-                '</div>';
-
-            // Drag start
-            card.addEventListener('dragstart', function(e) {
-                e.dataTransfer.setData('text/plain', JSON.stringify({
-                    entityId: ent.id,
-                    isNetwork: false
-                }));
-                e.dataTransfer.effectAllowed = 'copy';
-            });
-
-            listEl.appendChild(card);
+            var t = (ent.type || 'unknown').toLowerCase();
+            if (!groups[t]) {
+                groups[t] = [];
+                groupOrder.push(t);
+            }
+            groups[t].push(ent);
         });
+
+        // If only one group or few entities, skip grouping headers
+        var showGroups = groupOrder.length > 1 && filtered.length > 8;
+
+        groupOrder.forEach(function(type) {
+            if (showGroups) {
+                var groupHeader = document.createElement('div');
+                groupHeader.className = 'cd-entity-group-header';
+                var groupCount = groups[type].length;
+                var selectedInGroup = groups[type].filter(function(e) { return _selectedEntityIds.has(e.id); }).length;
+                groupHeader.innerHTML =
+                    '<span class="cd-entity-group-label">' + type.toUpperCase() + ' (' + groupCount + ')</span>' +
+                    '<button class="cd-entity-group-add-all" title="Select all ' + type + '">Select All</button>';
+                groupHeader.querySelector('.cd-entity-group-add-all').addEventListener('click', function() {
+                    groups[type].forEach(function(ent) { _selectedEntityIds.add(ent.id); });
+                    _renderEntityList();
+                    _updateBulkBar();
+                });
+                listEl.appendChild(groupHeader);
+            }
+
+            groups[type].forEach(function(ent) {
+                var card = document.createElement('div');
+                var isSelected = _selectedEntityIds.has(ent.id);
+                card.className = 'cd-entity-card' + (isSelected ? ' cd-entity-card-selected' : '');
+                card.setAttribute('draggable', 'true');
+                card.setAttribute('data-entity-id', ent.id);
+
+                var teamColor = TEAM_COLORS[ent.team] || '#888';
+                var typeLabel = (ent.type || 'unknown').toUpperCase();
+
+                // Check if already in current network
+                var net = _getNetwork(_selectedNetworkId);
+                var inNetwork = net && net.members.indexOf(ent.id) >= 0;
+
+                card.innerHTML =
+                    '<div class="cd-entity-checkbox">' +
+                        '<input type="checkbox" ' + (isSelected ? 'checked' : '') + ' tabindex="-1" />' +
+                    '</div>' +
+                    '<div class="cd-entity-dot" style="background:' + teamColor + '"></div>' +
+                    '<div class="cd-entity-info">' +
+                        '<div class="cd-entity-name">' + _escapeHtml(ent.name) +
+                            (inNetwork ? ' <span class="cd-entity-in-net">IN NET</span>' : '') +
+                        '</div>' +
+                        '<div class="cd-entity-type">' + typeLabel + '</div>' +
+                    '</div>';
+
+                // Click for multi-select (Ctrl/Cmd = toggle, Shift = range)
+                card.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (e.ctrlKey || e.metaKey) {
+                        // Toggle individual
+                        if (_selectedEntityIds.has(ent.id)) {
+                            _selectedEntityIds.delete(ent.id);
+                        } else {
+                            _selectedEntityIds.add(ent.id);
+                        }
+                    } else if (e.shiftKey && _lastClickedEntityId) {
+                        // Range select
+                        var idxStart = -1, idxEnd = -1;
+                        for (var fi = 0; fi < filtered.length; fi++) {
+                            if (filtered[fi].id === _lastClickedEntityId) idxStart = fi;
+                            if (filtered[fi].id === ent.id) idxEnd = fi;
+                        }
+                        if (idxStart >= 0 && idxEnd >= 0) {
+                            var lo = Math.min(idxStart, idxEnd);
+                            var hi = Math.max(idxStart, idxEnd);
+                            for (var ri = lo; ri <= hi; ri++) {
+                                _selectedEntityIds.add(filtered[ri].id);
+                            }
+                        }
+                    } else {
+                        // Single click: toggle if already selected, else select only this
+                        if (_selectedEntityIds.has(ent.id) && _selectedEntityIds.size === 1) {
+                            _selectedEntityIds.clear();
+                        } else {
+                            _selectedEntityIds.clear();
+                            _selectedEntityIds.add(ent.id);
+                        }
+                    }
+                    _lastClickedEntityId = ent.id;
+                    _renderEntityList();
+                    _updateBulkBar();
+                });
+
+                // Drag start — drag all selected (or just this one if not selected)
+                card.addEventListener('dragstart', function(e) {
+                    var ids;
+                    if (_selectedEntityIds.has(ent.id) && _selectedEntityIds.size > 1) {
+                        ids = Array.from(_selectedEntityIds);
+                    } else {
+                        ids = [ent.id];
+                    }
+                    e.dataTransfer.setData('text/plain', JSON.stringify({
+                        entityIds: ids,
+                        entityId: ids[0],
+                        isNetwork: false,
+                        isMulti: ids.length > 1
+                    }));
+                    e.dataTransfer.effectAllowed = 'copy';
+                });
+
+                listEl.appendChild(card);
+            });
+        });
+    }
+
+    function _populateFilterDropdowns() {
+        // Populate type dropdown
+        var typeSelect = document.getElementById('cd-select-by-type');
+        if (typeSelect) {
+            typeSelect.innerHTML = '<option value="">By Type...</option>';
+            var types = {};
+            _entities.forEach(function(ent) {
+                var t = (ent.type || 'unknown').toLowerCase();
+                if (!types[t]) types[t] = 0;
+                types[t]++;
+            });
+            Object.keys(types).sort().forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t.toUpperCase() + ' (' + types[t] + ')';
+                typeSelect.appendChild(opt);
+            });
+        }
+
+        // Populate team dropdown
+        var teamSelect = document.getElementById('cd-select-by-team');
+        if (teamSelect) {
+            teamSelect.innerHTML = '<option value="">By Team...</option>';
+            var teams = {};
+            _entities.forEach(function(ent) {
+                var t = (ent.team || 'neutral').toLowerCase();
+                if (!teams[t]) teams[t] = 0;
+                teams[t]++;
+            });
+            Object.keys(teams).sort().forEach(function(t) {
+                var opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t.toUpperCase() + ' (' + teams[t] + ')';
+                teamSelect.appendChild(opt);
+            });
+        }
+    }
+
+    function _updateBulkBar() {
+        var addBtn = document.getElementById('cd-add-selected');
+        if (addBtn) {
+            var count = _selectedEntityIds.size;
+            addBtn.textContent = 'Add Selected (' + count + ')';
+            addBtn.disabled = count === 0 || !_selectedNetworkId;
+        }
+    }
+
+    function _addSelectedToNetwork() {
+        var net = _getNetwork(_selectedNetworkId);
+        if (!net) {
+            _showToast('Create or select a network first');
+            return;
+        }
+        if (_selectedEntityIds.size === 0) return;
+
+        var container = document.getElementById('cd-canvas-container');
+        var w = container ? container.clientWidth : 600;
+        var h = container ? container.clientHeight : 400;
+        var added = 0;
+
+        _selectedEntityIds.forEach(function(entityId) {
+            if (net.members.indexOf(entityId) >= 0) return; // already a member
+            net.members.push(entityId);
+
+            // Arrange in circle for new nodes
+            var count = net.members.length;
+            var radius = Math.min(w, h) * 0.35;
+            var angle = (2 * Math.PI * (count - 1) / Math.max(count, 1)) - Math.PI / 2;
+            _nodePositions[entityId] = {
+                x: w / 2 + radius * Math.cos(angle),
+                y: h / 2 + radius * Math.sin(angle)
+            };
+
+            if (net.type === 'multihop') {
+                if (!net.path) net.path = [];
+                net.path.push(entityId);
+            }
+            added++;
+        });
+
+        if (added > 0) {
+            // Re-layout all positions for even spacing
+            _nodePositions = {};
+            _initNodePositions(net);
+            _renderCanvas();
+            _renderProperties();
+            _updateSummary();
+            _renderEntityList();
+            _showToast('Added ' + added + ' entities to ' + net.name);
+        } else {
+            _showToast('All selected entities are already in the network');
+        }
     }
 
     // =========================================================================
@@ -1011,8 +1279,48 @@
         var data;
         try { data = JSON.parse(raw); } catch (err) { return; }
 
-        var memberId = data.entityId;
         var isNetwork = data.isNetwork;
+
+        // Handle multi-entity drop
+        if (data.isMulti && data.entityIds && data.entityIds.length > 1) {
+            var container = document.getElementById('cd-canvas-container');
+            var rect = container.getBoundingClientRect();
+            var dropX = e.clientX - rect.left;
+            var dropY = e.clientY - rect.top;
+            var added = 0;
+            var total = data.entityIds.length;
+            var radius = Math.min(total * 15, 120);
+
+            data.entityIds.forEach(function(entityId, idx) {
+                if (net.members.indexOf(entityId) >= 0) return;
+                net.members.push(entityId);
+                // Spread around drop point in circle
+                var angle = (2 * Math.PI * idx / total) - Math.PI / 2;
+                _nodePositions[entityId] = {
+                    x: dropX + radius * Math.cos(angle),
+                    y: dropY + radius * Math.sin(angle)
+                };
+                if (net.type === 'multihop') {
+                    if (!net.path) net.path = [];
+                    net.path.push(entityId);
+                }
+                added++;
+            });
+
+            if (added > 0) {
+                _renderCanvas();
+                _renderProperties();
+                _updateSummary();
+                _renderEntityList();
+                _showToast('Added ' + added + ' entities to ' + net.name);
+            } else {
+                _showToast('All entities already in network');
+            }
+            return;
+        }
+
+        // Single entity/network drop
+        var memberId = data.entityId;
 
         // Prevent adding a network to itself
         if (isNetwork && memberId === net.id) {
@@ -1036,11 +1344,11 @@
         net.members.push(memberId);
 
         // Position at drop location
-        var container = document.getElementById('cd-canvas-container');
-        var rect = container.getBoundingClientRect();
+        var container2 = document.getElementById('cd-canvas-container');
+        var rect2 = container2.getBoundingClientRect();
         _nodePositions[memberId] = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: e.clientX - rect2.left,
+            y: e.clientY - rect2.top
         };
 
         // For multihop, also add to path
@@ -1052,6 +1360,7 @@
         _renderCanvas();
         _renderProperties();
         _updateSummary();
+        _renderEntityList();
     }
 
     function _removeNodeFromNetwork(netId, nodeId) {
@@ -1175,20 +1484,27 @@
         html += '<div class="cd-prop-hint">' + _getTypeHint(net.type) + '</div>';
         html += '</div>';
 
-        // Members summary
+        // Members summary with reorder support
         html += '<div class="cd-prop-group">';
-        html += '<label class="cd-prop-label">Members (' + net.members.length + ')</label>';
-        html += '<div class="cd-prop-members">';
+        html += '<label class="cd-prop-label">Members (' + net.members.length + ')' +
+            (net.type === 'multihop' ? ' <span style="color:#44ff88;font-size:9px"> — drag to reorder chain</span>' : '') +
+            '</label>';
+        html += '<div class="cd-prop-members" id="cd-prop-members-list">';
         if (net.members.length === 0) {
-            html += '<div class="cd-prop-member-empty">Drag entities to canvas to add</div>';
+            html += '<div class="cd-prop-member-empty">Drag entities to canvas, or select + click "Add Selected"</div>';
         } else {
-            net.members.forEach(function(m) {
+            net.members.forEach(function(m, idx) {
                 var info = _getMemberInfo(m);
                 var isHub = net.type === 'star' && net.hub === m;
-                html += '<div class="cd-prop-member-item">' +
+                var draggable = net.type === 'multihop' ? ' draggable="true"' : '';
+                html += '<div class="cd-prop-member-item' + (net.type === 'multihop' ? ' cd-prop-member-draggable' : '') + '"' +
+                    draggable + ' data-member-id="' + m + '" data-member-idx="' + idx + '">' +
+                    (net.type === 'multihop' ? '<span class="cd-prop-member-grip">&#x2630;</span>' : '') +
                     '<span class="cd-prop-member-dot" style="background:' + (info.teamColor || '#888') + '"></span>' +
                     '<span class="cd-prop-member-name">' + _escapeHtml(info.name) + '</span>' +
                     (isHub ? '<span class="cd-prop-hub-badge">HUB</span>' : '') +
+                    (net.type === 'multihop' ? '<span class="cd-prop-member-order">#' + (idx + 1) + '</span>' : '') +
+                    '<button class="cd-prop-member-remove" data-remove-id="' + m + '" title="Remove">&times;</button>' +
                     '</div>';
             });
         }
@@ -1294,8 +1610,77 @@
         // Wire property change events
         _wirePropertyEvents(net);
 
+        // Wire member remove buttons
+        var removeButtons = propsEl.querySelectorAll('.cd-prop-member-remove');
+        removeButtons.forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var removeId = btn.getAttribute('data-remove-id');
+                if (removeId) {
+                    _removeNodeFromNetwork(net.id, removeId);
+                }
+            });
+        });
+
+        // Wire drag-to-reorder for multi-hop members
+        if (net.type === 'multihop') {
+            _wireMemberDragReorder(net);
+        }
+
         // Compute and display link budget
         _updateLinkBudgetSummary(net);
+    }
+
+    function _wireMemberDragReorder(net) {
+        var memberList = document.getElementById('cd-prop-members-list');
+        if (!memberList) return;
+
+        var dragSrcIdx = -1;
+
+        var items = memberList.querySelectorAll('.cd-prop-member-draggable');
+        items.forEach(function(item) {
+            item.addEventListener('dragstart', function(e) {
+                dragSrcIdx = parseInt(item.getAttribute('data-member-idx'));
+                item.classList.add('cd-prop-member-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', dragSrcIdx.toString());
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                item.classList.add('cd-prop-member-dragover');
+            });
+
+            item.addEventListener('dragleave', function() {
+                item.classList.remove('cd-prop-member-dragover');
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                item.classList.remove('cd-prop-member-dragover');
+
+                var destIdx = parseInt(item.getAttribute('data-member-idx'));
+                if (dragSrcIdx >= 0 && dragSrcIdx !== destIdx) {
+                    // Reorder members array
+                    var moved = net.members.splice(dragSrcIdx, 1)[0];
+                    net.members.splice(destIdx, 0, moved);
+                    // Also reorder path if exists
+                    if (net.path) {
+                        net.path = net.members.slice();
+                    }
+                    _nodePositions = {};
+                    _renderCanvas();
+                    _renderProperties();
+                }
+            });
+
+            item.addEventListener('dragend', function() {
+                item.classList.remove('cd-prop-member-dragging');
+                dragSrcIdx = -1;
+            });
+        });
     }
 
     function _wirePropertyEvents(net) {
@@ -1902,23 +2287,77 @@
             '}',
             '.cd-search-bar input::placeholder { color: #3a5a7a; }',
 
+            // Bulk action bar
+            '.cd-bulk-bar {',
+            '    padding: 4px 6px; border-bottom: 1px solid #1a2a44; background: #0c1828;',
+            '}',
+            '.cd-bulk-row {',
+            '    display: flex; gap: 4px; margin-bottom: 3px;',
+            '}',
+            '.cd-bulk-row:last-child { margin-bottom: 0; }',
+            '.cd-bulk-btn {',
+            '    flex-shrink: 0; padding: 3px 8px; font-size: 10px; cursor: pointer;',
+            '    background: #0d1a2a; border: 1px solid #1a2a44; color: #5a7a9a;',
+            '    border-radius: 3px; font-family: "Courier New", monospace;',
+            '}',
+            '.cd-bulk-btn:hover { background: #1a2a44; color: #a0b0c8; }',
+            '.cd-bulk-btn:disabled { opacity: 0.4; cursor: default; }',
+            '.cd-bulk-add {',
+            '    flex: 1; background: #1a3a2a; color: #44ff88; border-color: #2a5a3a;',
+            '}',
+            '.cd-bulk-add:hover:not(:disabled) { background: #2a5a3a; }',
+            '.cd-bulk-select {',
+            '    flex: 1; padding: 3px 4px; font-size: 10px;',
+            '    background: #0d1a2a; border: 1px solid #1a2a44; color: #5a7a9a;',
+            '    border-radius: 3px; font-family: "Courier New", monospace;',
+            '}',
+
+            // Entity group headers
+            '.cd-entity-group-header {',
+            '    display: flex; align-items: center; justify-content: space-between;',
+            '    padding: 4px 8px; background: #0c1828; border-bottom: 1px solid #1a2a44;',
+            '    margin-top: 2px;',
+            '}',
+            '.cd-entity-group-label {',
+            '    font-size: 9px; color: #5a7a9a; font-weight: bold; letter-spacing: 0.5px;',
+            '}',
+            '.cd-entity-group-add-all {',
+            '    background: none; border: 1px solid #1a2a44; color: #4a9eff;',
+            '    font-size: 9px; padding: 1px 6px; border-radius: 3px; cursor: pointer;',
+            '    font-family: "Courier New", monospace;',
+            '}',
+            '.cd-entity-group-add-all:hover { background: #1a2a44; }',
+
             // Entity list
             '.cd-entity-list {',
             '    flex: 1; overflow-y: auto; padding: 4px;',
             '}',
             '.cd-entity-card {',
-            '    display: flex; align-items: center; gap: 8px; padding: 6px 8px;',
-            '    border: 1px solid transparent; border-radius: 4px; cursor: grab;',
-            '    margin-bottom: 2px; transition: background 0.15s;',
+            '    display: flex; align-items: center; gap: 6px; padding: 5px 6px;',
+            '    border: 1px solid transparent; border-radius: 4px; cursor: pointer;',
+            '    margin-bottom: 1px; transition: background 0.15s;',
             '}',
             '.cd-entity-card:hover { background: #1a2a44; border-color: #2a4a6a; }',
+            '.cd-entity-card-selected {',
+            '    background: #1a2a44; border-color: #4a9eff;',
+            '}',
+            '.cd-entity-checkbox {',
+            '    flex-shrink: 0; display: flex; align-items: center;',
+            '}',
+            '.cd-entity-checkbox input {',
+            '    margin: 0; accent-color: #4a9eff; pointer-events: none;',
+            '}',
             '.cd-entity-dot {',
             '    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;',
             '}',
-            '.cd-entity-info { min-width: 0; }',
+            '.cd-entity-info { min-width: 0; flex: 1; }',
             '.cd-entity-name {',
             '    font-size: 11px; color: #e0e8f0; white-space: nowrap;',
             '    overflow: hidden; text-overflow: ellipsis;',
+            '}',
+            '.cd-entity-in-net {',
+            '    font-size: 8px; color: #44ff88; background: #1a3a2a;',
+            '    padding: 0 4px; border-radius: 2px; margin-left: 4px;',
             '}',
             '.cd-entity-type { font-size: 9px; color: #5a7a9a; text-transform: uppercase; }',
             '.cd-entity-empty {',
@@ -2045,12 +2484,30 @@
             '}',
             '.cd-prop-member-item {',
             '    display: flex; align-items: center; gap: 6px; padding: 3px 6px;',
-            '    font-size: 11px;',
+            '    font-size: 11px; border: 1px solid transparent; border-radius: 3px;',
+            '}',
+            '.cd-prop-member-draggable {',
+            '    cursor: grab; transition: background 0.15s;',
+            '}',
+            '.cd-prop-member-draggable:hover { background: #1a2a44; }',
+            '.cd-prop-member-dragging { opacity: 0.4; }',
+            '.cd-prop-member-dragover { border-color: #4a9eff; background: #1a2a44; }',
+            '.cd-prop-member-grip {',
+            '    color: #3a5a7a; font-size: 10px; cursor: grab; flex-shrink: 0;',
             '}',
             '.cd-prop-member-dot {',
             '    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;',
             '}',
-            '.cd-prop-member-name { color: #a0b0c8; }',
+            '.cd-prop-member-name { color: #a0b0c8; flex: 1; min-width: 0;',
+            '    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
+            '.cd-prop-member-order {',
+            '    font-size: 9px; color: #44ff88; flex-shrink: 0;',
+            '}',
+            '.cd-prop-member-remove {',
+            '    background: none; border: none; color: #5a7a9a; cursor: pointer;',
+            '    font-size: 14px; padding: 0 2px; line-height: 1; flex-shrink: 0;',
+            '}',
+            '.cd-prop-member-remove:hover { color: #ff4444; }',
             '.cd-prop-member-empty {',
             '    padding: 8px; color: #3a5a7a; font-size: 10px; text-align: center;',
             '    font-style: italic;',
@@ -2058,7 +2515,7 @@
             '.cd-prop-hub-badge {',
             '    font-size: 9px; color: #ffcc44; font-weight: bold;',
             '    background: #2a2a1a; padding: 1px 5px; border-radius: 3px;',
-            '    margin-left: auto;',
+            '    flex-shrink: 0;',
             '}',
 
             // Fields grid
