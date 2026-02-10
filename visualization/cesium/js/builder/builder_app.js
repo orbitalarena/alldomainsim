@@ -132,6 +132,11 @@ const BuilderApp = (function() {
             PlatformBuilder.init();
         }
 
+        // Initialize Communications Designer
+        if (typeof CommDesigner !== 'undefined') {
+            CommDesigner.init();
+        }
+
         // Build palette template map from ObjectPalette
         _buildPaletteTemplateMap();
 
@@ -1368,6 +1373,33 @@ const BuilderApp = (function() {
                     if (_scenarioData) _scenarioData.environment = updatedEnv;
                     showMessage('Environment updated', 2000);
                 }).catch(function() { /* cancelled */ });
+            }
+        });
+
+        // Communications network designer
+        _bindButton('btnComms', function() {
+            if (typeof CommDesigner !== 'undefined') {
+                // Gather current entities for the designer
+                var entities = [];
+                _buildEntities.forEach(function(entry, id) {
+                    entities.push(entry.def);
+                });
+                // Load existing networks if any
+                if (_scenarioData && _scenarioData.networks) {
+                    CommDesigner.setNetworks(_scenarioData.networks);
+                }
+                CommDesigner.open(entities);
+                // Poll for close to sync networks back into scenario data
+                var commPoll = setInterval(function() {
+                    var overlay = document.querySelector('.cd-overlay');
+                    if (!overlay || overlay.style.display === 'none') {
+                        clearInterval(commPoll);
+                        if (_scenarioData) {
+                            _scenarioData.networks = CommDesigner.getNetworks();
+                            showMessage('Networks updated (' + _scenarioData.networks.length + ')', 2000);
+                        }
+                    }
+                }, 500);
             }
         });
 

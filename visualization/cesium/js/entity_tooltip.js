@@ -410,6 +410,49 @@
             }
         }
 
+        // --- Comm status ---
+        if (typeof CommEngine !== 'undefined' && CommEngine.isInitialized()) {
+            var comms = CommEngine.getEntityComms(entity.id);
+            if (comms) {
+                html += _sep();
+                html += _sectionTitle('COMMS');
+                html += _row('Networks', comms.networks.length > 0 ? comms.networks.join(', ') : 'NONE', comms.networks.length > 0 ? '#ccc' : '#666');
+                html += _row('Links', comms.activeLinks + ' active');
+
+                if (comms.totalBandwidth_mbps > 0) {
+                    html += _row('BW', comms.totalBandwidth_mbps.toFixed(1) + ' Mbps');
+                }
+                if (comms.avgLatency_ms > 0) {
+                    html += _row('Latency', comms.avgLatency_ms.toFixed(0) + ' ms');
+                }
+                if (comms.commandRoute) {
+                    html += _row('Cmd Route', comms.commandRoute.hops + ' hop' + (comms.commandRoute.hops !== 1 ? 's' : '') + ', ' + comms.commandRoute.latency_ms.toFixed(0) + 'ms');
+                }
+
+                // Threat indicators
+                var threats = [];
+                var anyJammed = false;
+                for (var li = 0; li < comms.links.length; li++) {
+                    if (comms.links[li].jammed) { anyJammed = true; break; }
+                }
+                if (anyJammed) threats.push('<span style="color:#ff8800">JAMMED</span>');
+                if (comms.bricked) threats.push('<span style="color:#ff0000">BRICKED</span>');
+                if (comms.compromised) threats.push('<span style="color:#ff00ff">COMPROMISED</span>');
+                if (comms.ddosed) threats.push('<span style="color:#ff4400">DDoS</span>');
+                if (comms.mitm) threats.push('<span style="color:#ff88ff">MITM</span>');
+                if (threats.length > 0) {
+                    html += '<div style="margin-top:2px;text-align:right;font-size:10px">' + threats.join(' ') + '</div>';
+                }
+
+                // SAM comm-fed track source
+                var samSrc = s._samTrackSource;
+                if (samSrc) {
+                    var srcColor = samSrc === 'ORGANIC' ? '#44ff44' : samSrc === 'COMM' ? '#ff8800' : samSrc === 'HYBRID' ? '#44ccff' : '#666';
+                    html += _row('Track Src', samSrc, srcColor);
+                }
+            }
+        }
+
         // --- VizCategory ---
         if (entity.vizCategory) {
             html += _sep();

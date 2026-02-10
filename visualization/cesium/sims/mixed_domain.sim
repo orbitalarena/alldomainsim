@@ -253,6 +253,22 @@
       }
     }
   ],
+  "networks": [
+    {
+      "id": "blue_iads",
+      "name": "Blue IADS Network",
+      "type": "star",
+      "hub": "gnd_radar",
+      "members": ["geo_watch_1", "geo_watch_2", "eagle_1", "eagle_2", "gnd_radar", "sam_alpha"],
+      "rfConfig": {
+        "preset": "link16",
+        "linkType": "rf",
+        "freq_ghz": 1.2,
+        "dataRate_mbps": 1.0,
+        "txPower_dbw": 15
+      }
+    }
+  ],
   "camera": {
     "mode": "free",
     "range": 5000000

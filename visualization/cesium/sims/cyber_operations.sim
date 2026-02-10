@@ -1,0 +1,305 @@
+{
+  "metadata": {
+    "name": "Cyber Operations",
+    "description": "Comprehensive cyber warfare scenario with blue IADS defense network vs red offensive cyber operations. Blue team operates a hardened command post, EW radar, SAM batteries, patrol fighters, and AWACS connected via Link-16 mesh. Red team fields a full IADS with a dedicated cyber actor running brick/MITM/inject/DDoS/exploit attacks against blue network nodes. Use the cyber cockpit terminal to monitor attack progression, network health, and F2T2EA kill chain degradation.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "blue_cmd",
+      "name": "BLUE CYBER CMD POST",
+      "type": "command_post",
+      "team": "blue",
+      "initialState": { "lat": 36.24, "lon": -115.03, "alt": 570, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": { "type": "cyber_node", "hardening": 0.85, "patchLevel": 0.9, "firewallRating": 0.8, "role": "command" },
+        "visual": { "type": "ground_station", "color": "#00ccff", "pixelSize": 14 }
+      }
+    },
+    {
+      "id": "blue_ew_radar",
+      "name": "BLUE EW RADAR",
+      "type": "early_warning",
+      "team": "blue",
+      "initialState": { "lat": 36.5, "lon": -115.5, "alt": 800, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 400000, "fov_deg": 360, "scanRate_dps": 180, "detectionProbability": 0.94, "updateInterval": 1.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.6, "patchLevel": 0.7, "firewallRating": 0.65, "role": "sensor" },
+        "visual": { "type": "point", "color": "#44ff44", "trail": false, "pixelSize": 12 }
+      }
+    },
+    {
+      "id": "blue_sam_north",
+      "name": "BLUE SAM NORTH (SA-20)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 36.6, "lon": -114.8, "alt": 650, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.82, "updateInterval": 2.0 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 150000, "minRange_m": 5000, "maxAlt_m": 25000, "missileSpeed_mps": 1200, "killProbability": 0.72, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
+        "cyber": { "type": "cyber_node", "hardening": 0.7, "patchLevel": 0.75, "firewallRating": 0.7, "role": "weapon" },
+        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "blue_sam_south",
+      "name": "BLUE SAM SOUTH (SA-20)",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 35.9, "lon": -115.2, "alt": 620, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.80, "updateInterval": 2.0 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 130000, "minRange_m": 4000, "maxAlt_m": 22000, "missileSpeed_mps": 1100, "killProbability": 0.68, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
+        "cyber": { "type": "cyber_node", "hardening": 0.65, "patchLevel": 0.7, "firewallRating": 0.6, "role": "weapon" },
+        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "blue_f16_1",
+      "name": "VIPER 1",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 36.4, "lon": -115.3, "alt": 8000, "speed": 250, "heading": 270 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.4, "lon": -115.8, "alt": 8000 },
+          { "lat": 36.0, "lon": -116.0, "alt": 8000 },
+          { "lat": 35.8, "lon": -115.5, "alt": 8000 },
+          { "lat": 36.2, "lon": -115.0, "alt": 8000 }
+        ]},
+        "sensors": { "type": "radar", "maxRange_m": 150000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85, "updateInterval": 2.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.5, "patchLevel": 0.6, "firewallRating": 0.5, "role": "platform" },
+        "visual": { "type": "point", "color": "#4488ff", "trail": true, "pixelSize": 7 }
+      }
+    },
+    {
+      "id": "blue_f16_2",
+      "name": "VIPER 2",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 36.1, "lon": -114.7, "alt": 7500, "speed": 240, "heading": 225 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.8, "lon": -115.2, "alt": 7500 },
+          { "lat": 35.6, "lon": -115.8, "alt": 7500 },
+          { "lat": 36.0, "lon": -116.0, "alt": 7500 },
+          { "lat": 36.3, "lon": -115.0, "alt": 7500 }
+        ]},
+        "sensors": { "type": "radar", "maxRange_m": 150000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.85, "updateInterval": 2.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.5, "patchLevel": 0.6, "firewallRating": 0.5, "role": "platform" },
+        "visual": { "type": "point", "color": "#4488ff", "trail": true, "pixelSize": 7 }
+      }
+    },
+    {
+      "id": "blue_awacs",
+      "name": "BLUE AWACS",
+      "type": "aircraft",
+      "team": "blue",
+      "initialState": { "lat": 36.3, "lon": -115.0, "alt": 10000, "speed": 220, "heading": 180 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 36.0, "lon": -115.3, "alt": 10000 },
+          { "lat": 35.7, "lon": -115.0, "alt": 10000 },
+          { "lat": 36.0, "lon": -114.7, "alt": 10000 },
+          { "lat": 36.3, "lon": -115.0, "alt": 10000 }
+        ]},
+        "sensors": { "type": "radar", "maxRange_m": 350000, "fov_deg": 360, "scanRate_dps": 120, "detectionProbability": 0.90, "updateInterval": 1.5 },
+        "cyber": { "type": "cyber_node", "hardening": 0.55, "patchLevel": 0.65, "firewallRating": 0.55, "role": "sensor" },
+        "visual": { "type": "point", "color": "#00aaff", "trail": true, "pixelSize": 9 }
+      }
+    },
+    {
+      "id": "red_cmd",
+      "name": "RED COMMAND POST",
+      "type": "command_post",
+      "team": "red",
+      "initialState": { "lat": 35.5, "lon": -116.5, "alt": 500, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": { "type": "cyber_node", "hardening": 0.6, "patchLevel": 0.5, "firewallRating": 0.55, "role": "command" },
+        "visual": { "type": "ground_station", "color": "#ff4444", "pixelSize": 14 }
+      }
+    },
+    {
+      "id": "red_sam_west",
+      "name": "RED SAM WEST (SA-20)",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 35.7, "lon": -116.8, "alt": 550, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 100000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.78, "updateInterval": 2.0 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 120000, "minRange_m": 5000, "maxAlt_m": 22000, "missileSpeed_mps": 1100, "killProbability": 0.65, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
+        "cyber": { "type": "cyber_node", "hardening": 0.3, "patchLevel": 0.35, "firewallRating": 0.3, "role": "weapon" },
+        "visual": { "type": "point", "color": "#ff4444", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "red_sam_east",
+      "name": "RED SAM EAST (SA-20)",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 35.3, "lon": -116.1, "alt": 480, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 90000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.76, "updateInterval": 2.0 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 110000, "minRange_m": 4000, "maxAlt_m": 20000, "missileSpeed_mps": 1000, "killProbability": 0.62, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 1 },
+        "cyber": { "type": "cyber_node", "hardening": 0.55, "patchLevel": 0.5, "firewallRating": 0.5, "role": "weapon" },
+        "visual": { "type": "point", "color": "#ff4444", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "red_ew_radar",
+      "name": "RED EW RADAR",
+      "type": "early_warning",
+      "team": "red",
+      "initialState": { "lat": 35.8, "lon": -116.0, "alt": 600, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 150, "detectionProbability": 0.88, "updateInterval": 1.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.45, "patchLevel": 0.4, "firewallRating": 0.4, "role": "sensor" },
+        "visual": { "type": "point", "color": "#ff6644", "trail": false, "pixelSize": 12 }
+      }
+    },
+    {
+      "id": "red_mig_1",
+      "name": "FULCRUM 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 35.6, "lon": -116.3, "alt": 8000, "speed": 260, "heading": 45 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.9, "lon": -115.8, "alt": 8000 },
+          { "lat": 36.1, "lon": -115.5, "alt": 8500 },
+          { "lat": 35.8, "lon": -116.0, "alt": 8000 },
+          { "lat": 35.5, "lon": -116.5, "alt": 7500 }
+        ]},
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.80, "updateInterval": 2.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.4, "patchLevel": 0.45, "firewallRating": 0.35, "role": "platform" },
+        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+      }
+    },
+    {
+      "id": "red_mig_2",
+      "name": "FULCRUM 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 35.3, "lon": -116.7, "alt": 7500, "speed": 250, "heading": 60 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "mig29" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.6, "lon": -116.2, "alt": 7500 },
+          { "lat": 35.9, "lon": -115.7, "alt": 8000 },
+          { "lat": 35.7, "lon": -116.3, "alt": 7500 },
+          { "lat": 35.4, "lon": -116.8, "alt": 7000 }
+        ]},
+        "sensors": { "type": "radar", "maxRange_m": 120000, "fov_deg": 120, "scanRate_dps": 60, "detectionProbability": 0.80, "updateInterval": 2.0 },
+        "cyber": { "type": "cyber_node", "hardening": 0.4, "patchLevel": 0.45, "firewallRating": 0.35, "role": "platform" },
+        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+      }
+    },
+    {
+      "id": "red_jammer",
+      "name": "RED JAMMER (EW)",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 35.4, "lon": -116.4, "alt": 11000, "speed": 220, "heading": 30 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 35.7, "lon": -116.0, "alt": 11000 },
+          { "lat": 36.0, "lon": -115.6, "alt": 11000 },
+          { "lat": 35.8, "lon": -116.2, "alt": 11000 },
+          { "lat": 35.5, "lon": -116.6, "alt": 11000 }
+        ]},
+        "weapons": { "type": "jammer", "jammerType": "barrage", "power_dbw": 28, "range_m": 120000, "direction": "both", "targetFreq_ghz": 1.2, "bandwidth_ghz": 1.5, "activateOnDetection": true },
+        "cyber": { "type": "cyber_node", "hardening": 0.4, "patchLevel": 0.4, "firewallRating": 0.35, "role": "platform" },
+        "visual": { "type": "point", "color": "#ff88ff", "trail": true, "pixelSize": 8 }
+      },
+      "_custom": {
+        "payloads": ["jammer"],
+        "notes": "EW aircraft targeting blue Link-16 mesh on 1.2 GHz"
+      }
+    },
+    {
+      "id": "red_cyber_actor",
+      "name": "RED CYBER OPS CENTER",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 35.2, "lon": -116.9, "alt": 520, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": {
+          "type": "cyber_actor",
+          "capabilities": ["brick", "mitm", "inject", "ddos", "exploit"],
+          "targetId": "blue_cmd",
+          "autoTarget": true,
+          "stealthLevel": 0.75,
+          "attackDuration_s": 45,
+          "accessTime_s": 20,
+          "persistenceLevel": 0.6,
+          "lateralMovement": true
+        },
+        "visual": { "type": "point", "color": "#aa00ff", "trail": false, "pixelSize": 10 }
+      },
+      "_custom": {
+        "notes": "Primary cyber threat — full-spectrum offensive capabilities targeting blue IADS network. Brick attacks router/comm nodes, MITM intercepts track data, inject sends false targets, DDoS degrades bandwidth, exploit gains persistent access for lateral movement."
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_mesh",
+      "name": "Blue Link-16 Mesh",
+      "type": "mesh",
+      "members": ["blue_cmd", "blue_ew_radar", "blue_sam_north", "blue_sam_south", "blue_f16_1", "blue_f16_2", "blue_awacs"],
+      "rfConfig": {
+        "preset": "link16",
+        "freq_ghz": 1.2,
+        "bandwidth_hz": 50000000,
+        "txPower_dbw": 20,
+        "txGain_dbi": 6,
+        "rxGain_dbi": 6,
+        "noiseFigure_db": 4,
+        "requiredSNR_db": 10,
+        "dataRate_bps": 50000000,
+        "linkType": "rf"
+      }
+    },
+    {
+      "id": "red_star",
+      "name": "Red Star Network",
+      "type": "star",
+      "hub": "red_cmd",
+      "members": ["red_cmd", "red_sam_west", "red_sam_east", "red_ew_radar", "red_mig_1", "red_mig_2", "red_jammer", "red_cyber_actor"],
+      "rfConfig": {
+        "preset": "uhf",
+        "freq_ghz": 0.3,
+        "bandwidth_hz": 25000000,
+        "txPower_dbw": 15,
+        "txGain_dbi": 3,
+        "rxGain_dbi": 3,
+        "noiseFigure_db": 6,
+        "requiredSNR_db": 12,
+        "dataRate_bps": 10000000,
+        "linkType": "rf"
+      }
+    }
+  ],
+  "events": [],
+  "camera": { "mode": "free", "range": 300000 }
+}

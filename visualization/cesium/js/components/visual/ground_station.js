@@ -296,6 +296,35 @@
                     this._labelText = baseLbl;
                 }
             }
+
+            // --- Cyber status visual indicators ---
+            if (this._pointEntity && this._pointEntity.point) {
+                var baseSize = this.config.pixelSize !== undefined ? this.config.pixelSize : DEFAULTS.pixelSize;
+
+                if (state._cyberDenied || state._commBricked) {
+                    // Denied/bricked: dim point, gray color
+                    this._pointEntity.point.pixelSize = Math.max(4, baseSize - 2);
+                    this._pointEntity.point.color = Cesium.Color.GRAY;
+                    this._pointEntity.point.outlineColor = Cesium.Color.DARKGRAY;
+                    this._pointEntity.point.outlineWidth = 1;
+                } else if (state._cyberControlled) {
+                    // Controlled: red pulsing outline
+                    var pulse = Math.sin(Date.now() * 0.005) * 0.5 + 0.5;
+                    this._pointEntity.point.outlineColor = Cesium.Color.RED;
+                    this._pointEntity.point.outlineWidth = 2 + pulse;
+                    this._pointEntity.point.pixelSize = baseSize + pulse * 2;
+                } else if (state._cyberExploited) {
+                    // Exploited: magenta outline
+                    this._pointEntity.point.outlineColor = Cesium.Color.fromCssColorString('#ff44ff');
+                    this._pointEntity.point.outlineWidth = 2;
+                } else if (state._cyberScanning) {
+                    // Scanning: sinusoidal pixel size pulse
+                    var scanPulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
+                    this._pointEntity.point.pixelSize = baseSize + scanPulse * 4;
+                    this._pointEntity.point.outlineColor = Cesium.Color.YELLOW;
+                    this._pointEntity.point.outlineWidth = 1 + scanPulse;
+                }
+            }
         }
 
         cleanup(world) {

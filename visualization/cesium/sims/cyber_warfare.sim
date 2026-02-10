@@ -1,0 +1,175 @@
+{
+  "metadata": {
+    "name": "Cyber Warfare",
+    "description": "Demonstrates cyber warfare effects on communication networks. Red team cyber actors attack blue IADS: bricking routers, MITM intercept, DDoS degradation, and false data injection. Watch the comm panel for attack progression and F2T2EA degradation.",
+    "version": "2.0",
+    "author": "scenario_builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "constant",
+    "maxTimeWarp": 16
+  },
+  "entities": [
+    {
+      "id": "ew_radar_1",
+      "name": "EW RADAR NORTH",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 35.0, "lon": -117.8, "alt": 720, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 250000, "fov_deg": 360, "scanRate_dps": 120, "detectionProbability": 0.90, "updateInterval": 1.0 },
+        "visual": { "type": "point", "color": "#44ff44", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "ew_radar_2",
+      "name": "EW RADAR SOUTH",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 34.6, "lon": -117.5, "alt": 680, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 200000, "fov_deg": 360, "scanRate_dps": 100, "detectionProbability": 0.85, "updateInterval": 1.5 },
+        "visual": { "type": "point", "color": "#44ff44", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "comm_hub",
+      "name": "COMM HUB (Router)",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": { "lat": 34.8, "lon": -117.65, "alt": 750, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "visual": { "type": "ground_station", "color": "#00ccff", "pixelSize": 14 }
+      }
+    },
+    {
+      "id": "cmd_post",
+      "name": "COMMAND POST",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": { "lat": 34.75, "lon": -117.4, "alt": 760, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "visual": { "type": "ground_station", "color": "#0088ff", "pixelSize": 12 }
+      }
+    },
+    {
+      "id": "sam_alpha",
+      "name": "SAM ALPHA",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 35.1, "lon": -117.6, "alt": 710, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "weapons": { "type": "sam_battery", "maxRange_m": 100000, "minRange_m": 5000, "maxAlt_m": 20000, "missileSpeed_mps": 1000, "killProbability": 0.70, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
+        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "sam_bravo",
+      "name": "SAM BRAVO",
+      "type": "ground",
+      "team": "blue",
+      "initialState": { "lat": 34.55, "lon": -117.55, "alt": 690, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "sensors": { "type": "radar", "maxRange_m": 60000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.75, "updateInterval": 2.0 },
+        "weapons": { "type": "sam_battery", "maxRange_m": 80000, "minRange_m": 3000, "maxAlt_m": 18000, "missileSpeed_mps": 900, "killProbability": 0.60, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 1 },
+        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+      }
+    },
+    {
+      "id": "cyber_brick",
+      "name": "CYBER BRICK AGENT",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 34.85, "lon": -118.0, "alt": 700, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": { "type": "cyber_actor", "capabilities": ["brick"], "targetId": "comm_hub", "autoTarget": true, "stealthLevel": 0.6, "attackDuration_s": 30, "accessTime_s": 15 },
+        "visual": { "type": "point", "color": "#aa00ff", "trail": false, "pixelSize": 8 }
+      }
+    },
+    {
+      "id": "cyber_ddos",
+      "name": "CYBER DDOS AGENT",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 34.7, "lon": -118.1, "alt": 700, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": { "type": "cyber_actor", "capabilities": ["ddos"], "targetId": "cmd_post", "autoTarget": true, "stealthLevel": 0.4, "attackDuration_s": 60, "accessTime_s": 10 },
+        "visual": { "type": "point", "color": "#ff00aa", "trail": false, "pixelSize": 8 }
+      }
+    },
+    {
+      "id": "cyber_mitm",
+      "name": "CYBER MITM AGENT",
+      "type": "ground",
+      "team": "red",
+      "initialState": { "lat": 34.9, "lon": -117.9, "alt": 700, "speed": 0, "heading": 0 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
+        "cyber": { "type": "cyber_actor", "capabilities": ["mitm", "inject"], "targetId": "ew_radar_1", "autoTarget": true, "stealthLevel": 0.8, "attackDuration_s": 120, "accessTime_s": 20 },
+        "visual": { "type": "point", "color": "#ff4400", "trail": false, "pixelSize": 8 }
+      }
+    },
+    {
+      "id": "strike_1",
+      "name": "RED STRIKE 1",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 35.5, "lon": -118.5, "alt": 8000, "speed": 250, "heading": 135 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 34.8, "lon": -117.65, "alt": 7000 },
+          { "lat": 34.5, "lon": -117.3, "alt": 6000 }
+        ]},
+        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+      }
+    },
+    {
+      "id": "strike_2",
+      "name": "RED STRIKE 2",
+      "type": "aircraft",
+      "team": "red",
+      "initialState": { "lat": 35.3, "lon": -118.2, "alt": 9000, "speed": 240, "heading": 140 },
+      "components": {
+        "physics": { "type": "flight3dof", "config": "f16" },
+        "ai": { "type": "waypoint_patrol", "waypoints": [
+          { "lat": 34.9, "lon": -117.5, "alt": 8000 },
+          { "lat": 34.6, "lon": -117.2, "alt": 7000 }
+        ]},
+        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "iads_star",
+      "name": "IADS Star Network",
+      "type": "star",
+      "hub": "comm_hub",
+      "members": ["ew_radar_1", "ew_radar_2", "comm_hub", "cmd_post", "sam_alpha", "sam_bravo"],
+      "rfConfig": {
+        "preset": "link16",
+        "freq_ghz": 1.2,
+        "bandwidth_hz": 50000000,
+        "txPower_dbw": 20,
+        "txGain_dbi": 6,
+        "rxGain_dbi": 6,
+        "noiseFigure_db": 4,
+        "requiredSNR_db": 10,
+        "dataRate_bps": 50000000,
+        "linkType": "rf"
+      }
+    }
+  ],
+  "events": [],
+  "camera": { "mode": "free", "range": 200000 }
+}

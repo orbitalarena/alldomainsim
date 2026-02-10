@@ -124,16 +124,104 @@
             // Look for new targets from detections (if allowed by ROE)
             if (activeRules !== 'weapons_hold') {
                 this._rules = activeRules;
-                this._evaluateNewTargets(detections, world);
+
+                // Merge organic radar detections with comm-fed targeting data
+                var mergedDetections = this._mergeCommTargets(detections, state, world);
+                this._evaluateNewTargets(mergedDetections, world);
             }
 
             // Update overall SAM state
             this._updateOverallState(state);
 
+            // Update comm targeting status
+            this._updateCommStatus(state);
+
             // Sync state outputs
             state._engagements   = this._engagements;
             state._missilesReady = this._missilesReady;
             state._totalFired    = this._totalFired;
+        }
+
+        /**
+         * Merge organic radar detections with comm-delivered targeting data.
+         * Organic tracks take priority (fresher). Comm tracks fill in targets
+         * that the local radar can't see. Track quality from comm is degraded
+         * by latency, reducing effective kill probability.
+         */
+        _mergeCommTargets(organicDetections, state, world) {
+            var merged = organicDetections.slice(); // copy organic
+            var seenTargets = new Set();
+
+            // Mark all organically-detected targets
+            for (var i = 0; i < organicDetections.length; i++) {
+                var tid = organicDetections[i].targetId || organicDetections[i].entityId;
+                if (tid) seenTargets.add(tid);
+            }
+
+            // Add comm-delivered targets not already detected organically
+            var commTargets = state._commTargets;
+            if (!commTargets) return merged;
+
+            var simTime = world ? world.simTime : 0;
+            var myState = state;
+            var keys = Object.keys(commTargets);
+
+            for (var c = 0; c < keys.length; c++) {
+                var tgt = commTargets[keys[c]];
+                if (seenTargets.has(tgt.targetId)) continue;
+
+                // Check track freshness — stale tracks (>10s old) are unreliable
+                var trackAge = simTime - (tgt.time || 0);
+                if (trackAge > 10) continue;
+
+                // Check if target entity still exists
+                var targetEntity = world ? world.getEntity(tgt.targetId) : null;
+                if (!targetEntity || !targetEntity.active) continue;
+
+                // Compute slant range from us to the comm-predicted position
+                var range = slantRange(
+                    myState.lat, myState.lon, myState.alt || 0,
+                    tgt.lat, tgt.lon, tgt.alt || 0
+                );
+
+                // Range and altitude checks
+                if (range > this._maxRange || range < this._minRange) continue;
+                if ((tgt.alt || 0) > this._maxAlt) continue;
+
+                // Create synthetic detection entry from comm data
+                merged.push({
+                    targetId: tgt.targetId,
+                    targetName: tgt.targetName || tgt.targetId,
+                    range_m: range,
+                    bearing_deg: tgt.bearing_deg || 0,
+                    elevation_deg: 0,
+                    detected: true,
+                    _isCommTrack: true,
+                    _commLatency_s: tgt._totalLatency_s || 0,
+                    _posUncertainty_m: tgt._posUncertainty_m || 0,
+                    _trackAge_s: trackAge
+                });
+                seenTargets.add(tgt.targetId);
+            }
+
+            return merged;
+        }
+
+        /**
+         * Update comm targeting status on entity state for HUD display.
+         */
+        _updateCommStatus(state) {
+            var commTargets = state._commTargets;
+            var commCount = commTargets ? Object.keys(commTargets).length : 0;
+            var organicCount = (state._detections || []).filter(function(d) { return d.detected; }).length;
+
+            state._samCommFed = commCount > 0;
+            state._samCommTracks = commCount;
+            state._samOrganicTracks = organicCount;
+            state._samTrackSource = commCount > 0 && organicCount === 0 ? 'COMM'
+                : commCount > 0 && organicCount > 0 ? 'HYBRID'
+                : organicCount > 0 ? 'ORGANIC'
+                : 'NONE';
         }
 
         // -------------------------------------------------------------------
@@ -180,8 +268,14 @@
         }
 
         _processTrack(eng, dt, target, world) {
+            // Comm-fed tracks need longer tracking time (degraded solution)
+            var trackDelay = TRACK_TO_ENGAGE_DELAY;
+            if (eng._isCommTrack) {
+                trackDelay += Math.min(eng._commLatency_s || 0, 3.0);
+            }
+
             // Computing firing solution — advance to ENGAGE after delay
-            if (eng.timeInState >= TRACK_TO_ENGAGE_DELAY) {
+            if (eng.timeInState >= trackDelay) {
                 // Check engagement rules and missile availability
                 if (this._missilesReady >= this._salvoSize) {
                     if (this._rules === 'weapons_free' ||
@@ -212,11 +306,20 @@
 
             // Missile has arrived if we've been in ENGAGE state long enough
             if (eng.timeInState >= tof) {
+                // Kill probability degraded for comm-fed tracks due to position uncertainty
+                var effectiveKillProb = this._killProb;
+                if (eng._isCommTrack) {
+                    var uncertainty = eng._posUncertainty_m || 0;
+                    var latencyPenalty = Math.min((eng._commLatency_s || 0) * 0.05, 0.3);
+                    var uncertaintyPenalty = Math.min(uncertainty / 5000, 0.2);
+                    effectiveKillProb = Math.max(0.1, effectiveKillProb - latencyPenalty - uncertaintyPenalty);
+                }
+
                 // Apply kill probability for each missile in the salvo
                 var survived = true;
                 var rng = world.rng;
                 for (var m = 0; m < this._salvoSize; m++) {
-                    if (rng ? rng.bernoulli(this._killProb) : (Math.random() < this._killProb)) {
+                    if (rng ? rng.bernoulli(effectiveKillProb) : (Math.random() < effectiveKillProb)) {
                         survived = false;
                         break;
                     }
@@ -294,13 +397,17 @@
                 if ((tgtState.alt || 0) > this._maxAlt) continue;
 
                 // Create new engagement entry
-                this._engagements.push({
+                var engEntry = {
                     targetId: targetId,
                     state: STATE_DETECT,
                     timeInState: 0,
                     missilesRemaining: 0,
-                    result: null
-                });
+                    result: null,
+                    _isCommTrack: !!det._isCommTrack,
+                    _commLatency_s: det._commLatency_s || 0,
+                    _posUncertainty_m: det._posUncertainty_m || 0
+                };
+                this._engagements.push(engEntry);
                 activeCount++;
             }
         }

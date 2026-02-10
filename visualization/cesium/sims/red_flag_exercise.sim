@@ -393,12 +393,11 @@
           "type": "sam_battery",
           "maxRange_m": 200000,
           "minRange_m": 5000,
-          "maxAltitude_m": 30000,
+          "maxAlt_m": 30000,
           "salvoSize": 2,
           "reloadTime_s": 8,
-          "missileCount": 12,
-          "Pk": 0.75,
-          "missileSpeed": 1800,
+          "killProbability": 0.75,
+          "missileSpeed_mps": 1800,
           "engagementRules": "weapons_free"
         },
         "visual": {
@@ -434,12 +433,11 @@
           "type": "sam_battery",
           "maxRange_m": 200000,
           "minRange_m": 5000,
-          "maxAltitude_m": 30000,
+          "maxAlt_m": 30000,
           "salvoSize": 2,
           "reloadTime_s": 8,
-          "missileCount": 12,
-          "Pk": 0.75,
-          "missileSpeed": 1800,
+          "killProbability": 0.75,
+          "missileSpeed_mps": 1800,
           "engagementRules": "weapons_free"
         },
         "visual": {
@@ -450,6 +448,35 @@
           "sensorColor": "rgba(255,68,68,0.04)",
           "sensorOutlineColor": "#ff4444"
         }
+      }
+    }
+  ],
+  "networks": [
+    {
+      "id": "blue_datalink",
+      "name": "Blue Force Link-16",
+      "type": "mesh",
+      "members": ["raptor_1", "raptor_2", "strike_1", "strike_2", "sead_1", "sead_2", "awacs_blue"],
+      "rfConfig": {
+        "preset": "link16",
+        "linkType": "rf",
+        "freq_ghz": 1.2,
+        "dataRate_mbps": 1.0,
+        "txPower_dbw": 10
+      }
+    },
+    {
+      "id": "red_datalink",
+      "name": "Red Force Mesh",
+      "type": "star",
+      "hub": "sam_north",
+      "members": ["fulcrum_1", "fulcrum_2", "flanker_1", "flanker_2", "sam_north", "sam_south"],
+      "rfConfig": {
+        "preset": "uhf_radio",
+        "linkType": "rf",
+        "freq_ghz": 0.3,
+        "dataRate_mbps": 0.064,
+        "txPower_dbw": 5
       }
     }
   ],

@@ -1111,6 +1111,18 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Analytics</span>
         </div>
+        <div class="settings-item" data-panel="comm">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Comm Panel</span>
+        </div>
+        <div class="settings-item" data-panel="cyber">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Cyber Terminal (~)</span>
+        </div>
+        <div class="settings-item active" data-viz="globalComms">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Comm Links</span>
+        </div>
         <div class="settings-sep"></div>
         <div class="settings-section-title">Entity Display</div>
         <div class="settings-item" data-viz="globalOrbits">
@@ -1227,6 +1239,7 @@
                     <option value="population">Population Health</option>
                     <option value="teams">Team Balance</option>
                     <option value="fuel">Fuel Status</option>
+                    <option value="comms">Communications</option>
                     <option value="custom">Custom Variable</option>
                 </select>
                 <span id="analyticsClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
@@ -1247,7 +1260,51 @@
                 <option value="meo">MEO Count</option>
                 <option value="geo">GEO Count</option>
                 <option value="heo">HEO Count</option>
+                <option value="commDeliveryRate">Packet Delivery Rate (%)</option>
+                <option value="commAvgLatency">Avg Comm Latency (ms)</option>
+                <option value="commActiveLinks">Active Links</option>
+                <option value="commPacketsInFlight">Packets In-Flight</option>
+                <option value="commJammers">Active Jammers</option>
+                <option value="commCyberAttacks">Cyber Attacks</option>
             </select>
+        </div>
+    </div>
+
+    <!-- ===================== COMM PANEL ===================== -->
+    <div id="commPanel" style="display:none;position:fixed;bottom:10px;left:250px;width:380px;max-height:50vh;overflow-y:auto;background:rgba(10,20,35,0.95);border:1px solid #00ccaa;border-radius:6px;padding:12px;z-index:2000;font-family:'Courier New',monospace;font-size:11px;color:#a0b8d0">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-weight:bold;color:#00ffcc;font-size:12px">COMM STATUS</span>
+            <span id="commPanelClose" style="cursor:pointer;color:#666;font-size:14px">&times;</span>
+        </div>
+        <!-- Network summary -->
+        <div id="commNetSummary" style="margin-bottom:8px;padding:6px;background:#0a1520;border-radius:3px">
+            <div style="display:flex;gap:10px;font-size:10px">
+                <span>Networks: <strong id="commNetCount" style="color:#00ffcc">0</strong></span>
+                <span>Links: <strong id="commLinkCount" style="color:#4488ff">0</strong></span>
+                <span>Jammed: <strong id="commJamCount" style="color:#ff4444">0</strong></span>
+                <span>Cyber: <strong id="commCyberCount" style="color:#ffcc00">0</strong></span>
+            </div>
+        </div>
+        <!-- Per-network status -->
+        <div id="commNetList" style="max-height:120px;overflow-y:auto;margin-bottom:8px">
+            <!-- Populated by JS -->
+        </div>
+        <!-- F2T2EA Targeting Status -->
+        <div style="margin-bottom:4px;font-size:10px;color:#506880">F2T2EA TARGETING</div>
+        <div id="commTargetingStatus" style="max-height:80px;overflow-y:auto;margin-bottom:8px">
+            <!-- Populated by JS -->
+        </div>
+        <!-- Packet log -->
+        <div style="margin-bottom:4px;font-size:10px;color:#506880">PACKET LOG</div>
+        <div id="commPacketLog" style="max-height:100px;overflow-y:auto;background:#0a0e17;border:1px solid #1a2a44;border-radius:3px;padding:4px;font-size:9px">
+            <!-- Populated by JS -->
+        </div>
+        <!-- Throughput metrics -->
+        <div style="display:flex;gap:8px;margin-top:8px;font-size:10px">
+            <span>TX: <strong id="commTxRate" style="color:#00ff88">0</strong> pkt/s</span>
+            <span>RX: <strong id="commRxRate" style="color:#4488ff">0</strong> pkt/s</span>
+            <span>Drop: <strong id="commDropRate" style="color:#ff4444">0</strong>%</span>
+            <span>Lat: <strong id="commAvgLatency" style="color:#ffcc44">0</strong> ms</span>
         </div>
     </div>
 
@@ -1446,7 +1503,17 @@
     <script src="js/components/visual/ground_station.js"></script>
     <script src="js/components/visual/radar_coverage.js"></script>
     <script src="js/components/visual/comm_link.js"></script>
+    <script src="js/components/visual/comm_network_visual.js"></script>
     <script src="js/components/visual/sensor_footprint.js"></script>
+
+    <!-- Scripts: Weapons (jammer) -->
+    <script src="js/components/weapons/jammer.js"></script>
+
+    <!-- Scripts: Cyber -->
+    <script src="js/components/cyber/cyber_actor.js"></script>
+
+    <!-- Scripts: Communications Engine -->
+    <script src="js/comm_engine.js"></script>
 
     <!-- Scripts: Simulation subsystems -->
     <script src="js/model_map.js"></script>
@@ -1467,6 +1534,9 @@
 
     <!-- Scripts: Entity Tooltip -->
     <script src="js/entity_tooltip.js"></script>
+
+    <!-- Scripts: Cyber Cockpit -->
+    <script src="js/cyber_cockpit.js"></script>
 
     <!-- Scripts: Live Sim Engine -->
     <script src="js/live_sim_engine.js"></script>

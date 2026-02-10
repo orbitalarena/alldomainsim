@@ -682,6 +682,33 @@ var ObjectPalette = (function() {
         },
         {
             category: 'Ground',
+            name: 'RF Jammer',
+            icon: '#ff00ff',
+            description: 'EW jammer, barrage/spot, 200km range',
+            type: 'ground',
+            team: 'red',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                sensors: { type: 'radar', maxRange_m: 200000, fov_deg: 360, scanRate_dps: 30, detectionProbability: 0.85 },
+                weapons: { type: 'jammer', jamType: 'barrage', bandwidth_ghz: 2.0, power_dbw: 40, range_m: 200000, direction: 'both', activateOnDetection: true },
+                visual: { type: 'ground_station', color: '#ff00ff', label: 'JAM', sensorRange_m: 200000, sensorColor: 'rgba(255,0,255,0.04)', sensorOutlineColor: '#ff00ff' }
+            }
+        },
+        {
+            category: 'Ground',
+            name: 'Cyber Node',
+            icon: '#aa00ff',
+            description: 'Network attack node — brick, MITM, inject, DDoS',
+            type: 'ground',
+            team: 'red',
+            defaults: { alt: 0, speed: 0 },
+            components: {
+                cyber: { type: 'cyber_actor', capabilities: ['brick', 'mitm', 'inject', 'ddos', 'exploit'], accessTime_s: 30, exploitTime_s: 60, stealthLevel: 0.8, autoTarget: true, maxSimultaneous: 2 },
+                visual: { type: 'ground_station', color: '#aa00ff', label: 'CYBER', sensorRange_m: 0 }
+            }
+        },
+        {
+            category: 'Ground',
             name: 'T-90 Main Battle Tank',
             icon: '#884444',
             description: 'Main battle tank, 125mm smoothbore',

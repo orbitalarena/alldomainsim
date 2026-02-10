@@ -235,6 +235,36 @@
                 }
             }
 
+            // --- Cyber status visual indicators ---
+            if (this._cesiumEntity && this._cesiumEntity.point) {
+                var cyState = this.entity.state;
+                var baseSize = this.config.model ? 4 : (this.config.pixelSize || 10);
+
+                if (cyState._cyberDenied || cyState._commBricked) {
+                    // Denied/bricked: dim point, gray color
+                    this._cesiumEntity.point.pixelSize = Math.max(4, baseSize - 2);
+                    this._cesiumEntity.point.color = Cesium.Color.GRAY;
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.DARKGRAY;
+                    this._cesiumEntity.point.outlineWidth = 1;
+                } else if (cyState._cyberControlled) {
+                    // Controlled: red pulsing outline
+                    var pulse = Math.sin(Date.now() * 0.005) * 0.5 + 0.5;
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.RED;
+                    this._cesiumEntity.point.outlineWidth = 2 + pulse;
+                    this._cesiumEntity.point.pixelSize = baseSize + pulse * 2;
+                } else if (cyState._cyberExploited) {
+                    // Exploited: magenta outline
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.fromCssColorString('#ff44ff');
+                    this._cesiumEntity.point.outlineWidth = 2;
+                } else if (cyState._cyberScanning) {
+                    // Scanning: sinusoidal pixel size pulse
+                    var scanPulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
+                    this._cesiumEntity.point.pixelSize = baseSize + scanPulse * 4;
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.YELLOW;
+                    this._cesiumEntity.point.outlineWidth = 1 + scanPulse;
+                }
+            }
+
             // Update cached position (avoids allocation in CallbackProperty)
             this._cachedPosition = Cesium.Cartesian3.fromRadians(
                 state.lon, state.lat, state.alt

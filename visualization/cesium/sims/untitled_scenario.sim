@@ -1,0 +1,154 @@
+{
+  "metadata": {
+    "name": "Untitled Scenario",
+    "description": "",
+    "version": "2.0",
+    "author": "Builder"
+  },
+  "environment": {
+    "atmosphere": "us_standard_1976",
+    "gravity": "earth",
+    "gravityMu": 398600441800000,
+    "maxTimeWarp": 64,
+    "magneticField": null,
+    "ionosphere": null,
+    "radiationBelt": null
+  },
+  "entities": [
+    {
+      "id": "ground_1770733814154",
+      "name": "Ground Station",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 35.685071219249664,
+        "lon": -106.96627314897896,
+        "alt": -3644978.009532376,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.9
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "GND",
+          "sensorRange_m": 150000
+        }
+      }
+    },
+    {
+      "id": "ground_1770733821660",
+      "name": "Ground Station",
+      "type": "ground",
+      "team": "blue",
+      "initialState": {
+        "lat": 53.36335281098656,
+        "lon": -66.64255092580987,
+        "alt": -4844990.698973157,
+        "speed": 0,
+        "heading": 0,
+        "gamma": 0,
+        "throttle": 0.6,
+        "engineOn": true,
+        "gearDown": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 150000,
+          "fov_deg": 360,
+          "scanRate_dps": 36,
+          "detectionProbability": 0.9
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "label": "GND",
+          "sensorRange_m": 150000
+        }
+      }
+    },
+    {
+      "id": "satellite_1770733834162",
+      "name": "GEO Comms Satellite",
+      "type": "satellite",
+      "team": "neutral",
+      "initialState": {
+        "lat": 0,
+        "lon": -101.5899999999999,
+        "alt": 35771918,
+        "speed": 3076.2040017952722,
+        "heading": 90,
+        "gamma": -1.0587360239821294e-14,
+        "throttle": 0,
+        "engineOn": false,
+        "infiniteFuel": true
+      },
+      "components": {
+        "physics": {
+          "type": "flight3dof",
+          "config": "spaceplane"
+        },
+        "visual": {
+          "type": "satellite",
+          "color": "#ff88ff",
+          "pixelSize": 6,
+          "orbitPath": true,
+          "groundTrack": false,
+          "apPeMarkers": true
+        }
+      }
+    }
+  ],
+  "events": [],
+  "camera": {
+    "mode": "free",
+    "range": 5000000
+  },
+  "networks": [
+    {
+      "id": "net_001",
+      "name": "Network 0",
+      "type": "multihop",
+      "members": [
+        "ground_1770733814154",
+        "satellite_1770733834162",
+        "ground_1770733821660"
+      ],
+      "hub": null,
+      "path": [
+        "ground_1770733814154",
+        "satellite_1770733834162",
+        "ground_1770733821660"
+      ],
+      "links": [],
+      "config": {
+        "linkType": "rf",
+        "frequency_ghz": 1.2,
+        "bandwidth_mbps": 1,
+        "power_dbw": 10,
+        "antenna_gain_dbi": 6,
+        "latency_ms": 12,
+        "dataRate_mbps": 1,
+        "encryption": "aes256",
+        "protocol": "tdma",
+        "priority": 8,
+        "maxRange_m": 500000,
+        "receiver_sensitivity_dbm": -100
+      }
+    }
+  ]
+}

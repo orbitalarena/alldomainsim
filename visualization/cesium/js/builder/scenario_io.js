@@ -33,6 +33,7 @@ const ScenarioIO = (function() {
                 radiationBelt: null
             },
             entities: [],
+            networks: [],
             events: [],
             camera: {
                 mode: 'free',

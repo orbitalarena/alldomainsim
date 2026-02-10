@@ -1758,6 +1758,7 @@
             <button class="toolbar-btn" id="btnEvents" title="Edit scenario events (V)">Events</button>
             <button class="toolbar-btn primary" id="btnAddPlatform" title="Create custom platform template">+ Platform</button>
             <button class="toolbar-btn" id="btnEnvironment" title="Scenario environment settings">Environment</button>
+            <button class="toolbar-btn" id="btnComms" title="Design communication networks" style="color:#00ffcc; border-color:#006655;">Comms</button>
             <div class="toolbar-separator"></div>
             <div class="demo-dropdown">
                 <button class="toolbar-btn primary" id="btnLoadDemo" title="Load demo scenario">Demo &#9660;</button>
@@ -2160,6 +2161,20 @@
                         <div class="palette-item-desc">Early warning, 300km range</div>
                     </div>
                 </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="jammer" data-team="red" title="Electronic warfare jammer. Barrage or spot jamming across configurable frequency bands. Degrades enemy comm links and sensor performance within range.">
+                    <div class="palette-dot" style="background-color: #ff00ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">RF Jammer</div>
+                        <div class="palette-item-desc">EW jammer, 200km range</div>
+                    </div>
+                </div>
+                <div class="palette-item" data-entity-type="ground" data-subtype="cyber_node" data-team="red" title="Cyber warfare node. Can brick routers, perform man-in-the-middle attacks, inject false data, DDoS, or exploit network nodes. Attacks enemy comm networks.">
+                    <div class="palette-dot" style="background-color: #aa00ff;"></div>
+                    <div class="palette-item-info">
+                        <div class="palette-item-name">Cyber Node</div>
+                        <div class="palette-item-desc">Network attack capabilities</div>
+                    </div>
+                </div>
                 <div class="palette-item" data-entity-type="ground" data-subtype="t90" data-team="red" title="Main battle tank with 125mm smoothbore gun. Static ground unit for red team force composition.">
                     <div class="palette-dot" style="background-color: #884444;"></div>
                     <div class="palette-item-info">
@@ -2556,7 +2571,14 @@
 <script src="js/components/visual/ground_station.js"></script>
 <script src="js/components/visual/radar_coverage.js"></script>
 <script src="js/components/visual/comm_link.js"></script>
+<script src="js/components/visual/comm_network_visual.js"></script>
 <script src="js/components/visual/sensor_footprint.js"></script>
+
+<!-- Components: Weapons (jammer) -->
+<script src="js/components/weapons/jammer.js"></script>
+
+<!-- Components: Cyber -->
+<script src="js/components/cyber/cyber_actor.js"></script>
 
 <!-- Builder modules -->
 <script src="js/builder/orbital_arena.js"></script>
@@ -2565,6 +2587,7 @@
 <script src="js/builder/environment_dialog.js"></script>
 <script src="js/builder/platform_builder.js"></script>
 <script src="js/builder/sensor_view_mode.js"></script>
+<script src="js/builder/comm_designer.js"></script>
 <script src="js/builder/builder_app.js"></script>
 <script src="js/builder/scenario_io.js"></script>
 <script src="js/builder/globe_interaction.js"></script>

@@ -278,6 +278,11 @@ const LiveSimEngine = (function() {
         _world = ScenarioLoader.build(scenarioJson, viewer);
         _world.simEpochJD = _JD_SIM_EPOCH_LOCAL;
 
+        // Initialize Communications Engine
+        if (typeof CommEngine !== 'undefined' && scenarioJson.networks && scenarioJson.networks.length > 0) {
+            CommEngine.init(scenarioJson.networks, _world);
+        }
+
         // Check for observer mode (no player)
         _observerMode = (playerIdParam === '__observer__');
 
@@ -292,6 +297,7 @@ const LiveSimEngine = (function() {
             _initSettingsGear();
             _initSearchPanel();
             _initAnalyticsPanel();
+            _initCommPanel();
             _setupEntityPicker();
             _buildVizGroups();
 
@@ -355,6 +361,12 @@ const LiveSimEngine = (function() {
 
             // Init entity hover tooltip
             if (typeof EntityTooltip !== 'undefined') EntityTooltip.init(_viewer, _world);
+
+            // Init cyber cockpit
+            if (typeof CyberCockpit !== 'undefined') {
+                CyberCockpit.init(_world);
+                CyberCockpit.setPlayerTeam(_playerEntity ? _playerEntity.team : 'blue');
+            }
 
             // 10. Position camera on player
             _positionInitialCamera();
@@ -3482,13 +3494,20 @@ const LiveSimEngine = (function() {
     function _setupKeyboard() {
         window.addEventListener('keydown', function(e) {
             if (!_started) return;
+
+            // Don't capture keys when cyber cockpit is focused
+            if (typeof CyberCockpit !== 'undefined' && CyberCockpit.isVisible() &&
+                document.activeElement && document.activeElement.id === 'cyberInput') {
+                return;
+            }
+
             _keys[e.code] = true;
             if (e.repeat) return;
 
             var handled = true;
 
             // Panel toggles in both modes
-            if (_handlePanelToggle(e.code)) {
+            if (_handlePanelToggle(e.code, e)) {
                 e.preventDefault(); e.stopPropagation();
                 return;
             }
@@ -3736,6 +3755,12 @@ const LiveSimEngine = (function() {
         }, true);
 
         window.addEventListener('keyup', function(e) {
+            // Don't capture keys when cyber cockpit is focused
+            if (typeof CyberCockpit !== 'undefined' && CyberCockpit.isVisible() &&
+                document.activeElement && document.activeElement.id === 'cyberInput') {
+                return;
+            }
+
             _keys[e.code] = false;
 
             // Hold-to-brake: release B = brakes off
@@ -4028,6 +4053,7 @@ const LiveSimEngine = (function() {
             _updateTimeDisplay();
             _updateEntityListPanel();
             if (typeof EntityTooltip !== 'undefined') EntityTooltip.update();
+            if (typeof CyberCockpit !== 'undefined') CyberCockpit.update(totalDt);
 
             // Analytics
             _recordAnalyticsSnapshot();
@@ -4257,6 +4283,15 @@ const LiveSimEngine = (function() {
             EWSystem.update(totalDt, _simElapsed);
         }
 
+        // Communications engine — route packets, compute link budgets, process jammers/cyber
+        if (typeof CommEngine !== 'undefined' && CommEngine.isInitialized()) {
+            CommEngine.tick(totalDt, _world);
+            // Update comm panel (throttled to ~2Hz)
+            if (_panelVisible.comm && _trailCounter % 30 === 0) {
+                _updateCommPanel();
+            }
+        }
+
         // --- COCKPIT RENDERING ---
 
         // 8. Update camera
@@ -4329,6 +4364,7 @@ const LiveSimEngine = (function() {
         _updateTimeDisplay();
         _updateEntityListPanel();
         if (typeof EntityTooltip !== 'undefined') EntityTooltip.update();
+        if (typeof CyberCockpit !== 'undefined') CyberCockpit.update(totalDt);
 
         // Analytics
         _recordAnalyticsSnapshot();
@@ -4624,7 +4660,7 @@ const LiveSimEngine = (function() {
     // -----------------------------------------------------------------------
     // Panel toggles
     // -----------------------------------------------------------------------
-    function _handlePanelToggle(code) {
+    function _handlePanelToggle(code, e) {
         var tag = document.activeElement && document.activeElement.tagName;
         if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return false;
 
@@ -4647,9 +4683,17 @@ const LiveSimEngine = (function() {
             case 'KeyO': _togglePanel('orbital'); return true;
             case 'Tab': _toggleAllPanels(); return true;
             case 'Backquote': case 'Numpad0':
-                if (typeof Minimap !== 'undefined') {
-                    var mmVis = Minimap.toggle();
-                    _showMessage(mmVis ? 'TAC MAP ON' : 'TAC MAP OFF');
+                if (e && e.shiftKey) {
+                    // Shift+` = Cyber Cockpit
+                    if (typeof CyberCockpit !== 'undefined') {
+                        CyberCockpit.toggle();
+                    }
+                } else {
+                    // ` = Tactical Minimap
+                    if (typeof Minimap !== 'undefined') {
+                        var mmVis = Minimap.toggle();
+                        _showMessage(mmVis ? 'TAC MAP ON' : 'TAC MAP OFF');
+                    }
                 }
                 return true;
             case 'KeyJ':
@@ -4669,6 +4713,14 @@ const LiveSimEngine = (function() {
         }
         if (name === 'analytics') {
             _toggleAnalyticsPanel();
+            return;
+        }
+        if (name === 'comm') {
+            _toggleCommPanel();
+            return;
+        }
+        if (name === 'cyber') {
+            if (typeof CyberCockpit !== 'undefined') CyberCockpit.toggle();
             return;
         }
         if (name === 'orbital') {
@@ -4777,19 +4829,23 @@ const LiveSimEngine = (function() {
         _savePanelPrefs();
     }
 
+    let _vizGlobalComms = true;
+
     function _toggleGlobalViz(key, item) {
         switch (key) {
             case 'globalOrbits': _vizGlobalOrbits = !_vizGlobalOrbits; break;
             case 'globalTrails': _vizGlobalTrails = !_vizGlobalTrails; break;
             case 'globalLabels': _vizGlobalLabels = !_vizGlobalLabels; break;
             case 'globalSensors': _vizGlobalSensors = !_vizGlobalSensors; break;
+            case 'globalComms': _vizGlobalComms = !_vizGlobalComms; break;
         }
         if (item) item.classList.toggle('active');
         _applyVizControls();
         var label = key.replace('global', '').toUpperCase();
         var val = key === 'globalOrbits' ? _vizGlobalOrbits :
                   key === 'globalTrails' ? _vizGlobalTrails :
-                  key === 'globalLabels' ? _vizGlobalLabels : _vizGlobalSensors;
+                  key === 'globalLabels' ? _vizGlobalLabels :
+                  key === 'globalComms' ? _vizGlobalComms : _vizGlobalSensors;
         _showMessage(label + ': ' + (val ? 'ON' : 'OFF'));
     }
 
@@ -5019,13 +5075,43 @@ const LiveSimEngine = (function() {
         var hasPhysics = !!entity.getComponent('physics');
         var isCurrentPlayer = _playerEntity && entity.id === _playerEntity.id;
 
+        // Build comm status section
+        var commHtml = '';
+        if (s._commNetworks && s._commNetworks.length > 0) {
+            var commColor = s._commJammed ? '#ff4444' : '#00ff88';
+            var commStatus = s._commJammed ? 'JAMMED' : 'ONLINE';
+            commHtml += '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #333">';
+            commHtml += '<div style="color:#506880;font-size:10px;margin-bottom:2px">COMM STATUS</div>';
+            commHtml += '<div style="color:' + commColor + ';font-size:11px">' + commStatus + '</div>';
+            commHtml += '<div style="color:#888;font-size:10px">Networks: ' + s._commNetworks.length + '</div>';
+            if (s._commBandwidth != null) {
+                commHtml += '<div style="color:#888;font-size:10px">BW: ' + (s._commBandwidth || 0).toFixed(1) + ' Mbps</div>';
+            }
+            if (s._commLatency != null && s._commLatency > 0) {
+                commHtml += '<div style="color:#888;font-size:10px">Lat: ' + (s._commLatency || 0).toFixed(1) + ' ms</div>';
+            }
+            // F2T2EA track source for weapon entities
+            if (s._samTrackSource && s._samTrackSource !== 'NONE') {
+                var srcColor = s._samTrackSource === 'ORGANIC' ? '#00ff88' :
+                    s._samTrackSource === 'COMM' ? '#44aaff' :
+                    s._samTrackSource === 'HYBRID' ? '#ffcc44' : '#888';
+                commHtml += '<div style="color:' + srcColor + ';font-size:10px">Track: ' + s._samTrackSource +
+                    ' (O:' + (s._samOrganicTracks || 0) + ' C:' + (s._samCommTracks || 0) + ')</div>';
+            }
+            if (s._samState) {
+                commHtml += '<div style="color:#aaa;font-size:10px">SAM: ' + s._samState + '</div>';
+            }
+            commHtml += '</div>';
+        }
+
         var html = '<div style="font-size:14px;font-weight:bold;color:' + teamColor + ';margin-bottom:4px">' +
             entity.name + '</div>' +
             '<div style="color:#888;margin-bottom:2px">Type: ' + (entity.type || '?') + '</div>' +
             '<div style="color:#888;margin-bottom:2px">Team: ' + (entity.team || 'neutral') + '</div>' +
             (entity.vizCategory ? '<div style="color:#888;margin-bottom:2px">Group: ' + entity.vizCategory + '</div>' : '') +
-            '<div style="color:#888;margin-bottom:6px">Alt: ' + altStr + '</div>' +
-            '<div style="display:flex;gap:6px">' +
+            '<div style="color:#888;margin-bottom:2px">Alt: ' + altStr + '</div>' +
+            commHtml +
+            '<div style="display:flex;gap:6px;margin-top:6px">' +
             '<button id="pickTrackBtn" style="flex:1;padding:4px 8px;background:#335;color:#4af;border:1px solid #4af;border-radius:3px;cursor:pointer;font-family:monospace;font-size:11px">TRACK</button>';
 
         if (hasPhysics && !isCurrentPlayer) {
@@ -5251,6 +5337,7 @@ const LiveSimEngine = (function() {
             s._vizTrails = show && _vizGlobalTrails;
             s._vizLabels = show && _vizGlobalLabels;
             s._vizSensors = show && _vizGlobalSensors;
+            s._vizComms = show && _vizGlobalComms;
         });
     }
 
@@ -5629,6 +5716,12 @@ const LiveSimEngine = (function() {
             }
         });
 
+        // Comm metrics
+        var commMetrics = null;
+        if (typeof CommEngine !== 'undefined' && CommEngine.isInitialized()) {
+            commMetrics = CommEngine.getMetrics();
+        }
+
         _analyticsHistory.push({
             t: _simElapsed,
             alive: alive,
@@ -5642,7 +5735,17 @@ const LiveSimEngine = (function() {
             leo: regimes.LEO,
             meo: regimes.MEO,
             geo: regimes.GEO,
-            heo: regimes.HEO
+            heo: regimes.HEO,
+            commDeliveryRate: commMetrics ? (commMetrics.packetDeliveryRate * 100) : 0,
+            commAvgLatency: commMetrics ? commMetrics.avgLatency_ms : 0,
+            commActiveLinks: commMetrics ? commMetrics.activeLinks : 0,
+            commTotalLinks: commMetrics ? commMetrics.totalLinks : 0,
+            commPacketsInFlight: commMetrics ? commMetrics.packetsInFlight : 0,
+            commJammers: commMetrics ? commMetrics.activeJammers : 0,
+            commCyberAttacks: commMetrics ? commMetrics.activeCyberAttacks : 0,
+            commActiveNodes: commMetrics ? commMetrics.activeNodes : 0,
+            commTotalNodes: commMetrics ? commMetrics.totalNodes : 0,
+            commNetworks: commMetrics ? commMetrics.networks : null
         });
 
         // Cap history at 3600 entries (1 hour at 1Hz)
@@ -5690,6 +5793,9 @@ const LiveSimEngine = (function() {
                 break;
             case 'fuel':
                 _renderFuelChart(container);
+                break;
+            case 'comms':
+                _renderCommsCharts(container);
                 break;
             case 'custom':
                 _renderCustomChart(container);
@@ -5984,6 +6090,78 @@ const LiveSimEngine = (function() {
             ['#ffcc44', '#44ff8840'], 220);
     }
 
+    function _renderCommsCharts(container) {
+        if (typeof CommEngine === 'undefined' || !CommEngine.isInitialized()) {
+            container.innerHTML = '<div style="color:#666;padding:10px;text-align:center">No comm networks active</div>';
+            return;
+        }
+
+        var metrics = CommEngine.getMetrics();
+
+        // --- Current status summary ---
+        var statusDiv = document.createElement('div');
+        statusDiv.style.cssText = 'padding:8px;background:#0a1520;border-radius:3px;margin-bottom:10px;font-size:10px';
+        var delivPct = (metrics.packetDeliveryRate * 100).toFixed(1);
+        var delivColor = metrics.packetDeliveryRate > 0.9 ? '#44ff88' : metrics.packetDeliveryRate > 0.5 ? '#ffcc44' : '#ff4444';
+        statusDiv.innerHTML =
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#557">DELIVERY RATE</span><span style="color:' + delivColor + '">' + delivPct + '%</span></div>' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#557">AVG LATENCY</span><span style="color:#ccc">' + metrics.avgLatency_ms.toFixed(0) + ' ms</span></div>' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#557">LINKS</span><span style="color:#ccc">' + metrics.activeLinks + ' / ' + metrics.totalLinks + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#557">NODES</span><span style="color:#ccc">' + metrics.activeNodes + ' / ' + metrics.totalNodes + '</span></div>' +
+            '<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:#557">PACKETS</span><span style="color:#ccc">' + metrics.packetsInFlight + ' in-flight, ' + metrics.totalPacketsDelivered + ' delivered</span></div>';
+
+        if (metrics.activeJammers > 0) {
+            statusDiv.innerHTML += '<div style="display:flex;justify-content:space-between"><span style="color:#557">JAMMERS</span><span style="color:#ff8800">' + metrics.activeJammers + ' active</span></div>';
+        }
+        if (metrics.activeCyberAttacks > 0) {
+            statusDiv.innerHTML += '<div style="display:flex;justify-content:space-between"><span style="color:#557">CYBER</span><span style="color:#ff00ff">' + metrics.activeCyberAttacks + ' attacks</span></div>';
+        }
+        container.appendChild(statusDiv);
+
+        // --- Network health bars ---
+        if (metrics.networks && metrics.networks.length > 0) {
+            var netDiv = document.createElement('div');
+            netDiv.style.cssText = 'padding:6px;background:#0a1520;border-radius:3px;margin-bottom:10px;font-size:10px';
+            var netHtml = '<div style="color:#00ccaa;font-weight:bold;margin-bottom:4px">NETWORKS</div>';
+            for (var ni = 0; ni < metrics.networks.length; ni++) {
+                var net = metrics.networks[ni];
+                var health = typeof net.health === 'number' ? net.health
+                    : net.totalLinks > 0 ? net.aliveLinks / net.totalLinks : 0;
+                if (net.jammedLinks > 0 && health > 0.5) health = Math.max(0.3, health - 0.2);
+                var hColor = health > 0.7 ? '#44ff88' : health > 0.3 ? '#ffcc44' : '#ff4444';
+                var barW = Math.max(2, health * 100);
+                netHtml += '<div style="margin-bottom:4px">';
+                netHtml += '<div style="display:flex;justify-content:space-between"><span style="color:#a0b8d0">' + (net.name || net.id) + '</span><span style="color:' + hColor + '">' + (health * 100).toFixed(0) + '%</span></div>';
+                netHtml += '<div style="height:4px;background:#1a2a40;border-radius:2px;margin-top:2px"><div style="width:' + barW + '%;height:100%;background:' + hColor + ';border-radius:2px"></div></div>';
+                netHtml += '</div>';
+            }
+            netDiv.innerHTML = netHtml;
+            container.appendChild(netDiv);
+        }
+
+        // --- Time series: delivery rate + latency ---
+        if (_analyticsHistory.length >= 2) {
+            _renderTimeSeriesChart(container, 'chartCommDelivery', 'Packet Delivery Rate (%)',
+                [{ key: 'commDeliveryRate', label: 'Delivery %' }],
+                ['#44ff88'], 160);
+
+            _renderTimeSeriesChart(container, 'chartCommLatency', 'Avg Comm Latency (ms)',
+                [{ key: 'commAvgLatency', label: 'Latency (ms)', fill: false }],
+                ['#ffcc44'], 140);
+
+            // Link health + threat indicators
+            _renderTimeSeriesChart(container, 'chartCommLinks', 'Link Health & Threats',
+                [
+                    { key: 'commActiveLinks', label: 'Active Links', fill: false },
+                    { key: 'commJammers', label: 'Jammers', fill: false },
+                    { key: 'commCyberAttacks', label: 'Cyber Attacks', fill: false }
+                ],
+                ['#00ccaa', '#ff8800', '#ff00ff'], 160);
+        } else {
+            container.innerHTML += '<div style="color:#666;padding:10px;text-align:center">Collecting comm data... (' + _analyticsHistory.length + ' samples)</div>';
+        }
+    }
+
     function _renderCustomChart(container) {
         var varSelect = document.getElementById('analyticsCustomVar');
         var varKey = varSelect ? varSelect.value : 'alive';
@@ -6037,6 +6215,137 @@ const LiveSimEngine = (function() {
 
         var closeBtn = document.getElementById('analyticsClose');
         if (closeBtn) closeBtn.addEventListener('click', _toggleAnalyticsPanel);
+    }
+
+    // -----------------------------------------------------------------------
+    // Communications Panel
+    // -----------------------------------------------------------------------
+    let _commPanelOpen = false;
+
+    function _toggleCommPanel() {
+        var panel = document.getElementById('commPanel');
+        if (!panel) return;
+        _commPanelOpen = !_commPanelOpen;
+        _panelVisible.comm = _commPanelOpen;
+        panel.style.display = _commPanelOpen ? '' : 'none';
+        if (_commPanelOpen) _updateCommPanel();
+    }
+
+    function _initCommPanel() {
+        var closeBtn = document.getElementById('commPanelClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleCommPanel);
+    }
+
+    function _updateCommPanel() {
+        if (typeof CommEngine === 'undefined' || !CommEngine.isInitialized()) return;
+
+        var metrics = CommEngine.getMetrics();
+        var status = CommEngine.getNetworkStatus();
+
+        // Summary counts
+        _setText('commNetCount', status ? status.length : 0);
+        var totalLinks = 0, jammedLinks = 0, cyberLinks = 0;
+        if (status) {
+            for (var si = 0; si < status.length; si++) {
+                var ns = status[si];
+                totalLinks += ns.activeLinks || 0;
+                jammedLinks += ns.jammedLinks || 0;
+                cyberLinks += ns.compromisedLinks || 0;
+            }
+        }
+        _setText('commLinkCount', totalLinks);
+        _setText('commJamCount', jammedLinks);
+        _setText('commCyberCount', cyberLinks);
+
+        // Per-network list
+        var netList = document.getElementById('commNetList');
+        if (netList && status) {
+            var html = '';
+            for (var ni = 0; ni < status.length; ni++) {
+                var net = status[ni];
+                var healthColor = net.health > 0.7 ? '#00ff88' : net.health > 0.3 ? '#ffcc44' : '#ff4444';
+                var utilizationPct = Math.round((net.avgUtilization || 0) * 100);
+                var utilColor = utilizationPct > 80 ? '#ff4444' : utilizationPct > 50 ? '#ffcc44' : '#00ff88';
+                html += '<div style="padding:3px 6px;margin-bottom:2px;background:#0a1520;border-radius:2px;font-size:10px">';
+                html += '<div style="display:flex;justify-content:space-between">';
+                html += '<span style="color:' + healthColor + '">' + (net.name || net.id) + '</span>';
+                html += '<span>' + (net.type || 'mesh').toUpperCase() + '</span>';
+                html += '<span>Links: ' + (net.activeLinks || 0) + '/' + (net.totalLinks || 0) + '</span>';
+                html += '<span style="color:' + healthColor + '">' + Math.round((net.health || 0) * 100) + '%</span>';
+                html += '</div>';
+                // Utilization bar
+                html += '<div style="height:3px;background:#1a2a44;margin-top:2px;border-radius:1px">';
+                html += '<div style="height:100%;width:' + utilizationPct + '%;background:' + utilColor + ';border-radius:1px"></div>';
+                html += '</div>';
+                if (net.jammedLinks > 0) {
+                    html += '<div style="color:#ff4444;font-size:9px;margin-top:1px">' + net.jammedLinks + ' jammed</div>';
+                }
+                if (net.compromisedLinks > 0) {
+                    html += '<div style="color:#ffcc00;font-size:9px;margin-top:1px">' + net.compromisedLinks + ' cyber</div>';
+                }
+                html += '</div>';
+            }
+            netList.innerHTML = html;
+        }
+
+        // F2T2EA Targeting status section
+        var tgtDiv = document.getElementById('commTargetingStatus');
+        if (tgtDiv && _world) {
+            var tgtHtml = '';
+            var tgtCount = 0;
+            _world.entities.forEach(function(entity) {
+                if (!entity.active) return;
+                var s = entity.state;
+                if (!s._samTrackSource || s._samTrackSource === 'NONE') return;
+                tgtCount++;
+                var srcColor = s._samTrackSource === 'ORGANIC' ? '#00ff88' :
+                    s._samTrackSource === 'COMM' ? '#44aaff' :
+                    s._samTrackSource === 'HYBRID' ? '#ffcc44' : '#888';
+                tgtHtml += '<div style="padding:2px 6px;margin-bottom:1px;background:#0a1520;border-radius:2px;display:flex;justify-content:space-between;font-size:10px">';
+                tgtHtml += '<span style="color:#ddd">' + entity.name + '</span>';
+                tgtHtml += '<span style="color:' + srcColor + '">' + s._samTrackSource + '</span>';
+                tgtHtml += '<span>O:' + (s._samOrganicTracks || 0) + ' C:' + (s._samCommTracks || 0) + '</span>';
+                tgtHtml += '<span>' + (s._samState || 'IDLE') + '</span>';
+                tgtHtml += '</div>';
+            });
+            if (tgtCount === 0) {
+                tgtHtml = '<div style="color:#666;font-size:10px;padding:2px 6px">No weapon nodes in network</div>';
+            }
+            tgtDiv.innerHTML = tgtHtml;
+        }
+
+        // Packet log (last 20)
+        var logDiv = document.getElementById('commPacketLog');
+        if (logDiv && metrics) {
+            var log = CommEngine.getPacketLog();
+            if (log && log.length > 0) {
+                var logHtml = '';
+                var start = Math.max(0, log.length - 20);
+                for (var li = start; li < log.length; li++) {
+                    var pkt = log[li];
+                    var pktColor = pkt.dropped ? '#ff4444' : pkt.delivered ? '#00ff88' : '#ffcc44';
+                    var pktTypeColor = pkt.type === 'targeting' ? '#ff88ff' : pkt.type === 'track' ? '#44aaff' : pktColor;
+                    var t = (pkt.createdAt || 0).toFixed(1);
+                    logHtml += '<div style="color:' + pktColor + '">';
+                    logHtml += '[' + t + 's] <span style="color:' + pktTypeColor + '">' + (pkt.type || 'data') + '</span> ';
+                    logHtml += (pkt.sourceId || '?') + ' → ' + (pkt.destId || '?');
+                    logHtml += ' ' + (pkt.size_bytes || 0) + 'B';
+                    if (pkt.dropped) logHtml += ' DROPPED:' + (pkt.dropReason || '?');
+                    else if (pkt.delivered) logHtml += ' OK ' + ((pkt.deliveryTime - pkt.createdAt) * 1000).toFixed(0) + 'ms';
+                    logHtml += '</div>';
+                }
+                logDiv.innerHTML = logHtml;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        }
+
+        // Metrics
+        if (metrics) {
+            _setText('commTxRate', (metrics.txRate || 0).toFixed(1));
+            _setText('commRxRate', (metrics.rxRate || 0).toFixed(1));
+            _setText('commDropRate', (metrics.dropRate || 0).toFixed(1));
+            _setText('commAvgLatency', (metrics.avgLatency || 0).toFixed(1));
+        }
     }
 
     // -----------------------------------------------------------------------

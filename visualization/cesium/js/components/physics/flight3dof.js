@@ -201,11 +201,11 @@
 
             // Apply weather wind effects
             if (typeof WeatherSystem !== 'undefined') {
-                var wind = WeatherSystem.applyWindToState(entity.state, dt);
+                var wind = WeatherSystem.applyWindToState(state, dt);
                 if (wind) {
-                    entity.state.speed += wind.dSpeed;
-                    entity.state.heading += wind.dHeading;
-                    if (wind.dGamma) entity.state.gamma += wind.dGamma;
+                    state.speed += wind.dSpeed;
+                    state.heading += wind.dHeading;
+                    if (wind.dGamma) state.gamma += wind.dGamma;
                 }
             }
         }

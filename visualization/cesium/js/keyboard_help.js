@@ -137,6 +137,19 @@ var KeyboardHelp = (function() {
                 { key: 'A',           desc: 'Toggle autopilot' },
             ]
         },
+        {
+            name: 'Cyber Cockpit',
+            color: '#00ffcc',
+            modes: ['flight'],
+            bindings: [
+                { key: 'Shift+`',     desc: 'Open cyber terminal' },
+                { key: 'Tab',         desc: 'Auto-complete (in terminal)' },
+                { key: 'Up / Down',   desc: 'Command history (in terminal)' },
+                { key: 'Ctrl+L',      desc: 'Clear screen (in terminal)' },
+                { key: 'Ctrl+C',      desc: 'Cancel operation (in terminal)' },
+                { key: 'Esc',         desc: 'Close terminal' },
+            ]
+        },
     ];
 
     // ===================== CSS INJECTION =====================

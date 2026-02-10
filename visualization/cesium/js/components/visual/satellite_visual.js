@@ -235,6 +235,36 @@
                 }
             }
 
+            // --- Cyber status visual indicators ---
+            if (this._pointEntity && this._pointEntity.point) {
+                var cyState = this.entity.state;
+                var baseSize = this.config.model ? 4 : (this.config.pixelSize || 8);
+
+                if (cyState._cyberDenied || cyState._commBricked) {
+                    // Denied/bricked: dim point, gray color
+                    this._pointEntity.point.pixelSize = Math.max(4, baseSize - 2);
+                    this._pointEntity.point.color = Cesium.Color.GRAY;
+                    this._pointEntity.point.outlineColor = Cesium.Color.DARKGRAY;
+                    this._pointEntity.point.outlineWidth = 1;
+                } else if (cyState._cyberControlled) {
+                    // Controlled: red pulsing outline
+                    var pulse = Math.sin(Date.now() * 0.005) * 0.5 + 0.5;
+                    this._pointEntity.point.outlineColor = Cesium.Color.RED;
+                    this._pointEntity.point.outlineWidth = 2 + pulse;
+                    this._pointEntity.point.pixelSize = baseSize + pulse * 2;
+                } else if (cyState._cyberExploited) {
+                    // Exploited: magenta outline
+                    this._pointEntity.point.outlineColor = Cesium.Color.fromCssColorString('#ff44ff');
+                    this._pointEntity.point.outlineWidth = 2;
+                } else if (cyState._cyberScanning) {
+                    // Scanning: sinusoidal pixel size pulse
+                    var scanPulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
+                    this._pointEntity.point.pixelSize = baseSize + scanPulse * 4;
+                    this._pointEntity.point.outlineColor = Cesium.Color.YELLOW;
+                    this._pointEntity.point.outlineWidth = 1 + scanPulse;
+                }
+            }
+
             // Update model orientation from ECI velocity (every frame for smooth rotation)
             if (this.config.model) {
                 this._updateModelOrientation();
