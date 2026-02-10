@@ -120,6 +120,14 @@
 
         update(dt, world) {
             var state = this.entity.state;
+
+            // Weapons disabled by cyber attack
+            if (state._weaponsDisabled) return;
+
+            // Store weapons degradation for use in sub-methods
+            // 0 = no degradation, 1 = fully disabled (caught above by _weaponsDisabled)
+            this._wpnDeg = state._cyberDegradation ? (state._cyberDegradation.weapons || 0) : 0;
+
             var detections = state._detections || [];
 
             // Process existing engagements
@@ -183,6 +191,10 @@
             // Determine lock time based on weapon seeker type
             var weapon = this._getWeaponSpec(eng.weaponType);
             var lockTime = (weapon && weapon.seekerFOV >= 360) ? BVR_LOCK_TIME : IR_LOCK_TIME;
+            // Cyber degradation increases lock acquisition time
+            if (this._wpnDeg > 0 && this._wpnDeg < 1) {
+                lockTime *= (1 + this._wpnDeg * 2.0); // up to 3x longer lock time
+            }
 
             if (eng.timeInState >= lockTime) {
                 // Check weapon inventory before committing to fire
@@ -246,6 +258,10 @@
             if (arrived || eng.timeInState >= maxFlightTime) {
                 // Kill assessment — Pk roll
                 var Pk = weapon ? weapon.Pk : 0.5;
+                // Cyber degradation reduces kill probability
+                if (this._wpnDeg > 0 && this._wpnDeg < 1) {
+                    Pk *= (1 - this._wpnDeg * 0.5); // up to 50% Pk reduction
+                }
                 var rng = world.rng;
                 if (rng ? rng.bernoulli(Pk) : (Math.random() < Pk)) {
                     eng.result = 'KILL';

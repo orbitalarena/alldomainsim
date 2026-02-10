@@ -44,6 +44,12 @@
             var state = this.entity.state;
             var entity = this.entity;
 
+            // Weapons disabled by cyber attack
+            if (state._weaponsDisabled) return;
+
+            // Cyber weapons degradation
+            var wpnDeg = state._cyberDegradation ? (state._cyberDegradation.weapons || 0) : 0;
+
             // Already destroyed
             if (!entity.active || state._destroyed) return;
 
@@ -99,9 +105,13 @@
 
             // Check if within kill range
             if (dist <= this._killRange) {
-                // Pk roll
+                // Pk roll — degraded by cyber attack
+                var effectivePk = this._Pk;
+                if (wpnDeg > 0 && wpnDeg < 1) {
+                    effectivePk *= (1 - wpnDeg * 0.7); // up to 70% Pk reduction for KKV (high precision required)
+                }
                 var rng = world.rng;
-                var hit = rng ? rng.bernoulli(this._Pk) : (Math.random() < this._Pk);
+                var hit = rng ? rng.bernoulli(effectivePk) : (Math.random() < effectivePk);
 
                 if (hit) {
                     // KILL — mutual destruction

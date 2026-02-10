@@ -93,6 +93,10 @@
             // Scan line state
             this._scanPositions = [];
             this._lastScanAz = null;
+            // Base appearance for cyber reset
+            this._baseFillColor = null;
+            this._baseOutlineColor = null;
+            this._baseScanColor = null;
         }
 
         init(world) {
@@ -129,6 +133,10 @@
             var lat = state.lat || 0;
             var lon = state.lon || 0;
             var position = Cesium.Cartesian3.fromRadians(lon, lat, 0);
+
+            // Cache base colors for cyber reset
+            this._baseFillColor = fillColor.clone();
+            this._baseOutlineColor = outlineColor.clone();
 
             // --- Coverage area ---
             if (fov_deg >= 360) {
@@ -195,6 +203,7 @@
                         material: scanColor
                     }
                 });
+                this._baseScanColor = scanColor.clone();
             }
         }
 
@@ -206,6 +215,62 @@
             var vizShow = state._vizShow !== false && state._vizSensors !== false;
             if (this._coverageEntity) this._coverageEntity.show = vizShow;
             if (this._scanLineEntity) this._scanLineEntity.show = vizShow;
+
+            // --- Cyber status visual indicators ---
+            var degradation = state._cyberDegradation || {};
+            var sensorDeg = degradation.sensors || 0;
+
+            // (a) Sensor disabled: force hide coverage and scan line
+            if (state._sensorDisabled) {
+                if (this._coverageEntity) this._coverageEntity.show = false;
+                if (this._scanLineEntity) this._scanLineEntity.show = false;
+            }
+            // (b) Sensor degradation: dim coverage fill and scan line opacity
+            else if (sensorDeg > 0) {
+                var dimFactor = 1.0 - Math.min(sensorDeg, 1.0) * 0.8;
+                // Dim coverage fill
+                if (this._coverageEntity && this._baseFillColor) {
+                    var dimmedFill = this._baseFillColor.withAlpha(
+                        this._baseFillColor.alpha * dimFactor
+                    );
+                    if (this._coverageEntity.ellipse) {
+                        this._coverageEntity.ellipse.material = dimmedFill;
+                    } else if (this._coverageEntity.polygon) {
+                        this._coverageEntity.polygon.material = dimmedFill;
+                    }
+                }
+                // Dim scan line
+                if (this._scanLineEntity && this._scanLineEntity.polyline && this._baseScanColor) {
+                    this._scanLineEntity.polyline.material = this._baseScanColor.withAlpha(
+                        this._baseScanColor.alpha * dimFactor
+                    );
+                }
+            }
+            // (c) Sensor redirected: yellow outline to indicate misdirection
+            else if (state._sensorRedirected) {
+                if (this._coverageEntity) {
+                    if (this._coverageEntity.ellipse) {
+                        this._coverageEntity.ellipse.outlineColor = Cesium.Color.YELLOW;
+                    } else if (this._coverageEntity.polygon) {
+                        this._coverageEntity.polygon.outlineColor = Cesium.Color.YELLOW;
+                    }
+                }
+            }
+            // (d) No degradation: restore defaults
+            else {
+                if (this._coverageEntity && this._baseFillColor) {
+                    if (this._coverageEntity.ellipse) {
+                        this._coverageEntity.ellipse.material = this._baseFillColor;
+                        this._coverageEntity.ellipse.outlineColor = this._baseOutlineColor;
+                    } else if (this._coverageEntity.polygon) {
+                        this._coverageEntity.polygon.material = this._baseFillColor;
+                        this._coverageEntity.polygon.outlineColor = this._baseOutlineColor;
+                    }
+                }
+                if (this._scanLineEntity && this._scanLineEntity.polyline && this._baseScanColor) {
+                    this._scanLineEntity.polyline.material = this._baseScanColor;
+                }
+            }
 
             var showScanLine = cfg.showScanLine !== undefined ? cfg.showScanLine : DEFAULTS.showScanLine;
 

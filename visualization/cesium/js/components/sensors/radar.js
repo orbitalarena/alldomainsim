@@ -206,18 +206,62 @@ const RadarSensor = (function() {
         update(dt, world) {
             this._accumDt += dt;
 
+            // Check if sensors are disabled by cyber attack
+            var state = this.entity.state;
+            if (state._sensorDisabled) {
+                state._detections = [];
+                state._radarScanAz = this._scanAz;
+                // Hide detection lines when disabled
+                for (var dl = 0; dl < this._linePool.length; dl++) {
+                    this._linePool[dl].show = false;
+                }
+                this._activeLines = 0;
+                return;
+            }
+
             // Advance scan azimuth continuously (visual feedback even between sweeps)
             this._scanAz = (this._scanAz + this._scanRate * dt) % 360;
-            this.entity.state._radarScanAz = this._scanAz;
+            state._radarScanAz = this._scanAz;
+
+            // Sensor redirection: cyber attack offsets scan bearing
+            // Radar "thinks" it's scanning correctly but is pointed the wrong way
+            var _sensorBearingOffset = 0;
+            if (state._sensorRedirected) {
+                // Fully hijacked: attacker controls exact bearing if set,
+                // otherwise default 180° offset
+                if (state._sensorForcedBearing != null) {
+                    _sensorBearingOffset = state._sensorForcedBearing;
+                } else {
+                    _sensorBearingOffset = 180;
+                }
+                state._radarRedirected = true;
+            } else {
+                state._radarRedirected = false;
+            }
+
+            // Forced look-away from high cyber degradation (0.7 → 1.0)
+            // At 0.7 degradation the attacker gains partial steering control;
+            // at 1.0 the radar is fully steered away. The bearing offset
+            // ramps linearly from 0% to 100% of the forced direction.
+            var sensorDeg = state._cyberDegradation ? (state._cyberDegradation.sensors || 0) : 0;
+            if (!state._sensorRedirected && sensorDeg > 0.7) {
+                var lookAwayStrength = (sensorDeg - 0.7) / 0.3; // 0→1 over 0.7→1.0
+                var forcedBearing = state._sensorForcedBearing;
+                if (forcedBearing == null) {
+                    // Default: slowly rotating away from optimal scan (20 deg/sec)
+                    forcedBearing = ((world.simTime || 0) * 20) % 360;
+                }
+                _sensorBearingOffset = forcedBearing * lookAwayStrength;
+                state._radarForcedLookAway = true;
+            } else if (!state._sensorRedirected) {
+                state._radarForcedLookAway = false;
+            }
 
             // Only run full detection logic at the update interval
             if (this._accumDt < this._interval) return;
 
             var elapsed = this._accumDt;
             this._accumDt = 0;
-
-            // Own entity position
-            var state = this.entity.state;
             var ownLat = state.lat;
             var ownLon = state.lon;
             var ownAlt = state.alt || 0;
@@ -226,6 +270,21 @@ const RadarSensor = (function() {
             // Validate own position
             if (ownLat === undefined || ownLon === undefined) return;
 
+            // Cyber degradation: reduce radar effectiveness
+            // (sensorDeg already computed above for forced look-away check)
+            sensorDeg = state._cyberDegradation ? (state._cyberDegradation.sensors || 0) : 0;
+            var effectiveMaxRange = this._maxRange;
+            var effectivePd = this._pDetect;
+            var noiseOffset = 0;
+            if (sensorDeg > 0 && sensorDeg < 1) {
+                // Reduce effective range: at 1.0 degradation, 30% of original range
+                effectiveMaxRange = this._maxRange * (1 - sensorDeg * 0.7);
+                // Reduce detection probability: at 1.0 degradation, 40% of original Pd
+                effectivePd = this._pDetect * (1 - sensorDeg * 0.6);
+                // Add noise to scan (random bearing offset proportional to degradation)
+                noiseOffset = sensorDeg * 15 * (Math.random() - 0.5);  // up to +/-7.5 deg at full
+            }
+
             // Half FOV for bearing check
             var halfFov = this._fov / 2;
 
@@ -233,7 +292,7 @@ const RadarSensor = (function() {
             // Over the elapsed interval the radar swept scanRate * elapsed degrees.
             // We treat the center of the swept arc as the scan center.
             var sweepArc = this._scanRate * elapsed;
-            var scanCenter = (this._scanAz - sweepArc / 2 + 360) % 360;
+            var scanCenter = (this._scanAz - sweepArc / 2 + _sensorBearingOffset + noiseOffset + 360) % 360;
 
             // Effective angular coverage: FOV + sweep arc (targets within FOV
             // at any point during the sweep interval)
@@ -261,9 +320,9 @@ const RadarSensor = (function() {
                 // Skip ground-to-ground (both below 100m — radar can't see surface clutter)
                 if (ownAlt < 100 && tAlt < 100) return;
 
-                // Range check (fast reject)
+                // Range check (fast reject) — uses degraded effective range
                 var range = computeRange(ownLat, ownLon, ownAlt, tLat, tLon, tAlt);
-                if (range > self._maxRange) return;
+                if (range > effectiveMaxRange) return;
 
                 // Bearing from own entity to target
                 var bearing = computeBearing(ownLat, ownLon, tLat, tLon);
@@ -282,6 +341,7 @@ const RadarSensor = (function() {
                 if (Math.abs(bearingDelta) > effectiveHalfCoverage) return;
 
                 // Apply detection probability — use EWSystem RCS if available, else flat Pd
+                // Uses degraded effectivePd instead of raw this._pDetect
                 var rng = world.rng;
                 var detected;
                 if (typeof EWSystem !== 'undefined') {
@@ -291,9 +351,13 @@ const RadarSensor = (function() {
                     var customRcs = targetDef._custom && targetDef._custom.rcs_m2;
                     var rcs = customRcs != null ? customRcs : EWSystem.getRCS(target.type, targetConfig);
                     var pd = EWSystem.computeDetectionPd(null, null, range, rcs, null, null);
+                    // Apply degradation to EWSystem Pd as well
+                    if (sensorDeg > 0 && sensorDeg < 1) {
+                        pd = pd * (1 - sensorDeg * 0.6);
+                    }
                     detected = rng ? rng.bernoulli(pd) : (Math.random() < pd);
                 } else {
-                    detected = rng ? rng.bernoulli(self._pDetect) : (Math.random() < self._pDetect);
+                    detected = rng ? rng.bernoulli(effectivePd) : (Math.random() < effectivePd);
                 }
 
                 detections.push({

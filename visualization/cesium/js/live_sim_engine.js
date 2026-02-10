@@ -38,6 +38,7 @@ const LiveSimEngine = (function() {
     let _lastRegime = 'ATMOSPHERIC';
     let _started = false;
     let _observerMode = false;
+    let _isStaticPlayer = false; // true when player is a static_ground entity (cyber ops, command post)
 
     // Per-entity visualization control groups
     let _vizGroups = {};  // { groupKey: { show, orbits, trails, labels, sensors } }
@@ -298,6 +299,7 @@ const LiveSimEngine = (function() {
             _initSearchPanel();
             _initAnalyticsPanel();
             _initCommPanel();
+            _initCyberLogPanel();
             _setupEntityPicker();
             _buildVizGroups();
 
@@ -326,7 +328,7 @@ const LiveSimEngine = (function() {
             // 2. Select player entity
             _playerEntity = _selectPlayer(_world, playerIdParam);
             if (!_playerEntity) {
-                throw new Error('No controllable aircraft found in scenario');
+                throw new Error('No controllable entity found in scenario (need physics component)');
             }
 
             // 3. Hijack player from ECS
@@ -351,6 +353,7 @@ const LiveSimEngine = (function() {
             _initSettingsGear();
             _initSearchPanel();
             _initAnalyticsPanel();
+            _initCyberLogPanel();
 
             // 9b. Init planner click handler (orbit click → create node)
             _initPlannerClickHandler();
@@ -366,6 +369,8 @@ const LiveSimEngine = (function() {
             if (typeof CyberCockpit !== 'undefined') {
                 CyberCockpit.init(_world);
                 CyberCockpit.setPlayerTeam(_playerEntity ? _playerEntity.team : 'blue');
+                // Auto-open cyber cockpit for static ground entities (cyber ops centers, command posts)
+                if (_isStaticPlayer) CyberCockpit.show();
             }
 
             // 10. Position camera on player
@@ -422,7 +427,7 @@ const LiveSimEngine = (function() {
     // Player selection
     // -----------------------------------------------------------------------
     function _selectPlayer(world, preferredId) {
-        // Preferred ID
+        // Preferred ID — accept any entity with physics (including static_ground)
         if (preferredId) {
             var e = world.getEntity(preferredId);
             if (e && e.getComponent('physics')) return e;
@@ -446,7 +451,15 @@ const LiveSimEngine = (function() {
             }
         }
 
-        // First entity with any physics
+        // First entity with any non-static physics (orbital, naval)
+        for (var k = 0; k < physEntities.length; k++) {
+            var p = physEntities[k].getComponent('physics');
+            if (p && p.config && p.config.type !== 'static_ground') {
+                return physEntities[k];
+            }
+        }
+
+        // Last resort: first entity with static_ground physics (cyber/command)
         if (physEntities.length > 0) return physEntities[0];
 
         return null;
@@ -479,10 +492,16 @@ const LiveSimEngine = (function() {
         // Determine engine config from physics component.
         // The unified physics model treats all entities the same — no type flags needed.
         // Orbital entities use SPACEPLANE_CONFIG as a reasonable aero+thrust default.
+        // Static ground entities (cyber ops, command posts) skip flight physics entirely.
         var phys = entity.getComponent('physics');
         var physType = phys && phys.config && phys.config.type;
 
-        if (physType === 'orbital_2body') {
+        _isStaticPlayer = (physType === 'static_ground');
+
+        if (_isStaticPlayer) {
+            // Static ground entity — no flight physics, cyber cockpit is primary UI
+            _playerConfig = Object.assign({}, FighterSimEngine.F16_CONFIG); // placeholder, unused
+        } else if (physType === 'orbital_2body') {
             _playerConfig = Object.assign({}, FighterSimEngine.SPACEPLANE_CONFIG);
         } else if (phys && phys._engineConfig) {
             _playerConfig = Object.assign({}, phys._engineConfig);
@@ -563,7 +582,7 @@ const LiveSimEngine = (function() {
         if (_playerState.trimAlpha === undefined) _playerState.trimAlpha = 2 * Math.PI / 180;  // 2° default trim
 
         // Set ground altitude reference for non-Edwards airports
-        if (_playerState.phase === 'PARKED' || _playerState.phase === 'LANDED') {
+        if (_playerState.phase === 'PARKED' || _playerState.phase === 'LANDED' || _playerState.phase === 'STATIC') {
             _playerState.groundAlt = _playerState.alt;
         }
 
@@ -4066,6 +4085,9 @@ const LiveSimEngine = (function() {
             // Minimap (observer mode)
             if (typeof Minimap !== 'undefined' && Minimap.isVisible()) Minimap.update(null, _world, _simElapsed);
             if (typeof ConjunctionSystem !== 'undefined') ConjunctionSystem.update(_world, _simElapsed);
+
+            // Cyber event scanner (observer mode)
+            _scanCyberEvents(totalDt);
             return;
         }
         if (!_playerState) return;
@@ -4123,17 +4145,19 @@ const LiveSimEngine = (function() {
         }
 
         // 3. Step player physics (sub-stepped, no hard cap)
-        // Substep count scales with totalDt so physics always keeps pace
-        // with _simElapsed at high warp. FighterSimEngine.step() internally
-        // caps dt to 0.05s, so each substep must be ≤ 0.05s.
-        if (totalDt > 0) {
-            var maxSubDt = 0.05;
-            var numSteps = Math.ceil(totalDt / maxSubDt);
-            var subDt = totalDt / numSteps;
-            for (var _ss = 0; _ss < numSteps; _ss++) {
-                FighterSimEngine.step(_playerState, controls, subDt, _playerConfig);
+        // Static ground entities skip flight physics entirely — they don't move.
+        if (!_isStaticPlayer) {
+            // Substep count scales with totalDt so physics always keeps pace
+            // with _simElapsed at high warp. FighterSimEngine.step() internally
+            // caps dt to 0.05s, so each substep must be ≤ 0.05s.
+            if (totalDt > 0) {
+                var maxSubDt = 0.05;
+                var numSteps = Math.ceil(totalDt / maxSubDt);
+                var subDt = totalDt / numSteps;
+                for (var _ss = 0; _ss < numSteps; _ss++) {
+                    FighterSimEngine.step(_playerState, controls, subDt, _playerConfig);
+                }
             }
-        }
 
             // Apply weather wind to player
             if (typeof WeatherSystem !== 'undefined') {
@@ -4144,6 +4168,7 @@ const LiveSimEngine = (function() {
                     if (windDelta.dGamma) _playerState.gamma += windDelta.dGamma;
                 }
             }
+        }
 
         // 3b. Auto-pointing system (maintains attitude toward reference direction)
         _tickPointing();
@@ -4292,6 +4317,9 @@ const LiveSimEngine = (function() {
             }
         }
 
+        // Cyber event scanner — detect state transitions for log panel
+        _scanCyberEvents(totalDt);
+
         // --- COCKPIT RENDERING ---
 
         // 8. Update camera
@@ -4349,10 +4377,13 @@ const LiveSimEngine = (function() {
                 if (_mode === 'ROCKET') _playerState._currentThrust = (_curPropEntry && _curPropEntry.thrust) || (_playerConfig && _playerConfig.thrust_rocket) || 5000000;
                 else if (_mode === 'HYPERSONIC') _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_hypersonic) || 800000;
                 else _playerState._currentThrust = (_playerConfig && _playerConfig.thrust_ab) || (_playerConfig && _playerConfig.thrust_mil) || 130000;
-                FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
+                // Skip flight HUD for static ground entities (cyber cockpit is primary UI)
+                if (!_isStaticPlayer) {
+                    FighterHUD.render(_playerState, _autopilotState, weaponHud, null, _simElapsed);
 
-                if (typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {
-                    SpaceplaneHUD.renderOverlay(hudCanvas, _playerState, _simElapsed);
+                    if (typeof SpaceplaneHUD !== 'undefined' && _playerState.alt > 30000) {
+                        SpaceplaneHUD.renderOverlay(hudCanvas, _playerState, _simElapsed);
+                    }
                 }
             }
         }
@@ -4621,9 +4652,26 @@ const LiveSimEngine = (function() {
                 var trackTag = (_trackingEntity && _trackingEntity.id === it.id) ?
                     ' <span style="color:#ff0">\u25C9</span>' : '';
 
+                // Cyber status indicators
+                var cyberTag = '';
+                if (alive && it.entity.state) {
+                    var cs = it.entity.state;
+                    if (cs._fullControl || cs._cyberControlled) {
+                        cyberTag = ' <span title="CYBER CONTROLLED" style="color:#ff0000">\u26A0</span>';
+                    } else if (cs._sensorDisabled || cs._weaponsDisabled || cs._navigationHijacked) {
+                        cyberTag = ' <span title="SUBSYSTEM HACKED" style="color:#ff8800">\u26A0</span>';
+                    } else if (cs._cyberExploited || cs._computerCompromised) {
+                        cyberTag = ' <span title="EXPLOITED" style="color:#ff44ff">\u2622</span>';
+                    } else if (cs._cyberScanning) {
+                        cyberTag = ' <span title="BEING SCANNED" style="color:#aaaa00">\u2299</span>';
+                    } else if (cs._commBricked) {
+                        cyberTag = ' <span title="BRICKED" style="color:#666">\u2298</span>';
+                    }
+                }
+
                 html += '<div class="entity-row" data-eid="' + it.id + '" style="' + style + '">' +
                     '<span style="color:' + teamColor + '">' + statusIcon + '</span> ' +
-                    '<span class="entity-name">' + it.name + '</span>' + playerTag + trackTag +
+                    '<span class="entity-name">' + it.name + '</span>' + playerTag + trackTag + cyberTag +
                     ' <span class="entity-type">' + it.type + '</span>' +
                     '</div>';
             }
@@ -4696,6 +4744,14 @@ const LiveSimEngine = (function() {
                     }
                 }
                 return true;
+            case 'KeyC':
+                if (e && e.shiftKey) {
+                    // Shift+C = Cyber Incident Log
+                    _toggleCyberLogPanel();
+                    _showMessage(_cyberLogOpen ? 'CYBER LOG ON' : 'CYBER LOG OFF');
+                    return true;
+                }
+                return false;
             case 'KeyJ':
                 if (typeof ConjunctionSystem !== 'undefined') {
                     var cjVis = ConjunctionSystem.toggle();
@@ -4721,6 +4777,10 @@ const LiveSimEngine = (function() {
         }
         if (name === 'cyber') {
             if (typeof CyberCockpit !== 'undefined') CyberCockpit.toggle();
+            return;
+        }
+        if (name === 'cyberLog') {
+            _toggleCyberLogPanel();
             return;
         }
         if (name === 'orbital') {
@@ -5203,12 +5263,13 @@ const LiveSimEngine = (function() {
         // 7. Reset camera orbit params to defaults (may be at odd angles from observer mode)
         _camHeadingOffset = 0;
         _camPitch = -0.3;
-        _camRange = _playerState.alt > 100000 ? 5000 : 200;
+        _camRange = _isStaticPlayer ? 500 : (_playerState.alt > 100000 ? 5000 : 200);
         _camDragging = false;
 
         // 8. Show cockpit panels (observer mode hides them)
-        _panelVisible.flightData = true;
-        _panelVisible.systems = true;
+        // Static ground entities hide flight panels — cyber cockpit is primary
+        _panelVisible.flightData = !_isStaticPlayer;
+        _panelVisible.systems = !_isStaticPlayer;
         _applyPanelVisibility();
 
         // 9. Release camera from any transform/tracking
@@ -5239,6 +5300,12 @@ const LiveSimEngine = (function() {
 
         // 14. Close pick popup
         if (_pickPopup) _pickPopup.style.display = 'none';
+
+        // Auto-open cyber cockpit for static ground entities
+        if (_isStaticPlayer && typeof CyberCockpit !== 'undefined') {
+            CyberCockpit.setPlayerTeam(entity.team || 'blue');
+            CyberCockpit.show();
+        }
 
         _showMessage('ASSUMING CONTROL: ' + entity.name, 3000);
     }
@@ -6349,6 +6416,386 @@ const LiveSimEngine = (function() {
     }
 
     // -----------------------------------------------------------------------
+    // Cyber Warfare Scoring & Metrics
+    // -----------------------------------------------------------------------
+    var _cyberScore = {
+        red: { scans: 0, exploits: 0, controlled: 0, subsystemsDisabled: 0, dataExfil: 0, totalPoints: 0 },
+        blue: { scans: 0, exploits: 0, controlled: 0, subsystemsDisabled: 0, dataExfil: 0, totalPoints: 0 }
+    };
+    var _cyberDefenseScore = {
+        red: { patches: 0, isolated: 0, counterAttacks: 0, restored: 0, totalPoints: 0 },
+        blue: { patches: 0, isolated: 0, counterAttacks: 0, restored: 0, totalPoints: 0 }
+    };
+
+    /** Determine the attacking team: if a BLUE entity is the victim, RED scored the attack, and vice versa. */
+    function _getAttackerTeam(victimTeam) {
+        if (victimTeam === 'blue') return 'red';
+        if (victimTeam === 'red') return 'blue';
+        return 'red'; // default fallback
+    }
+
+    /** Determine the defending team: same team as the entity performing defense. */
+    function _getDefenderTeam(defenderEntityTeam) {
+        if (defenderEntityTeam === 'blue') return 'blue';
+        if (defenderEntityTeam === 'red') return 'red';
+        return 'blue'; // default fallback
+    }
+
+    function _addAttackScore(victimTeam, field, points) {
+        var atkTeam = _getAttackerTeam(victimTeam);
+        _cyberScore[atkTeam][field]++;
+        _cyberScore[atkTeam].totalPoints += points;
+    }
+
+    function _addDefenseScore(defenderTeam, field, points) {
+        var defTeam = _getDefenderTeam(defenderTeam);
+        _cyberDefenseScore[defTeam][field]++;
+        _cyberDefenseScore[defTeam].totalPoints += points;
+    }
+
+    function _resetCyberScores() {
+        var teams = ['red', 'blue'];
+        for (var i = 0; i < teams.length; i++) {
+            var t = teams[i];
+            _cyberScore[t].scans = 0;
+            _cyberScore[t].exploits = 0;
+            _cyberScore[t].controlled = 0;
+            _cyberScore[t].subsystemsDisabled = 0;
+            _cyberScore[t].dataExfil = 0;
+            _cyberScore[t].totalPoints = 0;
+            _cyberDefenseScore[t].patches = 0;
+            _cyberDefenseScore[t].isolated = 0;
+            _cyberDefenseScore[t].counterAttacks = 0;
+            _cyberDefenseScore[t].restored = 0;
+            _cyberDefenseScore[t].totalPoints = 0;
+        }
+    }
+
+    function _getCyberScoreSummary() {
+        var rAtk = _cyberScore.red;
+        var bAtk = _cyberScore.blue;
+        var rDef = _cyberDefenseScore.red;
+        var bDef = _cyberDefenseScore.blue;
+        var redTotal = rAtk.totalPoints + rDef.totalPoints;
+        var blueTotal = bAtk.totalPoints + bDef.totalPoints;
+        return {
+            red: { attack: rAtk, defense: rDef, totalPoints: redTotal },
+            blue: { attack: bAtk, defense: bDef, totalPoints: blueTotal }
+        };
+    }
+
+    // -----------------------------------------------------------------------
+    // Cyber Incident Log & Timeline Panel
+    // -----------------------------------------------------------------------
+    let _cyberLogOpen = false;
+    let _cyberLog = [];
+    let _cyberLogDirty = false;
+    let _cyberLogPrevState = {};
+    let _cyberLogScanTimer = 0;
+
+    function _toggleCyberLogPanel() {
+        var panel = document.getElementById('cyberLogPanel');
+        if (!panel) return;
+        _cyberLogOpen = !_cyberLogOpen;
+        panel.style.display = _cyberLogOpen ? '' : 'none';
+        if (_cyberLogOpen) {
+            _cyberLogDirty = true;
+            _renderCyberLog();
+        }
+    }
+
+    function _initCyberLogPanel() {
+        var closeBtn = document.getElementById('cyberLogClose');
+        if (closeBtn) closeBtn.addEventListener('click', _toggleCyberLogPanel);
+        var clearBtn = document.getElementById('cyberLogClear');
+        if (clearBtn) clearBtn.addEventListener('click', function() {
+            _cyberLog = [];
+            _cyberLogPrevState = {};
+            _resetCyberScores();
+            _cyberLogDirty = true;
+            _renderCyberLog();
+        });
+        var filterSel = document.getElementById('cyberLogFilter');
+        if (filterSel) filterSel.addEventListener('change', function() {
+            _cyberLogDirty = true;
+            _renderCyberLog();
+        });
+    }
+
+    function _addCyberLogEntry(simTime, type, entityName, team, message, category) {
+        _cyberLog.push({
+            time: simTime,
+            type: type,
+            entity: entityName,
+            team: team,
+            message: message,
+            category: category
+        });
+        _cyberLogDirty = true;
+        // Keep last 500 entries
+        if (_cyberLog.length > 500) _cyberLog.shift();
+    }
+
+    function _formatCyberTime(seconds) {
+        if (!isFinite(seconds) || seconds < 0) return 'T+0:00';
+        var h = Math.floor(seconds / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        var s = Math.floor(seconds % 60);
+        if (h > 0) return 'T+' + h + ':' + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+        return 'T+' + m + ':' + s.toString().padStart(2, '0');
+    }
+
+    function _renderCyberLog() {
+        if (!_cyberLogDirty) return;
+        _cyberLogDirty = false;
+
+        var content = document.getElementById('cyberLogContent');
+        if (!content || content.parentElement.style.display === 'none') return;
+
+        var filter = document.getElementById('cyberLogFilter');
+        var filterVal = filter ? filter.value : 'all';
+
+        var filtered = _cyberLog;
+        if (filterVal !== 'all') {
+            filtered = _cyberLog.filter(function(e) { return e.category === filterVal; });
+        }
+
+        var html = '';
+        if (filtered.length === 0) {
+            html = '<div style="color:#333; padding:8px; text-align:center;">No cyber events recorded yet.</div>';
+        } else {
+            // Show most recent first (last 100)
+            var start = Math.max(0, filtered.length - 100);
+            for (var i = filtered.length - 1; i >= start; i--) {
+                var entry = filtered[i];
+                var timeStr = _formatCyberTime(entry.time);
+                var color = entry.category === 'attack' ? '#ff4444' :
+                            entry.category === 'defense' ? '#44ff44' :
+                            entry.category === 'exfil' ? '#ffaa00' :
+                            entry.category === 'lateral' ? '#ff88ff' : '#888';
+                var teamColor = entry.team === 'blue' ? '#4488ff' : entry.team === 'red' ? '#ff4444' : '#888';
+                html += '<div style="padding:2px 4px; border-bottom:1px solid #222; color:' + color + ';">' +
+                    '<span style="color:#666;">' + timeStr + '</span> ' +
+                    '<span style="color:' + color + '; font-weight:bold;">[' + entry.type + ']</span> ' +
+                    '<span style="color:' + teamColor + ';">' + entry.entity + '</span> ' +
+                    '<span style="color:#aaa;">' + entry.message + '</span></div>';
+            }
+        }
+        content.innerHTML = html;
+
+        // Stats footer with cyber scores
+        var stats = document.getElementById('cyberLogStats');
+        if (stats) {
+            var attacks = 0, defenses = 0, exfils = 0, laterals = 0;
+            for (var j = 0; j < _cyberLog.length; j++) {
+                var cat = _cyberLog[j].category;
+                if (cat === 'attack') attacks++;
+                else if (cat === 'defense') defenses++;
+                else if (cat === 'exfil') exfils++;
+                else if (cat === 'lateral') laterals++;
+            }
+            var summary = _getCyberScoreSummary();
+            var rAtk = summary.red.attack;
+            var bAtk = summary.blue.attack;
+            var rDef = summary.red.defense;
+            var bDef = summary.blue.defense;
+
+            // Build attack detail strings
+            var redAtkParts = [];
+            if (rAtk.exploits > 0) redAtkParts.push(rAtk.exploits + ' exploit' + (rAtk.exploits !== 1 ? 's' : ''));
+            if (rAtk.controlled > 0) redAtkParts.push(rAtk.controlled + ' control' + (rAtk.controlled !== 1 ? 's' : ''));
+            if (rAtk.dataExfil > 0) redAtkParts.push(rAtk.dataExfil + ' exfil');
+            var redAtkStr = redAtkParts.length > 0 ? ' (' + redAtkParts.join(', ') + ')' : '';
+
+            var blueAtkParts = [];
+            if (bAtk.exploits > 0) blueAtkParts.push(bAtk.exploits + ' exploit' + (bAtk.exploits !== 1 ? 's' : ''));
+            if (bAtk.controlled > 0) blueAtkParts.push(bAtk.controlled + ' control' + (bAtk.controlled !== 1 ? 's' : ''));
+            if (bAtk.dataExfil > 0) blueAtkParts.push(bAtk.dataExfil + ' exfil');
+            var blueAtkStr = blueAtkParts.length > 0 ? ' (' + blueAtkParts.join(', ') + ')' : '';
+
+            // Build defense detail strings
+            var redDefParts = [];
+            if (rDef.patches > 0) redDefParts.push(rDef.patches + ' patch' + (rDef.patches !== 1 ? 'es' : ''));
+            if (rDef.restored > 0) redDefParts.push(rDef.restored + ' restored');
+            if (rDef.isolated > 0) redDefParts.push(rDef.isolated + ' isolated');
+            var redDefStr = redDefParts.length > 0 ? ' (' + redDefParts.join(', ') + ')' : '';
+
+            var blueDefParts = [];
+            if (bDef.patches > 0) blueDefParts.push(bDef.patches + ' patch' + (bDef.patches !== 1 ? 'es' : ''));
+            if (bDef.restored > 0) blueDefParts.push(bDef.restored + ' restored');
+            if (bDef.isolated > 0) blueDefParts.push(bDef.isolated + ' isolated');
+            var blueDefStr = blueDefParts.length > 0 ? ' (' + blueDefParts.join(', ') + ')' : '';
+
+            stats.innerHTML =
+                '<div style="margin-bottom:2px;">Total: ' + _cyberLog.length + ' | Attacks: ' + attacks +
+                ' | Defense: ' + defenses + ' | Exfil: ' + exfils + ' | Lateral: ' + laterals + '</div>' +
+                '<div style="color:#ff6666;"><b>RED:</b> ' + summary.red.totalPoints + 'pts' +
+                (rAtk.totalPoints > 0 ? ' atk:' + rAtk.totalPoints : '') + redAtkStr +
+                (rDef.totalPoints > 0 ? ' def:' + rDef.totalPoints : '') + redDefStr + '</div>' +
+                '<div style="color:#6688ff;"><b>BLUE:</b> ' + summary.blue.totalPoints + 'pts' +
+                (bAtk.totalPoints > 0 ? ' atk:' + bAtk.totalPoints : '') + blueAtkStr +
+                (bDef.totalPoints > 0 ? ' def:' + bDef.totalPoints : '') + blueDefStr + '</div>';
+        }
+    }
+
+    // Scan entities for cyber state transitions each tick (throttled to 2Hz)
+    function _scanCyberEvents(dt) {
+        _cyberLogScanTimer += dt;
+        if (_cyberLogScanTimer < 0.5) return; // 2Hz
+        _cyberLogScanTimer = 0;
+
+        if (!_world) return;
+        var simTime = _simElapsed || 0;
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.state || !ent.active) return;
+            var s = ent.state;
+            var prevKey = '_cyberPrev_' + ent.id;
+            var prev = _cyberLogPrevState[prevKey] || {};
+
+            // --- Attack transitions (victim entity = ent, attacker = opposing team) ---
+
+            // Scan started: +1 point to attacker
+            if (s._cyberScanning && !prev.scanning) {
+                _addCyberLogEntry(simTime, 'SCAN', ent.name, ent.team, 'Cyber scan detected', 'attack');
+                _addAttackScore(ent.team, 'scans', 1);
+            }
+            // Exploit succeeded: +5 points to attacker
+            if (s._cyberExploited && !prev.exploited) {
+                _addCyberLogEntry(simTime, 'EXPLOIT', ent.name, ent.team, 'System compromised', 'attack');
+                _addAttackScore(ent.team, 'exploits', 5);
+            }
+            // Full cyber control: +10 points to attacker
+            if (s._cyberControlled && !prev.controlled) {
+                _addCyberLogEntry(simTime, 'CONTROL', ent.name, ent.team, 'Entity under full cyber control', 'attack');
+                _addAttackScore(ent.team, 'controlled', 10);
+            }
+            // Intrusion detected (informational, no scoring)
+            if (s._cyberAttackDetected && !prev.attackDetected) {
+                _addCyberLogEntry(simTime, 'DETECT', ent.name, ent.team,
+                    'Intrusion detected (' + (s._cyberAttackType || 'unknown') + ')', 'attack');
+            }
+            // Node bricked: +3 points to attacker (subsystem disable)
+            if (s._commBricked && !prev.bricked) {
+                _addCyberLogEntry(simTime, 'BRICK', ent.name, ent.team, 'Node bricked', 'attack');
+                _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+            }
+
+            // Subsystem disabled flags: +3 points each to attacker
+            if (s._sensorDisabled && !prev.sensorDisabled) {
+                _addCyberLogEntry(simTime, 'DISABLED', ent.name, ent.team, 'Sensors disabled', 'attack');
+                _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+            }
+            if (s._weaponsDisabled && !prev.weaponsDisabled) {
+                _addCyberLogEntry(simTime, 'DISABLED', ent.name, ent.team, 'Weapons disabled', 'attack');
+                _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+            }
+            if (s._navigationHijacked && !prev.navHijacked) {
+                _addCyberLogEntry(simTime, 'DISABLED', ent.name, ent.team, 'Navigation hijacked', 'attack');
+                _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+            }
+            if (s._commsDisabled && !prev.commsDisabled) {
+                _addCyberLogEntry(simTime, 'DISABLED', ent.name, ent.team, 'Comms disabled', 'attack');
+                _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+            }
+
+            // Subsystem degradation crossed thresholds
+            if (s._cyberDegradation) {
+                var deg = s._cyberDegradation;
+                var subsystems = ['sensors', 'navigation', 'weapons', 'comms'];
+                for (var si = 0; si < subsystems.length; si++) {
+                    var sub = subsystems[si];
+                    var cur = deg[sub] || 0;
+                    var prevVal = (prev.degradation && prev.degradation[sub]) || 0;
+                    if (cur >= 0.5 && prevVal < 0.5) {
+                        _addCyberLogEntry(simTime, 'DEGRADE', ent.name, ent.team,
+                            sub + ' degraded to ' + Math.round(cur * 100) + '%', 'attack');
+                    }
+                    // Full disable via degradation: +3 points to attacker
+                    if (cur >= 1.0 && prevVal < 1.0) {
+                        _addCyberLogEntry(simTime, 'DISABLED', ent.name, ent.team,
+                            sub + ' fully disabled', 'attack');
+                        _addAttackScore(ent.team, 'subsystemsDisabled', 3);
+                    }
+                    // Recovery below threshold: +3 points to defender
+                    if (cur < 0.5 && prevVal >= 0.5) {
+                        _addCyberLogEntry(simTime, 'RESTORED', ent.name, ent.team,
+                            sub + ' partially restored', 'defense');
+                        _addDefenseScore(ent.team, 'restored', 3);
+                    }
+                }
+            }
+
+            // --- Lateral movement ---
+            if (s._cyberLateralSpread && !prev.lateral) {
+                _addCyberLogEntry(simTime, 'LATERAL', ent.name, ent.team,
+                    'Lateral movement detected from ' + (s._cyberLateralSource || 'unknown'), 'lateral');
+            }
+
+            // --- Data exfiltration: +8 points to attacker ---
+            if (s._dataExfiltrated && !prev.exfil) {
+                _addCyberLogEntry(simTime, 'EXFIL', ent.name, ent.team, 'Data exfiltrated', 'exfil');
+                _addAttackScore(ent.team, 'dataExfil', 8);
+            }
+
+            // --- Defense transitions (defender entity = ent, defense scored by ent's team) ---
+            // Patch in progress: +4 points to defender
+            if (s._cyberDefensePatching && !prev.patching) {
+                _addCyberLogEntry(simTime, 'PATCH', ent.name, ent.team,
+                    'Cyber defense patching in progress', 'defense');
+                _addDefenseScore(ent.team, 'patches', 4);
+            }
+            // Node isolated: +2 points to defender
+            if (s._commIsolated && !prev.isolated) {
+                _addCyberLogEntry(simTime, 'ISOLATE', ent.name, ent.team,
+                    'Network node isolated by defense', 'defense');
+                _addDefenseScore(ent.team, 'isolated', 2);
+            }
+            // Exploit cleared (recovery): +4 points to defender (patch equivalent)
+            if (!s._cyberExploited && prev.exploited) {
+                _addCyberLogEntry(simTime, 'DEFEND', ent.name, ent.team, 'Exploit cleared', 'defense');
+                _addDefenseScore(ent.team, 'patches', 4);
+            }
+            // Node rebooted (recovery from brick): +4 points to defender
+            if (!s._commBricked && prev.bricked) {
+                _addCyberLogEntry(simTime, 'DEFEND', ent.name, ent.team, 'Node rebooted', 'defense');
+                _addDefenseScore(ent.team, 'patches', 4);
+            }
+            // Sensors restored: +3 points to defender
+            if (!s._sensorDisabled && prev.sensorDisabled) {
+                _addCyberLogEntry(simTime, 'RESTORED', ent.name, ent.team, 'Sensors restored', 'defense');
+                _addDefenseScore(ent.team, 'restored', 3);
+            }
+            // Weapons restored: +3 points to defender
+            if (!s._weaponsDisabled && prev.weaponsDisabled) {
+                _addCyberLogEntry(simTime, 'RESTORED', ent.name, ent.team, 'Weapons restored', 'defense');
+                _addDefenseScore(ent.team, 'restored', 3);
+            }
+
+            // Save current state snapshot for next comparison
+            _cyberLogPrevState[prevKey] = {
+                scanning: !!s._cyberScanning,
+                exploited: !!s._cyberExploited,
+                controlled: !!s._cyberControlled,
+                attackDetected: !!s._cyberAttackDetected,
+                bricked: !!s._commBricked,
+                sensorDisabled: !!s._sensorDisabled,
+                weaponsDisabled: !!s._weaponsDisabled,
+                navHijacked: !!s._navigationHijacked,
+                commsDisabled: !!s._commsDisabled,
+                lateral: !!s._cyberLateralSpread,
+                exfil: !!s._dataExfiltrated,
+                patching: !!s._cyberDefensePatching,
+                isolated: !!s._commIsolated,
+                degradation: s._cyberDegradation ? Object.assign({}, s._cyberDegradation) : {}
+            };
+        });
+
+        // Render if panel is open and data changed
+        if (_cyberLogOpen) _renderCyberLog();
+    }
+
+    // -----------------------------------------------------------------------
     // Public API
     // -----------------------------------------------------------------------
     return {
@@ -6364,5 +6811,6 @@ const LiveSimEngine = (function() {
         get playerState() { return _playerState; },
         get world() { return _world; },
         get observerMode() { return _observerMode; },
+        get cyberScore() { return _getCyberScoreSummary(); },
     };
 })();

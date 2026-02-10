@@ -113,6 +113,7 @@ const FighterHUD = (function() {
         if (_toggles.weapons)     drawTargetSteerCue(state, target, scale);
         if (_toggles.warnings)    drawAutopilotStatus(autopilot, scale);
         if (_toggles.warnings)    drawWarnings(state, scale);
+        if (_toggles.warnings)    drawCyberWarnings(state, scale);
         if (_toggles.warnings)    drawPhaseIndicator(state, scale);
         if (_toggles.speedTape)   drawMachIndicator(state, scale);
         if (_toggles.altTape)     drawVerticalSpeed(state, scale);
@@ -1172,6 +1173,172 @@ const FighterHUD = (function() {
                 ctx.fillText(w.text, cx, y);
             }
         }
+    }
+
+    /**
+     * Draw cyber attack warning indicators
+     * Shows system compromise status, screen noise, and border flash
+     */
+    function drawCyberWarnings(state, scale) {
+        if (!state) return;
+
+        // Check if any cyber flag is set
+        var hasCyber = state._sensorDisabled || state._weaponsDisabled ||
+            state._navigationHijacked || state._commsDisabled ||
+            state._fullControl || state._computerCompromised ||
+            state._cyberScanning || state._cyberExploited ||
+            state._cyberControlled;
+
+        if (!hasCyber) return;
+
+        var now = Date.now();
+
+        // --- 1. Red border flash (pulsing) ---
+        var borderAlpha = 0.3 + 0.3 * Math.sin(now * 0.006);
+        ctx.save();
+        ctx.strokeStyle = HUD_ALERT;
+        ctx.lineWidth = 3 * scale;
+        ctx.globalAlpha = borderAlpha;
+        // Top
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(width, 0);
+        ctx.stroke();
+        // Bottom
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        ctx.lineTo(width, height);
+        ctx.stroke();
+        // Left
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, height);
+        ctx.stroke();
+        // Right
+        ctx.beginPath();
+        ctx.moveTo(width, 0);
+        ctx.lineTo(width, height);
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        ctx.restore();
+
+        // --- 2. Screen noise/static when full control is lost ---
+        if (state._fullControl || state._cyberControlled) {
+            ctx.save();
+            ctx.globalAlpha = 0.15;
+            var noiseCount = Math.floor(width * height * 0.10 / 16); // ~10% coverage in 4x4 blocks
+            for (var ni = 0; ni < noiseCount; ni++) {
+                var nx = Math.random() * width;
+                var ny = Math.random() * height;
+                var brightness = Math.floor(Math.random() * 256);
+                ctx.fillStyle = 'rgb(' + brightness + ',' + brightness + ',' + brightness + ')';
+                ctx.fillRect(nx, ny, 4 * scale, 4 * scale);
+            }
+            ctx.globalAlpha = 1.0;
+            ctx.restore();
+        }
+
+        // --- 3. Main cyber status box (below heading tape) ---
+        var boxY = 85 * scale;
+        var boxW = 260 * scale;
+        var boxH = 28 * scale;
+        var boxX = cx - boxW / 2;
+
+        // Determine severity for box color
+        var isCritical = state._fullControl || state._cyberControlled;
+        var isExploited = state._cyberExploited || state._computerCompromised;
+
+        // Background box
+        ctx.save();
+        if (isCritical) {
+            ctx.fillStyle = 'rgba(255, 0, 0, ' + (0.4 + 0.2 * Math.sin(now * 0.01)) + ')';
+        } else if (isExploited || state._sensorDisabled || state._weaponsDisabled || state._navigationHijacked) {
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
+        } else {
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.15)';
+        }
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeStyle = isCritical ? HUD_ALERT : HUD_WARN;
+        ctx.lineWidth = 1.5 * scale;
+        ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+        // Header text
+        ctx.font = 'bold ' + (14 * scale) + 'px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        if (isCritical) {
+            ctx.fillStyle = HUD_ALERT;
+            ctx.fillText('CYBER ATTACK - COMPROMISED', cx, boxY + boxH / 2);
+        } else if (isExploited) {
+            ctx.fillStyle = HUD_ALERT;
+            ctx.fillText('CYBER ATTACK - INTRUSION', cx, boxY + boxH / 2);
+        } else {
+            ctx.fillStyle = HUD_WARN;
+            ctx.fillText('CYBER WARNING', cx, boxY + boxH / 2);
+        }
+        ctx.restore();
+
+        // --- 4. Individual system warnings (stacked below the box) ---
+        var warnings = [];
+
+        if (state._fullControl || state._cyberControlled) {
+            warnings.push({ text: 'FULL COMPROMISE', color: HUD_ALERT, blink: 'fast' });
+        }
+        if (state._sensorDisabled) {
+            warnings.push({ text: 'SENSORS DISABLED', color: HUD_ALERT, blink: 'normal' });
+        }
+        if (state._navigationHijacked) {
+            warnings.push({ text: 'NAV HIJACKED', color: HUD_ALERT, blink: 'normal' });
+        }
+        if (state._weaponsDisabled) {
+            warnings.push({ text: 'WEAPONS OFFLINE', color: HUD_ALERT, blink: 'normal' });
+        }
+        if (state._commsDisabled) {
+            warnings.push({ text: 'COMMS DOWN', color: HUD_WARN, blink: 'none' });
+        }
+        if (state._cyberExploited && !state._fullControl && !state._cyberControlled) {
+            warnings.push({ text: 'CYBER INTRUSION', color: HUD_WARN, blink: 'normal' });
+        }
+        if (state._computerCompromised && !state._fullControl && !state._cyberControlled) {
+            warnings.push({ text: 'COMPUTER COMPROMISED', color: HUD_WARN, blink: 'normal' });
+        }
+        if (state._cyberScanning) {
+            warnings.push({ text: 'SCANNING DETECTED', color: '#aaaa00', blink: 'none' });
+        }
+
+        ctx.save();
+        ctx.font = 'bold ' + (13 * scale) + 'px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        var warnStartY = boxY + boxH + 8 * scale;
+
+        for (var wi = 0; wi < warnings.length; wi++) {
+            var w = warnings[wi];
+            var wy = warnStartY + wi * 20 * scale;
+
+            // Determine visibility based on blink mode
+            var visible = true;
+            if (w.blink === 'fast') {
+                // Fast blink: 200ms on, 200ms off
+                visible = (now % 400) < 200;
+            } else if (w.blink === 'normal') {
+                // Normal blink: 500ms on, 500ms off
+                visible = (now % 1000) < 500;
+            }
+            // 'none' is always visible
+
+            if (visible) {
+                // Dark background stripe for readability
+                var tw = ctx.measureText(w.text).width + 12 * scale;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(cx - tw / 2, wy - 8 * scale, tw, 16 * scale);
+
+                ctx.fillStyle = w.color;
+                ctx.fillText(w.text, cx, wy);
+            }
+        }
+        ctx.restore();
     }
 
     /**

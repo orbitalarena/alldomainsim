@@ -36,7 +36,8 @@ const PlatformBuilder = (function() {
             mode: 'coe',
             tle: { line1: '', line2: '' },
             coe: { sma_km: 6771, ecc: 0.001, inc_deg: 51.6, raan_deg: 0, argPe_deg: 0, ma_deg: 0 },
-            atmospheric: { config: 'f16', alt: 5000, speed: 200, heading: 90 }
+            atmospheric: { config: 'f16', alt: 5000, speed: 200, heading: 90 },
+            ground: { role: 'command_post' }
         },
         propulsion: {
             taxi: false,
@@ -64,7 +65,43 @@ const PlatformBuilder = (function() {
             cargo: { enabled: false, deployable: 'cubesat' },
             // Nuclear options
             nuclearWarhead: { enabled: false, yield_kt: 1400, burstType: 'exoatmospheric', trigger: 'command' },
-            nuclearCruiseMissile: { enabled: false, yield_kt: 150, burstType: 'airburst', range_km: 2500 }
+            nuclearCruiseMissile: { enabled: false, yield_kt: 150, burstType: 'airburst', range_km: 2500 },
+            // Cyber actor
+            cyberActor: { enabled: false, role: 'all', stealthLevel: 0.6, attackDuration_s: 30, accessTime_s: 15 },
+            // Firewall
+            firewall: { enabled: false, rating: 0.7, ids: true }
+        },
+        // Comm data config
+        commData: {
+            enabled: false,
+            missionData: true,
+            heartbeat: true,
+            heartbeatInterval_s: 5,
+            missionDataRate_bps: 1000000,
+            emcon: false,
+            encrypted: false,
+            encryptionType: 'AES256',
+            encryptionOverhead: 0.15  // 15% bandwidth overhead
+        },
+        // Computer system (hackable)
+        computer: {
+            enabled: true,  // ON by default for all platforms
+            os: 'mil_spec',
+            hardening: 0.5,
+            patchLevel: 0.5,
+            firewallRating: 0.5
+        },
+        // Cyber configuration
+        cyber: {
+            hardening: 5,           // 0-10 scale, stored as 0-1 (divide by 10)
+            patchLevel: 5,          // 0-10 scale, stored as 0-1
+            firewallEnabled: false,
+            firewallRating: 5,      // 0-10 scale, stored as 0-1
+            ids: false,             // intrusion detection, only when firewall on
+            encryption: 'none',     // none / AES-128 / AES-256
+            aiRole: 'none',         // none / offensive / defensive / hybrid
+            aggressiveness: 5,      // 0-10 scale, stored as 0-1
+            stealthLevel: 5         // 0-10 scale, stored as 0-1
         },
         // RCS override (null = auto by entity type)
         rcs_m2: null,
@@ -184,7 +221,8 @@ const PlatformBuilder = (function() {
             { id: 'model', label: 'MODEL' },
             { id: 'propulsion', label: 'PROPULSION' },
             { id: 'sensors', label: 'SENSORS' },
-            { id: 'payload', label: 'PAYLOAD' }
+            { id: 'payload', label: 'PAYLOAD' },
+            { id: 'cyber', label: 'CYBER' }
         ];
 
         tabDefs.forEach(def => {
@@ -209,6 +247,7 @@ const PlatformBuilder = (function() {
         _tabContents.propulsion = _createPropulsionTab();
         _tabContents.sensors = _createSensorsTab();
         _tabContents.payload = _createPayloadTab();
+        _tabContents.cyber = _createCyberTab();
         Object.keys(_tabContents).forEach(id => {
             _tabContents[id].style.display = id === _activeTab ? 'block' : 'none';
             container.appendChild(_tabContents[id]);
@@ -304,6 +343,31 @@ const PlatformBuilder = (function() {
                             <input type="number" id="pb-atmo-heading" value="${_formState.physics.atmospheric.heading}" min="0" max="360" step="1" />
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div class="pb-radio-group">
+                <label class="pb-radio-item">
+                    <input type="radio" name="physics-mode" value="ground" ${_formState.physics.mode === 'ground' ? 'checked' : ''} />
+                    <span>Ground Station / Fixed</span>
+                </label>
+                <div class="pb-sub-fields pb-ground-fields" style="display: ${_formState.physics.mode === 'ground' ? 'block' : 'none'}">
+                    <div class="pb-coe-row">
+                        <div class="pb-coe-field">
+                            <label>Role</label>
+                            <select id="pb-ground-role">
+                                <option value="command_post" ${_formState.physics.ground.role === 'command_post' ? 'selected' : ''}>Command Post</option>
+                                <option value="ground_station" ${_formState.physics.ground.role === 'ground_station' ? 'selected' : ''}>Ground Station</option>
+                                <option value="radar_site" ${_formState.physics.ground.role === 'radar_site' ? 'selected' : ''}>Radar Site</option>
+                                <option value="comm_relay" ${_formState.physics.ground.role === 'comm_relay' ? 'selected' : ''}>Comm Relay</option>
+                                <option value="sam_site" ${_formState.physics.ground.role === 'sam_site' ? 'selected' : ''}>SAM Site</option>
+                                <option value="cyber_ops" ${_formState.physics.ground.role === 'cyber_ops' ? 'selected' : ''}>Cyber Ops Center</option>
+                                <option value="firewall" ${_formState.physics.ground.role === 'firewall' ? 'selected' : ''}>Network Firewall</option>
+                                <option value="generic" ${_formState.physics.ground.role === 'generic' ? 'selected' : ''}>Generic</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pb-hint" style="margin-top:6px">Static entity placed on the ground. No physics simulation — position is fixed at click location.</div>
                 </div>
             </div>
 
@@ -1071,9 +1135,322 @@ const PlatformBuilder = (function() {
                     </div>
                 </div>
             </div>
+
+            <div class="pb-payload-section" style="margin-top:12px;background:rgba(0,255,200,0.05);border:1px solid rgba(0,255,200,0.2);border-radius:4px;padding:10px">
+                <div class="pb-payload-category" style="color: #0fc;">Cyber</div>
+
+                <div class="pb-sensor-group">
+                    <label class="pb-checkbox-item">
+                        <input type="checkbox" id="pb-payload-cyber" ${_formState.payload.cyberActor.enabled ? 'checked' : ''} />
+                        <span class="pb-check-label">Cyber Actor</span>
+                        <span class="pb-check-desc">Offensive/defensive cyber warfare capabilities</span>
+                    </label>
+                    <div class="pb-sub-fields pb-payload-config" data-payload="cyber" style="display: ${_formState.payload.cyberActor.enabled ? 'block' : 'none'}">
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label>Cyber Role</label>
+                                <select id="pb-cyber-role">
+                                    <option value="offense" ${_formState.payload.cyberActor.role === 'offense' ? 'selected' : ''}>Offensive Only</option>
+                                    <option value="defense" ${_formState.payload.cyberActor.role === 'defense' ? 'selected' : ''}>Defensive Only</option>
+                                    <option value="all" ${_formState.payload.cyberActor.role === 'all' ? 'selected' : ''}>Full Spectrum (All)</option>
+                                </select>
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>Stealth Level</label>
+                                <input type="number" id="pb-cyber-stealth" value="${_formState.payload.cyberActor.stealthLevel}" min="0" max="1" step="0.1" />
+                            </div>
+                        </div>
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label>Attack Duration (s)</label>
+                                <input type="number" id="pb-cyber-duration" value="${_formState.payload.cyberActor.attackDuration_s}" min="5" max="300" step="5" />
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>Access Time (s)</label>
+                                <input type="number" id="pb-cyber-access" value="${_formState.payload.cyberActor.accessTime_s}" min="5" max="120" step="5" />
+                            </div>
+                        </div>
+                        <div class="pb-hint">Offense: exploit, brick, ddos, mitm, inject. Defense: patch, harden, firewall, alert.</div>
+                    </div>
+                </div>
+
+                <div class="pb-sensor-group">
+                    <label class="pb-checkbox-item">
+                        <input type="checkbox" id="pb-payload-firewall" ${_formState.payload.firewall.enabled ? 'checked' : ''} />
+                        <span class="pb-check-label">Network Firewall</span>
+                        <span class="pb-check-desc">Must be defeated before network traffic passes through</span>
+                    </label>
+                    <div class="pb-sub-fields pb-payload-config" data-payload="firewall" style="display: ${_formState.payload.firewall.enabled ? 'block' : 'none'}">
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label>Firewall Rating</label>
+                                <input type="number" id="pb-firewall-rating" value="${_formState.payload.firewall.rating}" min="0.1" max="1.0" step="0.1" />
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>IDS (Intrusion Detection)</label>
+                                <select id="pb-firewall-ids">
+                                    <option value="true" ${_formState.payload.firewall.ids ? 'selected' : ''}>Enabled</option>
+                                    <option value="false" ${!_formState.payload.firewall.ids ? 'selected' : ''}>Disabled</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="pb-hint">Firewall nodes sit on a network and filter traffic. Cyber actors must defeat the firewall to reach nodes behind it.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pb-payload-section" style="margin-top:12px;background:rgba(68,170,255,0.05);border:1px solid rgba(68,170,255,0.2);border-radius:4px;padding:10px">
+                <div class="pb-payload-category" style="color: #4af;">Comm Data</div>
+
+                <div class="pb-sensor-group">
+                    <label class="pb-checkbox-item">
+                        <input type="checkbox" id="pb-commdata-enabled" ${_formState.commData.enabled ? 'checked' : ''} />
+                        <span class="pb-check-label">Comm Datalink</span>
+                        <span class="pb-check-desc">Configure data packets this platform sends/receives</span>
+                    </label>
+                    <div class="pb-sub-fields pb-commdata-fields" style="display: ${_formState.commData.enabled ? 'block' : 'none'}">
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label style="display:flex;align-items:center;gap:6px">
+                                    <input type="checkbox" id="pb-commdata-mission" ${_formState.commData.missionData ? 'checked' : ''} style="accent-color:#4af" />
+                                    Mission Data
+                                </label>
+                                <div class="pb-hint">Sensor tracks, targeting data, situational awareness</div>
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>Data Rate (Mbps)</label>
+                                <input type="number" id="pb-commdata-rate" value="${_formState.commData.missionDataRate_bps / 1000000}" min="0.01" max="1000" step="0.1" />
+                            </div>
+                        </div>
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label style="display:flex;align-items:center;gap:6px">
+                                    <input type="checkbox" id="pb-commdata-heartbeat" ${_formState.commData.heartbeat ? 'checked' : ''} style="accent-color:#0f8" />
+                                    Heartbeat
+                                </label>
+                                <div class="pb-hint">Continuous pulses to verify comm flow. Stops in EMCON.</div>
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>HB Interval (s)</label>
+                                <input type="number" id="pb-commdata-hb-interval" value="${_formState.commData.heartbeatInterval_s}" min="1" max="60" step="1" />
+                            </div>
+                        </div>
+                        <div class="pb-coe-row" style="border-top:1px solid #333;padding-top:8px;margin-top:4px">
+                            <div class="pb-coe-field">
+                                <label style="display:flex;align-items:center;gap:6px">
+                                    <input type="checkbox" id="pb-commdata-encrypted" ${_formState.commData.encrypted ? 'checked' : ''} style="accent-color:#f80" />
+                                    Encrypted
+                                </label>
+                                <div class="pb-hint">Adds ~15% bandwidth overhead, requires key exchange</div>
+                            </div>
+                            <div class="pb-coe-field pb-encryption-type" style="display:${_formState.commData.encrypted ? 'block' : 'none'}">
+                                <label>Encryption Type</label>
+                                <select id="pb-commdata-enc-type">
+                                    <option value="AES128" ${_formState.commData.encryptionType === 'AES128' ? 'selected' : ''}>AES-128</option>
+                                    <option value="AES256" ${_formState.commData.encryptionType === 'AES256' ? 'selected' : ''}>AES-256</option>
+                                    <option value="Type1" ${_formState.commData.encryptionType === 'Type1' ? 'selected' : ''}>Type 1 (NSA)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label style="display:flex;align-items:center;gap:6px">
+                                    <input type="checkbox" id="pb-commdata-emcon" ${_formState.commData.emcon ? 'checked' : ''} style="accent-color:#f44" />
+                                    EMCON (Emissions Control)
+                                </label>
+                                <div class="pb-hint">Radio silence — no heartbeat or mission data transmitted</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pb-payload-section" style="margin-top:12px;background:rgba(255,255,68,0.05);border:1px solid rgba(255,255,68,0.15);border-radius:4px;padding:10px">
+                <div class="pb-payload-category" style="color: #ff8;">Computer System</div>
+
+                <div class="pb-sensor-group">
+                    <label class="pb-checkbox-item">
+                        <input type="checkbox" id="pb-computer-enabled" ${_formState.computer.enabled ? 'checked' : ''} />
+                        <span class="pb-check-label">Onboard Computer</span>
+                        <span class="pb-check-desc">Hackable — controls sensors, weapons, navigation</span>
+                    </label>
+                    <div class="pb-sub-fields pb-computer-fields" style="display: ${_formState.computer.enabled ? 'block' : 'none'}">
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label>Operating System</label>
+                                <select id="pb-computer-os">
+                                    <option value="mil_spec" ${_formState.computer.os === 'mil_spec' ? 'selected' : ''}>Mil-Spec RTOS</option>
+                                    <option value="linux_hardened" ${_formState.computer.os === 'linux_hardened' ? 'selected' : ''}>Hardened Linux</option>
+                                    <option value="vxworks" ${_formState.computer.os === 'vxworks' ? 'selected' : ''}>VxWorks</option>
+                                    <option value="windows_embedded" ${_formState.computer.os === 'windows_embedded' ? 'selected' : ''}>Windows Embedded</option>
+                                    <option value="custom" ${_formState.computer.os === 'custom' ? 'selected' : ''}>Custom / Proprietary</option>
+                                </select>
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>Hardening (0-1)</label>
+                                <input type="number" id="pb-computer-hardening" value="${_formState.computer.hardening}" min="0" max="1" step="0.1" />
+                            </div>
+                        </div>
+                        <div class="pb-coe-row">
+                            <div class="pb-coe-field">
+                                <label>Patch Level (0-1)</label>
+                                <input type="number" id="pb-computer-patch" value="${_formState.computer.patchLevel}" min="0" max="1" step="0.1" />
+                            </div>
+                            <div class="pb-coe-field">
+                                <label>Firewall Rating (0-1)</label>
+                                <input type="number" id="pb-computer-firewall" value="${_formState.computer.firewallRating}" min="0" max="1" step="0.1" />
+                            </div>
+                        </div>
+                        <div class="pb-hint">When hacked, attacker can: disable sensors, redirect weapons, alter navigation, exfiltrate data, or take full control.</div>
+                    </div>
+                </div>
+            </div>
         `;
 
         return tab;
+    }
+
+    // -------------------------------------------------------------------------
+    // Cyber Tab
+    // -------------------------------------------------------------------------
+    function _createCyberTab() {
+        const tab = document.createElement('div');
+        tab.className = 'pb-tab-content';
+
+        const cy = _formState.cyber;
+        const showAiFields = cy.aiRole !== 'none';
+        const showIdsField = cy.firewallEnabled;
+
+        tab.innerHTML = `
+            <div class="pb-section-title" style="color:#0fc;">CYBER CONFIGURATION</div>
+
+            <div class="pb-payload-section" style="background:rgba(0,255,200,0.05);border:1px solid rgba(0,255,200,0.2);border-radius:4px;padding:10px">
+                <div class="pb-payload-category" style="color: #0fc;">Defensive Posture</div>
+
+                <div class="pb-cyber-slider-group">
+                    <div class="pb-cyber-slider-row">
+                        <label class="pb-cyber-slider-label">Computer Hardening</label>
+                        <input type="range" id="pb-cyber-hardening" class="pb-range-slider" min="0" max="10" step="1" value="${cy.hardening}" />
+                        <span class="pb-cyber-slider-value" id="pb-cyber-hardening-val">${cy.hardening}</span>
+                    </div>
+                    <div class="pb-hint" style="margin-left:0">OS-level hardening, attack surface reduction (0 = unpatched COTS, 10 = NSA-hardened RTOS)</div>
+                </div>
+
+                <div class="pb-cyber-slider-group">
+                    <div class="pb-cyber-slider-row">
+                        <label class="pb-cyber-slider-label">Patch Level</label>
+                        <input type="range" id="pb-cyber-patchlevel" class="pb-range-slider" min="0" max="10" step="1" value="${cy.patchLevel}" />
+                        <span class="pb-cyber-slider-value" id="pb-cyber-patchlevel-val">${cy.patchLevel}</span>
+                    </div>
+                    <div class="pb-hint" style="margin-left:0">Software update currency (0 = years behind, 10 = zero-day patched)</div>
+                </div>
+
+                <div class="pb-sensor-group" style="margin-top:12px">
+                    <label class="pb-checkbox-item">
+                        <input type="checkbox" id="pb-cyber-firewall-enabled" ${cy.firewallEnabled ? 'checked' : ''} />
+                        <span class="pb-check-label">Firewall</span>
+                        <span class="pb-check-desc">Network perimeter defense, packet filtering</span>
+                    </label>
+                    <div class="pb-sub-fields pb-cyber-firewall-fields" style="display: ${cy.firewallEnabled ? 'block' : 'none'}">
+                        <div class="pb-cyber-slider-group">
+                            <div class="pb-cyber-slider-row">
+                                <label class="pb-cyber-slider-label">Firewall Rating</label>
+                                <input type="range" id="pb-cyber-firewall-rating" class="pb-range-slider" min="0" max="10" step="1" value="${cy.firewallRating}" />
+                                <span class="pb-cyber-slider-value" id="pb-cyber-firewall-rating-val">${cy.firewallRating}</span>
+                            </div>
+                            <div class="pb-hint" style="margin-left:0">Filter effectiveness (0 = basic ACL, 10 = next-gen deep packet inspection)</div>
+                        </div>
+
+                        <div class="pb-cyber-ids-row" style="margin-top:8px">
+                            <label class="pb-checkbox-item" style="border-bottom:none;padding:4px 0">
+                                <input type="checkbox" id="pb-cyber-ids" ${cy.ids ? 'checked' : ''} />
+                                <span class="pb-check-label">IDS (Intrusion Detection System)</span>
+                                <span class="pb-check-desc">Alerts on anomalous traffic patterns</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pb-sensor-group" style="margin-top:8px">
+                    <div class="pb-coe-row">
+                        <div class="pb-coe-field">
+                            <label>Encryption</label>
+                            <select id="pb-cyber-encryption">
+                                <option value="none" ${cy.encryption === 'none' ? 'selected' : ''}>None</option>
+                                <option value="AES-128" ${cy.encryption === 'AES-128' ? 'selected' : ''}>AES-128</option>
+                                <option value="AES-256" ${cy.encryption === 'AES-256' ? 'selected' : ''}>AES-256</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pb-payload-section" style="margin-top:12px;background:rgba(255,80,80,0.05);border:1px solid rgba(255,80,80,0.2);border-radius:4px;padding:10px">
+                <div class="pb-payload-category" style="color: #f66;">Cyber AI</div>
+
+                <div class="pb-sensor-group">
+                    <div class="pb-coe-row">
+                        <div class="pb-coe-field">
+                            <label>Cyber AI Role</label>
+                            <select id="pb-cyber-ai-role">
+                                <option value="none" ${cy.aiRole === 'none' ? 'selected' : ''}>None</option>
+                                <option value="offensive" ${cy.aiRole === 'offensive' ? 'selected' : ''}>Offensive</option>
+                                <option value="defensive" ${cy.aiRole === 'defensive' ? 'selected' : ''}>Defensive</option>
+                                <option value="hybrid" ${cy.aiRole === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="pb-hint" style="margin-bottom:8px">Offensive: exploit/brick/ddos. Defensive: monitor/patch/isolate. Hybrid: both capabilities.</div>
+                </div>
+
+                <div class="pb-cyber-ai-fields" style="display: ${showAiFields ? 'block' : 'none'}">
+                    <div class="pb-cyber-slider-group">
+                        <div class="pb-cyber-slider-row">
+                            <label class="pb-cyber-slider-label">Aggressiveness</label>
+                            <input type="range" id="pb-cyber-aggressiveness" class="pb-range-slider pb-range-red" min="0" max="10" step="1" value="${cy.aggressiveness}" />
+                            <span class="pb-cyber-slider-value" id="pb-cyber-aggressiveness-val">${cy.aggressiveness}</span>
+                        </div>
+                        <div class="pb-hint" style="margin-left:0">Attack tempo (0 = passive recon only, 10 = immediate full exploitation)</div>
+                    </div>
+
+                    <div class="pb-cyber-slider-group">
+                        <div class="pb-cyber-slider-row">
+                            <label class="pb-cyber-slider-label">Stealth Level</label>
+                            <input type="range" id="pb-cyber-stealth-level" class="pb-range-slider pb-range-purple" min="0" max="10" step="1" value="${cy.stealthLevel}" />
+                            <span class="pb-cyber-slider-value" id="pb-cyber-stealth-level-val">${cy.stealthLevel}</span>
+                        </div>
+                        <div class="pb-hint" style="margin-left:0">Operational security (0 = noisy/fast, 10 = APT-level persistence)</div>
+                    </div>
+
+                    <div class="pb-hint" id="pb-cyber-ai-summary" style="margin-top:8px;padding:6px;background:rgba(0,255,200,0.08);border-radius:3px;color:#0fc"></div>
+                </div>
+            </div>
+        `;
+
+        return tab;
+    }
+
+    function _updateCyberAiSummary() {
+        var summary = document.getElementById('pb-cyber-ai-summary');
+        if (!summary) return;
+        var role = _formState.cyber.aiRole;
+        if (role === 'none') { summary.textContent = ''; return; }
+
+        var aggr = _formState.cyber.aggressiveness;
+        var stealth = _formState.cyber.stealthLevel;
+        var desc = '';
+        if (role === 'offensive') {
+            desc = 'Offensive cyber ops: exploit, brick, DDoS, MITM, inject. ';
+            desc += aggr >= 7 ? 'High tempo attacks.' : aggr >= 4 ? 'Moderate engagement.' : 'Cautious probing.';
+        } else if (role === 'defensive') {
+            desc = 'Defensive cyber ops: monitor, patch, isolate, alert. ';
+            desc += 'Prefers disrupting enemy comms. ';
+            desc += stealth >= 7 ? 'Covert counter-ops.' : 'Active defense posture.';
+        } else if (role === 'hybrid') {
+            desc = 'Full-spectrum cyber: offense + defense. ';
+            desc += aggr >= 7 ? 'Aggressive hybrid warfare.' : 'Balanced cyber posture.';
+        }
+        summary.textContent = desc;
     }
 
     // -------------------------------------------------------------------------
@@ -1167,6 +1544,11 @@ const PlatformBuilder = (function() {
         });
         document.getElementById('pb-atmo-heading')?.addEventListener('input', e => {
             _formState.physics.atmospheric.heading = parseFloat(e.target.value) || 90;
+        });
+
+        // Ground role
+        document.getElementById('pb-ground-role')?.addEventListener('change', e => {
+            _formState.physics.ground.role = e.target.value;
         });
 
         // Model tab
@@ -1341,6 +1723,87 @@ const PlatformBuilder = (function() {
             _formState.payload.cargo.deployable = e.target.value;
         });
 
+        // Cyber Actor payload
+        document.getElementById('pb-payload-cyber')?.addEventListener('change', e => {
+            _formState.payload.cyberActor.enabled = e.target.checked;
+            const config = document.querySelector('.pb-payload-config[data-payload="cyber"]');
+            if (config) config.style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('pb-cyber-role')?.addEventListener('change', e => {
+            _formState.payload.cyberActor.role = e.target.value;
+        });
+        document.getElementById('pb-cyber-stealth')?.addEventListener('input', e => {
+            _formState.payload.cyberActor.stealthLevel = parseFloat(e.target.value) || 0.6;
+        });
+        document.getElementById('pb-cyber-duration')?.addEventListener('input', e => {
+            _formState.payload.cyberActor.attackDuration_s = parseInt(e.target.value) || 30;
+        });
+        document.getElementById('pb-cyber-access')?.addEventListener('input', e => {
+            _formState.payload.cyberActor.accessTime_s = parseInt(e.target.value) || 15;
+        });
+
+        // Firewall payload
+        document.getElementById('pb-payload-firewall')?.addEventListener('change', e => {
+            _formState.payload.firewall.enabled = e.target.checked;
+            const config = document.querySelector('.pb-payload-config[data-payload="firewall"]');
+            if (config) config.style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('pb-firewall-rating')?.addEventListener('input', e => {
+            _formState.payload.firewall.rating = parseFloat(e.target.value) || 0.7;
+        });
+        document.getElementById('pb-firewall-ids')?.addEventListener('change', e => {
+            _formState.payload.firewall.ids = e.target.value === 'true';
+        });
+
+        // Comm Data section
+        document.getElementById('pb-commdata-enabled')?.addEventListener('change', e => {
+            _formState.commData.enabled = e.target.checked;
+            var fields = document.querySelector('.pb-commdata-fields');
+            if (fields) fields.style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('pb-commdata-mission')?.addEventListener('change', e => {
+            _formState.commData.missionData = e.target.checked;
+        });
+        document.getElementById('pb-commdata-heartbeat')?.addEventListener('change', e => {
+            _formState.commData.heartbeat = e.target.checked;
+        });
+        document.getElementById('pb-commdata-rate')?.addEventListener('input', e => {
+            _formState.commData.missionDataRate_bps = (parseFloat(e.target.value) || 1) * 1000000;
+        });
+        document.getElementById('pb-commdata-hb-interval')?.addEventListener('input', e => {
+            _formState.commData.heartbeatInterval_s = parseInt(e.target.value) || 5;
+        });
+        document.getElementById('pb-commdata-encrypted')?.addEventListener('change', e => {
+            _formState.commData.encrypted = e.target.checked;
+            var encType = document.querySelector('.pb-encryption-type');
+            if (encType) encType.style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('pb-commdata-enc-type')?.addEventListener('change', e => {
+            _formState.commData.encryptionType = e.target.value;
+        });
+        document.getElementById('pb-commdata-emcon')?.addEventListener('change', e => {
+            _formState.commData.emcon = e.target.checked;
+        });
+
+        // Computer system
+        document.getElementById('pb-computer-enabled')?.addEventListener('change', e => {
+            _formState.computer.enabled = e.target.checked;
+            var fields = document.querySelector('.pb-computer-fields');
+            if (fields) fields.style.display = e.target.checked ? 'block' : 'none';
+        });
+        document.getElementById('pb-computer-os')?.addEventListener('change', e => {
+            _formState.computer.os = e.target.value;
+        });
+        document.getElementById('pb-computer-hardening')?.addEventListener('input', e => {
+            _formState.computer.hardening = parseFloat(e.target.value) || 0.5;
+        });
+        document.getElementById('pb-computer-patch')?.addEventListener('input', e => {
+            _formState.computer.patchLevel = parseFloat(e.target.value) || 0.5;
+        });
+        document.getElementById('pb-computer-firewall')?.addEventListener('input', e => {
+            _formState.computer.firewallRating = parseFloat(e.target.value) || 0.5;
+        });
+
         // Nuclear payload checkboxes
         document.getElementById('pb-payload-nuke-warhead')?.addEventListener('change', e => {
             _formState.payload.nuclearWarhead.enabled = e.target.checked;
@@ -1374,6 +1837,78 @@ const PlatformBuilder = (function() {
         });
 
         // Environment settings moved to global EnvironmentDialog
+
+        // Cyber tab
+        document.getElementById('pb-cyber-hardening')?.addEventListener('input', e => {
+            _formState.cyber.hardening = parseInt(e.target.value) || 0;
+            var valEl = document.getElementById('pb-cyber-hardening-val');
+            if (valEl) valEl.textContent = _formState.cyber.hardening;
+        });
+        document.getElementById('pb-cyber-patchlevel')?.addEventListener('input', e => {
+            _formState.cyber.patchLevel = parseInt(e.target.value) || 0;
+            var valEl = document.getElementById('pb-cyber-patchlevel-val');
+            if (valEl) valEl.textContent = _formState.cyber.patchLevel;
+        });
+        document.getElementById('pb-cyber-firewall-enabled')?.addEventListener('change', e => {
+            _formState.cyber.firewallEnabled = e.target.checked;
+            var fields = document.querySelector('.pb-cyber-firewall-fields');
+            if (fields) fields.style.display = e.target.checked ? 'block' : 'none';
+            // IDS is only available when firewall is on
+            if (!e.target.checked) {
+                _formState.cyber.ids = false;
+                var idsCb = document.getElementById('pb-cyber-ids');
+                if (idsCb) idsCb.checked = false;
+            }
+        });
+        document.getElementById('pb-cyber-firewall-rating')?.addEventListener('input', e => {
+            _formState.cyber.firewallRating = parseInt(e.target.value) || 0;
+            var valEl = document.getElementById('pb-cyber-firewall-rating-val');
+            if (valEl) valEl.textContent = _formState.cyber.firewallRating;
+        });
+        document.getElementById('pb-cyber-ids')?.addEventListener('change', e => {
+            _formState.cyber.ids = e.target.checked;
+        });
+        document.getElementById('pb-cyber-encryption')?.addEventListener('change', e => {
+            _formState.cyber.encryption = e.target.value;
+        });
+        document.getElementById('pb-cyber-ai-role')?.addEventListener('change', e => {
+            _formState.cyber.aiRole = e.target.value;
+            var aiFields = document.querySelector('.pb-cyber-ai-fields');
+            if (aiFields) aiFields.style.display = e.target.value !== 'none' ? 'block' : 'none';
+            // Set role-specific defaults
+            if (e.target.value === 'defensive') {
+                _formState.cyber.aggressiveness = 3;
+                _formState.cyber.stealthLevel = 7;
+            } else if (e.target.value === 'offensive') {
+                _formState.cyber.aggressiveness = 7;
+                _formState.cyber.stealthLevel = 5;
+            } else if (e.target.value === 'hybrid') {
+                _formState.cyber.aggressiveness = 5;
+                _formState.cyber.stealthLevel = 5;
+            }
+            // Sync slider positions and value labels
+            var aggrSlider = document.getElementById('pb-cyber-aggressiveness');
+            var stealthSlider = document.getElementById('pb-cyber-stealth-level');
+            if (aggrSlider) { aggrSlider.value = _formState.cyber.aggressiveness; }
+            if (stealthSlider) { stealthSlider.value = _formState.cyber.stealthLevel; }
+            var aggrVal = document.getElementById('pb-cyber-aggressiveness-val');
+            var stealthVal = document.getElementById('pb-cyber-stealth-level-val');
+            if (aggrVal) aggrVal.textContent = _formState.cyber.aggressiveness;
+            if (stealthVal) stealthVal.textContent = _formState.cyber.stealthLevel;
+            _updateCyberAiSummary();
+        });
+        document.getElementById('pb-cyber-aggressiveness')?.addEventListener('input', e => {
+            _formState.cyber.aggressiveness = parseInt(e.target.value) || 0;
+            var valEl = document.getElementById('pb-cyber-aggressiveness-val');
+            if (valEl) valEl.textContent = _formState.cyber.aggressiveness;
+            _updateCyberAiSummary();
+        });
+        document.getElementById('pb-cyber-stealth-level')?.addEventListener('input', e => {
+            _formState.cyber.stealthLevel = parseInt(e.target.value) || 0;
+            var valEl = document.getElementById('pb-cyber-stealth-level-val');
+            if (valEl) valEl.textContent = _formState.cyber.stealthLevel;
+            _updateCyberAiSummary();
+        });
     }
 
     function _updatePhysicsVisibility() {
@@ -1381,6 +1916,8 @@ const PlatformBuilder = (function() {
         document.querySelector('.pb-tle-fields').style.display = mode === 'tle' ? 'block' : 'none';
         document.querySelector('.pb-coe-fields').style.display = mode === 'coe' ? 'block' : 'none';
         document.querySelector('.pb-atmo-fields').style.display = mode === 'atmospheric' ? 'block' : 'none';
+        var groundFields = document.querySelector('.pb-ground-fields');
+        if (groundFields) groundFields.style.display = mode === 'ground' ? 'block' : 'none';
     }
 
     // Payload visibility is now handled by checkbox event listeners in _attachEventListeners
@@ -1424,6 +1961,9 @@ const PlatformBuilder = (function() {
     function _generatePlatformTemplate() {
         const mode = _formState.physics.mode;
         const isOrbital = mode === 'tle' || mode === 'coe';
+        const isGround = mode === 'ground';
+
+        var entityType = isOrbital ? 'satellite' : (isGround ? 'ground' : 'aircraft');
 
         const platform = {
             id: 'custom_' + Date.now(),
@@ -1431,7 +1971,7 @@ const PlatformBuilder = (function() {
             name: _formState.name || 'Custom Platform',
             icon: _getTeamColor(_formState.team),
             description: _generateDescription(),
-            type: isOrbital ? 'satellite' : 'aircraft',
+            type: entityType,
             team: _formState.team,
             defaults: {},
             components: {},
@@ -1440,7 +1980,10 @@ const PlatformBuilder = (function() {
                 physics: JSON.parse(JSON.stringify(_formState.physics)),
                 propulsion: JSON.parse(JSON.stringify(_formState.propulsion)),
                 sensors: JSON.parse(JSON.stringify(_formState.sensors)),
-                payload: JSON.parse(JSON.stringify(_formState.payload))
+                payload: JSON.parse(JSON.stringify(_formState.payload)),
+                commData: JSON.parse(JSON.stringify(_formState.commData)),
+                computer: JSON.parse(JSON.stringify(_formState.computer)),
+                cyber: JSON.parse(JSON.stringify(_formState.cyber))
             }
         };
 
@@ -1483,6 +2026,22 @@ const PlatformBuilder = (function() {
                 groundTrack: true,
                 apPeMarkers: true
             };
+        } else if (mode === 'ground') {
+            // Ground station — no physics, fixed position
+            var groundRole = _formState.physics.ground.role || 'generic';
+            platform.defaults = {
+                alt: 0,
+                speed: 0,
+                heading: 0,
+                gamma: 0
+            };
+            // No physics component — static entity
+            platform.components.visual = {
+                type: 'ground_station',
+                color: platform.icon,
+                pixelSize: 14
+            };
+            platform._custom.groundRole = groundRole;
         } else {
             // Atmospheric
             const atmo = _formState.physics.atmospheric;
@@ -1696,6 +2255,121 @@ const PlatformBuilder = (function() {
             payloads.push('cruise_nuke');
         }
 
+        // Cyber actor
+        if (_formState.payload.cyberActor.enabled) {
+            var cyberCaps;
+            switch (_formState.payload.cyberActor.role) {
+                case 'offense': cyberCaps = ['exploit', 'brick', 'ddos', 'mitm', 'inject']; break;
+                case 'defense': cyberCaps = ['patch', 'harden', 'firewall', 'alert']; break;
+                default: cyberCaps = ['exploit', 'brick', 'ddos', 'mitm', 'inject', 'patch', 'harden', 'firewall', 'alert']; break;
+            }
+            platform.components.cyber = {
+                type: 'cyber_actor',
+                capabilities: cyberCaps,
+                autoTarget: true,
+                stealthLevel: _formState.payload.cyberActor.stealthLevel,
+                attackDuration_s: _formState.payload.cyberActor.attackDuration_s,
+                accessTime_s: _formState.payload.cyberActor.accessTime_s
+            };
+            payloads.push('cyber');
+        }
+
+        // Firewall
+        if (_formState.payload.firewall.enabled) {
+            platform.components.firewall = {
+                type: 'firewall',
+                rating: _formState.payload.firewall.rating,
+                ids: _formState.payload.firewall.ids
+            };
+            payloads.push('firewall');
+        }
+
+        // Comm data configuration
+        if (_formState.commData.enabled) {
+            platform._custom.commData = {
+                enabled: true,
+                missionData: _formState.commData.missionData,
+                heartbeat: _formState.commData.heartbeat,
+                heartbeatInterval_s: _formState.commData.heartbeatInterval_s,
+                missionDataRate_bps: _formState.commData.missionDataRate_bps,
+                emcon: _formState.commData.emcon,
+                encrypted: _formState.commData.encrypted,
+                encryptionType: _formState.commData.encryptionType,
+                encryptionOverhead: _formState.commData.encrypted ? 0.15 : 0
+            };
+        }
+
+        // Computer system (hackable onboard computer)
+        if (_formState.computer.enabled) {
+            platform.components.computer = {
+                type: 'computer',
+                os: _formState.computer.os,
+                hardening: _formState.computer.hardening,
+                patchLevel: _formState.computer.patchLevel,
+                firewallRating: _formState.computer.firewallRating,
+                // What can be hacked on this platform
+                hackableSubsystems: ['sensors', 'navigation', 'weapons', 'comms']
+            };
+            platform._custom.computer = JSON.parse(JSON.stringify(_formState.computer));
+        }
+
+        // Cyber configuration
+        var cy = _formState.cyber;
+        var hasCyber = cy.firewallEnabled || cy.encryption !== 'none' || cy.aiRole !== 'none' ||
+                       cy.hardening !== 5 || cy.patchLevel !== 5;
+        if (hasCyber) {
+            // cyber_computer component: hardening and patch level
+            platform.components.cyber_computer = {
+                type: 'cyber_computer',
+                hardening: cy.hardening / 10,
+                patchLevel: cy.patchLevel / 10,
+                firewallRating: cy.firewallEnabled ? cy.firewallRating / 10 : 0
+            };
+
+            // cyber_firewall component (only if firewall enabled)
+            if (cy.firewallEnabled) {
+                platform.components.cyber_firewall = {
+                    type: 'cyber_firewall',
+                    rating: cy.firewallRating / 10,
+                    ids: cy.ids
+                };
+            }
+
+            // ai/cyber_ops component (only if AI role selected)
+            if (cy.aiRole !== 'none') {
+                var cyberAiConfig = {
+                    type: 'cyber_ops',
+                    role: cy.aiRole,
+                    aggressiveness: cy.aggressiveness / 10,
+                    stealthLevel: cy.stealthLevel / 10
+                };
+                if (cy.aiRole === 'offensive') {
+                    cyberAiConfig.capabilities = ['exploit', 'brick', 'ddos', 'mitm', 'inject'];
+                    cyberAiConfig.preferredTarget = 'sensors';
+                } else if (cy.aiRole === 'defensive') {
+                    cyberAiConfig.capabilities = ['monitor', 'patch', 'isolate', 'alert'];
+                    cyberAiConfig.preferredTarget = 'comms';
+                } else if (cy.aiRole === 'hybrid') {
+                    cyberAiConfig.capabilities = ['exploit', 'brick', 'ddos', 'mitm', 'inject', 'monitor', 'patch', 'isolate', 'alert'];
+                    cyberAiConfig.preferredTarget = 'sensors';
+                }
+                platform.components.cyber_ai = cyberAiConfig;
+            }
+
+            // Store full cyber config in _custom for persistence
+            platform._custom.cyber = {
+                hardening: cy.hardening / 10,
+                patchLevel: cy.patchLevel / 10,
+                firewallEnabled: cy.firewallEnabled,
+                firewallRating: cy.firewallRating / 10,
+                ids: cy.ids,
+                encryption: cy.encryption,
+                aiRole: cy.aiRole,
+                aggressiveness: cy.aggressiveness / 10,
+                stealthLevel: cy.stealthLevel / 10
+            };
+        }
+
         // Store payload list for reference
         if (payloads.length > 0) {
             platform._custom.activePayloads = payloads;
@@ -1740,6 +2414,7 @@ const PlatformBuilder = (function() {
         // Physics type
         if (mode === 'tle') parts.push('TLE orbit');
         else if (mode === 'coe') parts.push(`${_formState.physics.coe.sma_km.toFixed(0)}km orbit`);
+        else if (mode === 'ground') parts.push(`ground (${_formState.physics.ground.role})`);
         else parts.push(`${_formState.physics.atmospheric.config} flight`);
 
         // Propulsion
@@ -1773,7 +2448,30 @@ const PlatformBuilder = (function() {
         if (_formState.payload.cargo.enabled) payloads.push('deployer');
         if (_formState.payload.nuclearWarhead.enabled) payloads.push('☢NUKE');
         if (_formState.payload.nuclearCruiseMissile.enabled) payloads.push('☢ALCM');
+        if (_formState.payload.cyberActor.enabled) payloads.push('CYBER');
+        if (_formState.payload.firewall.enabled) payloads.push('FW');
         if (payloads.length > 0) parts.push(payloads.join('/'));
+
+        // Comm
+        if (_formState.commData.enabled) {
+            var commParts = [];
+            if (_formState.commData.missionData) commParts.push('data');
+            if (_formState.commData.heartbeat) commParts.push('HB');
+            if (_formState.commData.encrypted) commParts.push('ENC');
+            if (_formState.commData.emcon) commParts.push('EMCON');
+            if (commParts.length > 0) parts.push('comm:' + commParts.join('/'));
+        }
+
+        // Computer
+        if (_formState.computer.enabled) parts.push('CPU');
+
+        // Cyber
+        var cyberParts = [];
+        if (_formState.cyber.firewallEnabled) cyberParts.push('FW');
+        if (_formState.cyber.ids) cyberParts.push('IDS');
+        if (_formState.cyber.encryption !== 'none') cyberParts.push(_formState.cyber.encryption);
+        if (_formState.cyber.aiRole !== 'none') cyberParts.push('AI:' + _formState.cyber.aiRole);
+        if (cyberParts.length > 0) parts.push('cyber:' + cyberParts.join('/'));
 
         return 'Custom: ' + parts.join(', ');
     }
@@ -1866,6 +2564,9 @@ const PlatformBuilder = (function() {
             _formState.name = 'Custom Platform';
             _formState.model = { file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 };
             _formState.propulsion = { taxi: false, air: false, hypersonic: false, engines: [], defaultMode: 'air' };
+            _formState.cyber = { hardening: 5, patchLevel: 5, firewallEnabled: false,
+                firewallRating: 5, ids: false, encryption: 'none', aiRole: 'none',
+                aggressiveness: 5, stealthLevel: 5 };
             _activeTab = 'physics';
 
             _overlay.style.display = 'flex';
@@ -1878,6 +2579,28 @@ const PlatformBuilder = (function() {
                 if (cb) cb.checked = false;
             });
             document.querySelectorAll('.pb-engine-check').forEach(function(cb) { cb.checked = false; });
+
+            // Reset cyber tab DOM elements
+            var cySliders = ['pb-cyber-hardening', 'pb-cyber-patchlevel', 'pb-cyber-firewall-rating',
+                             'pb-cyber-aggressiveness', 'pb-cyber-stealth-level'];
+            cySliders.forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.value = 5;
+                var valEl = document.getElementById(id + '-val');
+                if (valEl) valEl.textContent = '5';
+            });
+            var cyFwCb = document.getElementById('pb-cyber-firewall-enabled');
+            if (cyFwCb) cyFwCb.checked = false;
+            var cyFwFields = document.querySelector('.pb-cyber-firewall-fields');
+            if (cyFwFields) cyFwFields.style.display = 'none';
+            var cyIdsCb = document.getElementById('pb-cyber-ids');
+            if (cyIdsCb) cyIdsCb.checked = false;
+            var cyEncSel = document.getElementById('pb-cyber-encryption');
+            if (cyEncSel) cyEncSel.value = 'none';
+            var cyAiSel = document.getElementById('pb-cyber-ai-role');
+            if (cyAiSel) cyAiSel.value = 'none';
+            var cyAiFields = document.querySelector('.pb-cyber-ai-fields');
+            if (cyAiFields) cyAiFields.style.display = 'none';
 
             _updateCOEComputed();
             _updatePropulsionAvailability();
@@ -1960,6 +2683,23 @@ const PlatformBuilder = (function() {
                 _formState.model = { file: '', scale: 1.0, heading: 0, pitch: 0, roll: 0 };
             }
 
+            // Cyber — restore from _custom.cyber (values stored as 0-1, convert back to 0-10 for sliders)
+            if (c.cyber) {
+                _formState.cyber.hardening = Math.round((c.cyber.hardening || 0) * 10);
+                _formState.cyber.patchLevel = Math.round((c.cyber.patchLevel || 0) * 10);
+                _formState.cyber.firewallEnabled = !!c.cyber.firewallEnabled;
+                _formState.cyber.firewallRating = Math.round((c.cyber.firewallRating || 0) * 10);
+                _formState.cyber.ids = !!c.cyber.ids;
+                _formState.cyber.encryption = c.cyber.encryption || 'none';
+                _formState.cyber.aiRole = c.cyber.aiRole || 'none';
+                _formState.cyber.aggressiveness = Math.round((c.cyber.aggressiveness || 0) * 10);
+                _formState.cyber.stealthLevel = Math.round((c.cyber.stealthLevel || 0) * 10);
+            } else {
+                _formState.cyber = { hardening: 5, patchLevel: 5, firewallEnabled: false,
+                    firewallRating: 5, ids: false, encryption: 'none', aiRole: 'none',
+                    aggressiveness: 5, stealthLevel: 5 };
+            }
+
             _activeTab = 'physics';
             _overlay.style.display = 'flex';
             _switchTab('physics');
@@ -1997,10 +2737,46 @@ const PlatformBuilder = (function() {
             var scaleEl = document.getElementById('pb-model-scale');
             if (scaleEl) scaleEl.value = _formState.model.scale || 1.0;
 
+            // Cyber tab DOM restore
+            var cyState = _formState.cyber;
+            var hardeningSlider = document.getElementById('pb-cyber-hardening');
+            if (hardeningSlider) { hardeningSlider.value = cyState.hardening; }
+            var hardeningVal = document.getElementById('pb-cyber-hardening-val');
+            if (hardeningVal) hardeningVal.textContent = cyState.hardening;
+            var patchSlider = document.getElementById('pb-cyber-patchlevel');
+            if (patchSlider) { patchSlider.value = cyState.patchLevel; }
+            var patchVal = document.getElementById('pb-cyber-patchlevel-val');
+            if (patchVal) patchVal.textContent = cyState.patchLevel;
+            var fwCb = document.getElementById('pb-cyber-firewall-enabled');
+            if (fwCb) fwCb.checked = cyState.firewallEnabled;
+            var fwFields = document.querySelector('.pb-cyber-firewall-fields');
+            if (fwFields) fwFields.style.display = cyState.firewallEnabled ? 'block' : 'none';
+            var fwRatingSlider = document.getElementById('pb-cyber-firewall-rating');
+            if (fwRatingSlider) { fwRatingSlider.value = cyState.firewallRating; }
+            var fwRatingVal = document.getElementById('pb-cyber-firewall-rating-val');
+            if (fwRatingVal) fwRatingVal.textContent = cyState.firewallRating;
+            var idsCb = document.getElementById('pb-cyber-ids');
+            if (idsCb) idsCb.checked = cyState.ids;
+            var encSel = document.getElementById('pb-cyber-encryption');
+            if (encSel) encSel.value = cyState.encryption;
+            var aiRoleSel = document.getElementById('pb-cyber-ai-role');
+            if (aiRoleSel) aiRoleSel.value = cyState.aiRole;
+            var aiFields = document.querySelector('.pb-cyber-ai-fields');
+            if (aiFields) aiFields.style.display = cyState.aiRole !== 'none' ? 'block' : 'none';
+            var aggrSlider = document.getElementById('pb-cyber-aggressiveness');
+            if (aggrSlider) { aggrSlider.value = cyState.aggressiveness; }
+            var aggrVal = document.getElementById('pb-cyber-aggressiveness-val');
+            if (aggrVal) aggrVal.textContent = cyState.aggressiveness;
+            var stealthSlider = document.getElementById('pb-cyber-stealth-level');
+            if (stealthSlider) { stealthSlider.value = cyState.stealthLevel; }
+            var stealthVal = document.getElementById('pb-cyber-stealth-level-val');
+            if (stealthVal) stealthVal.textContent = cyState.stealthLevel;
+
             _updateCOEComputed();
             _updatePropulsionAvailability();
             _updateDefaultModeOptions();
             _updateModelUI();
+            _updateCyberAiSummary();
 
             document.getElementById('pb-name')?.focus();
         });
@@ -2029,6 +2805,7 @@ const PlatformBuilder = (function() {
                 return;
             }
         }
+        // Ground mode needs no validation — just a click on the globe
 
         const platform = _generatePlatformTemplate();
 
@@ -2630,6 +3407,72 @@ const PlatformBuilder = (function() {
                 color: #ddd;
                 padding: 6px 8px;
                 border-radius: 3px;
+            }
+            /* Cyber tab slider styles */
+            .pb-cyber-slider-group {
+                margin-bottom: 10px;
+            }
+            .pb-cyber-slider-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .pb-cyber-slider-label {
+                flex: 0 0 140px;
+                font-size: 11px;
+                color: #aaa;
+                font-weight: bold;
+            }
+            .pb-range-slider {
+                flex: 1;
+                -webkit-appearance: none;
+                appearance: none;
+                height: 6px;
+                border-radius: 3px;
+                background: #333;
+                outline: none;
+                cursor: pointer;
+            }
+            .pb-range-slider::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: #0fc;
+                cursor: pointer;
+                border: 2px solid #0a0a14;
+            }
+            .pb-range-slider::-moz-range-thumb {
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: #0fc;
+                cursor: pointer;
+                border: 2px solid #0a0a14;
+            }
+            .pb-range-slider:hover::-webkit-slider-thumb {
+                box-shadow: 0 0 6px rgba(0, 255, 200, 0.4);
+            }
+            .pb-range-red::-webkit-slider-thumb {
+                background: #f66;
+            }
+            .pb-range-red::-moz-range-thumb {
+                background: #f66;
+            }
+            .pb-range-purple::-webkit-slider-thumb {
+                background: #a6f;
+            }
+            .pb-range-purple::-moz-range-thumb {
+                background: #a6f;
+            }
+            .pb-cyber-slider-value {
+                flex: 0 0 24px;
+                text-align: center;
+                font-size: 13px;
+                font-weight: bold;
+                color: #0fc;
+                font-family: monospace;
             }
         `;
         document.head.appendChild(style);

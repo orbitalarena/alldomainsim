@@ -54,6 +54,19 @@
             this._modelHeadingOffset = 0;
             this._modelPitchOffset = 0;
             this._modelRollOffset = 0;
+            // Base visual properties (stored at init for cyber reset)
+            this._baseSize = 10;
+            this._baseColor = null;
+            this._baseOutlineColor = null;
+            this._baseOutlineWidth = 1;
+            // Cached cyber effect colors (avoid per-frame allocation)
+            this._cyberPurple = null;
+            this._cyberRed = null;
+            this._cyberYellow = null;
+            this._cyberMagenta = null;
+            this._cyberGray = null;
+            this._cyberDarkGray = null;
+            this._cyberOrange = null;
         }
 
         init(world) {
@@ -141,6 +154,21 @@
 
             this._cesiumEntity = viewer.entities.add(entityOpts);
             this._cesiumEntity._ecsEntityId = entity.id;
+
+            // Store base visual properties for cyber reset
+            this._baseSize = modelInfo ? 4 : (cfg.pixelSize || 10);
+            this._baseColor = color.clone();
+            this._baseOutlineColor = Cesium.Color.BLACK.clone();
+            this._baseOutlineWidth = 1;
+
+            // Pre-allocate cyber effect colors (reused every frame)
+            this._cyberPurple = Cesium.Color.fromCssColorString('#cc00ff');
+            this._cyberRed = Cesium.Color.fromCssColorString('#ff3333');
+            this._cyberYellow = Cesium.Color.YELLOW.clone();
+            this._cyberMagenta = Cesium.Color.fromCssColorString('#ff44ff');
+            this._cyberGray = Cesium.Color.GRAY.clone();
+            this._cyberDarkGray = Cesium.Color.DARKGRAY.clone();
+            this._cyberOrange = Cesium.Color.ORANGE.clone();
 
             // Trail
             if (cfg.trail) {
@@ -236,32 +264,82 @@
             }
 
             // --- Cyber status visual indicators ---
-            if (this._cesiumEntity && this._cesiumEntity.point) {
+            if (this._cesiumEntity && this._cesiumEntity.point && !this.entity.state._searchHighlight) {
                 var cyState = this.entity.state;
-                var baseSize = this.config.model ? 4 : (this.config.pixelSize || 10);
+                var baseSize = this._baseSize;
+                var cyberHandled = false;
+
+                // Check degradation levels
+                var cyberDeg = cyState._cyberDegradation;
+                var hasCyberEffect = false;
+                var maxDeg = 0;
+                if (cyberDeg) {
+                    maxDeg = Math.max(
+                        cyberDeg.sensors || 0, cyberDeg.navigation || 0,
+                        cyberDeg.weapons || 0, cyberDeg.comms || 0
+                    );
+                    if (maxDeg > 0) hasCyberEffect = true;
+                }
 
                 if (cyState._cyberDenied || cyState._commBricked) {
                     // Denied/bricked: dim point, gray color
                     this._cesiumEntity.point.pixelSize = Math.max(4, baseSize - 2);
-                    this._cesiumEntity.point.color = Cesium.Color.GRAY;
-                    this._cesiumEntity.point.outlineColor = Cesium.Color.DARKGRAY;
+                    this._cesiumEntity.point.color = this._cyberGray;
+                    this._cesiumEntity.point.outlineColor = this._cyberDarkGray;
                     this._cesiumEntity.point.outlineWidth = 1;
+                    cyberHandled = true;
                 } else if (cyState._cyberControlled) {
-                    // Controlled: red pulsing outline
-                    var pulse = Math.sin(Date.now() * 0.005) * 0.5 + 0.5;
+                    // Fully controlled — purple pulsing
+                    var pulse = 0.5 + 0.5 * Math.sin(world.simTime * 4);
+                    this._cyberPurple.alpha = pulse;
+                    this._cesiumEntity.point.color = this._cyberPurple;
                     this._cesiumEntity.point.outlineColor = Cesium.Color.RED;
-                    this._cesiumEntity.point.outlineWidth = 2 + pulse;
-                    this._cesiumEntity.point.pixelSize = baseSize + pulse * 2;
+                    this._cesiumEntity.point.outlineWidth = 3;
+                    this._cesiumEntity.point.pixelSize = baseSize + 4;
+                    cyberHandled = true;
+                } else if (cyState._fullControl) {
+                    // Full control (legacy flag): fast red pulse
+                    var ctrlPulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
+                    this._cesiumEntity.point.outlineColor = Cesium.Color.RED;
+                    this._cesiumEntity.point.outlineWidth = 2 + ctrlPulse * 2;
+                    this._cesiumEntity.point.pixelSize = baseSize + ctrlPulse * 3;
+                    cyberHandled = true;
+                } else if (cyState._sensorDisabled || cyState._weaponsDisabled || cyState._navigationHijacked) {
+                    // Subsystem hack: orange pulsing — individual systems compromised
+                    var subPulse = Math.sin(Date.now() * 0.006) * 0.5 + 0.5;
+                    this._cesiumEntity.point.outlineColor = this._cyberOrange;
+                    this._cesiumEntity.point.outlineWidth = 2 + subPulse;
+                    this._cesiumEntity.point.pixelSize = baseSize + subPulse * 2;
+                    cyberHandled = true;
                 } else if (cyState._cyberExploited) {
-                    // Exploited: magenta outline
-                    this._cesiumEntity.point.outlineColor = Cesium.Color.fromCssColorString('#ff44ff');
+                    // Exploited — red flickering
+                    var flicker = Math.random() > 0.1 ? 1.0 : 0.3;
+                    this._cyberRed.alpha = flicker;
+                    this._cesiumEntity.point.color = this._cyberRed;
+                    this._cesiumEntity.point.outlineColor = this._cyberOrange;
                     this._cesiumEntity.point.outlineWidth = 2;
+                    cyberHandled = true;
+                } else if (hasCyberEffect && maxDeg > 0.3) {
+                    // Degraded but not exploited — yellow outline
+                    this._cesiumEntity.point.outlineColor = this._cyberYellow;
+                    this._cesiumEntity.point.outlineWidth = 2;
+                    cyberHandled = true;
                 } else if (cyState._cyberScanning) {
-                    // Scanning: sinusoidal pixel size pulse
-                    var scanPulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
-                    this._cesiumEntity.point.pixelSize = baseSize + scanPulse * 4;
-                    this._cesiumEntity.point.outlineColor = Cesium.Color.YELLOW;
-                    this._cesiumEntity.point.outlineWidth = 1 + scanPulse;
+                    // Being scanned — brief yellow flash
+                    var scanFlash = Math.sin(world.simTime * 8) > 0.5 ? 1 : 0;
+                    if (scanFlash) {
+                        this._cesiumEntity.point.outlineColor = this._cyberYellow;
+                        this._cesiumEntity.point.outlineWidth = 1;
+                        cyberHandled = true;
+                    }
+                }
+
+                // Reset to base state when no cyber effects are active
+                if (!cyberHandled) {
+                    this._cesiumEntity.point.pixelSize = baseSize;
+                    this._cesiumEntity.point.color = this._baseColor;
+                    this._cesiumEntity.point.outlineColor = this._baseOutlineColor;
+                    this._cesiumEntity.point.outlineWidth = this._baseOutlineWidth;
                 }
             }
 

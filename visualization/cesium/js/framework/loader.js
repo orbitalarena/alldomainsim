@@ -128,8 +128,8 @@ const ScenarioLoader = (function() {
 
         // Attach components from JSON
         const comps = def.components || {};
-        for (const category in comps) {
-            const spec = comps[category];
+        for (const compKey in comps) {
+            const spec = comps[compKey];
             if (!spec || spec === null) continue;
 
             // Sensors/weapons can be arrays — for Phase 1 we just take the first
@@ -141,16 +141,30 @@ const ScenarioLoader = (function() {
             const typeName = spec.type;
             if (!typeName) continue;
 
-            if (!ComponentRegistry.has(category, typeName)) {
-                console.warn('Unknown component: ' + category + '/' + typeName +
+            // Resolve registry category from JSON key.
+            // Keys like "ai_cyber" or "ai_cyber_defense" use prefix "ai" as registry category,
+            // while "cyber_computer" uses "cyber", etc.
+            var registryCat = compKey;
+            if (!ComponentRegistry.has(registryCat, typeName)) {
+                // Try prefix before first underscore (e.g. "ai" from "ai_cyber")
+                var uidx = compKey.indexOf('_');
+                if (uidx > 0) {
+                    var prefix = compKey.substring(0, uidx);
+                    if (ComponentRegistry.has(prefix, typeName)) {
+                        registryCat = prefix;
+                    }
+                }
+            }
+
+            if (!ComponentRegistry.has(registryCat, typeName)) {
+                console.warn('Unknown component: ' + compKey + '/' + typeName +
                              ' on entity ' + def.id + ' — skipping');
                 continue;
             }
 
-            const component = ComponentRegistry.create(category, typeName, spec);
-            entity.addComponent(category, component);
+            const component = ComponentRegistry.create(registryCat, typeName, spec);
+            entity.addComponent(compKey, component);
         }
-
 
         // Auto-add sensor footprint visual if entity has sensors defined in _custom
         if (def._custom && def._custom.sensors) {
@@ -170,6 +184,36 @@ const ScenarioLoader = (function() {
                 } catch (e) { /* sensor_footprint component may not be loaded */ }
             }
         }
+
+        // Auto-add default computer to every entity (makes all platforms hackable)
+        if (!entity.getComponent('cyber/computer') && typeof ComponentRegistry !== 'undefined' && ComponentRegistry.has('cyber', 'computer')) {
+            try {
+                var defaultConfig = {
+                    type: 'computer',
+                    os: 'mil_spec',
+                    hardening: 0.5,
+                    patchLevel: 0.5,
+                    firewallRating: 0.3,
+                    hackableSubsystems: ['sensors', 'navigation', 'weapons', 'comms']
+                };
+                // Adjust defaults based on entity type
+                var entType = (entity.type || '').toLowerCase();
+                if (entType === 'ground' || entType === 'ground_station') {
+                    defaultConfig.hardening = 0.7;
+                    defaultConfig.firewallRating = 0.6;
+                } else if (entType === 'satellite') {
+                    defaultConfig.os = 'vxworks';
+                    defaultConfig.hardening = 0.4;
+                    defaultConfig.patchLevel = 0.3;
+                } else if (entType === 'aircraft') {
+                    defaultConfig.hardening = 0.6;
+                    defaultConfig.patchLevel = 0.6;
+                }
+                var comp = ComponentRegistry.create('cyber', 'computer', defaultConfig);
+                entity.addComponent('cyber/computer', comp);
+            } catch (e) { /* cyber/computer component may not be loaded */ }
+        }
+
         return entity;
     }
 

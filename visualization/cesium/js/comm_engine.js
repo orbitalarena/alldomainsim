@@ -362,6 +362,10 @@
             result.margin_db = 50; // Fiber has huge margin
             result.snir_db = 60;
             result.effectiveDataRate_bps = (cfg.dataRate_mbps || 10000) * 1e6; // 10 Gbps default
+            // Encryption overhead reduces effective data rate
+            if (link.encryptionOverhead > 0) {
+                result.effectiveDataRate_bps *= (1 - link.encryptionOverhead);
+            }
             result.jamPower_dbw = -999; // Immune to RF jamming
             result.rxPower_dbw = 0; // Not applicable
             result.noiseFloor_dbw = -200; // Negligible
@@ -402,6 +406,10 @@
             // High bandwidth even through atmosphere
             var laserCapacity = (cfg.dataRate_mbps || 1000) * 1e6;
             result.effectiveDataRate_bps = laserCapacity * Math.max(0.1, 1 - atmosPenalty / 20);
+            // Encryption overhead reduces effective data rate
+            if (link.encryptionOverhead > 0) {
+                result.effectiveDataRate_bps *= (1 - link.encryptionOverhead);
+            }
             result.rxPower_dbw = -10 + (cfg.antenna_gain_dbi || 50) - 10 * LOG10(Math.max(dist, 1));
             result.noiseFloor_dbw = -160;
             link.latency_ms = dist / C_LIGHT * 1000 + 0.1; // very low processing delay
@@ -484,6 +492,11 @@
             var capacityFactor = Math.log(1 + Math.max(0, snirLinear)) / Math.log(1 + 100);
             capacityFactor = Math.max(0, Math.min(1, capacityFactor));
             result.effectiveDataRate_bps = bwMbps * 1e6 * capacityFactor;
+        }
+
+        // Encryption overhead reduces effective data rate
+        if (link.encryptionOverhead > 0 && result.effectiveDataRate_bps > 0) {
+            result.effectiveDataRate_bps *= (1 - link.encryptionOverhead);
         }
 
         return result;
@@ -641,6 +654,16 @@
      * Create a LinkState object.
      */
     function _createLinkState(fromId, toId, networkId, config) {
+        // Normalize encryption field (presets may use lowercase)
+        var enc = (config.encryption || 'none').toUpperCase();
+        if (enc === 'AES128') { enc = 'AES128'; }
+        else if (enc === 'AES256') { enc = 'AES256'; }
+        else if (enc === 'TYPE1') { enc = 'Type1'; }
+        else { enc = 'none'; }
+        var encOverhead = enc === 'AES128' ? 0.10 :
+                          enc === 'AES256' ? 0.15 :
+                          enc === 'Type1'  ? 0.20 : 0;
+
         return {
             fromId: fromId,
             toId: toId,
@@ -660,6 +683,9 @@
             jamStrength_db: 0,
             cyberCompromised: false,
             alive: true,
+            // Encryption state
+            encrypted: enc,
+            encryptionOverhead: encOverhead,
             // Budget details (last computation)
             _budget: null,
             // Bandwidth tracking
@@ -697,6 +723,7 @@
                         entityId: memberId,
                         active: true,
                         bricked: false,
+                        isolated: false,
                         compromised: false,
                         ddosed: false,
                         mitm: false,
@@ -795,13 +822,27 @@
             var fromAlive = _isEntityAlive(link.fromId);
             var toAlive = _isEntityAlive(link.toId);
 
-            // Check if endpoints are bricked by cyber attack
+            // Check if endpoints are bricked by cyber attack or isolated by cyber defense
             var fromNode = _entityNodes.get(link.fromId);
             var toNode = _entityNodes.get(link.toId);
             var fromBricked = fromNode && fromNode.bricked;
             var toBricked = toNode && toNode.bricked;
+            var fromIsolated = fromNode && fromNode.isolated;
+            var toIsolated = toNode && toNode.isolated;
 
-            if (!fromAlive || !toAlive || fromBricked || toBricked) {
+            // Sync isolated state from entity._commIsolated flag (set by cyber_defense.js)
+            if (fromNode && _world) {
+                var fEnt = _world.getEntity(link.fromId);
+                if (fEnt && fEnt.state) fromNode.isolated = !!fEnt.state._commIsolated;
+                fromIsolated = fromNode.isolated;
+            }
+            if (toNode && _world) {
+                var tEnt = _world.getEntity(link.toId);
+                if (tEnt && tEnt.state) toNode.isolated = !!tEnt.state._commIsolated;
+                toIsolated = toNode.isolated;
+            }
+
+            if (!fromAlive || !toAlive || fromBricked || toBricked || fromIsolated || toIsolated) {
                 link.alive = false;
                 link.quality = QUALITY.LOST;
                 link.margin_db = -999;
@@ -877,6 +918,14 @@
             var propagationDelay_ms = (link.distance_m / C_LIGHT) * 1000;
             link.latency_ms = propagationDelay_ms + (link.config.latency_ms || 5);
 
+            // Encryption adds processing latency
+            if (link.encrypted !== 'none') {
+                var encLatency_ms = link.encrypted === 'AES128' ? 2 :
+                                    link.encrypted === 'AES256' ? 5 :
+                                    link.encrypted === 'Type1'  ? 10 : 0;
+                link.latency_ms += encLatency_ms;
+            }
+
             // Packet loss estimation based on quality
             switch (link.quality) {
                 case QUALITY.EXCELLENT: link.packetLoss = 0.001; break;
@@ -888,6 +937,38 @@
             // If jammed, increase packet loss
             if (link.jammed && link.quality !== QUALITY.LOST) {
                 link.packetLoss = Math.min(1.0, link.packetLoss + 0.3);
+            }
+
+            // Apply cyber comms degradation to link quality
+            // (applied after all base values are computed so it stacks on top)
+            if (_world) {
+                var fromCDeg = 0, toCDeg = 0;
+                var fromEnt = _world.getEntity(link.fromId);
+                if (fromEnt && fromEnt.state && fromEnt.state._cyberDegradation) {
+                    fromCDeg = fromEnt.state._cyberDegradation.comms || 0;
+                }
+                var toEnt = _world.getEntity(link.toId);
+                if (toEnt && toEnt.state && toEnt.state._cyberDegradation) {
+                    toCDeg = toEnt.state._cyberDegradation.comms || 0;
+                }
+                var linkCommsDeg = Math.max(fromCDeg, toCDeg);
+                if (linkCommsDeg >= 1) {
+                    // Fully degraded — link is effectively dead
+                    link.quality = QUALITY.LOST;
+                    link.packetLoss = 1.0;
+                    link.throughput_bps = 0;
+                } else if (linkCommsDeg > 0) {
+                    // Partial degradation — reduce throughput, add latency, increase loss
+                    link.throughput_bps *= (1 - linkCommsDeg * 0.7);
+                    link.latency_ms *= (1 + linkCommsDeg * 4.0);
+                    link.packetLoss = Math.min(1.0, link.packetLoss + linkCommsDeg * 0.3);
+                    // Degrade link quality level
+                    if (linkCommsDeg > 0.7 && link.quality !== QUALITY.LOST) {
+                        link.quality = QUALITY.DEGRADED;
+                    } else if (linkCommsDeg > 0.3 && link.quality === QUALITY.EXCELLENT) {
+                        link.quality = QUALITY.GOOD;
+                    }
+                }
             }
 
             // Reset per-tick bandwidth counter
@@ -993,6 +1074,10 @@
                 var edge = neighbors[ni];
                 if (visited[edge.neighborId]) continue;
 
+                // Skip bricked or isolated neighbor nodes
+                var neighborNode = _entityNodes.get(edge.neighborId);
+                if (neighborNode && (neighborNode.bricked || neighborNode.isolated)) continue;
+
                 var newDist = dist[current.id] + edge.cost;
                 if (dist[edge.neighborId] === undefined || newDist < dist[edge.neighborId]) {
                     dist[edge.neighborId] = newDist;
@@ -1045,7 +1130,7 @@
 
         _entityNodes.forEach(function(node, nodeId) {
             if (nodeId === entityId) return;
-            if (!node.active || node.bricked) return;
+            if (!node.active || node.bricked || node.isolated) return;
 
             var nodeEntity = _world.getEntity(nodeId);
             if (!nodeEntity || !nodeEntity.active) return;
@@ -1158,17 +1243,68 @@
                 continue;
             }
 
-            // Check cyber compromise on next node
+            // Check cyber compromise or isolation on next node
             var nextNode = _entityNodes.get(nextNodeId);
-            if (nextNode && nextNode.bricked) {
+            if (nextNode && (nextNode.bricked || nextNode.isolated)) {
                 _dropPacket(pkt, DROP.CYBER, simTime);
                 toRemove.push(i);
                 continue;
             }
 
+            // Cyber comms degradation on current or next node
+            var commsDegCurrent = 0;
+            var commsDegNext = 0;
+            if (_world) {
+                var curNodeEnt = _world.getEntity(currentNodeId);
+                if (curNodeEnt && curNodeEnt.state && curNodeEnt.state._cyberDegradation) {
+                    commsDegCurrent = curNodeEnt.state._cyberDegradation.comms || 0;
+                }
+                var nextNodeEnt = _world.getEntity(nextNodeId);
+                if (nextNodeEnt && nextNodeEnt.state && nextNodeEnt.state._cyberDegradation) {
+                    commsDegNext = nextNodeEnt.state._cyberDegradation.comms || 0;
+                }
+            }
+            var maxCommsDeg = Math.max(commsDegCurrent, commsDegNext);
+
+            // Full comms degradation = node effectively disconnected
+            if (maxCommsDeg >= 1) {
+                _dropPacket(pkt, DROP.CYBER, simTime);
+                toRemove.push(i);
+                continue;
+            }
+            // Partial comms degradation causes probabilistic packet drops
+            if (maxCommsDeg > 0) {
+                if (Math.random() < maxCommsDeg * 0.5) {
+                    _dropPacket(pkt, DROP.CYBER, simTime);
+                    toRemove.push(i);
+                    continue;
+                }
+            }
+
+            // Firewall check on next node — may drop or delay packets
+            if (nextNode && _world) {
+                var fwEnt = _world.getEntity(nextNode.entityId);
+                if (fwEnt && fwEnt.state && fwEnt.state._firewallActive && !fwEnt.state._firewallBypassed) {
+                    // Random drop based on firewall blocking rate
+                    if (Math.random() < (fwEnt.state._firewallBlocking || 0)) {
+                        fwEnt.state._firewallBlockedPackets = (fwEnt.state._firewallBlockedPackets || 0) + 1;
+                        _dropPacket(pkt, DROP.CYBER, simTime);
+                        toRemove.push(i);
+                        continue;
+                    }
+                    // Add firewall inspection latency to hop delay
+                    if (!pkt._firewallDelay) pkt._firewallDelay = 0;
+                    pkt._firewallDelay += (fwEnt.state._firewallLatency || 0);
+                }
+            }
+
             // Check bandwidth capacity
             var pktBits = pkt.size_bytes * 8;
             var capacityBits = link._capacityBps * Math.max(dt, 0.001);
+            // Cyber comms degradation reduces effective bandwidth (up to 70% reduction)
+            if (maxCommsDeg > 0 && maxCommsDeg < 1) {
+                capacityBits *= (1 - maxCommsDeg * 0.7);
+            }
             var usedBits = link._bytesSentThisTick * 8;
             var remainingBits = capacityBits - usedBits;
 
@@ -1199,7 +1335,12 @@
 
             // Check if enough time has elapsed for this hop (latency simulation)
             var hopStartTime = pkt._hopStartTime || pkt.createdAt;
-            var hopLatency = link.latency_ms / 1000;  // convert to seconds
+            var hopLatency = link.latency_ms / 1000 + (pkt._firewallDelay || 0);
+            // Cyber comms degradation adds latency (up to 5x normal)
+            if (maxCommsDeg > 0 && maxCommsDeg < 1) {
+                hopLatency *= (1 + maxCommsDeg * 4.0);
+            }
+            pkt._firewallDelay = 0; // reset after applying
             if (simTime - hopStartTime < hopLatency) {
                 // Still in transit for this hop
                 continue;
@@ -1224,7 +1365,12 @@
 
             // Check if MITM attack on this node -- attacker can see packet
             if (nextNode && nextNode.mitm) {
-                pkt._intercepted = true;
+                // If link is encrypted, MITM sees the packet but can't read content
+                if (link && link.encrypted !== 'none') {
+                    pkt._encryptedMitm = true;  // attacker sees packet exists but can't read content
+                } else {
+                    pkt._intercepted = true;
+                }
             }
 
             // Check if we've reached the destination after advancing
@@ -1346,7 +1492,7 @@
         var weaponNodes = [];
         _entityNodes.forEach(function(node, nodeId) {
             if (nodeId === commandEntityId) return;
-            if (!node.active || node.bricked) return;
+            if (!node.active || node.bricked || node.isolated) return;
 
             var nodeEntity = _world.getEntity(nodeId);
             if (!nodeEntity || !nodeEntity.active) return;
@@ -1689,7 +1835,7 @@
         if (!_world) return;
 
         _entityNodes.forEach(function(node, entityId) {
-            if (!node.active || node.bricked) return;
+            if (!node.active || node.bricked || node.isolated) return;
 
             var entity = _world.getEntity(entityId);
             if (!entity || !entity.active) return;
@@ -1781,14 +1927,14 @@
                 var hubId = net.hub || members[0];
                 if (hubId) {
                     var hubNode = _entityNodes.get(hubId);
-                    if (hubNode && (hubNode.bricked || !_isEntityAlive(hubId))) {
+                    if (hubNode && (hubNode.bricked || hubNode.isolated || !_isEntityAlive(hubId))) {
                         // Hub is down -- attempt to promote a daughter to new hub
                         var newHub = null;
                         var bestScore = -1;
                         for (var m = 0; m < members.length; m++) {
                             if (members[m] === hubId) continue;
                             var candidateNode = _entityNodes.get(members[m]);
-                            if (!candidateNode || !candidateNode.active || candidateNode.bricked) continue;
+                            if (!candidateNode || !candidateNode.active || candidateNode.bricked || candidateNode.isolated) continue;
                             if (!_isEntityAlive(members[m])) continue;
 
                             // Score: prefer ground stations, then by number of alive peers
@@ -1959,6 +2105,7 @@
                     latency_ms: link.latency_ms,
                     throughput_bps: link.throughput_bps,
                     jammed: link.jammed,
+                    encrypted: link.encrypted,
                     networkId: link.networkId
                 });
 
@@ -1972,7 +2119,7 @@
             });
 
             s._commLinks = activeLinks;
-            s._commJammed = isJammed || node.bricked;
+            s._commJammed = isJammed || node.bricked || node.isolated;
             s._commBandwidth = totalBw / 1e6;  // Mbps
             s._commLatency = linkCount > 0 ? (totalLatency / linkCount) : 0;
             // _commPacketsSent and _commPacketsRecv are updated incrementally
@@ -1985,7 +2132,7 @@
             s._commNetworks = nets ? Array.from(nets) : [];
 
             // Cyber attack state
-            if (!s._commCyber && !node.bricked && !node.compromised && !node.ddosed) {
+            if (!s._commCyber && !node.bricked && !node.isolated && !node.compromised && !node.ddosed) {
                 s._commCyber = null;
             }
         });
@@ -2235,6 +2382,7 @@
                         alive: link.alive,
                         utilization: link.utilization,
                         cyberCompromised: link.cyberCompromised,
+                        encrypted: link.encrypted,
                         linkType: link.linkType
                     });
                     if (link.alive && link.quality !== QUALITY.LOST) {
@@ -2251,7 +2399,7 @@
                 var activeMembers = 0;
                 for (var m = 0; m < members.length; m++) {
                     var node = _entityNodes.get(members[m]);
-                    if (node && node.active && !node.bricked) activeMembers++;
+                    if (node && node.active && !node.bricked && !node.isolated) activeMembers++;
                 }
 
                 // Health as numeric 0-1 for UI compatibility
@@ -2310,6 +2458,7 @@
                 jammed: link.jammed,
                 jamStrength_db: link.jamStrength_db,
                 cyberCompromised: link.cyberCompromised,
+                encrypted: link.encrypted,
                 alive: link.alive,
                 _activePacketType: link._activePacketType || null
             };
@@ -2343,6 +2492,7 @@
                     jammed: link.jammed,
                     alive: link.alive,
                     utilization: link.utilization,
+                    encrypted: link.encrypted,
                     networkId: link.networkId
                 });
                 if (link.alive && link.quality !== QUALITY.LOST) {
@@ -2380,6 +2530,7 @@
                 entityId: entityId,
                 active: node.active,
                 bricked: node.bricked,
+                isolated: node.isolated,
                 compromised: node.compromised,
                 ddosed: node.ddosed,
                 mitm: node.mitm,
@@ -2678,6 +2829,7 @@
                         entityId: memberId,
                         active: true,
                         bricked: false,
+                        isolated: false,
                         compromised: false,
                         ddosed: false,
                         mitm: false,
@@ -2828,7 +2980,7 @@
 
     function _countActiveNodes() {
         var count = 0;
-        _entityNodes.forEach(function(n) { if (n.active && !n.bricked) count++; });
+        _entityNodes.forEach(function(n) { if (n.active && !n.bricked && !n.isolated) count++; });
         return count;
     }
 

@@ -104,6 +104,17 @@
 
         update(dt, world) {
             var state = this.entity.state;
+
+            // Weapons disabled by cyber attack — can't fire, can't track
+            if (state._weaponsDisabled) {
+                state._samState = 'DISABLED';
+                return;
+            }
+
+            // Cyber weapons degradation — graduated kill chain effects
+            // 0 = no degradation, 1 = fully disabled (caught above by _weaponsDisabled)
+            this._wpnDeg = state._cyberDegradation ? (state._cyberDegradation.weapons || 0) : 0;
+
             var detections = state._detections || [];
 
             // Handle reload timer
@@ -273,6 +284,10 @@
             if (eng._isCommTrack) {
                 trackDelay += Math.min(eng._commLatency_s || 0, 3.0);
             }
+            // Cyber degradation adds tracking delay (fire control computer impaired)
+            if (this._wpnDeg > 0) {
+                trackDelay += this._wpnDeg * 5.0; // up to 5 extra seconds to compute solution
+            }
 
             // Computing firing solution — advance to ENGAGE after delay
             if (eng.timeInState >= trackDelay) {
@@ -308,6 +323,10 @@
             if (eng.timeInState >= tof) {
                 // Kill probability degraded for comm-fed tracks due to position uncertainty
                 var effectiveKillProb = this._killProb;
+                // Cyber weapons degradation reduces kill probability
+                if (this._wpnDeg > 0 && this._wpnDeg < 1) {
+                    effectiveKillProb *= (1 - this._wpnDeg * 0.6); // up to 60% Pk reduction
+                }
                 if (eng._isCommTrack) {
                     var uncertainty = eng._posUncertainty_m || 0;
                     var latencyPenalty = Math.min((eng._commLatency_s || 0) * 0.05, 0.3);

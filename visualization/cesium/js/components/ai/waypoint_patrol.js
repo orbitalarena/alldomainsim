@@ -143,6 +143,51 @@ const WaypointPatrol = (function() {
             if (!this._converted) this._convertWaypoints();
 
             var state = this.entity.state;
+
+            // Navigation hijacked by cyber attack — redirect to hijack waypoint or random jink
+            if (state._navigationHijacked) {
+                var hijackCmd = state._commands || {};
+                if (state._hijackWaypoint) {
+                    // Steer toward hijack waypoint using same nav logic as normal waypoints
+                    var hjWp = state._hijackWaypoint;
+                    var hjDist = gcDistance(lat, lon, hjWp.lat, hjWp.lon);
+                    var hjBearing = gcBearing(lat, lon, hjWp.lat, hjWp.lon);
+                    var hjBearingDelta = hjBearing - heading;
+                    // Normalize to [-PI, PI]
+                    while (hjBearingDelta > Math.PI) hjBearingDelta -= 2 * Math.PI;
+                    while (hjBearingDelta < -Math.PI) hjBearingDelta += 2 * Math.PI;
+
+                    hijackCmd.roll = Math.max(-1, Math.min(1, hjBearingDelta * 2));
+                    // Descend to hijack altitude
+                    var hjAltError = (hjWp.alt || 500) - alt;
+                    hijackCmd.pitch = Math.max(-0.5, Math.min(0.5, hjAltError * 0.001));
+                    // Slow down to hijack speed
+                    hijackCmd.throttleUp = false;
+                    hijackCmd.throttleDown = false;
+                    if (hjWp.speed && speed > hjWp.speed * 1.1) hijackCmd.throttleDown = true;
+                    else if (hjWp.speed && speed < hjWp.speed * 0.9) hijackCmd.throttleUp = true;
+                } else {
+                    // No specific waypoint — random jinking (fallback behavior)
+                    hijackCmd.roll = (Math.random() - 0.5) * 0.3;
+                    hijackCmd.pitch = (Math.random() - 0.5) * 0.1;
+                    hijackCmd.throttleUp = Math.random() > 0.7;
+                    hijackCmd.throttleDown = Math.random() > 0.7;
+                }
+                state._commands = hijackCmd;
+                return;
+            }
+
+            // Cyber navigation degradation — graduated heading/position error
+            var navDeg = state._cyberDegradation ? (state._cyberDegradation.navigation || 0) : 0;
+            var navHeadingBias = 0;
+            var navDistBias = 0;
+            if (navDeg > 0 && navDeg < 1) {
+                // Heading error: up to +/-30deg at full degradation, slowly drifting bias
+                navHeadingBias = navDeg * 30 * DEG * Math.sin((world.simTime || 0) * 0.1 + this.entity.id.length);
+                // Distance perception error: up to 20% at full degradation
+                navDistBias = navDeg * 0.2;
+            }
+
             var wp = waypoints[this._index];
 
             // Current entity state (lat/lon/heading in radians, alt in m, speed in m/s)
@@ -154,7 +199,9 @@ const WaypointPatrol = (function() {
 
             // --- Distance and bearing to waypoint ---
             var dist = gcDistance(lat, lon, wp._latRad, wp._lonRad);
+            dist *= (1 + navDistBias);
             var bearing = gcBearing(lat, lon, wp._latRad, wp._lonRad);
+            bearing += navHeadingBias;
             var altError = wp.alt - alt;
 
             // Write diagnostic state
@@ -178,7 +225,9 @@ const WaypointPatrol = (function() {
                 // Re-read new waypoint
                 wp = waypoints[this._index];
                 dist = gcDistance(lat, lon, wp._latRad, wp._lonRad);
+                dist *= (1 + navDistBias);
                 bearing = gcBearing(lat, lon, wp._latRad, wp._lonRad);
+                bearing += navHeadingBias;
                 altError = wp.alt - alt;
             }
 

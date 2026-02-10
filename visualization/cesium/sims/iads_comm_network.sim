@@ -1,7 +1,7 @@
 {
   "metadata": {
     "name": "IADS Comm Network",
-    "description": "Integrated Air Defense System with comm-dependent kill chain (F2T2EA). EW radar detects targets, track data routes through mesh network to command post, command post distributes targeting to SAM batteries. Includes jammer for testing comm disruption.",
+    "description": "Integrated Air Defense System with comm-dependent kill chain (F2T2EA) and cyber warfare dimension. EW radar detects targets, track data routes through mesh network to command post, command post distributes targeting to SAM batteries. Includes jammer for comm disruption and red cyber ops center running autonomous attacks against blue IADS computers \u2014 disabling sensors, hijacking navigation, and degrading the kill chain.",
     "version": "2.0",
     "author": "scenario_builder"
   },
@@ -16,11 +16,46 @@
       "name": "EW RADAR ALPHA",
       "type": "ground",
       "team": "blue",
-      "initialState": { "lat": 34.95, "lon": -117.8, "alt": 710, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 34.95,
+        "lon": -117.8,
+        "alt": 710,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "sensors": { "type": "radar", "maxRange_m": 300000, "fov_deg": 360, "scanRate_dps": 180, "detectionProbability": 0.92, "updateInterval": 1.0 },
-        "visual": { "type": "point", "color": "#44ff44", "trail": false, "pixelSize": 10 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 300000,
+          "fov_deg": 360,
+          "scanRate_dps": 180,
+          "detectionProbability": 0.92,
+          "updateInterval": 1.0
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.5,
+          "patchLevel": 0.4,
+          "firewallRating": 0.3,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#44ff44",
+          "trail": false,
+          "pixelSize": 10
+        }
       }
     },
     {
@@ -28,11 +63,46 @@
       "name": "EW RADAR BRAVO",
       "type": "ground",
       "team": "blue",
-      "initialState": { "lat": 34.7, "lon": -117.5, "alt": 800, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 34.7,
+        "lon": -117.5,
+        "alt": 800,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "sensors": { "type": "radar", "maxRange_m": 250000, "fov_deg": 360, "scanRate_dps": 120, "detectionProbability": 0.88, "updateInterval": 1.5 },
-        "visual": { "type": "point", "color": "#44ff44", "trail": false, "pixelSize": 10 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 250000,
+          "fov_deg": 360,
+          "scanRate_dps": 120,
+          "detectionProbability": 0.88,
+          "updateInterval": 1.5
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.4,
+          "patchLevel": 0.3,
+          "firewallRating": 0.3,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#44ff44",
+          "trail": false,
+          "pixelSize": 10
+        }
       }
     },
     {
@@ -40,10 +110,43 @@
       "name": "COMMAND POST",
       "type": "ground_station",
       "team": "blue",
-      "initialState": { "lat": 34.82, "lon": -117.65, "alt": 750, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 34.82,
+        "lon": -117.65,
+        "alt": 750,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "visual": { "type": "ground_station", "color": "#00ccff", "pixelSize": 12 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.7,
+          "patchLevel": 0.6,
+          "firewallRating": 0.6,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.6,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ccff",
+          "pixelSize": 12
+        }
       }
     },
     {
@@ -51,12 +154,57 @@
       "name": "SAM BATTERY NORTH",
       "type": "ground",
       "team": "blue",
-      "initialState": { "lat": 35.05, "lon": -117.7, "alt": 730, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 35.05,
+        "lon": -117.7,
+        "alt": 730,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "sensors": { "type": "radar", "maxRange_m": 80000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.80, "updateInterval": 2.0 },
-        "weapons": { "type": "sam_battery", "maxRange_m": 100000, "minRange_m": 5000, "maxAlt_m": 20000, "missileSpeed_mps": 1000, "killProbability": 0.65, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
-        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 80000,
+          "fov_deg": 360,
+          "scanRate_dps": 90,
+          "detectionProbability": 0.8,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 100000,
+          "minRange_m": 5000,
+          "maxAlt_m": 20000,
+          "missileSpeed_mps": 1000,
+          "killProbability": 0.65,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.5,
+          "patchLevel": 0.4,
+          "firewallRating": 0.4,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": false,
+          "pixelSize": 10
+        }
       }
     },
     {
@@ -64,12 +212,57 @@
       "name": "SAM BATTERY SOUTH",
       "type": "ground",
       "team": "blue",
-      "initialState": { "lat": 34.6, "lon": -117.55, "alt": 690, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 34.6,
+        "lon": -117.55,
+        "alt": 690,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "sensors": { "type": "radar", "maxRange_m": 60000, "fov_deg": 360, "scanRate_dps": 90, "detectionProbability": 0.78, "updateInterval": 2.0 },
-        "weapons": { "type": "sam_battery", "maxRange_m": 80000, "minRange_m": 3000, "maxAlt_m": 18000, "missileSpeed_mps": 900, "killProbability": 0.60, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 1 },
-        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "sensors": {
+          "type": "radar",
+          "maxRange_m": 60000,
+          "fov_deg": 360,
+          "scanRate_dps": 90,
+          "detectionProbability": 0.78,
+          "updateInterval": 2.0
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 80000,
+          "minRange_m": 3000,
+          "maxAlt_m": 18000,
+          "missileSpeed_mps": 900,
+          "killProbability": 0.6,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 1
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.4,
+          "patchLevel": 0.3,
+          "firewallRating": 0.3,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": false,
+          "pixelSize": 10
+        }
       }
     },
     {
@@ -77,14 +270,163 @@
       "name": "SAM BATTERY EAST",
       "type": "ground",
       "team": "blue",
-      "initialState": { "lat": 34.85, "lon": -117.3, "alt": 760, "speed": 0, "heading": 0 },
+      "initialState": {
+        "lat": 34.85,
+        "lon": -117.3,
+        "alt": 760,
+        "speed": 0,
+        "heading": 0
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16", "parked": true },
-        "weapons": { "type": "sam_battery", "maxRange_m": 120000, "minRange_m": 5000, "maxAlt_m": 22000, "missileSpeed_mps": 1100, "killProbability": 0.70, "engagementRules": "weapons_free", "salvoSize": 2, "maxSimultaneous": 2 },
-        "visual": { "type": "point", "color": "#4488ff", "trail": false, "pixelSize": 10 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16",
+          "parked": true
+        },
+        "weapons": {
+          "type": "sam_battery",
+          "maxRange_m": 120000,
+          "minRange_m": 5000,
+          "maxAlt_m": 22000,
+          "missileSpeed_mps": 1100,
+          "killProbability": 0.7,
+          "engagementRules": "weapons_free",
+          "salvoSize": 2,
+          "maxSimultaneous": 2
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "vxworks",
+          "hardening": 0.3,
+          "patchLevel": 0.3,
+          "firewallRating": 0.2,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#4488ff",
+          "trail": false,
+          "pixelSize": 10
+        }
       },
       "_custom": {
-        "notes": "No organic radar — relies entirely on comm-fed targeting from command post"
+        "notes": "No organic radar \u2014 relies entirely on comm-fed targeting from command post"
+      }
+    },
+    {
+      "id": "red_cyber_ops",
+      "name": "RED CYBER OPS",
+      "type": "ground",
+      "team": "red",
+      "initialState": {
+        "lat": 35.2,
+        "lon": -118.6,
+        "alt": 650,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "ai_cyber": {
+          "type": "cyber_ops",
+          "preferredAttack": "sensors",
+          "scanInterval": 8,
+          "baseExploitTime": 15,
+          "baseProbability": 0.7,
+          "cooldownTime": 20,
+          "maxSimultaneous": 3,
+          "aggressiveness": 0.6,
+          "stealthLevel": 0.5
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.9,
+          "patchLevel": 0.9,
+          "firewallRating": 0.8,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.8,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#aa00ff",
+          "trail": false,
+          "pixelSize": 10
+        },
+        "physics": {
+          "type": "static_ground"
+        }
+      },
+      "_custom": {
+        "notes": "Autonomous cyber warfare center targeting blue IADS sensors. Scans, exploits, and disables radars to create gaps in air defense coverage."
+      }
+    },
+    {
+      "id": "blue_cyber_def",
+      "name": "BLUE CYBER DEFENSE",
+      "type": "ground_station",
+      "team": "blue",
+      "initialState": {
+        "lat": 34.85,
+        "lon": -117.6,
+        "alt": 745,
+        "speed": 0,
+        "heading": 0
+      },
+      "components": {
+        "ai_cyber_defense": {
+          "type": "cyber_defense",
+          "monitorInterval": 5,
+          "patchRate": 0.03,
+          "isolateThreshold": 0.8,
+          "counterAttackEnabled": true,
+          "maxSimultaneousPatches": 2,
+          "alertRadius_m": 400000
+        },
+        "cyber_computer": {
+          "type": "computer",
+          "os": "linux_hardened",
+          "hardening": 0.85,
+          "patchLevel": 0.8,
+          "firewallRating": 0.8,
+          "hackableSubsystems": [
+            "sensors",
+            "navigation",
+            "weapons",
+            "comms"
+          ]
+        },
+        "cyber_firewall": {
+          "type": "firewall",
+          "rating": 0.8,
+          "ids": true,
+          "rules": "default"
+        },
+        "visual": {
+          "type": "ground_station",
+          "color": "#00ff88",
+          "pixelSize": 11
+        },
+        "physics": {
+          "type": "static_ground"
+        }
+      },
+      "_custom": {
+        "notes": "Blue team cyber defense center \u2014 automatically patches compromised IADS nodes and counter-attacks traced red cyber operators."
       }
     },
     {
@@ -92,14 +434,39 @@
       "name": "STRIKE EAGLE 1",
       "type": "aircraft",
       "team": "red",
-      "initialState": { "lat": 35.5, "lon": -118.5, "alt": 8000, "speed": 250, "heading": 135 },
+      "initialState": {
+        "lat": 35.5,
+        "lon": -118.5,
+        "alt": 8000,
+        "speed": 250,
+        "heading": 135
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16" },
-        "ai": { "type": "waypoint_patrol", "waypoints": [
-          { "lat": 34.85, "lon": -117.65, "alt": 7000 },
-          { "lat": 34.5, "lon": -117.3, "alt": 6000 }
-        ]},
-        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 34.85,
+              "lon": -117.65,
+              "alt": 7000
+            },
+            {
+              "lat": 34.5,
+              "lon": -117.3,
+              "alt": 6000
+            }
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 7
+        }
       }
     },
     {
@@ -107,14 +474,39 @@
       "name": "STRIKE EAGLE 2",
       "type": "aircraft",
       "team": "red",
-      "initialState": { "lat": 35.3, "lon": -118.2, "alt": 9000, "speed": 240, "heading": 140 },
+      "initialState": {
+        "lat": 35.3,
+        "lon": -118.2,
+        "alt": 9000,
+        "speed": 240,
+        "heading": 140
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16" },
-        "ai": { "type": "waypoint_patrol", "waypoints": [
-          { "lat": 34.9, "lon": -117.5, "alt": 8000 },
-          { "lat": 34.6, "lon": -117.2, "alt": 7000 }
-        ]},
-        "visual": { "type": "point", "color": "#ff4444", "trail": true, "pixelSize": 7 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 34.9,
+              "lon": -117.5,
+              "alt": 8000
+            },
+            {
+              "lat": 34.6,
+              "lon": -117.2,
+              "alt": 7000
+            }
+          ]
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff4444",
+          "trail": true,
+          "pixelSize": 7
+        }
       }
     },
     {
@@ -122,11 +514,28 @@
       "name": "WILD WEASEL",
       "type": "aircraft",
       "team": "red",
-      "initialState": { "lat": 35.4, "lon": -118.0, "alt": 10000, "speed": 260, "heading": 130 },
+      "initialState": {
+        "lat": 35.4,
+        "lon": -118.0,
+        "alt": 10000,
+        "speed": 260,
+        "heading": 130
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16" },
-        "ai": { "type": "intercept", "targetId": "ew_radar_alpha" },
-        "visual": { "type": "point", "color": "#ff6644", "trail": true, "pixelSize": 7 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "intercept",
+          "targetId": "ew_radar_alpha"
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff6644",
+          "trail": true,
+          "pixelSize": 7
+        }
       }
     },
     {
@@ -134,16 +543,54 @@
       "name": "EA-18G GROWLER",
       "type": "aircraft",
       "team": "red",
-      "initialState": { "lat": 35.6, "lon": -118.3, "alt": 12000, "speed": 220, "heading": 145 },
+      "initialState": {
+        "lat": 35.6,
+        "lon": -118.3,
+        "alt": 12000,
+        "speed": 220,
+        "heading": 145
+      },
       "components": {
-        "physics": { "type": "flight3dof", "config": "f16" },
-        "ai": { "type": "waypoint_patrol", "waypoints": [
-          { "lat": 35.1, "lon": -117.8, "alt": 11000 },
-          { "lat": 34.8, "lon": -117.4, "alt": 11000 },
-          { "lat": 35.3, "lon": -118.0, "alt": 12000 }
-        ]},
-        "weapons": { "type": "jammer", "jammerType": "barrage", "power_dbw": 30, "range_m": 150000, "direction": "both", "targetFreq_ghz": 5.0, "bandwidth_ghz": 2.0, "activateOnDetection": true },
-        "visual": { "type": "point", "color": "#ff88ff", "trail": true, "pixelSize": 8 }
+        "physics": {
+          "type": "flight3dof",
+          "config": "f16"
+        },
+        "ai": {
+          "type": "waypoint_patrol",
+          "waypoints": [
+            {
+              "lat": 35.1,
+              "lon": -117.8,
+              "alt": 11000
+            },
+            {
+              "lat": 34.8,
+              "lon": -117.4,
+              "alt": 11000
+            },
+            {
+              "lat": 35.3,
+              "lon": -118.0,
+              "alt": 12000
+            }
+          ]
+        },
+        "weapons": {
+          "type": "jammer",
+          "jammerType": "barrage",
+          "power_dbw": 30,
+          "range_m": 150000,
+          "direction": "both",
+          "targetFreq_ghz": 5.0,
+          "bandwidth_ghz": 2.0,
+          "activateOnDetection": true
+        },
+        "visual": {
+          "type": "point",
+          "color": "#ff88ff",
+          "trail": true,
+          "pixelSize": 8
+        }
       }
     }
   ],
@@ -152,7 +599,15 @@
       "id": "iads_mesh",
       "name": "IADS Mesh Network",
       "type": "mesh",
-      "members": ["ew_radar_alpha", "ew_radar_bravo", "cmd_post", "sam_north", "sam_south", "sam_east"],
+      "members": [
+        "ew_radar_alpha",
+        "ew_radar_bravo",
+        "cmd_post",
+        "sam_north",
+        "sam_south",
+        "sam_east",
+        "blue_cyber_def"
+      ],
       "rfConfig": {
         "preset": "link16",
         "freq_ghz": 1.2,
@@ -168,5 +623,8 @@
     }
   ],
   "events": [],
-  "camera": { "mode": "free", "range": 300000 }
+  "camera": {
+    "mode": "free",
+    "range": 300000
+  }
 }

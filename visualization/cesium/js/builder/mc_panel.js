@@ -51,6 +51,8 @@ var MCPanel = (function() {
             '  position: fixed; top: 50%; left: 50%;',
             '  transform: translate(-50%, -50%);',
             '  width: 420px;',
+            '  max-height: calc(100vh - 40px);',
+            '  overflow-y: auto;',
             '  background: rgba(10, 15, 10, 0.95);',
             '  border: 1px solid #ff8800;',
             '  border-radius: 6px;',

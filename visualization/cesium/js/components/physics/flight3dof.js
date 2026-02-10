@@ -199,6 +199,22 @@
             var commands = state._commands || {};
             FighterSimEngine.step(state, commands, dt, this._engineConfig);
 
+            // Cyber GPS spoofing — reported position drifts from actual
+            var navDeg = state._cyberDegradation ? (state._cyberDegradation.navigation || 0) : 0;
+            if (navDeg > 0 && navDeg < 1) {
+                // Drift: up to ~500m offset at full degradation (slowly varying)
+                var driftScale = navDeg * 500 / 6371000; // ~500m in radians
+                var t = world.simTime || 0;
+                state._navDriftLat = driftScale * Math.sin(t * 0.05 + 1.7);
+                state._navDriftLon = driftScale * Math.cos(t * 0.07 + 0.3);
+                // Position error magnitude for sensors/weapons to check
+                state._navPositionError_m = navDeg * 500;
+            } else {
+                state._navDriftLat = 0;
+                state._navDriftLon = 0;
+                state._navPositionError_m = 0;
+            }
+
             // Apply weather wind effects
             if (typeof WeatherSystem !== 'undefined') {
                 var wind = WeatherSystem.applyWindToState(state, dt);

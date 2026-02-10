@@ -59,6 +59,14 @@
 
     var ACCESS_NAMES = ['NONE', 'USER', 'ROOT', 'PERSISTENT'];
 
+    // Exfil data types and their durations
+    var EXFIL_TYPES = {
+        radar: { label: 'RADAR CONTACTS', duration: 20, desc: 'Steal radar track data' },
+        nav:   { label: 'NAVIGATION DATA', duration: 25, desc: 'Steal position/waypoint data' },
+        keys:  { label: 'ENCRYPTION KEYS', duration: 60, desc: 'Steal comm encryption keys' },
+        all:   { label: 'ALL DATA', duration: 45, desc: 'Full data exfiltration' }
+    };
+
     // Operation timings (seconds)
     var TIMING = {
         scan:      { base: 3, perHardening: 0.5 },
@@ -67,6 +75,7 @@
         ddos:      { base: 1, perHardening: 0.2 },
         mitm:      { base: 5, perHardening: 1 },
         inject:    { base: 4, perHardening: 0.8 },
+        exfil:     { base: 20, perHardening: 3 },
         patch:     { base: 5, perHardening: 0 },
         firewall:  { base: 3, perHardening: 0 },
         harden:    { base: 10, perHardening: 0 }
@@ -246,6 +255,10 @@
         }
     }
 
+    function show() {
+        if (!_visible) toggle();
+    }
+
     function isVisible() {
         return _visible;
     }
@@ -381,7 +394,8 @@
                         'inject', 'patch', 'firewall', 'harden', 'alert',
                         'traceroute', 'whois', 'netstat', 'sniff', 'status',
                         'targets', 'ops', 'networks', 'topology', 'clear', 'kill', 'pivot',
-                        'escalate', 'exfil', 'persist', 'defend'];
+                        'escalate', 'exfil', 'persist', 'defend', 'redirect', 'lookaway',
+                        'isolate', 'score', 'hack', 'takeover', 'sysinfo'];
             var prefix = parts[0].toLowerCase();
             _tabPrefix = '';
             for (var i = 0; i < cmds.length; i++) {
@@ -471,6 +485,13 @@
             case 'exfil':    _cmdExfil(args); break;
             case 'persist':  _cmdPersist(args); break;
             case 'defend':   _cmdDefend(args, 'harden'); break;
+            case 'hack':     _cmdHack(args); break;
+            case 'takeover': _cmdTakeover(args); break;
+            case 'sysinfo':  _cmdSysinfo(args); break;
+            case 'redirect': _cmdRedirect(args); break;
+            case 'lookaway': _cmdLookaway(args); break;
+            case 'isolate':  _cmdIsolate(args); break;
+            case 'score':    _cmdScore(args); break;
             default:
                 _printLine('<span class="cy-error">Unknown command: ' + _esc(cmd) + '</span>');
                 _printLine('<span class="cy-dim">Type "help" for available commands.</span>');
@@ -506,7 +527,13 @@
         _printLine('  <span class="cy-magenta">escalate</span> <target>     Escalate privileges (USER → ROOT)');
         _printLine('  <span class="cy-magenta">persist</span> <target>      Install persistent backdoor');
         _printLine('  <span class="cy-magenta">pivot</span> <target>        Use target as attack relay');
-        _printLine('  <span class="cy-magenta">exfil</span> <target>        Exfiltrate intelligence data');
+        _printLine('  <span class="cy-magenta">exfil</span> <target> [type]  Exfiltrate data (radar|nav|keys|all)');
+        _printLine('  <span class="cy-magenta">hack</span> <target> <sub>   Hack subsystem (sensors|nav|weapons|comms)');
+        _printLine('  <span class="cy-magenta">takeover</span> <target>     Full platform control (all subsystems)');
+        _printLine('  <span class="cy-magenta">redirect</span> <tgt> <lat> <lon> Redirect hijacked platform to coords');
+        _printLine('  <span class="cy-magenta">lookaway</span> <target> [deg]  Force radar to scan wrong bearing');
+        _printLine('  <span class="cy-magenta">isolate</span> <target>      Disconnect node from comm network');
+        _printLine('  <span class="cy-magenta">sysinfo</span> <target>      Show onboard computer details');
         _printLine('');
         _printLine('<span class="cy-cyan">DEFENSE:</span>');
         _printLine('  <span class="cy-success">patch</span> <target>        Remove exploits from friendly node');
@@ -521,6 +548,7 @@
         _printLine('  <span class="cy-info">ops</span>                    Show active operations');
         _printLine('  <span class="cy-info">networks</span>               Show discovered networks');
         _printLine('  <span class="cy-info">topology</span> [net]          ASCII network topology map');
+        _printLine('  <span class="cy-info">score</span>                  Cyber warfare scoreboard');
         _printLine('  <span class="cy-info">kill</span> <op-id>           Cancel an active operation');
         _printLine('  <span class="cy-info">clear</span>                  Clear terminal output');
         _printLine('');
@@ -542,6 +570,23 @@
                 _printLine('  Requires target to be SCANNED first.');
                 _printLine('  Grants USER access on success. Use "escalate" for ROOT.');
                 _printLine('  Duration: 8-28s. Detection risk: ~20% per attempt.');
+                break;
+            case 'exfil':
+                _printLine('<span class="cy-cyan">exfil <target> [data_type]</span>');
+                _printLine('  Exfiltrate intelligence data from a compromised target.');
+                _printLine('  Requires EXPLOITED state or higher (run "exploit" first).');
+                _printLine('');
+                _printLine('  <span class="cy-warn">Data types:</span>');
+                _printLine('    <span class="cy-info">radar</span>  — Steal radar contacts/tracks (20s)');
+                _printLine('           Attacker gains victim radar tracks');
+                _printLine('    <span class="cy-info">nav</span>    — Steal position/waypoint data (25s)');
+                _printLine('           Attacker knows exact target positions');
+                _printLine('    <span class="cy-info">keys</span>   — Steal comm encryption keys (60s)');
+                _printLine('           Can decrypt enemy communications');
+                _printLine('    <span class="cy-info">all</span>    — Full data exfiltration (45s)');
+                _printLine('           Steal all of the above');
+                _printLine('');
+                _printLine('  Default: all (if no type specified).');
                 break;
             default:
                 _printLine('<span class="cy-dim">No detailed help for: ' + _esc(cmd) + '</span>');
@@ -584,6 +629,28 @@
                 _printLine('<span class="cy-success">[+] Scan complete: ' + _esc(entity.name || entity.id) + '</span>');
                 _printLine('    State: <span class="cy-warn">' + tgt.state + '</span>');
                 _printLine('    Hardening: ' + _hardeningBar(tgt.hardening));
+
+                // Show Computer component details if present
+                if (entity.getComponent) {
+                    var compScan = entity.getComponent('cyber/computer');
+                    if (compScan) {
+                        _printLine('    <span class="cy-cyan">ONBOARD COMPUTER:</span>');
+                        _printLine('      OS: <span class="cy-warn">' + (compScan._os || 'unknown') + '</span>');
+                        _printLine('      Vulnerability: ' + _vulnBar(compScan.getVulnerability()));
+                        _printLine('      Firewall: ' + (compScan._firewallRating * 100).toFixed(0) + '%');
+                        var subs = compScan.getHackableSubsystems();
+                        _printLine('      Hackable: <span class="cy-error">' + subs.join(', ') + '</span>');
+                    }
+                    var fwScan = entity.getComponent('cyber/firewall');
+                    if (fwScan) {
+                        var fwState = entity.state || {};
+                        _printLine('    <span class="cy-cyan">FIREWALL:</span> Rating ' +
+                            (fwScan._rating * 100).toFixed(0) + '% | IDS: ' +
+                            (fwScan._ids ? '<span class="cy-success">ON</span>' : '<span class="cy-error">OFF</span>') +
+                            ' | Health: ' + ((fwState._firewallHealth || 1) * 100).toFixed(0) + '%');
+                    }
+                }
+
                 _printLine('    Vulns: <span class="cy-error">' + tgt.vulns.length + ' found</span>');
                 for (var v = 0; v < tgt.vulns.length; v++) {
                     _printLine('      <span class="cy-dim">- ' + tgt.vulns[v].name + ' (' + tgt.vulns[v].severity + ')</span>');
@@ -885,6 +952,17 @@
             return;
         }
 
+        // Network access check
+        var access = _checkNetworkAccess(entity, 'exploit');
+        if (!access.reachable) {
+            _printLine('<span class="cy-error">[-] No network path to target. Need comm link or pivot node.</span>');
+            _printLine('<span class="cy-dim">  Use "pivot" on a compromised node adjacent to target.</span>');
+            return;
+        }
+        if (access.method === 'pivot') {
+            _printLine('<span class="cy-dim">[*] Routing through pivot: ' + _esc(access.via) + '</span>');
+        }
+
         var tgt = _getOrCreateTarget(entity);
         if (tgt.state === TARGET_STATE.UNDISCOVERED) {
             _printLine('<span class="cy-warn">[!] Target not scanned. Running scan first...</span>');
@@ -953,6 +1031,12 @@
             return;
         }
 
+        var access = _checkNetworkAccess(entity, 'mitm');
+        if (!access.reachable) {
+            _printLine('<span class="cy-error">[-] No network path to target.</span>');
+            return;
+        }
+
         var tgt = _getOrCreateTarget(entity);
         if (tgt.access < ACCESS.USER) {
             _printLine('<span class="cy-error">[-] Need USER access for MITM. Run "exploit" first.</span>');
@@ -975,6 +1059,12 @@
         var entity = _resolveTarget(args[0]);
         if (!entity) {
             _printLine('<span class="cy-error">Usage: inject <target></span>');
+            return;
+        }
+
+        var access = _checkNetworkAccess(entity, 'inject');
+        if (!access.reachable) {
+            _printLine('<span class="cy-error">[-] No network path to target.</span>');
             return;
         }
 
@@ -1002,6 +1092,17 @@
         if (!entity) {
             _printLine('<span class="cy-error">Usage: ' + type + ' <target></span>');
             return;
+        }
+
+        // Network access check
+        var access = _checkNetworkAccess(entity, type);
+        if (!access.reachable) {
+            _printLine('<span class="cy-error">[-] No network path to target.</span>');
+            _printLine('<span class="cy-dim">  Need comm link or pivot. Use "pivot" on adjacent compromised node.</span>');
+            return;
+        }
+        if (access.method === 'pivot') {
+            _printLine('<span class="cy-dim">[*] Routing through: ' + _esc(access.via) + '</span>');
         }
 
         var tgt = _getOrCreateTarget(entity);
@@ -1140,58 +1241,617 @@
     function _cmdExfil(args) {
         var entity = _resolveTarget(args[0]);
         if (!entity) {
-            _printLine('<span class="cy-error">Usage: exfil <target></span>');
+            _printLine('<span class="cy-error">Usage: exfil <target> [radar|nav|keys|all]</span>');
             return;
         }
 
         var tgt = _getOrCreateTarget(entity);
-        if (tgt.access < ACCESS.USER) {
-            _printLine('<span class="cy-error">[-] Need access to exfiltrate. Run "exploit" first.</span>');
+
+        // Must be EXPLOITED or higher
+        if (tgt.state !== TARGET_STATE.EXPLOITED && tgt.state !== TARGET_STATE.CONTROLLED) {
+            if (tgt.access < ACCESS.USER) {
+                _printLine('<span class="cy-error">[-] Target must be EXPLOITED or CONTROLLED. Run "exploit" first.</span>');
+                return;
+            }
+        }
+
+        // Parse data type (default: all)
+        var dataType = 'all';
+        if (args.length >= 2) {
+            dataType = args[1].toLowerCase();
+        }
+        var exfilInfo = EXFIL_TYPES[dataType];
+        if (!exfilInfo) {
+            _printLine('<span class="cy-error">Unknown data type: ' + _esc(dataType) + '</span>');
+            _printLine('<span class="cy-dim">  Valid types: radar, nav, keys, all</span>');
             return;
         }
 
-        _printLine('<span class="cy-info">[*] Exfiltrating intelligence from ' + _esc(entity.id) + '...</span>');
+        // Duration scales with hardening
+        var duration = exfilInfo.duration + tgt.hardening * 3;
+        var successChance = Math.max(0.25, 0.9 - tgt.hardening * 0.06);
 
-        _beginOpCustom('exfil', entity.id, 6, 0.9, function(success) {
+        _printLine('<span class="cy-info">[*] Exfiltrating ' + exfilInfo.label + ' from ' + _esc(entity.id) + '...</span>');
+        _printLine('    <span class="cy-dim">Estimated time: ~' + Math.round(duration) + 's</span>');
+
+        _beginOpCustom('exfil_' + dataType, entity.id, duration, successChance, function(success) {
             if (success) {
-                // Generate fake intelligence based on entity type
-                _printLine('<span class="cy-success">[+] EXFIL COMPLETE — Intelligence gathered:</span>');
+                _printLine('<span class="cy-success cy-bold">[+] EXFIL COMPLETE — ' + exfilInfo.label + ' from ' + _esc(entity.name || entity.id) + '</span>');
 
-                if (entity.getComponent && entity.getComponent('sensors')) {
-                    var sComp = entity.getComponent('sensors');
-                    _printLine('    <span class="cy-cyan">SENSOR CONFIG:</span> ' + (sComp.config ? sComp.config.type : 'unknown'));
-                    if (sComp.config && sComp.config.maxRange_m) {
-                        _printLine('      Range: ' + (sComp.config.maxRange_m / 1000).toFixed(0) + ' km');
+                var targetId = entity.id;
+                var targetState = entity.state || {};
+
+                // Set exfiltration flags on target
+                targetState._dataExfiltrated = true;
+                targetState._exfilProgress = 1.0;
+
+                // Find the player entity to set attacker-side flags
+                var playerEntity = _findPlayerEntity();
+                var playerState = playerEntity ? playerEntity.state : null;
+
+                if (dataType === 'radar' || dataType === 'all') {
+                    if (playerState) playerState._exfilRadarFrom = targetId;
+                    _printLine('    <span class="cy-cyan">RADAR:</span> Stolen radar contact tracks');
+                    // Show what we got
+                    if (entity.getComponent && entity.getComponent('sensors')) {
+                        var sComp = entity.getComponent('sensors');
+                        _printLine('      Sensor type: ' + (sComp.config ? sComp.config.type : 'radar'));
+                        if (sComp.config && sComp.config.maxRange_m) {
+                            _printLine('      Range: ' + (sComp.config.maxRange_m / 1000).toFixed(0) + ' km');
+                        }
+                        _printLine('      <span class="cy-success">Attacker now receives victim radar tracks</span>');
+                    } else {
+                        _printLine('      <span class="cy-success">Radar track data captured</span>');
                     }
                 }
 
-                if (entity.getComponent && entity.getComponent('weapons')) {
-                    var wComp = entity.getComponent('weapons');
-                    _printLine('    <span class="cy-error">WEAPON CONFIG:</span> ' + (wComp.config ? wComp.config.type : 'unknown'));
-                    if (wComp.config && wComp.config.maxRange_m) {
-                        _printLine('      Max range: ' + (wComp.config.maxRange_m / 1000).toFixed(0) + ' km');
+                if (dataType === 'nav' || dataType === 'all') {
+                    if (playerState) playerState._exfilNavFrom = targetId;
+                    _printLine('    <span class="cy-warn">NAV:</span> Stolen navigation/position data');
+                    if (entity.state && entity.state.lat != null) {
+                        var lat = (entity.state.lat * 180 / Math.PI).toFixed(4);
+                        var lon = (entity.state.lon * 180 / Math.PI).toFixed(4);
+                        var alt = entity.state.alt ? Math.round(entity.state.alt) + 'm' : '?';
+                        _printLine('      Current pos: ' + lat + ', ' + lon + ' alt ' + alt);
                     }
+                    if (entity.getComponent && entity.getComponent('ai')) {
+                        var aiComp = entity.getComponent('ai');
+                        if (aiComp.config && aiComp.config.waypoints) {
+                            _printLine('      Waypoints: ' + aiComp.config.waypoints.length + ' route points extracted');
+                        }
+                    }
+                    _printLine('      <span class="cy-success">Attacker knows exact target positions</span>');
                 }
 
-                if (entity.getComponent && entity.getComponent('ai')) {
-                    _printLine('    <span class="cy-warn">AI MODULE:</span> Active');
-                    var aiComp = entity.getComponent('ai');
-                    if (aiComp.config && aiComp.config.waypoints) {
-                        _printLine('      Waypoints: ' + aiComp.config.waypoints.length);
+                if (dataType === 'keys' || dataType === 'all') {
+                    if (playerState) {
+                        playerState._exfilKeysFrom = targetId;
+                        playerState._hasEnemyKeys = true;
                     }
+                    _printLine('    <span class="cy-error">KEYS:</span> Stolen comm encryption keys');
+                    _printLine('      <span class="cy-success">Can now decrypt enemy communications</span>');
+                    _printLine('      <span class="cy-dim">SIGINT intercepts will show cleartext.</span>');
                 }
 
-                // Reveal entity details
+                // Mark entity as intel-exfiltrated
+                targetState._cyberIntelExfiltrated = true;
+
+                _printLine('');
                 _printLine('    <span class="cy-dim">Intel shared to friendly COP.</span>');
 
-                // Mark entity as "intel known" for friendly team
-                if (entity.state) {
-                    entity.state._cyberIntelExfiltrated = true;
-                }
+                // Notify CommEngine
+                _notifyCommEngine('exfil', entity.id, true);
             } else {
-                _printLine('<span class="cy-error">[-] Exfiltration blocked — data encrypted.</span>');
+                _printLine('<span class="cy-error">[-] Exfiltration blocked — data encrypted or transfer interrupted.</span>');
+                if (Math.random() < 0.25) {
+                    _printLine('<span class="cy-error">[!] ALERT: Data exfiltration attempt detected by target!</span>');
+                    tgt.hardening = Math.min(10, tgt.hardening + 1);
+                }
             }
         });
+    }
+
+    /**
+     * Find the player entity in the world (first entity on player team that
+     * has player_input control or is the first blue entity).
+     */
+    function _findPlayerEntity() {
+        if (!_world) return null;
+        var player = null;
+        _world.entities.forEach(function(ent) {
+            if (player) return;
+            if (ent.team !== _playerTeam) return;
+            if (!ent.active) return;
+            // Prefer entities with player control
+            if (ent.getComponent && ent.getComponent('control')) {
+                var ctrl = ent.getComponent('control');
+                if (ctrl.config && ctrl.config.type === 'player_input') {
+                    player = ent;
+                    return;
+                }
+            }
+        });
+        // Fallback: first active entity on player team
+        if (!player) {
+            _world.entities.forEach(function(ent) {
+                if (player) return;
+                if (ent.team === _playerTeam && ent.active) player = ent;
+            });
+        }
+        return player;
+    }
+
+    // -----------------------------------------------------------------------
+    // Commands: Subsystem Hacking
+    // -----------------------------------------------------------------------
+
+    var SUBSYSTEM_LABELS = {
+        'sensors':    { name: 'Sensors',    effect: 'Radar/EO/IR disabled + redirected' },
+        'nav':        { name: 'Navigation', key: 'navigation', effect: 'Heading/course hijacked' },
+        'navigation': { name: 'Navigation', effect: 'Heading/course hijacked' },
+        'weapons':    { name: 'Weapons',    effect: 'Fire control disabled' },
+        'comms':      { name: 'Comms',      effect: 'Radio silenced + data exfiltration' }
+    };
+
+    function _cmdHack(args) {
+        if (args.length < 2) {
+            _printLine('<span class="cy-error">Usage: hack <target> <subsystem></span>');
+            _printLine('<span class="cy-dim">  Subsystems: sensors, nav, weapons, comms</span>');
+            return;
+        }
+
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Target not found: ' + _esc(args[0]) + '</span>');
+            return;
+        }
+
+        var sub = args[1].toLowerCase();
+        var subInfo = SUBSYSTEM_LABELS[sub];
+        if (!subInfo) {
+            _printLine('<span class="cy-error">Unknown subsystem: ' + _esc(sub) + '</span>');
+            _printLine('<span class="cy-dim">  Valid: sensors, nav, weapons, comms</span>');
+            return;
+        }
+        var subKey = subInfo.key || sub; // 'nav' → 'navigation'
+
+        var tgt = _getOrCreateTarget(entity);
+        if (tgt.access < ACCESS.ROOT) {
+            _printLine('<span class="cy-error">[-] Need ROOT access. Run "escalate" first.</span>');
+            return;
+        }
+
+        // Check if Computer component exists and subsystem is hackable
+        var hasComp = false;
+        if (entity.getComponent) {
+            var comp = entity.getComponent('cyber/computer');
+            if (comp) {
+                hasComp = true;
+                var subs = comp.getHackableSubsystems();
+                if (subs.indexOf(subKey) < 0) {
+                    _printLine('<span class="cy-error">[-] ' + subInfo.name + ' not hackable on this platform.</span>');
+                    _printLine('<span class="cy-dim">  Available: ' + subs.join(', ') + '</span>');
+                    return;
+                }
+            }
+        }
+
+        _printLine('<span class="cy-info">[*] Hacking ' + subInfo.name + ' on ' + _esc(entity.id) + '...</span>');
+
+        var duration = 4 + tgt.hardening * 0.5;
+        var successChance = Math.max(0.3, 0.85 - tgt.hardening * 0.05);
+
+        _beginOpCustom('hack_' + subKey, entity.id, duration, successChance, function(success) {
+            if (success) {
+                // Set the subsystem as hacked on Computer component
+                if (entity.state && entity.state._computerHackedSubsystems) {
+                    entity.state._computerHackedSubsystems[subKey] = true;
+                }
+
+                // Set direct effect flags for systems without Computer component
+                if (entity.state) {
+                    if (subKey === 'sensors') {
+                        entity.state._sensorDisabled = true;
+                        entity.state._sensorRedirected = true;
+                    } else if (subKey === 'navigation') {
+                        entity.state._navigationHijacked = true;
+                    } else if (subKey === 'weapons') {
+                        entity.state._weaponsDisabled = true;
+                    } else if (subKey === 'comms') {
+                        entity.state._commsDisabled = true;
+                        entity.state._dataExfiltrated = true;
+                    }
+                }
+
+                _printLine('<span class="cy-success">[+] ' + subInfo.name.toUpperCase() + ' COMPROMISED on ' + _esc(entity.id) + '</span>');
+                _printLine('    Effect: <span class="cy-warn">' + subInfo.effect + '</span>');
+            } else {
+                _printLine('<span class="cy-error">[-] ' + subInfo.name + ' hack failed — access denied.</span>');
+            }
+        });
+    }
+
+    function _cmdTakeover(args) {
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Usage: takeover <target></span>');
+            return;
+        }
+
+        var tgt = _getOrCreateTarget(entity);
+        if (tgt.access < ACCESS.ROOT) {
+            _printLine('<span class="cy-error">[-] Need ROOT access. Run "escalate" first.</span>');
+            return;
+        }
+
+        // Get hackable subsystems
+        var subsystems = ['sensors', 'navigation', 'weapons', 'comms'];
+        if (entity.getComponent) {
+            var comp = entity.getComponent('cyber/computer');
+            if (comp) subsystems = comp.getHackableSubsystems();
+        }
+
+        _printLine('<span class="cy-info">[*] FULL TAKEOVER — hacking all subsystems on ' + _esc(entity.id) + '...</span>');
+        _printLine('    <span class="cy-dim">Targeting: ' + subsystems.join(', ') + '</span>');
+
+        var duration = 10 + tgt.hardening * 2;
+        var successChance = Math.max(0.15, 0.7 - tgt.hardening * 0.06);
+
+        _beginOpCustom('takeover', entity.id, duration, successChance, function(success) {
+            if (success) {
+                // Hack all subsystems
+                if (entity.state) {
+                    if (!entity.state._computerHackedSubsystems) {
+                        entity.state._computerHackedSubsystems = {};
+                    }
+                    for (var si = 0; si < subsystems.length; si++) {
+                        entity.state._computerHackedSubsystems[subsystems[si]] = true;
+                    }
+                    entity.state._sensorDisabled = true;
+                    entity.state._sensorRedirected = true;
+                    entity.state._navigationHijacked = true;
+                    entity.state._weaponsDisabled = true;
+                    entity.state._commsDisabled = true;
+                    entity.state._dataExfiltrated = true;
+                    entity.state._fullControl = true;
+                    entity.state._computerCompromised = true;
+                    entity.state._computerAccessLevel = 'PERSISTENT';
+                }
+
+                tgt.access = ACCESS.PERSISTENT;
+                tgt.state = TARGET_STATE.CONTROLLED;
+
+                _printLine('<span class="cy-success cy-bold">[+] ███ FULL TAKEOVER ███ — ' + _esc(entity.name || entity.id) + '</span>');
+                _printLine('    <span class="cy-warn">ALL subsystems compromised. Platform under your control.</span>');
+
+                var typeLabel = (entity.type || 'platform').toUpperCase();
+                _printLine('    <span class="cy-cyan">Platform type: ' + typeLabel + '</span>');
+                if (entity.type === 'satellite') {
+                    _printLine('    <span class="cy-magenta">Satellite captured — can redirect orbit, sensors, comms.</span>');
+                } else if (entity.type === 'aircraft') {
+                    _printLine('    <span class="cy-magenta">Aircraft captured — can redirect flight path, weapons, sensors.</span>');
+                } else if (entity.type === 'ground' || entity.type === 'ground_station') {
+                    _printLine('    <span class="cy-magenta">Ground node captured — can disable defense systems, exfil data.</span>');
+                } else if (entity.type === 'naval') {
+                    _printLine('    <span class="cy-magenta">Naval vessel captured — can redirect course, weapons, sensors.</span>');
+                }
+
+                _notifyCommEngine('exploit', entity.id, true);
+            } else {
+                _printLine('<span class="cy-error">[-] Takeover failed — defensive measures blocked access.</span>');
+                if (Math.random() < 0.5) {
+                    _printLine('<span class="cy-error">[!] ALERT: Full intrusion attempt detected!</span>');
+                    tgt.hardening = Math.min(10, tgt.hardening + 2);
+                }
+            }
+        });
+    }
+
+    function _cmdSysinfo(args) {
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Usage: sysinfo <target></span>');
+            return;
+        }
+
+        var tgt = _getOrCreateTarget(entity);
+        if (tgt.state === TARGET_STATE.UNDISCOVERED) {
+            _printLine('<span class="cy-error">[-] Target not scanned. Use "scan" first.</span>');
+            return;
+        }
+
+        _printLine('<span class="cy-cyan cy-bold">═══ SYSTEM INFO: ' + _esc(entity.name || entity.id) + ' ═══</span>');
+        _printLine('  Type: ' + (entity.type || 'unknown'));
+        _printLine('  Team: ' + (entity.team || 'unknown'));
+        _printLine('  Hardening: ' + _hardeningBar(tgt.hardening));
+
+        if (entity.getComponent) {
+            var comp = entity.getComponent('cyber/computer');
+            if (comp) {
+                _printLine('');
+                _printLine('  <span class="cy-cyan">ONBOARD COMPUTER</span>');
+                _printLine('    OS: <span class="cy-warn">' + (comp._os || 'unknown') + '</span>');
+                _printLine('    Hardening: ' + (comp._hardening * 100).toFixed(0) + '%');
+                _printLine('    Patch Level: ' + (comp._patchLevel * 100).toFixed(0) + '%');
+                _printLine('    Firewall: ' + (comp._firewallRating * 100).toFixed(0) + '%');
+                _printLine('    Vulnerability: ' + _vulnBar(comp.getVulnerability()));
+                var subs = comp.getHackableSubsystems();
+                _printLine('    Hackable: ' + subs.join(', '));
+
+                // Show hacked state
+                if (entity.state && entity.state._computerHackedSubsystems) {
+                    var hacked = entity.state._computerHackedSubsystems;
+                    var hackedList = [];
+                    for (var s = 0; s < subs.length; s++) {
+                        if (hacked[subs[s]]) hackedList.push(subs[s]);
+                    }
+                    if (hackedList.length > 0) {
+                        _printLine('    <span class="cy-error">COMPROMISED: ' + hackedList.join(', ') + '</span>');
+                    }
+                }
+                if (entity.state && entity.state._fullControl) {
+                    _printLine('    <span class="cy-error cy-bold">██ FULL CONTROL ACTIVE ██</span>');
+                }
+            } else {
+                _printLine('');
+                _printLine('  <span class="cy-dim">No onboard computer detected (legacy system).</span>');
+            }
+
+            var fw = entity.getComponent('cyber/firewall');
+            if (fw) {
+                _printLine('');
+                _printLine('  <span class="cy-cyan">FIREWALL</span>');
+                _printLine('    Rating: ' + (fw._rating * 100).toFixed(0) + '%');
+                _printLine('    IDS: ' + (fw._ids ? 'ENABLED' : 'DISABLED'));
+                _printLine('    Rules: ' + (fw._rules || 'default'));
+                if (entity.state) {
+                    _printLine('    Health: ' + ((entity.state._firewallHealth || 1) * 100).toFixed(0) + '%');
+                    _printLine('    Bypassed: ' + (entity.state._firewallBypassed ? '<span class="cy-error">YES</span>' : 'NO'));
+                    _printLine('    Alerts: ' + (entity.state._firewallAlerts || 0));
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Commands: Redirect, Lookaway, Isolate, Score
+    // -----------------------------------------------------------------------
+
+    /**
+     * redirect <target> <lat> <lon> [alt] — Redirect a hijacked platform to fly
+     * toward the specified geographic coordinates. Requires navigation to be
+     * hijacked (_navigationHijacked). Sets _hijackWaypoint on target entity.
+     */
+    function _cmdRedirect(args) {
+        if (args.length < 3) {
+            _printLine('<span class="cy-error">Usage: redirect <target> <lat> <lon> [alt]</span>');
+            _printLine('<span class="cy-dim">  Coordinates in degrees. Alt in meters (default: 500).</span>');
+            _printLine('<span class="cy-dim">  Requires navigation to be hacked first.</span>');
+            return;
+        }
+
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Target not found: ' + _esc(args[0]) + '</span>');
+            return;
+        }
+
+        var tgt = _getOrCreateTarget(entity);
+        if (tgt.access < ACCESS.ROOT) {
+            _printLine('<span class="cy-error">[-] Need ROOT access. Run "escalate" first.</span>');
+            return;
+        }
+
+        if (!entity.state || !entity.state._navigationHijacked) {
+            _printLine('<span class="cy-error">[-] Navigation not hijacked. Run "hack ' + _esc(entity.id) + ' nav" first.</span>');
+            return;
+        }
+
+        var lat = parseFloat(args[1]);
+        var lon = parseFloat(args[2]);
+        var alt = args.length > 3 ? parseFloat(args[3]) : 500;
+
+        if (isNaN(lat) || isNaN(lon)) {
+            _printLine('<span class="cy-error">[-] Invalid coordinates. Use decimal degrees.</span>');
+            return;
+        }
+
+        // Convert degrees to radians for internal use
+        var DEG_RAD = Math.PI / 180;
+        entity.state._hijackWaypoint = {
+            lat: lat * DEG_RAD,
+            lon: lon * DEG_RAD,
+            alt: alt,
+            speed: 100  // slow — vulnerable
+        };
+
+        _printLine('<span class="cy-success">[+] REDIRECT — ' + _esc(entity.name || entity.id) + '</span>');
+        _printLine('    Target coords: <span class="cy-cyan">' + lat.toFixed(4) + '°, ' + lon.toFixed(4) + '°</span> alt <span class="cy-cyan">' + alt + 'm</span>');
+        _printLine('    <span class="cy-warn">Platform will fly toward specified coordinates.</span>');
+
+        if (entity.type === 'aircraft') {
+            _printLine('    <span class="cy-magenta">Aircraft descending to ' + alt + 'm — entering SAM engagement zone.</span>');
+        } else if (entity.type === 'satellite') {
+            _printLine('    <span class="cy-magenta">Satellite orbit modification in progress.</span>');
+        }
+    }
+
+    /**
+     * lookaway <target> [bearing_deg] — Force a compromised radar to scan
+     * a useless bearing. Sets _sensorForcedBearing on target.
+     * Requires sensors to be hacked.
+     */
+    function _cmdLookaway(args) {
+        if (args.length < 1) {
+            _printLine('<span class="cy-error">Usage: lookaway <target> [bearing_deg]</span>');
+            _printLine('<span class="cy-dim">  Default: 180° (opposite of threats). Range: 0-360.</span>');
+            _printLine('<span class="cy-dim">  Requires sensors to be hacked first.</span>');
+            return;
+        }
+
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Target not found: ' + _esc(args[0]) + '</span>');
+            return;
+        }
+
+        var tgt = _getOrCreateTarget(entity);
+        if (tgt.access < ACCESS.ROOT) {
+            _printLine('<span class="cy-error">[-] Need ROOT access. Run "escalate" first.</span>');
+            return;
+        }
+
+        var deg = entity.state._cyberDegradation;
+        if (!deg || deg.sensors < 0.5) {
+            _printLine('<span class="cy-error">[-] Sensors not sufficiently degraded. Run "hack ' + _esc(entity.id) + ' sensors" first.</span>');
+            return;
+        }
+
+        var bearing = args.length > 1 ? parseFloat(args[1]) : 180;
+        if (isNaN(bearing)) bearing = 180;
+        bearing = ((bearing % 360) + 360) % 360;
+
+        entity.state._sensorRedirected = true;
+        entity.state._sensorForcedBearing = bearing;
+
+        _printLine('<span class="cy-success">[+] LOOKAWAY — ' + _esc(entity.name || entity.id) + '</span>');
+        _printLine('    Forced bearing: <span class="cy-cyan">' + bearing.toFixed(0) + '°</span>');
+        _printLine('    <span class="cy-warn">Radar now scanning in wrong direction.</span>');
+        _printLine('    <span class="cy-dim">Threats approaching from other bearings will go undetected.</span>');
+    }
+
+    /**
+     * isolate <target> — Disconnect a compromised node from all comm networks.
+     * Requires the target to be exploited. Sets _commIsolated on entity state,
+     * which CommEngine uses to exclude it from packet routing.
+     */
+    function _cmdIsolate(args) {
+        if (args.length < 1) {
+            _printLine('<span class="cy-error">Usage: isolate <target></span>');
+            _printLine('<span class="cy-dim">  Disconnects node from comm network. Can isolate enemy OR friendly nodes.</span>');
+            return;
+        }
+
+        var entity = _resolveTarget(args[0]);
+        if (!entity) {
+            _printLine('<span class="cy-error">Target not found: ' + _esc(args[0]) + '</span>');
+            return;
+        }
+
+        var tgt = _getOrCreateTarget(entity);
+
+        // Isolating friendly nodes requires only SCANNED state (defensive action)
+        if (entity.team === _playerTeam) {
+            if (!entity.state) return;
+            entity.state._commIsolated = true;
+            _printLine('<span class="cy-success">[+] ISOLATED — ' + _esc(entity.name || entity.id) + ' (friendly)</span>');
+            _printLine('    <span class="cy-warn">Node disconnected from comm network as defensive measure.</span>');
+            _printLine('    <span class="cy-dim">Will not receive or forward any packets.</span>');
+            return;
+        }
+
+        // Isolating enemy nodes requires ROOT access
+        if (tgt.access < ACCESS.ROOT) {
+            _printLine('<span class="cy-error">[-] Need ROOT access on enemy node. Run "escalate" first.</span>');
+            return;
+        }
+
+        if (!entity.state) return;
+        entity.state._commIsolated = true;
+
+        _printLine('<span class="cy-success">[+] ISOLATED — ' + _esc(entity.name || entity.id) + '</span>');
+        _printLine('    <span class="cy-warn">Enemy node cut off from comm network.</span>');
+        _printLine('    <span class="cy-dim">No targeting data, no track updates, no command relay.</span>');
+
+        // Notify CommEngine
+        _notifyCommEngine('isolate', entity.id, true);
+    }
+
+    /**
+     * score — Display cyber warfare scoreboard with per-team metrics.
+     * Scans all entities in the world and tallies cyber state flags.
+     */
+    function _cmdScore(args) {
+        if (!_world) {
+            _printLine('<span class="cy-error">No world loaded.</span>');
+            return;
+        }
+
+        var stats = {};
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.state || !ent.active) return;
+            var team = ent.team || 'neutral';
+            if (!stats[team]) {
+                stats[team] = { total: 0, scanned: 0, exploited: 0, controlled: 0,
+                    sensorsOff: 0, weaponsOff: 0, navHijacked: 0, commsOff: 0,
+                    bricked: 0, isolated: 0, dataExfil: 0 };
+            }
+            var t = stats[team];
+            t.total++;
+            if (ent.state._cyberScanning) t.scanned++;
+            if (ent.state._cyberExploited) t.exploited++;
+            if (ent.state._cyberControlled || ent.state._fullControl) t.controlled++;
+            if (ent.state._sensorDisabled) t.sensorsOff++;
+            if (ent.state._weaponsDisabled) t.weaponsOff++;
+            if (ent.state._navigationHijacked) t.navHijacked++;
+            if (ent.state._commsDisabled) t.commsOff++;
+            if (ent.state._commBricked) t.bricked++;
+            if (ent.state._commIsolated) t.isolated++;
+            if (ent.state._dataExfiltrated) t.dataExfil++;
+        });
+
+        _printLine('<span class="cy-cyan cy-bold">═══ CYBER WARFARE SCOREBOARD ═══</span>');
+        _printLine('');
+
+        var teams = Object.keys(stats).sort();
+        for (var ti = 0; ti < teams.length; ti++) {
+            var team = teams[ti];
+            var s = stats[team];
+            var color = team === 'blue' ? 'cy-info' : team === 'red' ? 'cy-error' : 'cy-dim';
+            _printLine('<span class="' + color + ' cy-bold">' + team.toUpperCase() + '</span> (' + s.total + ' entities)');
+
+            var compromised = s.exploited + s.controlled;
+            var subsOff = s.sensorsOff + s.weaponsOff + s.navHijacked + s.commsOff;
+
+            if (compromised === 0 && subsOff === 0 && s.bricked === 0) {
+                _printLine('  <span class="cy-success">All systems nominal. No cyber damage.</span>');
+            } else {
+                if (s.exploited > 0) _printLine('  Exploited: <span class="cy-error">' + s.exploited + '</span>');
+                if (s.controlled > 0) _printLine('  Under control: <span class="cy-error cy-bold">' + s.controlled + '</span>');
+                if (s.sensorsOff > 0) _printLine('  Sensors disabled: <span class="cy-warn">' + s.sensorsOff + '</span>');
+                if (s.weaponsOff > 0) _printLine('  Weapons disabled: <span class="cy-warn">' + s.weaponsOff + '</span>');
+                if (s.navHijacked > 0) _printLine('  Nav hijacked: <span class="cy-warn">' + s.navHijacked + '</span>');
+                if (s.commsOff > 0) _printLine('  Comms disabled: <span class="cy-warn">' + s.commsOff + '</span>');
+                if (s.bricked > 0) _printLine('  Bricked: <span class="cy-error">' + s.bricked + '</span>');
+                if (s.isolated > 0) _printLine('  Isolated: <span class="cy-warn">' + s.isolated + '</span>');
+                if (s.dataExfil > 0) _printLine('  Data exfiltrated: <span class="cy-magenta">' + s.dataExfil + '</span>');
+            }
+
+            // Score: each compromised entity = points for opposing team
+            var damageScore = s.exploited * 5 + s.controlled * 10 + subsOff * 3 +
+                              s.bricked * 8 + s.dataExfil * 8;
+            _printLine('  <span class="cy-dim">Damage taken: ' + damageScore + ' pts</span>');
+            _printLine('');
+        }
+
+        // Net advantage
+        if (stats.blue && stats.red) {
+            var blueDmg = stats.blue.exploited * 5 + stats.blue.controlled * 10 +
+                (stats.blue.sensorsOff + stats.blue.weaponsOff + stats.blue.navHijacked + stats.blue.commsOff) * 3 +
+                stats.blue.bricked * 8 + stats.blue.dataExfil * 8;
+            var redDmg = stats.red.exploited * 5 + stats.red.controlled * 10 +
+                (stats.red.sensorsOff + stats.red.weaponsOff + stats.red.navHijacked + stats.red.commsOff) * 3 +
+                stats.red.bricked * 8 + stats.red.dataExfil * 8;
+
+            if (redDmg > blueDmg) {
+                _printLine('<span class="cy-error cy-bold">RED ADVANTAGE: +' + (redDmg - blueDmg) + ' pts</span>');
+            } else if (blueDmg > redDmg) {
+                _printLine('<span class="cy-info cy-bold">BLUE ADVANTAGE: +' + (blueDmg - redDmg) + ' pts</span>');
+            } else {
+                _printLine('<span class="cy-warn cy-bold">TIED — both teams equally damaged</span>');
+            }
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1232,9 +1892,38 @@
                         entity.state._cyberControlled = false;
                         entity.state._cyberDenied = false;
                         entity.state._cyberAccessLevel = 0;
+                        // Clear all subsystem hack flags
+                        entity.state._sensorDisabled = false;
+                        entity.state._sensorRedirected = false;
+                        entity.state._navigationHijacked = false;
+                        entity.state._weaponsDisabled = false;
+                        entity.state._commsDisabled = false;
+                        entity.state._dataExfiltrated = false;
+                        entity.state._fullControl = false;
+                        entity.state._computerCompromised = false;
+                        entity.state._commIsolated = false;
+                        entity.state._hijackWaypoint = null;
+                        entity.state._sensorForcedBearing = null;
+                        // Clear degradation
+                        if (entity.state._cyberDegradation) {
+                            entity.state._cyberDegradation = { sensors: 0, navigation: 0, weapons: 0, comms: 0 };
+                        }
+                        if (entity.state._computerHackedSubsystems) {
+                            entity.state._computerHackedSubsystems = {};
+                        }
+                    }
+                    // Update Computer component — increase patch level
+                    if (entity.getComponent) {
+                        var comp = entity.getComponent('cyber/computer');
+                        if (comp) {
+                            comp._patchLevel = Math.min(1.0, (comp._patchLevel || 0) + 0.2);
+                            comp._compromised = false;
+                            _printLine('    Computer patch level: <span class="cy-cyan">' +
+                                (comp._patchLevel * 100).toFixed(0) + '%</span>');
+                        }
                     }
                     _notifyCommEngine('patch', entity.id, false);
-                    _printLine('<span class="cy-success">[+] PATCHED: ' + _esc(entity.id) + ' — all exploits removed.</span>');
+                    _printLine('<span class="cy-success">[+] PATCHED: ' + _esc(entity.id) + ' — all exploits removed, subsystems restored.</span>');
                 });
                 break;
 
@@ -1243,7 +1932,33 @@
                 _beginOpCustom('firewall', entity.id, 3, 0.98, function() {
                     tgt.firewalled = true;
                     tgt.hardening = Math.min(10, tgt.hardening + 2);
-                    _printLine('<span class="cy-success">[+] FIREWALL ACTIVE: ' + _esc(entity.id) + ' — scan resistance +2</span>');
+                    // Activate or upgrade Firewall component
+                    if (entity.getComponent) {
+                        var fw = entity.getComponent('cyber/firewall');
+                        if (fw) {
+                            // Upgrade existing firewall
+                            fw._rating = Math.min(1.0, (fw._rating || 0.5) + 0.15);
+                            fw._idsEnabled = true;
+                            if (entity.state) {
+                                entity.state._firewallActive = true;
+                                entity.state._firewallBypassed = false;
+                                entity.state._firewallHealth = Math.min(1.0, (entity.state._firewallHealth || 0.5) + 0.3);
+                            }
+                            _printLine('<span class="cy-success">[+] FIREWALL UPGRADED: ' + _esc(entity.id) +
+                                ' — rating ' + (fw._rating * 100).toFixed(0) + '%, IDS active, health restored</span>');
+                        } else {
+                            // No Firewall component — just boost hardening
+                            _printLine('<span class="cy-success">[+] FIREWALL RULES APPLIED: ' + _esc(entity.id) +
+                                ' — scan resistance +2</span>');
+                        }
+                        // Also boost Computer firewallRating
+                        var comp = entity.getComponent('cyber/computer');
+                        if (comp) {
+                            comp._firewallRating = Math.min(1.0, (comp._firewallRating || 0) + 0.15);
+                        }
+                    } else {
+                        _printLine('<span class="cy-success">[+] FIREWALL ACTIVE: ' + _esc(entity.id) + ' — scan resistance +2</span>');
+                    }
                 });
                 break;
 
@@ -1251,7 +1966,26 @@
                 _printLine('<span class="cy-info">[*] Hardening ' + _esc(entity.id) + '...</span>');
                 _beginOpCustom('harden', entity.id, 10, 1.0, function() {
                     tgt.hardening = Math.min(10, tgt.hardening + 3);
-                    _printLine('<span class="cy-success">[+] HARDENED: ' + _esc(entity.id) + ' — level now ' + tgt.hardening + '/10</span>');
+                    // Upgrade Computer component hardening
+                    if (entity.getComponent) {
+                        var comp = entity.getComponent('cyber/computer');
+                        if (comp) {
+                            comp._hardening = Math.min(1.0, (comp._hardening || 0) + 0.15);
+                            comp._patchLevel = Math.min(1.0, (comp._patchLevel || 0) + 0.1);
+                            _printLine('<span class="cy-success">[+] HARDENED: ' + _esc(entity.id) +
+                                ' — computer hardening ' + (comp._hardening * 100).toFixed(0) +
+                                '%, patch ' + (comp._patchLevel * 100).toFixed(0) + '%</span>');
+                        } else {
+                            _printLine('<span class="cy-success">[+] HARDENED: ' + _esc(entity.id) + ' — level now ' + tgt.hardening + '/10</span>');
+                        }
+                        // Also restore Firewall health if present
+                        var fw = entity.getComponent('cyber/firewall');
+                        if (fw && entity.state) {
+                            entity.state._firewallHealth = Math.min(1.0, (entity.state._firewallHealth || 0.5) + 0.1);
+                        }
+                    } else {
+                        _printLine('<span class="cy-success">[+] HARDENED: ' + _esc(entity.id) + ' — level now ' + tgt.hardening + '/10</span>');
+                    }
                 });
                 break;
         }
@@ -1512,6 +2246,24 @@
         var duration = timing.base + hardening * timing.perHardening;
         var successChance = Math.max(0.15, 0.9 - hardening * 0.07);
 
+        // Factor in Computer component vulnerability if present
+        var ent = _world ? _world.getEntity(targetId) : null;
+        if (ent && ent.getComponent) {
+            var comp = ent.getComponent('cyber/computer');
+            if (comp && typeof comp.getVulnerability === 'function') {
+                var vuln = comp.getVulnerability(); // 0.05-0.95
+                // Higher vulnerability = easier attack = shorter duration, higher success
+                duration *= (1.2 - vuln);
+                successChance = Math.min(0.95, successChance + vuln * 0.2);
+            }
+            // Factor in Firewall component
+            var fw = ent.getComponent('cyber/firewall');
+            if (fw && ent.state && ent.state._firewallActive && !ent.state._firewallBypassed) {
+                duration *= 1.5;
+                successChance *= 0.7;
+            }
+        }
+
         _beginOpCustom(type, targetId, duration, successChance, callback);
     }
 
@@ -1572,7 +2324,8 @@
             for (var oi = 0; oi < _activeOps.length; oi++) {
                 var scanOp = _activeOps[oi];
                 if (scanOp.type === 'scan' || scanOp.type === 'exploit' || scanOp.type === 'brick' ||
-                    scanOp.type === 'ddos' || scanOp.type === 'mitm' || scanOp.type === 'inject') {
+                    scanOp.type === 'ddos' || scanOp.type === 'mitm' || scanOp.type === 'inject' ||
+                    scanOp.type.indexOf('exfil') === 0) {
                     var scanEnt = _world.getEntity(scanOp.targetId);
                     if (scanEnt && scanEnt.state) {
                         scanEnt.state._cyberScanning = true;
@@ -1657,6 +2410,15 @@
             ent.state._cyberControlled = (tgt.state === TARGET_STATE.CONTROLLED || tgt.access >= ACCESS.PERSISTENT);
             ent.state._cyberDenied = (tgt.state === TARGET_STATE.DENIED);
             ent.state._cyberAccessLevel = tgt.access;
+
+            // Sync to Computer component if present
+            if (ent.getComponent) {
+                var comp = ent.getComponent('cyber/computer');
+                if (comp) {
+                    ent.state._computerCompromised = (tgt.access >= ACCESS.USER);
+                    ent.state._computerAccessLevel = ACCESS_NAMES[tgt.access] || 'NONE';
+                }
+            }
         }
     }
 
@@ -1695,7 +2457,18 @@
     }
 
     function _computeHardening(entity) {
-        // Compute hardening based on entity type/importance
+        // If entity has a Computer component, use its real data
+        if (entity.getComponent) {
+            var comp = entity.getComponent('cyber/computer');
+            if (comp) {
+                // Scale 0-1 hardening + patchLevel to 0-10 difficulty
+                var h = (comp._hardening || 0) + (comp._patchLevel || 0);
+                var fw = comp._firewallRating || 0;
+                return Math.min(10, Math.round(h * 4 + fw * 2 + Math.random()));
+            }
+        }
+
+        // Fallback: estimate from entity type/importance
         var base = 3;
         var type = (entity.type || '').toLowerCase();
         if (type === 'ground_station' || type === 'ground') base = 5;
@@ -1773,6 +2546,85 @@
     }
 
     // -----------------------------------------------------------------------
+    // Network access check
+    // -----------------------------------------------------------------------
+
+    /**
+     * Check if the player's cyber ops station can reach a target entity
+     * through the communications network. Returns an object:
+     *   { reachable: bool, method: string, via: string|null }
+     *
+     * Reachability methods:
+     *   'direct'  — target shares a network with a friendly node
+     *   'pivot'   — target is reachable through a compromised pivot node
+     *   'local'   — target is on the same team (defense commands)
+     *   'ddos'    — DDoS doesn't require network access, just proximity
+     *   'none'    — no network path found
+     */
+    function _checkNetworkAccess(targetEntity, opType) {
+        // Defense operations on friendly nodes always allowed
+        if (targetEntity.team === _playerTeam) {
+            return { reachable: true, method: 'local', via: null };
+        }
+
+        // DDoS doesn't need precise network access
+        if (opType === 'ddos') {
+            return { reachable: true, method: 'ddos', via: null };
+        }
+
+        // If CommEngine isn't loaded, allow all (fallback for simple scenarios)
+        if (typeof CommEngine === 'undefined' || !CommEngine.isInitialized()) {
+            return { reachable: true, method: 'direct', via: null };
+        }
+
+        var targetId = targetEntity.id;
+
+        // Check: does target share any network with any friendly node?
+        var friendlyNodes = [];
+        _world.entities.forEach(function(ent) {
+            if (!ent.active) return;
+            if (ent.team === _playerTeam) friendlyNodes.push(ent.id);
+        });
+
+        for (var fi = 0; fi < friendlyNodes.length; fi++) {
+            var friendComms = CommEngine.getEntityComms(friendlyNodes[fi]);
+            if (!friendComms || !friendComms.links) continue;
+            for (var li = 0; li < friendComms.links.length; li++) {
+                if (friendComms.links[li].peerId === targetId) {
+                    return { reachable: true, method: 'direct', via: friendlyNodes[fi] };
+                }
+            }
+        }
+
+        // Check: reachable through a pivot node?
+        for (var tid in _targets) {
+            var tgt = _targets[tid];
+            if (!tgt.isPivot) continue;
+            var pivotComms = CommEngine.getEntityComms(tid);
+            if (!pivotComms || !pivotComms.links) continue;
+            for (var pli = 0; pli < pivotComms.links.length; pli++) {
+                if (pivotComms.links[pli].peerId === targetId) {
+                    return { reachable: true, method: 'pivot', via: tid };
+                }
+            }
+        }
+
+        // Check: target shares any network with any compromised node?
+        for (var ctid in _targets) {
+            if (_targets[ctid].access < ACCESS.USER) continue;
+            var compComms = CommEngine.getEntityComms(ctid);
+            if (!compComms || !compComms.links) continue;
+            for (var cli = 0; cli < compComms.links.length; cli++) {
+                if (compComms.links[cli].peerId === targetId) {
+                    return { reachable: true, method: 'pivot', via: ctid };
+                }
+            }
+        }
+
+        return { reachable: false, method: 'none', via: null };
+    }
+
+    // -----------------------------------------------------------------------
     // CommEngine integration
     // -----------------------------------------------------------------------
     function _notifyCommEngine(type, targetId, active) {
@@ -1817,6 +2669,18 @@
         return bar + ' ' + filled + '/10';
     }
 
+    function _vulnBar(vuln) {
+        // vuln is 0.05-0.95, show as colored bar
+        var pct = Math.round(vuln * 100);
+        var color = pct > 60 ? 'cy-error' : pct > 30 ? 'cy-warn' : 'cy-success';
+        var filled = Math.round(vuln * 10);
+        var bar = '';
+        for (var i = 0; i < 10; i++) {
+            bar += i < filled ? '<span class="' + color + '">█</span>' : '<span class="cy-dim">░</span>';
+        }
+        return bar + ' <span class="' + color + '">' + pct + '%</span>';
+    }
+
     function _progressBar(fraction) {
         var width = 20;
         var filled = Math.floor(fraction * width);
@@ -1845,6 +2709,7 @@
     window.CyberCockpit = {
         init: init,
         toggle: toggle,
+        show: show,
         isVisible: isVisible,
         update: update,
         setPlayerTeam: setPlayerTeam,

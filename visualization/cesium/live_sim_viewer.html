@@ -1119,6 +1119,10 @@
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Cyber Terminal (~)</span>
         </div>
+        <div class="settings-item" data-panel="cyberLog">
+            <div class="settings-check">&#10003;</div>
+            <span class="settings-label">Cyber Log (Shift+C)</span>
+        </div>
         <div class="settings-item active" data-viz="globalComms">
             <div class="settings-check">&#10003;</div>
             <span class="settings-label">Comm Links</span>
@@ -1308,6 +1312,26 @@
         </div>
     </div>
 
+    <!-- ===================== CYBER LOG PANEL ===================== -->
+    <div id="cyberLogPanel" style="display:none; position:absolute; right:10px; top:60px; width:400px; max-height:50vh; background:rgba(0,0,0,0.85); border:1px solid #0fc; border-radius:6px; z-index:50; overflow:hidden;">
+        <div style="padding:8px 12px; background:rgba(0,255,200,0.1); border-bottom:1px solid #0fc; display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#0fc; font-weight:bold; font-size:13px;">CYBER INCIDENT LOG</span>
+            <div>
+                <select id="cyberLogFilter" style="background:#111; color:#0fc; border:1px solid #0fc; font-size:11px; padding:2px 4px;">
+                    <option value="all">All Events</option>
+                    <option value="attack">Attacks</option>
+                    <option value="defense">Defense</option>
+                    <option value="exfil">Exfiltration</option>
+                    <option value="lateral">Lateral Movement</option>
+                </select>
+                <span id="cyberLogClear" style="cursor:pointer; color:#666; font-size:10px; border:1px solid #333; padding:1px 4px; border-radius:3px; margin-left:6px;">CLEAR</span>
+                <span id="cyberLogClose" style="cursor:pointer; color:#888; margin-left:8px; font-size:14px;">&times;</span>
+            </div>
+        </div>
+        <div id="cyberLogContent" style="overflow-y:auto; max-height:calc(50vh - 80px); padding:4px; font-family:monospace; font-size:11px;"></div>
+        <div id="cyberLogStats" style="padding:4px 12px; border-top:1px solid #333; color:#888; font-size:10px; line-height:1.4;"></div>
+    </div>
+
     <!-- ===================== MANEUVER DIALOG ===================== -->
     <div id="maneuverDialog">
         <div class="mnv-header">
@@ -1487,10 +1511,13 @@
     <script src="js/components/physics/flight3dof.js"></script>
     <script src="js/components/physics/naval.js"></script>
     <script src="js/components/physics/orbital_2body.js"></script>
+    <script src="js/components/physics/static_ground.js"></script>
     <script src="js/builder/sensor_view_mode.js"></script>
     <script src="js/components/control/player_input.js"></script>
     <script src="js/components/ai/waypoint_patrol.js"></script>
     <script src="js/components/ai/intercept.js"></script>
+    <script src="js/components/ai/cyber_ops.js"></script>
+    <script src="js/components/ai/cyber_defense.js"></script>
     <script src="js/components/ai/orbital_combat.js"></script>
     <script src="js/components/ai/formation.js"></script>
     <script src="js/components/sensors/radar.js"></script>
@@ -1511,6 +1538,8 @@
 
     <!-- Scripts: Cyber -->
     <script src="js/components/cyber/cyber_actor.js"></script>
+    <script src="js/components/cyber/computer.js"></script>
+    <script src="js/components/cyber/firewall.js"></script>
 
     <!-- Scripts: Communications Engine -->
     <script src="js/comm_engine.js"></script>
@@ -2046,7 +2075,7 @@
                         var ent = entities[i];
                         var comps = ent.components || {};
                         var physType = comps.physics && comps.physics.type;
-                        if (physType === 'flight3dof' || physType === 'orbital_2body') {
+                        if (physType === 'flight3dof' || physType === 'orbital_2body' || physType === 'static_ground') {
                             controllable.push(ent);
                         } else {
                             others.push(ent);
@@ -2099,7 +2128,8 @@
                 var teamColor = ent.team === 'blue' ? '#4488ff' :
                     ent.team === 'red' ? '#ff4444' : '#888888';
                 var physLabel = physType === 'flight3dof' ? (physConfig || 'aircraft').toUpperCase() :
-                    physType === 'orbital_2body' ? 'ORBITAL' : physType.toUpperCase();
+                    physType === 'orbital_2body' ? 'ORBITAL' :
+                    physType === 'static_ground' ? 'GROUND' : physType.toUpperCase();
 
                 var detailParts = [ent.team || 'neutral'];
                 if (ent.type) detailParts.push(ent.type);

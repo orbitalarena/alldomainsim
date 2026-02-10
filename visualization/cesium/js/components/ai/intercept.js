@@ -89,8 +89,44 @@ const InterceptAI = (function() {
 
         update(dt, world) {
             const state = this.entity.state;
-            const target = this._targetId ? world.getEntity(this._targetId) : null;
             const cmd = { pitch: 0, roll: 0, yaw: 0, throttleUp: false, throttleDown: false };
+
+            // Navigation hijacked by cyber attack — redirect to hijack waypoint or random jink
+            if (state._navigationHijacked) {
+                if (state._hijackWaypoint) {
+                    // Steer toward hijack waypoint instead of intercept target
+                    var hjWp = state._hijackWaypoint;
+                    var hjBearing = greatCircleBearing(state.lat, state.lon, hjWp.lat, hjWp.lon);
+                    var hjHeadingError = angleDiff(hjBearing, state.heading || 0);
+
+                    cmd.roll = Math.max(-1, Math.min(1, hjHeadingError * 2));
+                    // Descend to hijack altitude
+                    var hjAltErr = (hjWp.alt || 500) - (state.alt || 0);
+                    cmd.pitch = Math.max(-0.5, Math.min(0.5, hjAltErr * 0.001));
+                    // Slow down to hijack speed
+                    var hjSpeed = hjWp.speed || 100;
+                    var curSpeed = state.speed || 0;
+                    if (curSpeed > hjSpeed * 1.1) cmd.throttleDown = true;
+                    else if (curSpeed < hjSpeed * 0.9) cmd.throttleUp = true;
+                } else {
+                    // No specific waypoint — random jinking (fallback behavior)
+                    cmd.roll = (Math.random() - 0.5) * 0.4;
+                    cmd.pitch = (Math.random() - 0.5) * 0.1;
+                    cmd.throttleUp = Math.random() > 0.5;
+                }
+                state._commands = cmd;
+                state._interceptState = 'hijacked';
+                return;
+            }
+
+            // Cyber navigation degradation — graduated aim error
+            var navDeg = state._cyberDegradation ? (state._cyberDegradation.navigation || 0) : 0;
+            var navAimBias = 0;
+            if (navDeg > 0 && navDeg < 1) {
+                navAimBias = navDeg * 20 * DEG * Math.sin((world.simTime || 0) * 0.15 + (this.entity.id || '').length);
+            }
+
+            const target = this._targetId ? world.getEntity(this._targetId) : null;
 
             // No valid target — go idle
             if (!target || !target.active) {
@@ -137,7 +173,8 @@ const InterceptAI = (function() {
 
             // Heading command (roll to turn)
             const desiredBearing = greatCircleBearing(state.lat, state.lon, aimLat, aimLon);
-            const headingError = angleDiff(desiredBearing, state.heading || 0);
+            const adjustedBearing = desiredBearing + navAimBias;
+            const headingError = angleDiff(adjustedBearing, state.heading || 0);
             const maxTurn = this._turnRate * dt;
 
             if (Math.abs(headingError) > 0.01) {

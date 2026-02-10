@@ -41,6 +41,21 @@ var Minimap = (function() {
     var COLOR_RANGE_TEXT = 'rgba(0, 255, 100, 0.50)';
     var COLOR_BORDER = 'rgba(0, 180, 80, 0.40)';
 
+    // Cyber layer colors
+    var COLOR_CYBER_CONTROLLED = '#ff2222';       // pulsing red ring — full control
+    var COLOR_CYBER_EXPLOITED = '#dd44dd';         // magenta inner ring — compromised
+    var COLOR_CYBER_SCANNING = '#ffdd00';          // yellow expanding pulse — scanning
+    var COLOR_CYBER_SUBSYS_DISABLED = '#ff8800';   // orange outline — subsystem disabled
+    var COLOR_CYBER_ATTACK_LINE = '#ff2222';       // dashed red attack line
+    var COLOR_COMM_HEALTHY = '#44ff44';            // green comm link
+    var COLOR_COMM_DEGRADED = '#ffcc00';           // yellow degraded link
+    var COLOR_COMM_COMPROMISED = '#ff4444';        // red compromised link
+    var COLOR_COMM_BRICKED = '#666666';            // gray bricked link
+    var COLOR_CYBER_TOGGLE_BG = 'rgba(0, 180, 80, 0.30)';
+    var COLOR_CYBER_TOGGLE_ACTIVE = 'rgba(0, 255, 100, 0.80)';
+    var COLOR_CYBER_TOGGLE_INACTIVE = 'rgba(0, 255, 100, 0.35)';
+    var COLOR_CYBER_SUMMARY = 'rgba(255, 100, 100, 0.85)';
+
     // Entity type classification
     var GROUND_TYPES = { ground_station: 1, sam: 1, ew_radar: 1, gps_receiver: 1, ground: 1, naval: 1 };
     var SAT_TYPES = { satellite: 1, leo_satellite: 1, gps_satellite: 1, geo_satellite: 1, spacecraft: 1 };
@@ -50,6 +65,9 @@ var Minimap = (function() {
 
     // Max entities to render
     var MAX_ENTITIES = 200;
+
+    // Cyber layer state
+    var _showCyberLayer = true;
 
     // ===================== CSS INJECTION =====================
     function _injectStyles() {
@@ -262,7 +280,34 @@ var Minimap = (function() {
 
                 var isGround = GROUND_TYPES[ent.type] || false;
 
+                // Cyber state flags for overlay
+                var cyberFlags = null;
+                if (_showCyberLayer) {
+                    var hasAnyCyber = s._cyberControlled || s._fullControl ||
+                        s._cyberExploited || s._computerCompromised ||
+                        s._cyberScanning ||
+                        s._sensorDisabled || s._weaponsDisabled || s._navigationHijacked ||
+                        s._cyberOpsTarget || (s._cyberOpsCompromisedTargets && s._cyberOpsCompromisedTargets.length > 0) ||
+                        s._commsDisabled || s._commBricked ||
+                        (s._cyberDegradation && (s._cyberDegradation.sensors > 0 || s._cyberDegradation.navigation > 0 ||
+                            s._cyberDegradation.weapons > 0 || s._cyberDegradation.comms > 0));
+                    if (hasAnyCyber) {
+                        cyberFlags = {
+                            controlled: !!(s._cyberControlled || s._fullControl),
+                            exploited: !!(s._cyberExploited || s._computerCompromised),
+                            scanning: !!s._cyberScanning,
+                            subsysDisabled: !!(s._sensorDisabled || s._weaponsDisabled || s._navigationHijacked),
+                            attackTarget: s._cyberOpsTarget || null,
+                            compromisedTargets: s._cyberOpsCompromisedTargets ? s._cyberOpsCompromisedTargets.slice() : null,
+                            commsDisabled: !!s._commsDisabled,
+                            commBricked: !!s._commBricked,
+                            degradation: s._cyberDegradation || null
+                        };
+                    }
+                }
+
                 entities.push({
+                    id: ent.id,
                     dx: dx,
                     dy: dy,
                     dist: dist,
@@ -270,7 +315,8 @@ var Minimap = (function() {
                     team: ent.team || 'neutral',
                     type: ent.type || 'unknown',
                     isGround: isGround,
-                    active: ent.active !== false
+                    active: ent.active !== false,
+                    cyber: cyberFlags
                 });
             });
         }
@@ -287,6 +333,9 @@ var Minimap = (function() {
 
         // --- Draw entities ---
         var pixelScale = (_halfSize - 4) / _rangeM;
+
+        // Build screen-position lookup for cyber attack lines (by entity ID)
+        var screenPos = {};  // entityId -> { sx, sy, visible }
 
         for (var ei = 0; ei < entities.length; ei++) {
             var e = entities[ei];
@@ -310,7 +359,14 @@ var Minimap = (function() {
 
             // Clip to range circle
             var screenDist = Math.sqrt(ex * ex + ey * ey);
-            if (screenDist > _halfSize - 4) continue;
+            var isClipped = screenDist > _halfSize - 4;
+
+            // Store screen position for cyber line drawing
+            if (e.id) {
+                screenPos[e.id] = { sx: sx, sy: sy, visible: !isClipped };
+            }
+
+            if (isClipped) continue;
 
             // Select color by team
             var color;
@@ -348,6 +404,11 @@ var Minimap = (function() {
             if (!e.active) {
                 ctx.globalAlpha = 1.0;
             }
+        }
+
+        // ===================== CYBER TERRAIN LAYER =====================
+        if (_showCyberLayer) {
+            _drawCyberLayer(ctx, entities, screenPos, ecsWorld, simTime, cx, cy, pixelScale, rotAngle);
         }
 
         // --- Player marker at center ---
@@ -414,12 +475,327 @@ var Minimap = (function() {
         ctx.textAlign = 'left';
         ctx.fillText(visibleCount + ' TGT', 8, h - 6);
 
+        // --- Cyber layer toggle button ("C" in corner) ---
+        _drawCyberToggle(ctx, w, h);
+
+        // --- Cyber status summary (when cyber layer active) ---
+        if (_showCyberLayer) {
+            _drawCyberSummary(ctx, entities, w);
+        }
+
         // --- Border circle ---
         ctx.strokeStyle = COLOR_BORDER;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.arc(cx, cy, _halfSize - 1, 0, Math.PI * 2);
         ctx.stroke();
+    }
+
+    // ===================== CYBER TERRAIN DRAWING =====================
+
+    /**
+     * Draw all cyber layer elements: entity indicators, attack lines, comm links.
+     */
+    function _drawCyberLayer(ctx, entities, screenPos, ecsWorld, simTime, cx, cy, pixelScale, rotAngle) {
+        var t = simTime || 0;
+
+        // --- 1. Comm network links (drawn first, underneath everything) ---
+        _drawCommNetworkLinks(ctx, entities, screenPos, ecsWorld, cx, cy, pixelScale, rotAngle);
+
+        // --- 2. Cyber attack lines (attacker -> target dashed red) ---
+        _drawCyberAttackLines(ctx, entities, screenPos);
+
+        // --- 3. Hacked entity indicators (drawn over entity dots) ---
+        for (var ci = 0; ci < entities.length; ci++) {
+            var ent = entities[ci];
+            if (!ent.cyber || !ent.id) continue;
+            var pos = screenPos[ent.id];
+            if (!pos || !pos.visible) continue;
+
+            _drawCyberEntityIndicators(ctx, ent, pos.sx, pos.sy, t);
+        }
+    }
+
+    /**
+     * Draw cyber indicators around a single entity dot.
+     */
+    function _drawCyberEntityIndicators(ctx, ent, sx, sy, simTime) {
+        var cyber = ent.cyber;
+        if (!cyber) return;
+
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+
+        // (a) Full control / cyberControlled: pulsing red ring
+        if (cyber.controlled) {
+            var pulseRadius = 6 + 2 * Math.sin(simTime * 4);
+            ctx.strokeStyle = COLOR_CYBER_CONTROLLED;
+            ctx.globalAlpha = 0.6 + 0.3 * Math.sin(simTime * 4);
+            ctx.beginPath();
+            ctx.arc(sx, sy, pulseRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+
+        // (b) Exploited / computerCompromised: magenta inner ring
+        if (cyber.exploited && !cyber.controlled) {
+            ctx.strokeStyle = COLOR_CYBER_EXPLOITED;
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+
+        // (c) Scanning: yellow expanding sonar-style pulse
+        if (cyber.scanning) {
+            var scanPhase = (simTime * 1.2) % 1.0;  // 0..1 cycle every ~0.83s
+            var scanRadius = 4 + scanPhase * 12;
+            var scanAlpha = 0.7 * (1.0 - scanPhase);
+            ctx.strokeStyle = COLOR_CYBER_SCANNING;
+            ctx.globalAlpha = scanAlpha;
+            ctx.lineWidth = 1.0;
+            ctx.beginPath();
+            ctx.arc(sx, sy, scanRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+            ctx.lineWidth = 1.5;
+        }
+
+        // (d) Subsystem disabled (sensor/weapon/navigation): orange outline
+        if (cyber.subsysDisabled && !cyber.controlled) {
+            ctx.strokeStyle = COLOR_CYBER_SUBSYS_DISABLED;
+            ctx.globalAlpha = 0.8;
+            ctx.lineWidth = 1.0;
+            if (ent.isGround) {
+                ctx.strokeRect(sx - 4, sy - 4, 8, 8);
+            } else {
+                ctx.beginPath();
+                ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    /**
+     * Draw dashed red lines from cyber attackers to their targets.
+     */
+    function _drawCyberAttackLines(ctx, entities, screenPos) {
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1.0;
+
+        for (var ai = 0; ai < entities.length; ai++) {
+            var attacker = entities[ai];
+            if (!attacker.cyber || !attacker.id) continue;
+            var aPos = screenPos[attacker.id];
+            if (!aPos || !aPos.visible) continue;
+
+            // Active attack target (currently being exploited)
+            if (attacker.cyber.attackTarget) {
+                var tgtPos = screenPos[attacker.cyber.attackTarget];
+                if (tgtPos && tgtPos.visible) {
+                    ctx.strokeStyle = COLOR_CYBER_ATTACK_LINE;
+                    ctx.globalAlpha = 0.7;
+                    ctx.beginPath();
+                    ctx.moveTo(aPos.sx, aPos.sy);
+                    ctx.lineTo(tgtPos.sx, tgtPos.sy);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            // Already compromised targets (thin red lines)
+            var compromised = attacker.cyber.compromisedTargets;
+            if (compromised && compromised.length > 0) {
+                ctx.lineWidth = 0.7;
+                ctx.globalAlpha = 0.4;
+                ctx.strokeStyle = COLOR_CYBER_ATTACK_LINE;
+                for (var ci = 0; ci < compromised.length; ci++) {
+                    var cPos = screenPos[compromised[ci]];
+                    if (cPos && cPos.visible) {
+                        ctx.beginPath();
+                        ctx.moveTo(aPos.sx, aPos.sy);
+                        ctx.lineTo(cPos.sx, cPos.sy);
+                        ctx.stroke();
+                    }
+                }
+                ctx.globalAlpha = 1.0;
+                ctx.lineWidth = 1.0;
+            }
+        }
+
+        ctx.setLineDash([]);
+    }
+
+    /**
+     * Draw comm network links between member entities, colored by security status.
+     */
+    function _drawCommNetworkLinks(ctx, entities, screenPos, ecsWorld, cx, cy, pixelScale, rotAngle) {
+        var networks = null;
+
+        // Strategy 1: CommEngine global
+        if (typeof CommEngine !== 'undefined' && typeof CommEngine.getNetworks === 'function') {
+            try {
+                networks = CommEngine.getNetworks();
+            } catch (e) {
+                networks = null;
+            }
+        }
+
+        // Strategy 2: world._networks
+        if (!networks && ecsWorld && ecsWorld._networks && Array.isArray(ecsWorld._networks)) {
+            networks = ecsWorld._networks;
+        }
+
+        if (!networks || networks.length === 0) return;
+
+        // Build entity cyber-state lookup from entities array
+        var entityCyber = {};
+        for (var ei = 0; ei < entities.length; ei++) {
+            if (entities[ei].id) {
+                entityCyber[entities[ei].id] = entities[ei].cyber;
+            }
+        }
+
+        ctx.lineWidth = 0.6;
+        ctx.setLineDash([1, 2]);
+        ctx.globalAlpha = 0.5;
+
+        for (var ni = 0; ni < networks.length; ni++) {
+            var net = networks[ni];
+            var members = net.members || net.nodes || net.entities || [];
+
+            // Resolve member IDs
+            var memberIds = [];
+            for (var mi = 0; mi < members.length; mi++) {
+                var mid = (typeof members[mi] === 'string') ? members[mi] : (members[mi].id || members[mi].entityId || '');
+                if (mid) memberIds.push(mid);
+            }
+
+            // Draw links between all pairs (or based on topology if star/mesh)
+            for (var a = 0; a < memberIds.length; a++) {
+                for (var b = a + 1; b < memberIds.length; b++) {
+                    var posA = screenPos[memberIds[a]];
+                    var posB = screenPos[memberIds[b]];
+                    if (!posA || !posB || !posA.visible || !posB.visible) continue;
+
+                    // Determine link color by worst-case security status of endpoints
+                    var cyA = entityCyber[memberIds[a]];
+                    var cyB = entityCyber[memberIds[b]];
+
+                    var linkColor = COLOR_COMM_HEALTHY;
+
+                    // Check for bricked/comms-disabled (worst case)
+                    if ((cyA && (cyA.commBricked || cyA.commsDisabled)) ||
+                        (cyB && (cyB.commBricked || cyB.commsDisabled))) {
+                        linkColor = COLOR_COMM_BRICKED;
+                    }
+                    // Check for compromised
+                    else if ((cyA && cyA.exploited) || (cyB && cyB.exploited)) {
+                        linkColor = COLOR_COMM_COMPROMISED;
+                    }
+                    // Check for degradation
+                    else if ((cyA && cyA.degradation &&
+                             (cyA.degradation.sensors > 0 || cyA.degradation.navigation > 0 ||
+                              cyA.degradation.weapons > 0 || cyA.degradation.comms > 0)) ||
+                             (cyB && cyB.degradation &&
+                             (cyB.degradation.sensors > 0 || cyB.degradation.navigation > 0 ||
+                              cyB.degradation.weapons > 0 || cyB.degradation.comms > 0))) {
+                        linkColor = COLOR_COMM_DEGRADED;
+                    }
+
+                    ctx.strokeStyle = linkColor;
+                    ctx.beginPath();
+                    ctx.moveTo(posA.sx, posA.sy);
+                    ctx.lineTo(posB.sx, posB.sy);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1.0;
+    }
+
+    /**
+     * Draw the "C" toggle button for the cyber layer.
+     * Positioned in the bottom-right area of the minimap, above the range label.
+     */
+    function _drawCyberToggle(ctx, w, h) {
+        var btnX = w - 20;
+        var btnY = h - 26;
+        var btnR = 8;
+
+        // Background circle
+        ctx.fillStyle = _showCyberLayer ? COLOR_CYBER_TOGGLE_BG : 'rgba(40, 40, 40, 0.50)';
+        ctx.beginPath();
+        ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = _showCyberLayer ? COLOR_CYBER_TOGGLE_ACTIVE : COLOR_CYBER_TOGGLE_INACTIVE;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // "C" label
+        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.fillStyle = _showCyberLayer ? COLOR_CYBER_TOGGLE_ACTIVE : COLOR_CYBER_TOGGLE_INACTIVE;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('C', btnX, btnY);
+    }
+
+    /**
+     * Draw cyber status summary text at top of minimap.
+     * "CYBER: N compromised / N scanning / N clean"
+     */
+    function _drawCyberSummary(ctx, entities, w) {
+        var compromised = 0;
+        var scanning = 0;
+        var clean = 0;
+
+        for (var si = 0; si < entities.length; si++) {
+            var ent = entities[si];
+            if (!ent.active) continue;
+            if (ent.cyber) {
+                if (ent.cyber.controlled || ent.cyber.exploited) {
+                    compromised++;
+                } else if (ent.cyber.scanning) {
+                    scanning++;
+                } else {
+                    clean++;
+                }
+            } else {
+                clean++;
+            }
+        }
+
+        // Only show if there is any cyber activity
+        if (compromised === 0 && scanning === 0) return;
+
+        var summary = 'CYBER: ' + compromised + ' comp / ' + scanning + ' scan / ' + clean + ' ok';
+        ctx.font = '7px "Courier New", monospace';
+        ctx.fillStyle = COLOR_CYBER_SUMMARY;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(summary, w / 2, 17);
+    }
+
+    // ===================== CYBER LAYER TOGGLE =====================
+    function toggleCyberLayer() {
+        _showCyberLayer = !_showCyberLayer;
+        return _showCyberLayer;
+    }
+
+    function setCyberLayer(flag) {
+        _showCyberLayer = !!flag;
+    }
+
+    function isCyberLayerVisible() {
+        return _showCyberLayer;
     }
 
     // ===================== RETURN PUBLIC API =====================
@@ -430,8 +806,12 @@ var Minimap = (function() {
         setRange: setRange,
         isVisible: isVisible,
         setHeadingUp: setHeadingUp,
+        toggleCyberLayer: toggleCyberLayer,
+        setCyberLayer: setCyberLayer,
+        isCyberLayerVisible: isCyberLayerVisible,
         get rangeKm() { return _rangeKm; },
-        get headingUp() { return _headingUp; }
+        get headingUp() { return _headingUp; },
+        get cyberLayerActive() { return _showCyberLayer; }
     };
 
 })();

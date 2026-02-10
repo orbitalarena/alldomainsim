@@ -52,6 +52,13 @@
             this._color = null;
             this._labelText = '';
             this._lastDetectionCount = -1;
+            // Base appearance for cyber reset
+            this._baseColor = null;
+            this._baseOutlineColor = Cesium.Color.WHITE;
+            this._basePixelSize = 12;
+            this._baseSensorFill = null;
+            this._baseSensorOutline = null;
+            this._baseRingColors = [];    // { outlineColor, fillAlpha } per ring entity
         }
 
         init(world) {
@@ -79,6 +86,9 @@
                 color = Cesium.Color.fromCssColorString(DEFAULTS.color);
             }
             this._color = color;
+            this._baseColor = color.clone();
+            this._baseOutlineColor = Cesium.Color.WHITE.clone();
+            this._basePixelSize = pixelSize;
             this._labelText = labelText;
 
             // Ground station position (fixed)
@@ -144,6 +154,8 @@
                         granularity: Cesium.Math.toRadians(2)
                     }
                 });
+                this._baseSensorFill = sensorFill.clone();
+                this._baseSensorOutline = sensorOutline.clone();
             }
 
             // --- Weapon engagement zone rings (SAM batteries) ---
@@ -266,6 +278,18 @@
                         scale: 0.85
                     }
                 }));
+
+                // Cache ring base colors for cyber reset
+                // Ring entities order: [minRing, minLabel, optRing, optLabel, maxRing, maxLabel]
+                var ringOutlineColors = [
+                    Cesium.Color.YELLOW.clone(),                         // min ring
+                    null,                                                 // min label (no ellipse)
+                    Cesium.Color.fromCssColorString('#00ff44').clone(),   // opt ring
+                    null,                                                 // opt label
+                    Cesium.Color.RED.clone(),                            // max ring
+                    null                                                  // max label
+                ];
+                this._baseRingColors = ringOutlineColors;
             }
         }
 
@@ -298,8 +322,13 @@
             }
 
             // --- Cyber status visual indicators ---
+            var hasCyberState = state._cyberDenied || state._commBricked ||
+                state._cyberControlled || state._cyberExploited || state._cyberScanning;
+            var degradation = state._cyberDegradation || {};
+
+            // (a) Point marker cyber visuals
             if (this._pointEntity && this._pointEntity.point) {
-                var baseSize = this.config.pixelSize !== undefined ? this.config.pixelSize : DEFAULTS.pixelSize;
+                var baseSize = this._basePixelSize;
 
                 if (state._cyberDenied || state._commBricked) {
                     // Denied/bricked: dim point, gray color
@@ -323,6 +352,74 @@
                     this._pointEntity.point.pixelSize = baseSize + scanPulse * 4;
                     this._pointEntity.point.outlineColor = Cesium.Color.YELLOW;
                     this._pointEntity.point.outlineWidth = 1 + scanPulse;
+                } else {
+                    // (b) No cyber state: reset point to base appearance
+                    this._pointEntity.point.pixelSize = baseSize;
+                    if (this._baseColor) {
+                        this._pointEntity.point.color = this._baseColor;
+                    }
+                    this._pointEntity.point.outlineColor = this._baseOutlineColor;
+                    this._pointEntity.point.outlineWidth = 2;
+                }
+            }
+
+            // (c) Sensor ellipse cyber response
+            if (this._sensorEntity && this._sensorEntity.ellipse) {
+                if (state._sensorDisabled) {
+                    // Sensors fully disabled: hide sensor coverage
+                    this._sensorEntity.show = false;
+                } else if (degradation.sensors > 0.3) {
+                    // Sensor degradation > 30%: dim the ellipse proportionally
+                    this._sensorEntity.show = vizShow && state._vizSensors !== false;
+                    var sensorDeg = Math.min(degradation.sensors, 1.0);
+                    if (this._baseSensorFill) {
+                        var dimmedAlpha = this._baseSensorFill.alpha * (1.0 - sensorDeg * 0.8);
+                        this._sensorEntity.ellipse.material = this._baseSensorFill.withAlpha(dimmedAlpha);
+                    }
+                    if (this._baseSensorOutline) {
+                        var outAlpha = this._baseSensorOutline.alpha * (1.0 - sensorDeg * 0.7);
+                        this._sensorEntity.ellipse.outlineColor = this._baseSensorOutline.withAlpha(Math.max(0.1, outAlpha));
+                    }
+                } else if (!hasCyberState && (degradation.sensors === undefined || degradation.sensors === 0)) {
+                    // No degradation: restore original appearance
+                    this._sensorEntity.show = vizShow && state._vizSensors !== false;
+                    if (this._baseSensorFill) {
+                        this._sensorEntity.ellipse.material = this._baseSensorFill;
+                    }
+                    if (this._baseSensorOutline) {
+                        this._sensorEntity.ellipse.outlineColor = this._baseSensorOutline;
+                    }
+                }
+            }
+
+            // (d) Weapon ring cyber response
+            if (this._ringEntities.length > 0) {
+                if (state._weaponsDisabled) {
+                    // Weapons fully disabled: hide all ring entities
+                    for (var w = 0; w < this._ringEntities.length; w++) {
+                        this._ringEntities[w].show = false;
+                    }
+                } else if (degradation.weapons > 0) {
+                    // Weapon degradation: dim ring outlines proportionally
+                    var weapDeg = Math.min(degradation.weapons, 1.0);
+                    for (var w2 = 0; w2 < this._ringEntities.length; w2++) {
+                        this._ringEntities[w2].show = vizShow && state._vizSensors !== false;
+                        var ringEnt = this._ringEntities[w2];
+                        if (ringEnt.ellipse && this._baseRingColors[w2]) {
+                            var baseRC = this._baseRingColors[w2];
+                            var dimAlpha = Math.max(0.15, 1.0 - weapDeg * 0.8);
+                            ringEnt.ellipse.outlineColor = baseRC.withAlpha(dimAlpha);
+                        }
+                    }
+                } else if (!hasCyberState) {
+                    // No degradation: restore ring visibility and colors
+                    for (var w3 = 0; w3 < this._ringEntities.length; w3++) {
+                        this._ringEntities[w3].show = vizShow && state._vizSensors !== false;
+                        var ringEnt2 = this._ringEntities[w3];
+                        if (ringEnt2.ellipse && this._baseRingColors[w3]) {
+                            ringEnt2.ellipse.outlineColor = this._baseRingColors[w3];
+                        }
+                    }
                 }
             }
         }
