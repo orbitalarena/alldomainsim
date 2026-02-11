@@ -439,6 +439,182 @@ const SimAudio = (function() {
         cs.connect(cg); cs.start(now); cs.stop(now + 0.03);
     }
 
+    // --- Ace Combat-style threat tones (continuous) -------------------------
+
+    // Threat tone states
+    var threat = {
+        rwrOsc: null, rwrGain: null, rwrActive: false, rwrType: 'none',
+        mwsOsc: null, mwsGain: null, mwsActive: false, mwsTimerId: null,
+        mwsRate: 0  // beeps per second
+    };
+
+    /**
+     * Update threat tones based on current RWR and MWS state.
+     * Called every frame from live_sim_engine.
+     * @param {Array} rwr - _playerState._rwr array
+     * @param {Array} mws - _playerState._mws array
+     */
+    function updateThreatTones(rwr, mws) {
+        if (!ctx || muted) return;
+        if (ctx.state === 'suspended') return;
+
+        // --- RWR tone: changes character based on threat level ---
+        var highestThreat = 'none';
+        var closestLock = 1.0; // normalized range of closest lock
+        if (rwr && rwr.length > 0) {
+            for (var i = 0; i < rwr.length; i++) {
+                var t = rwr[i];
+                if (t.type === 'lock' && highestThreat !== 'lock') {
+                    highestThreat = 'lock';
+                    if (t.range_norm < closestLock) closestLock = t.range_norm;
+                } else if (t.type === 'track' && highestThreat === 'none') {
+                    highestThreat = 'track';
+                }
+            }
+        }
+
+        if (highestThreat !== threat.rwrType) {
+            // Tear down old RWR tone
+            _stopRWRTone();
+
+            if (highestThreat === 'track') {
+                // Steady 1.2kHz pulse — "being tracked" awareness chirp
+                threat.rwrGain = gain(); threat.rwrGain.connect(compressor);
+                threat.rwrOsc = osc('sine', 1200);
+                threat.rwrOsc.connect(threat.rwrGain);
+                threat.rwrOsc.start();
+                threat.rwrGain.gain.value = 0.12;
+                threat.rwrActive = true;
+                // Slow pulse: 0.15s on / 0.85s off
+                var rwrPulseOn = true;
+                threat.rwrTimerId = setInterval(function() {
+                    if (threat.rwrGain) {
+                        rwrPulseOn = !rwrPulseOn;
+                        threat.rwrGain.gain.value = rwrPulseOn ? 0.12 : 0;
+                    }
+                }, rwrPulseOn ? 150 : 850);
+
+            } else if (highestThreat === 'lock') {
+                // Urgent rapid tone — "LOCKED, missile incoming possible"
+                // Frequency increases as target gets closer
+                var freq = 2000 + (1 - closestLock) * 2000; // 2kHz to 4kHz
+                threat.rwrGain = gain(); threat.rwrGain.connect(compressor);
+                threat.rwrOsc = osc('square', freq);
+                threat.rwrOsc.connect(threat.rwrGain);
+                threat.rwrOsc.start();
+                threat.rwrGain.gain.value = 0.25;
+                threat.rwrActive = true;
+                // Rapid toggle: 50ms on/off
+                var rwrLockOn = true;
+                threat.rwrTimerId = setInterval(function() {
+                    if (threat.rwrGain) {
+                        rwrLockOn = !rwrLockOn;
+                        threat.rwrGain.gain.value = rwrLockOn ? 0.25 : 0;
+                    }
+                }, 60);
+            }
+            threat.rwrType = highestThreat;
+
+        } else if (highestThreat === 'lock' && threat.rwrOsc) {
+            // Update frequency based on range (closer = higher pitch)
+            var freq2 = 2000 + (1 - closestLock) * 2000;
+            threat.rwrOsc.frequency.value = freq2;
+        }
+
+        // --- MWS tone: active missile(s) inbound, urgency based on range ---
+        var hasMissile = mws && mws.length > 0;
+        var closestRange = Infinity;
+        if (hasMissile) {
+            for (var m = 0; m < mws.length; m++) {
+                if (mws[m].range < closestRange) closestRange = mws[m].range;
+            }
+        }
+
+        if (hasMissile && !threat.mwsActive) {
+            // Start MWS tone
+            threat.mwsGain = gain(); threat.mwsGain.connect(compressor);
+            threat.mwsOsc = osc('sawtooth', 3500);
+            threat.mwsOsc.connect(threat.mwsGain);
+            threat.mwsOsc.start();
+            threat.mwsGain.gain.value = 0.35;
+            threat.mwsActive = true;
+            threat.mwsRate = 4;  // initial beep rate
+            var mwsOn = true;
+            threat.mwsTimerId = setInterval(function() {
+                if (threat.mwsGain) {
+                    mwsOn = !mwsOn;
+                    threat.mwsGain.gain.value = mwsOn ? 0.35 : 0;
+                }
+            }, 80);
+
+        } else if (!hasMissile && threat.mwsActive) {
+            _stopMWSTone();
+
+        } else if (hasMissile && threat.mwsActive && threat.mwsOsc) {
+            // Modulate MWS tone based on closest missile range
+            // Under 5km: highest urgency (5kHz, fastest beep)
+            // 5-20km: high (4kHz)
+            // 20-50km: medium (3.5kHz)
+            var urgency = closestRange < 5000 ? 1.0 :
+                          closestRange < 20000 ? 0.7 :
+                          closestRange < 50000 ? 0.4 : 0.2;
+            threat.mwsOsc.frequency.value = 3000 + urgency * 2000;
+            // Volume ramps up with urgency
+            if (threat.mwsGain) {
+                // We set max gain in the toggle interval, so adjust the reference
+                threat.mwsGain.gain.value = 0.15 + urgency * 0.35;
+            }
+        }
+    }
+
+    function _stopRWRTone() {
+        if (threat.rwrTimerId) { clearInterval(threat.rwrTimerId); threat.rwrTimerId = null; }
+        try { if (threat.rwrOsc) { threat.rwrOsc.stop(); threat.rwrOsc.disconnect(); } } catch(e) {}
+        try { if (threat.rwrGain) threat.rwrGain.disconnect(); } catch(e) {}
+        threat.rwrOsc = null; threat.rwrGain = null;
+        threat.rwrActive = false; threat.rwrType = 'none';
+    }
+
+    function _stopMWSTone() {
+        if (threat.mwsTimerId) { clearInterval(threat.mwsTimerId); threat.mwsTimerId = null; }
+        try { if (threat.mwsOsc) { threat.mwsOsc.stop(); threat.mwsOsc.disconnect(); } } catch(e) {}
+        try { if (threat.mwsGain) threat.mwsGain.disconnect(); } catch(e) {}
+        threat.mwsOsc = null; threat.mwsGain = null;
+        threat.mwsActive = false; threat.mwsRate = 0;
+    }
+
+    /** Play a short "Fox" call (missile launch confirmation). */
+    function playFoxCall() {
+        if (!ctx || muted) return;
+        if (ctx.state === 'suspended') return;
+        var now = ctx.currentTime;
+        // Rising chirp: 800Hz → 1600Hz over 0.15s, then drop
+        var fo = osc('triangle', 800);
+        fo.frequency.setValueAtTime(800, now);
+        fo.frequency.linearRampToValueAtTime(1600, now + 0.15);
+        fo.frequency.linearRampToValueAtTime(1200, now + 0.25);
+        var fg = gain(); fg.connect(compressor);
+        fg.gain.setValueAtTime(0.3, now);
+        fg.gain.linearRampToValueAtTime(0.2, now + 0.15);
+        fg.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        fo.connect(fg); fo.start(now); fo.stop(now + 0.45);
+    }
+
+    /** Play target kill confirmation sound. */
+    function playKillConfirm() {
+        if (!ctx || muted) return;
+        var now = ctx.currentTime;
+        // Double tone: 1kHz + 1.5kHz, like a "boop-boop"
+        for (var i = 0; i < 2; i++) {
+            var t = now + i * 0.12;
+            var ko = osc('sine', 1000 + i * 500);
+            var kg = gain(); kg.connect(compressor);
+            kg.gain.setValueAtTime(0.3, t);
+            kg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            ko.connect(kg); ko.start(t); ko.stop(t + 0.12);
+        }
+    }
+
     // --- Volume / toggle / cleanup -----------------------------------------
 
     function setMasterVolume(v) {
@@ -455,6 +631,8 @@ const SimAudio = (function() {
 
     function cleanup() {
         var i;
+        _stopRWRTone();
+        _stopMWSTone();
         for (i = 0; i < WARN_TYPES.length; i++) _stopWarn(WARN_TYPES[i]);
 
         var oscNodes = [eng.turbR, eng.turbW, eng.turbLfo, eng.rktL, eng.rktCL,
@@ -484,9 +662,12 @@ const SimAudio = (function() {
     return {
         init: init,
         update: update,
+        updateThreatTones: updateThreatTones,
         playWeaponFire: playWeaponFire,
         playExplosion: playExplosion,
         playWarning: playWarning,
+        playFoxCall: playFoxCall,
+        playKillConfirm: playKillConfirm,
         setMasterVolume: setMasterVolume,
         cleanup: cleanup,
         toggle: toggle

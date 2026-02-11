@@ -194,6 +194,8 @@ P              — Engine selection panel (1-9/0 quick-select)
 E              — Engine on/off
 Space          — Fire weapon
 R              — Cycle weapon
+Y              — Cycle target (lock-on)
+U              — Deselect target
 V              — Cycle sensor (EO/IR with CSS effects)
 T / Shift+T    — Pitch trim (+0.5° / -0.5°)
 I              — Cycle pointing mode (prograde/retrograde/normal/radial/nadir/sun/target)

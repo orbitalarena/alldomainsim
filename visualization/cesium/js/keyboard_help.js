@@ -51,6 +51,8 @@ var KeyboardHelp = (function() {
             bindings: [
                 { key: 'Space',       desc: 'Fire / activate weapon' },
                 { key: 'R',           desc: 'Cycle weapon' },
+                { key: 'Y',           desc: 'Cycle target (lock-on)' },
+                { key: 'U',           desc: 'Deselect target' },
                 { key: 'V',           desc: 'Cycle sensor (EO/IR/etc.)' },
                 { key: 'I',           desc: 'Cycle pointing mode' },
                 { key: 'L',           desc: 'Pointing mode panel' },

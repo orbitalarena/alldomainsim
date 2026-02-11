@@ -3,115 +3,360 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Starlink Inspector Model - All Domain Sim</title>
+    <title>Constellation Inspector - Multi-Walker Analysis</title>
 
     <!-- Cesium -->
     <link rel="stylesheet" href="lib/Cesium/Widgets/widgets.css">
     <script src="lib/Cesium/Cesium.js"></script>
+    <!-- Chart.js -->
+    <script src="lib/chart.umd.min.js"></script>
 
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #060a10; }
-        #cesiumContainer { width: 100%; height: 100%; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #060a10; font-family: 'Courier New', monospace; }
+        #cesiumContainer { width: 100%; height: 100%; display: none; }
 
-        .overlay {
+        /* ── Splash Screen ── */
+        #splash {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(6, 10, 16, 0.95); z-index: 100;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-family: 'Courier New', monospace; color: #00ff88;
+            background: radial-gradient(ellipse at center, #0a1520 0%, #060a10 70%);
+            z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #00ff88;
         }
-        .overlay h1 { font-size: 28px; margin-bottom: 8px; text-shadow: 0 0 20px rgba(0,255,136,0.4); }
-        .overlay .subtitle { font-size: 14px; color: #00aa66; margin-bottom: 24px; }
-        .overlay .progress-bar { width: 400px; height: 6px; background: #0a1a0a; border: 1px solid #00aa66; border-radius: 3px; margin: 10px 0; }
-        .overlay .progress-fill { height: 100%; background: #00ff88; border-radius: 2px; transition: width 0.3s; width: 0%; }
-        .overlay .status { font-size: 13px; color: #00cc66; margin-top: 6px; }
-        .overlay .error { color: #ff4444; margin-top: 10px; }
+        #splash h1 { font-size: 32px; letter-spacing: 4px; text-shadow: 0 0 30px rgba(0,255,136,0.3); margin-bottom: 4px; }
+        #splash .subtitle { font-size: 13px; color: #00aa66; margin-bottom: 30px; letter-spacing: 2px; }
+        #splash .config-box {
+            background: rgba(0,255,136,0.04); border: 1px solid #00552a; border-radius: 8px;
+            padding: 24px 32px; width: 520px; max-width: 90vw;
+        }
+        #splash .config-box h2 { font-size: 15px; color: #00cc66; margin-bottom: 16px; border-bottom: 1px solid #0a3a2a; padding-bottom: 8px; }
+        .cfg-row { display: flex; align-items: center; margin-bottom: 12px; }
+        .cfg-row label { flex: 0 0 200px; font-size: 12px; color: #00aa66; }
+        .cfg-row select, .cfg-row input {
+            flex: 1; background: #0a1a12; border: 1px solid #00552a; color: #00ff88;
+            font-family: 'Courier New', monospace; font-size: 13px; padding: 6px 10px; border-radius: 4px;
+        }
+        .cfg-row select:focus, .cfg-row input:focus { border-color: #00ff88; outline: none; }
+        .cfg-row .hint { font-size: 10px; color: #005533; margin-left: 8px; white-space: nowrap; }
+        #splashStatus { font-size: 11px; color: #005533; margin-top: 8px; min-height: 16px; }
+        #btnRun {
+            margin-top: 18px; width: 100%; padding: 12px; font-size: 15px; font-family: 'Courier New', monospace;
+            background: #00331a; border: 2px solid #00ff88; color: #00ff88; border-radius: 6px; cursor: pointer;
+            letter-spacing: 3px; transition: all 0.2s;
+        }
+        #btnRun:hover { background: #004422; box-shadow: 0 0 20px rgba(0,255,136,0.2); }
+        #btnRun:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        #resultsPanel {
-            position: absolute; top: 10px; left: 10px; width: 420px; max-height: calc(100vh - 20px);
-            background: rgba(6, 10, 16, 0.92); border: 1px solid #00aa66; border-radius: 6px;
-            padding: 14px; z-index: 30; overflow-y: auto;
-            font-family: 'Courier New', monospace; font-size: 12px; color: #00ff88;
-            display: none;
+        /* ── Processing Overlay ── */
+        #processing {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(6, 10, 16, 0.96); z-index: 150;
+            display: none; flex-direction: column; align-items: center; justify-content: center; color: #00ff88;
         }
-        #resultsPanel h2 { font-size: 16px; color: #00ffaa; margin-bottom: 8px; border-bottom: 1px solid #0a3a2a; padding-bottom: 6px; }
-        #resultsPanel h3 { font-size: 13px; color: #00cc88; margin-top: 12px; margin-bottom: 4px; }
-        .stat-row { display: flex; justify-content: space-between; padding: 2px 0; }
-        .stat-label { color: #00aa66; }
-        .stat-value { color: #00ffcc; font-weight: bold; }
-        .snapshot-list { max-height: 300px; overflow-y: auto; margin-top: 8px; }
-        .snapshot-item { padding: 4px 6px; border-bottom: 1px solid #0a2a1a; font-size: 11px; cursor: pointer; }
-        .snapshot-item:hover { background: #0a2a1a; }
-        .snapshot-item .snap-idx { color: #00cc66; font-weight: bold; width: 30px; display: inline-block; }
-        .snapshot-item .snap-name { color: #00ff88; }
-        .snapshot-item .snap-dv { color: #ffaa44; margin-left: 8px; }
+        #processing h2 { font-size: 20px; margin-bottom: 14px; letter-spacing: 2px; }
+        .prog-bar { width: 500px; height: 6px; background: #0a1a0a; border: 1px solid #00552a; border-radius: 3px; margin: 6px 0; }
+        .prog-fill { height: 100%; background: linear-gradient(90deg, #00cc66, #00ff88, #00cc66); border-radius: 2px; transition: width 0.2s; width: 0; background-size: 200% 100%; animation: shimmer 2s ease-in-out infinite; }
+        @keyframes shimmer { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+        #procStatus { font-size: 12px; color: #00cc66; margin-top: 6px; }
+        #procDetail { font-size: 11px; color: #007744; margin-top: 4px; max-width: 500px; text-align: center; }
+        #procError { color: #ff4444; margin-top: 10px; display: none; }
 
-        #statusBar {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(6, 10, 16, 0.9); border: 1px solid #00aa66; border-radius: 4px;
-            padding: 6px 18px; z-index: 25;
-            font-family: 'Courier New', monospace; font-size: 14px; color: #00ff88; font-weight: bold;
-            display: none;
+        /* ── Top Bar ── */
+        #topBar {
+            position: absolute; top: 0; left: 0; right: 0; height: 44px;
+            background: rgba(6, 10, 16, 0.92); border-bottom: 1px solid #00552a;
+            z-index: 30; display: none; align-items: center; padding: 0 12px; gap: 8px;
         }
+        #topBar .title { font-size: 14px; color: #00ff88; font-weight: bold; letter-spacing: 1px; }
+        #topBar .sep { color: #003322; margin: 0 4px; }
+        #topBar .stat { font-size: 12px; color: #00aa66; }
+        #topBar .stat b { color: #00ffaa; }
+        .walker-tabs { display: flex; gap: 2px; margin-left: 12px; }
+        .walker-tab {
+            padding: 4px 10px; font-size: 11px; font-family: 'Courier New', monospace;
+            background: #0a1a12; border: 1px solid #003322; color: #00aa66; cursor: pointer; border-radius: 3px 3px 0 0;
+        }
+        .walker-tab:hover { background: #0a2a1a; }
+        .walker-tab.active { background: #003322; color: #00ff88; border-color: #00ff88; border-bottom-color: #003322; }
+        .speed-controls { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+        .speed-controls span { font-size: 11px; color: #007744; }
+        .spd-btn {
+            padding: 3px 8px; font-size: 11px; font-family: monospace;
+            background: #0a1a0a; border: 1px solid #224422; color: #00aa66; cursor: pointer; border-radius: 3px;
+        }
+        .spd-btn:hover { background: #1a3a1a; color: #00ff88; }
+        .spd-btn.active { border-color: #00ff88; color: #00ff88; }
 
-        #speedControls {
-            position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
-            background: rgba(6, 10, 16, 0.85); border: 1px solid #005533; border-radius: 4px;
-            padding: 5px 12px; z-index: 25;
-            font-family: monospace; font-size: 12px; color: #00aa66;
-            display: none; gap: 8px; align-items: center;
+        /* ── Dashboard (left panel) ── */
+        #dashboard {
+            position: absolute; top: 48px; left: 8px; width: 380px; max-height: calc(100vh - 56px);
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00552a; border-radius: 6px;
+            padding: 12px; z-index: 25; overflow-y: auto; display: none;
+            font-size: 12px; color: #00ff88;
         }
-        .speed-btn {
-            background: #0a1a0a; border: 1px solid #224422; color: #00ff88;
-            font-family: monospace; padding: 3px 10px; cursor: pointer; border-radius: 3px;
+        #dashboard h2 { font-size: 15px; color: #00ffaa; margin-bottom: 6px; border-bottom: 1px solid #0a3a2a; padding-bottom: 4px; }
+        #dashboard h3 { font-size: 12px; color: #00cc88; margin-top: 10px; margin-bottom: 4px; }
+        .sr { display: flex; justify-content: space-between; padding: 1px 0; }
+        .sr .l { color: #00aa66; }
+        .sr .v { color: #00ffcc; font-weight: bold; }
+        .walker-summary {
+            margin-top: 6px; padding: 6px 8px; background: rgba(0,255,136,0.03);
+            border: 1px solid #0a3a2a; border-radius: 4px; margin-bottom: 6px;
         }
-        .speed-btn:hover { background: #1a3a1a; }
-        .speed-btn.active { border-color: #00ff88; background: #0a3a0a; }
+        .walker-summary .ws-head { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .walker-summary .ws-name { font-weight: bold; }
+        .walker-summary .ws-color { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+        .snapshot-list { max-height: 240px; overflow-y: auto; margin-top: 6px; }
+        .snap-item { padding: 3px 6px; border-bottom: 1px solid #0a1a12; font-size: 11px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+        .snap-item:hover { background: #0a2a1a; box-shadow: inset 2px 0 0 #00ff88; }
+        .snap-item.active { background: #0a3a2a; box-shadow: inset 2px 0 0 #00ffaa; }
+        .snap-item .si-idx { color: #00cc66; width: 26px; font-weight: bold; }
+        .snap-item .si-name { color: #00ff88; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .snap-item .si-face { font-weight: bold; min-width: 40px; text-align: right; }
+        .snap-item .si-dv { color: #ff8844; min-width: 50px; text-align: right; }
+        .snap-item .si-face.face-Pr { color: #00cc66; }
+        .snap-item .si-face.face-Re { color: #ff6644; }
+        .snap-item .si-face.face-Na { color: #4488ff; }
+        .snap-item .si-face.face-Ra { color: #ff44aa; }
+        .snap-item .si-face.face-No { color: #ffcc00; }
+        .snap-item .si-face.face-An { color: #aa66ff; }
+        .snap-item .si-face.face-multi { color: #ffdd88; }
 
-        #snapshotViewer {
-            position: absolute; bottom: 10px; right: 10px; width: 320px;
-            background: rgba(6, 10, 16, 0.92); border: 1px solid #00aa66; border-radius: 6px;
+        /* ── Face Chart (right panel) ── */
+        #facePanel {
+            position: absolute; top: 48px; right: 8px; width: 360px;
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00552a; border-radius: 6px;
+            padding: 12px; z-index: 25; display: none;
+        }
+        #facePanel h2 { font-size: 15px; color: #00ffaa; margin-bottom: 8px; border-bottom: 1px solid #0a3a2a; padding-bottom: 4px; }
+        #faceChartWrap { width: 100%; height: 200px; }
+        #comboChartWrap { width: 100%; height: 160px; margin-top: 8px; }
+        .face-stats { margin-top: 8px; font-size: 11px; }
+        .face-stats .fs-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .face-stats .fs-label { color: #00aa66; }
+        .face-stats .fs-val { font-weight: bold; }
+        .fs-most { color: #00ff88; }
+        .fs-never { color: #ff4444; }
+        .fs-mid { color: #ffcc00; }
+
+        /* ── Snapshot Viewer (bottom right) ── */
+        #snapViewer {
+            position: absolute; bottom: 40px; right: 8px; width: 340px;
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00552a; border-radius: 6px;
             padding: 10px; z-index: 25; display: none;
-            font-family: 'Courier New', monospace; font-size: 11px; color: #00ff88;
         }
-        #snapshotViewer h3 { font-size: 13px; color: #00ffaa; margin-bottom: 6px; }
-        #snapshotCanvas { width: 100%; border: 1px solid #0a3a2a; border-radius: 3px; background: #000; }
+        #snapViewer h3 { font-size: 13px; color: #00ffaa; margin-bottom: 6px; }
+        #snapCanvas { width: 100%; border: 1px solid #0a3a2a; border-radius: 3px; background: #000; }
+        #snapInfo { font-size: 11px; color: #00aa66; margin-top: 4px; }
+
+        /* ── Progress Bars ── */
+        .dv-bar-wrap { height: 4px; background: #0a1a0a; border-radius: 2px; margin-top: 3px; overflow: hidden; }
+        .dv-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+        .time-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: bold; }
+        .badge-good { background: rgba(0,255,136,0.15); color: #00ff88; }
+        .badge-warn { background: rgba(255,200,50,0.15); color: #ffcc44; }
+        .badge-over { background: rgba(255,60,60,0.15); color: #ff4444; }
+
+        /* ── Summary Cards ── */
+        .summary-cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 8px 0; }
+        .sum-card {
+            background: rgba(0,255,136,0.04); border: 1px solid #0a3a2a; border-radius: 4px;
+            padding: 8px 6px; text-align: center; transition: border-color 0.3s, background 0.3s;
+        }
+        .sum-card:hover { border-color: #00ff88; background: rgba(0,255,136,0.08); }
+        .sum-card .sc-val { font-size: 20px; font-weight: bold; color: #00ffaa; display: block; text-shadow: 0 0 10px rgba(0,255,170,0.3); }
+        .sum-card .sc-label { font-size: 9px; color: #007744; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* ── Export Button ── */
+        .btn-export {
+            margin-top: 8px; width: 100%; padding: 6px; font-size: 11px;
+            font-family: 'Courier New', monospace; background: #0a1a12;
+            border: 1px solid #00552a; color: #00aa66; border-radius: 4px; cursor: pointer;
+        }
+        .btn-export:hover { border-color: #00ff88; color: #00ff88; }
+
+        /* ── Collapsible Sections ── */
+        .section-toggle { cursor: pointer; user-select: none; }
+        .section-toggle::before { content: '[-] '; color: #005533; }
+        .section-toggle.collapsed::before { content: '[+] '; }
+        .section-toggle.collapsed + .section-body { display: none; }
+
+        /* ── Walker Face Mini Chart ── */
+        .walker-face-bar { display: flex; gap: 1px; height: 14px; margin-top: 3px; border-radius: 2px; overflow: hidden; }
+        .wfb-seg { height: 100%; position: relative; min-width: 2px; }
+        .wfb-seg span { position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 7px; color: #fff; line-height: 14px; white-space: nowrap; }
+
+        /* ── Bottom Status ── */
+        #bottomBar {
+            position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+            background: rgba(6,10,16,0.85); border: 1px solid #003322; border-radius: 4px;
+            padding: 3px 14px; z-index: 25; display: none;
+            font-size: 11px; color: #007744;
+        }
+
+        /* ── Plane Overview Diagram ── */
+        #planeOverview {
+            position: absolute; bottom: 44px; left: 8px; width: 380px; height: 200px;
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00552a; border-radius: 6px;
+            z-index: 24; display: none; padding: 8px;
+        }
+        #planeOverview h3 { font-size: 11px; color: #00cc88; margin-bottom: 4px; text-align: center; }
+        #planeCanvas { width: 100%; height: calc(100% - 20px); }
+
+        /* ── Photo Timeline ── */
+        #timelinePanel {
+            position: absolute; bottom: 44px; right: 8px; width: 360px; height: 140px;
+            background: rgba(6, 10, 16, 0.92); border: 1px solid #00552a; border-radius: 6px;
+            z-index: 24; display: none; padding: 8px;
+        }
+        #timelinePanel h3 { font-size: 11px; color: #00cc88; margin-bottom: 4px; text-align: center; }
+        #timelineCanvas { width: 100%; height: calc(100% - 20px); }
+
+        /* ── Re-run Button ── */
+        .btn-rerun {
+            margin-top: 4px; width: 100%; padding: 6px; font-size: 11px;
+            font-family: 'Courier New', monospace; background: #1a0a0a;
+            border: 1px solid #552a00; color: #ffaa44; border-radius: 4px; cursor: pointer;
+        }
+        .btn-rerun:hover { border-color: #ff8800; color: #ff8800; }
+
+        /* ── Coverage Gap Badge ── */
+        .gap-row { display: flex; align-items: center; gap: 6px; padding: 2px 0; font-size: 11px; }
+        .gap-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .gap-name { color: #00aa66; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .gap-reason { color: #ff6644; font-size: 10px; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #060a10; }
+        ::-webkit-scrollbar-thumb { background: #00552a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00ff88; }
     </style>
 </head>
 <body>
+    <!-- ═══ Splash Screen ═══ -->
+    <div id="splash">
+        <h1>CONSTELLATION INSPECTOR</h1>
+        <div class="subtitle">MULTI-WALKER ORBITAL PHOTOGRAPHY ANALYSIS</div>
+        <div class="config-box">
+            <h2>MISSION CONFIGURATION</h2>
+            <div class="cfg-row">
+                <label>Constellation</label>
+                <select id="cfgConstellation"><option value="">Loading...</option></select>
+            </div>
+            <div class="cfg-row">
+                <label>Number of Walkers</label>
+                <input id="cfgWalkers" type="number" min="1" max="20" value="10">
+                <span class="hint">max 20</span>
+            </div>
+            <div class="cfg-row">
+                <label>DV Budget per Walker (m/s)</label>
+                <input id="cfgDV" type="number" min="100" max="10000" value="2000">
+            </div>
+            <div class="cfg-row">
+                <label>Mission Duration (days)</label>
+                <select id="cfgDuration">
+                    <option value="1">1 day</option>
+                    <option value="2">2 days</option>
+                    <option value="3">3 days</option>
+                    <option value="5" selected>5 days</option>
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                </select>
+            </div>
+            <div class="cfg-row">
+                <label>Photo Range (meters)</label>
+                <input id="cfgRange" type="number" min="10" max="5000" value="150">
+            </div>
+            <div class="cfg-row">
+                <label>Photo Exposure Time (sec)</label>
+                <input id="cfgPhotoTime" type="number" min="5" max="120" value="30">
+            </div>
+            <div class="cfg-row">
+                <label>Ground Telescopes</label>
+                <select id="cfgGround">
+                    <option value="1" selected>Enabled (10 stations)</option>
+                    <option value="0">Disabled (space-only)</option>
+                </select>
+                <span class="hint">optical obs</span>
+            </div>
+            <div class="cfg-row">
+                <label>Min Elevation (ground, deg)</label>
+                <input id="cfgMinEl" type="number" min="5" max="85" value="30">
+            </div>
+            <div id="splashStatus"></div>
+            <button id="btnRun" disabled>BEGIN ANALYSIS</button>
+        </div>
+    </div>
+
+    <!-- ═══ Processing Overlay ═══ -->
+    <div id="processing">
+        <h2>ANALYZING CONSTELLATION</h2>
+        <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+        <div id="procStatus">Initializing...</div>
+        <div id="procDetail"></div>
+        <div id="procError"></div>
+    </div>
+
+    <!-- ═══ Cesium Container ═══ -->
     <div id="cesiumContainer"></div>
 
-    <div id="overlay" class="overlay">
-        <h1>STARLINK INSPECTOR MODEL</h1>
-        <div class="subtitle">Greedy Plane-Walker Orbital Inspection Mission</div>
-        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-        <div class="status" id="statusText">Initializing...</div>
-        <div class="error" id="errorText" style="display:none;"></div>
+    <!-- ═══ Top Bar ═══ -->
+    <div id="topBar">
+        <span class="title" id="barTitle">CONSTELLATION INSPECTOR</span>
+        <span class="sep">|</span>
+        <span class="stat"><b id="barPhotos">0</b> photos</span>
+        <span class="sep">|</span>
+        <span class="stat"><b id="barDV">0</b> m/s</span>
+        <span class="sep">|</span>
+        <span class="stat" id="barPhase">--</span>
+        <div class="walker-tabs" id="walkerTabs"></div>
+        <div class="speed-controls">
+            <span>Speed:</span>
+            <button class="spd-btn" data-spd="1">1x</button>
+            <button class="spd-btn" data-spd="10">10x</button>
+            <button class="spd-btn active" data-spd="50">50x</button>
+            <button class="spd-btn" data-spd="200">200x</button>
+            <button class="spd-btn" data-spd="500">500x</button>
+        </div>
     </div>
 
-    <div id="statusBar">
-        <span id="modelName">STARLINK INSPECTOR</span> |
-        <span id="modelEntities">--</span> targets |
-        <span id="modelSpeed">10x</span> |
-        <span id="modelPhase">--</span>
+    <!-- ═══ Dashboard Panel ═══ -->
+    <div id="dashboard"></div>
+
+    <!-- ═══ Face Chart Panel ═══ -->
+    <div id="facePanel">
+        <h2>FACE CAPTURE DISTRIBUTION</h2>
+        <div id="faceChartWrap"><canvas id="faceChart"></canvas></div>
+        <div id="comboChartWrap"><canvas id="comboChart"></canvas></div>
+        <div class="face-stats" id="faceStats"></div>
+        <div id="efficiencySection" style="margin-top:10px;border-top:1px solid #0a3a2a;padding-top:8px">
+            <h3 style="font-size:11px;color:#00cc88;margin-bottom:4px">WALKER EFFICIENCY</h3>
+            <div id="efficiencyBars"></div>
+        </div>
     </div>
 
-    <div id="speedControls">
-        Speed:
-        <button class="speed-btn" data-speed="1">1x</button>
-        <button class="speed-btn" data-speed="10">10x</button>
-        <button class="speed-btn active" data-speed="50">50x</button>
-        <button class="speed-btn" data-speed="100">100x</button>
-        <button class="speed-btn" data-speed="500">500x</button>
-    </div>
-
-    <div id="resultsPanel"></div>
-
-    <div id="snapshotViewer">
+    <!-- ═══ Snapshot Viewer ═══ -->
+    <div id="snapViewer">
         <h3>SNAPSHOT <span id="snapIdx">--</span></h3>
-        <canvas id="snapshotCanvas" width="300" height="200"></canvas>
-        <div id="snapInfo" style="margin-top:4px;"></div>
+        <canvas id="snapCanvas" width="320" height="200"></canvas>
+        <div id="snapInfo"></div>
     </div>
+
+    <!-- ═══ Plane Overview ═══ -->
+    <div id="planeOverview">
+        <h3>ORBITAL PLANE MAP</h3>
+        <canvas id="planeCanvas" width="364" height="170"></canvas>
+    </div>
+
+    <!-- ═══ Photo Timeline ═══ -->
+    <div id="timelinePanel">
+        <h3>PHOTO TIMELINE</h3>
+        <canvas id="timelineCanvas" width="344" height="110"></canvas>
+    </div>
+
+    <!-- ═══ Bottom Status ═══ -->
+    <div id="bottomBar">Space=Pause | +/-=Speed | Left/Right=Prev/Next Photo | Esc=Close | G=Planes | T=Timeline</div>
 
     <script src="cesium_config.js"></script>
     <script src="js/framework/tle_parser.js"></script>
@@ -120,533 +365,619 @@
     'use strict';
 
     // =========================================================================
-    // STARLINK INSPECTOR MODEL
+    //  CONSTELLATION INSPECTOR — MULTI-WALKER ANALYSIS ENGINE
     // =========================================================================
+
     (async function() {
 
-        var MU = 3.986004418e14;
-        var R_EARTH = 6371000;
-        var TWO_PI = 2 * Math.PI;
-        var DEG = Math.PI / 180;
-        var RAD = 180 / Math.PI;
-        var OMEGA_EARTH = 7.2921159e-5;
+    // ─── Constants ───
+    var MU = 3.986004418e14;
+    var R_EARTH = 6371000;
+    var TWO_PI = 2 * Math.PI;
+    var DEG = Math.PI / 180;
+    var RAD = 180 / Math.PI;
+    var OMEGA_EARTH = 7.2921159e-5;
+    var g0 = 9.80665;
 
-        // Inspector spacecraft config
-        var INSPECTOR = {
-            name: 'INSPECTOR-1',
-            dryMass: 300,       // kg
-            fuelMass: 1650,     // kg (hydrazine) — sized for ~4000 m/s budget
-            isp: 220,           // seconds (hydrazine thruster)
-            thrust: 22,         // N (22N thruster)
-            photoRange: 5000,   // meters — take photo within this range
-            photoTime: 30,      // seconds to capture photo
-            maxDV: null         // computed from fuel
-        };
+    var INC_TOLERANCE = 0.15;   // degrees for plane matching
+    var RAAN_TOLERANCE = 1.0;   // degrees for plane matching
+    var ECLIPSE_STEP = 30;      // seconds per step when waiting for sun
+    var MAX_ECLIPSE_WAIT = 3600; // max 1 hour wait
 
-        // Compute max delta-V from Tsiolkovsky
-        var g0 = 9.80665;
-        INSPECTOR.maxDV = INSPECTOR.isp * g0 *
-            Math.log((INSPECTOR.dryMass + INSPECTOR.fuelMass) / INSPECTOR.dryMass);
+    // Walker colors (10 distinct)
+    var WALKER_COLORS = [
+        [0, 255, 136],   [255, 120, 50],  [100, 160, 255], [255, 230, 50],
+        [200, 100, 255], [50, 230, 230],  [255, 100, 160], [140, 255, 60],
+        [255, 180, 100], [100, 255, 200]
+    ];
+    var WALKER_NAMES = [
+        'ALPHA','BRAVO','CHARLIE','DELTA','ECHO',
+        'FOXTROT','GOLF','HOTEL','INDIA','JULIET'
+    ];
 
-        // Plane matching tolerance
-        var INC_TOLERANCE = 0.1;   // degrees
-        var RAAN_TOLERANCE = 1.0;  // degrees
+    // Face definitions (body frame: +X=prograde, +Y=normal, +Z=nadir)
+    var FACE_DEFS = [
+        { axis: 'X', sign: 1,  name: 'Prograde',     short: 'Pr' },
+        { axis: 'X', sign: -1, name: 'Retrograde',   short: 'Re' },
+        { axis: 'Z', sign: 1,  name: 'Nadir',        short: 'Na' },
+        { axis: 'Z', sign: -1, name: 'Radial',       short: 'Ra' },
+        { axis: 'Y', sign: 1,  name: 'Normal',       short: 'No' },
+        { axis: 'Y', sign: -1, name: 'Anti-Normal',  short: 'An' }
+    ];
+    var FACE_SHORTS = ['Pr','Re','Na','Ra','No','An'];
 
-        // Sim epoch (current time as Julian Date)
-        var SIM_EPOCH_MS = Date.now();
-        var SIM_EPOCH_JD = 2440587.5 + SIM_EPOCH_MS / 86400000;
+    // ─── Sim epoch ───
+    var SIM_EPOCH_MS = Date.now();
+    var SIM_EPOCH_JD = 2440587.5 + SIM_EPOCH_MS / 86400000;
+    var _D0 = SIM_EPOCH_JD - 2451545.0;
+    var GMST0 = ((280.46061837 + 360.98564736629 * _D0) % 360 + 360) % 360 * DEG;
 
-        // True GMST at epoch (radians) — needed for correct ECI→ECEF in CZML
-        var _D0 = SIM_EPOCH_JD - 2451545.0;
-        var GMST0 = ((280.46061837 + 360.98564736629 * _D0) % 360 + 360) % 360 * DEG;
+    // ─── State ───
+    var _viewer = null;
+    var _config = {};
+    var _allSats = [];
+    var _planes = [];
+    var _walkerResults = [];  // per-walker results
+    var _allSnapshots = [];   // all photos across all walkers
+    var _faceTally = {};      // { Pr: N, Re: N, ... }
+    var _comboTally = {};     // { 'PrNa': N, 'Re': N, ... }
+    var _faceChart = null;
+    var _comboChart = null;
+    var _activeWalker = -1;   // -1 = show all
 
-        /** Advance a parsed sat's meanAnomaly to the common sim epoch. */
-        function propagateToSimEpoch(sat) {
-            var tleJD = TLEParser.tleEpochToJD(sat.epochYear, sat.epochDay);
-            var dtSec = (SIM_EPOCH_JD - tleJD) * 86400;
-            var n_rad = 2 * Math.PI / sat.period; // rad/s
-            var advanceDeg = (n_rad * dtSec) * RAD;
-            sat.meanAnomaly = ((sat.meanAnomaly + advanceDeg) % 360 + 360) % 360;
+    // =========================================================================
+    //  SECTION 1: Vector Math Utilities
+    // =========================================================================
+    function vLen(v) { return Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]); }
+    function vNorm(v) { var l=vLen(v); return l>0?[v[0]/l,v[1]/l,v[2]/l]:[0,0,0]; }
+    function vScale(v,s) { return [v[0]*s,v[1]*s,v[2]*s]; }
+    function vSub(a,b) { return [a[0]-b[0],a[1]-b[1],a[2]-b[2]]; }
+    function vDot(a,b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+    function vCross(a,b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+
+    // =========================================================================
+    //  SECTION 2: Orbital Mechanics
+    // =========================================================================
+    function propagateToSimEpoch(sat) {
+        var tleJD = TLEParser.tleEpochToJD(sat.epochYear, sat.epochDay);
+        var dtSec = (SIM_EPOCH_JD - tleJD) * 86400;
+        var n_rad = TWO_PI / sat.period;
+        sat.meanAnomaly = ((sat.meanAnomaly + (n_rad * dtSec) * RAD) % 360 + 360) % 360;
+    }
+
+    function computePhasingDV(sma, period, maFrom, maTo) {
+        var n = TWO_PI / period;
+        var dMA = ((maTo - maFrom) % 360 + 360) % 360;
+        if (dMA > 180) dMA -= 360;
+        if (Math.abs(dMA) < 0.5) return 0;
+        var dMA_rad = dMA * DEG;
+        var newPeriod = period - dMA_rad / n;
+        newPeriod = Math.max(period * 0.5, Math.min(period * 1.5, newPeriod));
+        var newSMA = Math.pow(MU * newPeriod * newPeriod / (4 * Math.PI * Math.PI), 1/3);
+        var v_circ = Math.sqrt(MU / sma);
+        var v_transfer = Math.sqrt(MU * (2 / sma - 1 / newSMA));
+        return Math.abs(v_transfer - v_circ) * 2;
+    }
+
+    function computePhasingTime(sma, period, maFrom, maTo) {
+        var n = TWO_PI / period;
+        var dMA = ((maTo - maFrom) % 360 + 360) % 360;
+        if (dMA > 180) dMA -= 360;
+        if (Math.abs(dMA) < 0.5) return Math.abs(dMA * DEG) / n;
+        var dMA_rad = dMA * DEG;
+        var newPeriod = period - dMA_rad / n;
+        return Math.max(period * 0.5, Math.min(period * 1.5, newPeriod));
+    }
+
+    function raanDiff(a, b) { var d = Math.abs(a - b); return d > 180 ? 360 - d : d; }
+
+    // =========================================================================
+    //  SECTION 3: Sun / Eclipse / Illumination
+    // =========================================================================
+    function getSunECI(simTimeSec) {
+        var jd = SIM_EPOCH_JD + simTimeSec / 86400;
+        var T = (jd - 2451545.0) / 36525;
+        var M = (357.5291 + 35999.0503 * T) * DEG;
+        var L = (280.4664 + 36000.7698 * T) * DEG;
+        var lambda = L + 1.9146 * DEG * Math.sin(M);
+        var eps = 23.4393 * DEG;
+        var AU = 1.496e11;
+        return [AU * Math.cos(lambda), AU * Math.sin(lambda) * Math.cos(eps), AU * Math.sin(lambda) * Math.sin(eps)];
+    }
+
+    function isInEclipse(posECI, sunECI) {
+        var sd = vNorm(sunECI);
+        var dot = vDot(posECI, sd);
+        if (dot > 0) return false;
+        var perp = vSub(posECI, vScale(sd, dot));
+        return vLen(perp) < R_EARTH;
+    }
+
+    /** Wait for sunlight. Returns seconds to wait (0 if already sunlit). */
+    function computeEclipseWait(sat, sma, period, simTime) {
+        var n = TWO_PI / period;
+        for (var wait = 0; wait <= MAX_ECLIPSE_WAIT; wait += ECLIPSE_STEP) {
+            var t = simTime + wait;
+            var ma = (sat.meanAnomaly + (n * t) * RAD) % 360;
+            var tmpSat = { sma: sma, eccentricity: sat.eccentricity || 0.0001,
+                inclination: sat.inclination, raan: sat.raan,
+                argPerigee: sat.argPerigee || 0, meanAnomaly: ma };
+            var eci = TLEParser.tleToECI(tmpSat);
+            var sun = getSunECI(t);
+            if (!isInEclipse(eci.pos, sun)) return wait;
+        }
+        return MAX_ECLIPSE_WAIT;
+    }
+
+    // =========================================================================
+    //  SECTION 4: Face Capture System
+    // =========================================================================
+
+    /** Compute which face(s) of the target satellite are captured in a photo.
+     *  Returns { label: 'PrNa', faces: {Pr:0.8, Na:0.6}, primary: 'Pr', brightness: 0.8 }
+     */
+    function computeFaceCapture(posECI, velECI, sunECI) {
+        var r = vLen(posECI);
+        var vl = vLen(velECI);
+        if (r < 1000 || vl < 100) return { label: '??', faces: {}, primary: '??', brightness: 0 };
+
+        // Body frame axes
+        var prograde = vNorm(velECI);                    // +X
+        var nadir = vScale(vNorm(posECI), -1);           // +Z (toward Earth)
+        var normal = vNorm(vCross(prograde, nadir));     // +Y
+
+        // Sun direction relative to satellite
+        var sunRel = vNorm(vSub(sunECI, posECI));
+
+        // Project sun onto body axes
+        var dotPr = vDot(sunRel, prograde);
+        var dotNo = vDot(sunRel, normal);
+        var dotNa = vDot(sunRel, nadir);
+
+        // Determine illuminated faces (threshold for significant illumination)
+        var THRESHOLD = 0.25;
+        var label = '';
+        var faces = {};
+
+        // Order: Pr/Re, Na/Ra, No/An
+        if (dotPr > THRESHOLD)       { label += 'Pr'; faces.Pr = dotPr; }
+        else if (dotPr < -THRESHOLD) { label += 'Re'; faces.Re = -dotPr; }
+
+        if (dotNa > THRESHOLD)       { label += 'Na'; faces.Na = dotNa; }
+        else if (dotNa < -THRESHOLD) { label += 'Ra'; faces.Ra = -dotNa; }
+
+        if (dotNo > THRESHOLD)       { label += 'No'; faces.No = dotNo; }
+        else if (dotNo < -THRESHOLD) { label += 'An'; faces.An = -dotNo; }
+
+        // Edge-on fallback: pick dominant face
+        if (label === '') {
+            var checks = [['Pr',dotPr],['Re',-dotPr],['Na',dotNa],['Ra',-dotNa],['No',dotNo],['An',-dotNo]];
+            var best = checks[0];
+            for (var i = 1; i < checks.length; i++) { if (checks[i][1] > best[1]) best = checks[i]; }
+            label = best[0];
+            faces[best[0]] = Math.max(0, best[1]);
         }
 
-        /** Sun direction in ECI (approximate solar ephemeris). */
-        function getSunECI(simTimeSec) {
-            var jd = SIM_EPOCH_JD + simTimeSec / 86400;
-            var T = (jd - 2451545.0) / 36525;
-            var M = (357.5291 + 35999.0503 * T) * DEG;
-            var L = (280.4664 + 36000.7698 * T) * DEG;
-            var lambda = L + 1.9146 * DEG * Math.sin(M);
-            var eps = 23.4393 * DEG;
-            var AU = 1.496e11;
-            return [
-                AU * Math.cos(lambda),
-                AU * Math.sin(lambda) * Math.cos(eps),
-                AU * Math.sin(lambda) * Math.sin(eps)
-            ];
+        // Primary face = highest brightness
+        var primary = label.substring(0, 2);
+        var brightness = 0;
+        for (var f in faces) { if (faces[f] > brightness) { brightness = faces[f]; primary = f; } }
+
+        return { label: label, faces: faces, primary: primary, brightness: brightness,
+                 dotPr: dotPr, dotNo: dotNo, dotNa: dotNa };
+    }
+
+    /** Update global face tallies. */
+    function tallyFace(faceLabel) {
+        // Combo tally
+        _comboTally[faceLabel] = (_comboTally[faceLabel] || 0) + 1;
+
+        // Individual face tally — parse label into 2-char face codes
+        for (var i = 0; i < faceLabel.length; i += 2) {
+            var face = faceLabel.substring(i, i + 2);
+            if (FACE_SHORTS.indexOf(face) !== -1) {
+                _faceTally[face] = (_faceTally[face] || 0) + 1;
+            }
         }
+    }
 
-        /** Cylindrical Earth shadow check. Returns true if sat is eclipsed. */
-        function isInEclipse(posECI, sunECI) {
-            var sunLen = Math.sqrt(sunECI[0]*sunECI[0]+sunECI[1]*sunECI[1]+sunECI[2]*sunECI[2]);
-            var sd = [sunECI[0]/sunLen, sunECI[1]/sunLen, sunECI[2]/sunLen];
-            var dot = posECI[0]*sd[0] + posECI[1]*sd[1] + posECI[2]*sd[2];
-            if (dot > 0) return false; // sun-side of Earth
-            var px = posECI[0] - dot*sd[0];
-            var py = posECI[1] - dot*sd[1];
-            var pz = posECI[2] - dot*sd[2];
-            return Math.sqrt(px*px + py*py + pz*pz) < R_EARTH;
-        }
+    // =========================================================================
+    //  SECTION 5: Splash Screen
+    // =========================================================================
 
-        /** Which cube face is most sunlit (body frame: +X=vel, +Y=orbit-normal, +Z=nadir).
-         *  Returns {face: string, brightness: 0-1, sunAngleDeg}. */
-        function computeIllumination(posECI, velECI, sunECI) {
-            var r = Math.sqrt(posECI[0]*posECI[0]+posECI[1]*posECI[1]+posECI[2]*posECI[2]);
-            // Body frame axes
-            var vLen = Math.sqrt(velECI[0]*velECI[0]+velECI[1]*velECI[1]+velECI[2]*velECI[2]);
-            var xB = [velECI[0]/vLen, velECI[1]/vLen, velECI[2]/vLen]; // +X = velocity
-            var zB = [-posECI[0]/r, -posECI[1]/r, -posECI[2]/r]; // +Z = nadir
-            var yB = [
-                xB[1]*zB[2]-xB[2]*zB[1],
-                xB[2]*zB[0]-xB[0]*zB[2],
-                xB[0]*zB[1]-xB[1]*zB[0]
-            ]; // +Y = cross(vel, nadir) ≈ orbit normal
-
-            // Sun direction relative to satellite
-            var sunRel = [sunECI[0]-posECI[0], sunECI[1]-posECI[1], sunECI[2]-posECI[2]];
-            var sLen = Math.sqrt(sunRel[0]*sunRel[0]+sunRel[1]*sunRel[1]+sunRel[2]*sunRel[2]);
-            sunRel = [sunRel[0]/sLen, sunRel[1]/sLen, sunRel[2]/sLen];
-
-            // Project sun onto body axes
-            var dotX = sunRel[0]*xB[0]+sunRel[1]*xB[1]+sunRel[2]*xB[2];
-            var dotY = sunRel[0]*yB[0]+sunRel[1]*yB[1]+sunRel[2]*yB[2];
-            var dotZ = sunRel[0]*zB[0]+sunRel[1]*zB[1]+sunRel[2]*zB[2];
-
-            var faces = [
-                { face: '+X (RAM)',    dot: dotX },
-                { face: '-X (WAKE)',   dot: -dotX },
-                { face: '+Y (NORTH)',  dot: dotY },
-                { face: '-Y (SOUTH)',  dot: -dotY },
-                { face: '+Z (NADIR)',  dot: dotZ },
-                { face: '-Z (ZENITH)', dot: -dotZ }
-            ];
-            faces.sort(function(a,b) { return b.dot - a.dot; });
-            var best = faces[0];
-            var sunAngle = Math.acos(Math.min(1, Math.max(-1,
-                sunRel[0]*(-posECI[0]/r)+sunRel[1]*(-posECI[1]/r)+sunRel[2]*(-posECI[2]/r)
-            ))) * RAD;
-            return {
-                face: best.face,
-                brightness: Math.max(0, best.dot),
-                sunAngleDeg: sunAngle,
-                allFaces: faces
-            };
-        }
-
-        // State
-        var _viewer = null;
-        var _allSats = [];
-        var _shells = [];
-        var _planes = [];
-        var _results = null;
-        var _snapshots = [];
-
-        // =====================================================================
-        // Step 1: Fetch Starlink TLEs
-        // =====================================================================
-        setStatus('Fetching Starlink TLE catalog...', 5);
-
-        var tleResponse;
+    async function loadConstellationList() {
+        var sel = document.getElementById('cfgConstellation');
+        var status = document.getElementById('splashStatus');
         try {
-            tleResponse = await fetch('/api/tle/constellation/STARLINK');
-            if (!tleResponse.ok) throw new Error('API returned ' + tleResponse.status);
+            status.textContent = 'Fetching constellation catalog...';
+            var resp = await fetch('/api/tle/catalog');
+            if (!resp.ok) throw new Error('API error ' + resp.status);
+            var data = await resp.json();
+
+            sel.innerHTML = '';
+            var groups = data.groups || [];
+            for (var i = 0; i < groups.length; i++) {
+                var g = groups[i];
+                var opt = document.createElement('option');
+                opt.value = g.name;
+                opt.textContent = g.name + ' (' + g.count + ' sats)';
+                if (g.name === 'STARLINK') opt.selected = true;
+                sel.appendChild(opt);
+            }
+
+            status.textContent = data.totalSatellites + ' satellites across ' + groups.length + ' groups';
+            document.getElementById('btnRun').disabled = false;
         } catch(e) {
-            showError('Failed to fetch TLEs: ' + e.message);
-            return;
+            status.textContent = 'Error: ' + e.message;
+            sel.innerHTML = '<option value="STARLINK">STARLINK (fallback)</option>';
+            document.getElementById('btnRun').disabled = false;
         }
+    }
 
-        var tleData = await tleResponse.json();
-        setStatus('Parsing ' + tleData.count + ' Starlink TLEs...', 15);
+    function readConfig() {
+        return {
+            constellation: document.getElementById('cfgConstellation').value || 'STARLINK',
+            numWalkers: parseInt(document.getElementById('cfgWalkers').value) || 10,
+            dvBudget: parseFloat(document.getElementById('cfgDV').value) || 2000,
+            durationDays: parseInt(document.getElementById('cfgDuration').value) || 5,
+            photoRange: parseFloat(document.getElementById('cfgRange').value) || 150,
+            photoTime: parseFloat(document.getElementById('cfgPhotoTime').value) || 30,
+            groundEnabled: document.getElementById('cfgGround').value === '1',
+            minElevation: parseFloat(document.getElementById('cfgMinEl').value) || 30,
+            durationSec: 0
+        };
+    }
 
-        // Parse each TLE
-        for (var i = 0; i < tleData.satellites.length; i++) {
-            var s = tleData.satellites[i];
-            var parsed = TLEParser.parseTLE(s.name, s.line1, s.line2);
-            if (parsed && parsed.sma > 0 && parsed.eccentricity < 0.1) {
-                _allSats.push(parsed);
-            }
-        }
+    document.getElementById('btnRun').addEventListener('click', function() {
+        _config = readConfig();
+        _config.durationSec = _config.durationDays * 86400;
+        document.getElementById('splash').style.display = 'none';
+        document.getElementById('processing').style.display = 'flex';
+        runAnalysis();
+    });
 
-        // Advance all MAs to common sim epoch (fixes bunching from stale TLE epochs)
-        for (var k = 0; k < _allSats.length; k++) {
-            propagateToSimEpoch(_allSats[k]);
-        }
+    // Initialize splash
+    loadConstellationList();
 
-        setStatus('Parsed ' + _allSats.length + ' valid Starlink satellites (epoch-corrected)', 25);
-        await sleep(100);
+    // =========================================================================
+    //  SECTION 6: Analysis Pipeline
+    // =========================================================================
 
-        // =====================================================================
-        // Step 2: Identify orbital shells by altitude
-        // =====================================================================
-        setStatus('Identifying orbital shells...', 30);
+    function setProc(msg, pct, detail) {
+        document.getElementById('procStatus').textContent = msg;
+        document.getElementById('progFill').style.width = pct + '%';
+        if (detail) document.getElementById('procDetail').textContent = detail;
+    }
 
-        // Known Starlink shells (approximate):
-        // Shell 1: ~550 km, 53.0° (Gen1 v1.5)
-        // Shell 2: ~540 km, 53.2° (Gen1 v2.0)
-        // Shell 3: ~570 km, 70.0° (Polar)
-        // Shell 4: ~560 km, 97.6° (SSO-like)
-        // We'll auto-detect by clustering inclination
+    function procError(msg) {
+        document.getElementById('procError').textContent = msg;
+        document.getElementById('procError').style.display = 'block';
+    }
 
-        // Group by inclination bands (5 deg tolerance for shell detection)
-        var incBands = {};
-        for (var i = 0; i < _allSats.length; i++) {
-            var sat = _allSats[i];
-            // Round inc to nearest 1 degree for shell grouping
-            var incBand = Math.round(sat.inclination);
-            if (!incBands[incBand]) incBands[incBand] = [];
-            incBands[incBand].push(sat);
-        }
+    async function runAnalysis() {
+        try {
+            // Step 1: Fetch TLEs
+            setProc('Fetching ' + _config.constellation + ' TLEs...', 5);
+            var resp = await fetch('/api/tle/constellation/' + encodeURIComponent(_config.constellation));
+            if (!resp.ok) throw new Error('TLE fetch failed: ' + resp.status);
+            var tleData = await resp.json();
 
-        // Merge adjacent inc bands into shells
-        var shellIncBands = Object.keys(incBands).map(Number).sort(function(a,b){ return a-b; });
-        var currentShell = null;
-        for (var i = 0; i < shellIncBands.length; i++) {
-            var inc = shellIncBands[i];
-            var count = incBands[inc].length;
-            if (count < 10) continue; // Skip tiny groups
+            setProc('Parsing ' + tleData.count + ' TLEs...', 12);
+            await sleep(50);
 
-            if (!currentShell || Math.abs(inc - currentShell.incCenter) > 3) {
-                // New shell
-                currentShell = {
-                    incCenter: inc,
-                    incMin: inc, incMax: inc,
-                    sats: [],
-                    count: 0
-                };
-                _shells.push(currentShell);
-            }
-
-            currentShell.incMax = inc;
-            currentShell.incCenter = (currentShell.incMin + currentShell.incMax) / 2;
-            for (var j = 0; j < incBands[inc].length; j++) {
-                currentShell.sats.push(incBands[inc][j]);
-            }
-            currentShell.count = currentShell.sats.length;
-        }
-
-        setStatus('Found ' + _shells.length + ' orbital shells', 35);
-        await sleep(100);
-
-        // =====================================================================
-        // Step 3: Identify planes within each shell (inc/RAAN matching)
-        // =====================================================================
-        setStatus('Identifying orbital planes (tolerance: ' + INC_TOLERANCE + '°)...', 40);
-
-        _planes = [];
-        for (var si = 0; si < _shells.length; si++) {
-            var shell = _shells[si];
-            var shellPlanes = [];
-
-            for (var j = 0; j < shell.sats.length; j++) {
-                var sat = shell.sats[j];
-                var foundPlane = false;
-
-                for (var p = 0; p < shellPlanes.length; p++) {
-                    var plane = shellPlanes[p];
-                    if (Math.abs(sat.inclination - plane.inc) <= INC_TOLERANCE &&
-                        _raanDiff(sat.raan, plane.raan) <= RAAN_TOLERANCE) {
-                        plane.sats.push(sat);
-                        foundPlane = true;
-                        break;
-                    }
-                }
-
-                if (!foundPlane) {
-                    shellPlanes.push({
-                        shell: si,
-                        inc: sat.inclination,
-                        raan: sat.raan,
-                        sats: [sat],
-                        avgAlt: 0
-                    });
+            _allSats = [];
+            for (var i = 0; i < tleData.satellites.length; i++) {
+                var s = tleData.satellites[i];
+                var parsed = TLEParser.parseTLE(s.name, s.line1, s.line2);
+                if (parsed && parsed.sma > 0 && parsed.eccentricity < 0.1) {
+                    _allSats.push(parsed);
                 }
             }
 
-            // Compute average altitude per plane
-            for (var p = 0; p < shellPlanes.length; p++) {
-                var plane = shellPlanes[p];
-                var sumAlt = 0;
-                for (var k = 0; k < plane.sats.length; k++) {
-                    sumAlt += plane.sats[k].altitudeKm;
+            // Propagate to sim epoch
+            for (var i = 0; i < _allSats.length; i++) propagateToSimEpoch(_allSats[i]);
+
+            setProc('Parsed ' + _allSats.length + ' valid satellites', 20,
+                'Epoch-corrected mean anomalies for accurate positioning');
+            await sleep(50);
+
+            // Step 2: Bin into orbital planes
+            setProc('Binning into orbital planes...', 28);
+            _planes = binIntoPlanes(_allSats);
+            _planes.sort(function(a,b) { return b.sats.length - a.sats.length; });
+
+            setProc('Found ' + _planes.length + ' orbital planes', 35,
+                'Largest plane: ' + _planes[0].sats.length + ' sats (inc=' +
+                _planes[0].inc.toFixed(1) + '° RAAN=' + _planes[0].raan.toFixed(1) + '°)');
+            await sleep(50);
+
+            // Step 3: Select top N planes
+            var numPlanes = Math.min(_config.numWalkers, _planes.length);
+            var targetPlanes = _planes.slice(0, numPlanes);
+
+            setProc('Selected top ' + numPlanes + ' planes for ' + numPlanes + ' walkers', 40);
+            await sleep(50);
+
+            // Step 4: Run walkers
+            _walkerResults = [];
+            _allSnapshots = [];
+            _faceTally = {};
+            _comboTally = {};
+            for (var f = 0; f < FACE_SHORTS.length; f++) _faceTally[FACE_SHORTS[f]] = 0;
+
+            for (var w = 0; w < numPlanes; w++) {
+                var plane = targetPlanes[w];
+                var pct = 45 + (w / numPlanes) * 40;
+                setProc('Walker ' + WALKER_NAMES[w] + ' — computing medoid...', pct,
+                    'Plane ' + (w+1) + '/' + numPlanes + ': ' + plane.sats.length + ' targets, Inc=' +
+                    plane.inc.toFixed(2) + '° RAAN=' + plane.raan.toFixed(2) + '°');
+                await sleep(10);
+
+                var result = runWalker(w, plane);
+                _walkerResults.push(result);
+
+                // Accumulate snapshots and face tallies
+                for (var s = 0; s < result.snapshots.length; s++) {
+                    var snap = result.snapshots[s];
+                    snap.walkerIdx = w;
+                    snap.globalIdx = _allSnapshots.length;
+                    _allSnapshots.push(snap);
+                    tallyFace(snap.faceLabel);
                 }
-                plane.avgAlt = sumAlt / plane.sats.length;
+
+                setProc('Walker ' + WALKER_NAMES[w] + ' complete: ' +
+                    result.snapshots.length + ' photos, ' + result.totalDV.toFixed(0) + ' m/s', pct + 3,
+                    result.snapshots.length + '/' + plane.sats.length + ' targets visited');
+                await sleep(10);
             }
 
-            shell.planes = shellPlanes;
-            _planes = _planes.concat(shellPlanes);
+            // Step 5: Ground telescope observations (optional)
+            if (_config.groundEnabled) {
+                MIN_ELEVATION_DEG = _config.minElevation;
+                setProc('Running ground telescope analysis...', 86);
+                await sleep(50);
+                var groundStats = integrateGroundLayer(targetPlanes);
+                setProc('Ground telescopes added ' + groundStats.groundPhotos + ' photos from ' +
+                    GROUND_STATIONS.length + ' stations', 88,
+                    'Unique satellites photographed: ' + groundStats.uniqueSats);
+                await sleep(50);
+            }
+
+            // Step 6: Generate CZML
+            setProc('Generating CZML playback...', 90);
+            await sleep(50);
+            var czml = generateCZML(_walkerResults, targetPlanes);
+
+            // Step 6: Initialize viewer
+            setProc('Initializing 3D viewer...', 94);
+            await initViewer(czml);
+
+            // Step 7: Build UI
+            setProc('Building dashboard...', 98);
+            buildDashboard();
+            buildFaceCharts();
+            buildEfficiencyBars();
+            buildWalkerTabs(numPlanes);
+            setupControls();
+
+            // Summary flash
+            var totalP = _allSnapshots.length;
+            var totalT = 0;
+            for (var w = 0; w < _walkerResults.length; w++) totalT += _walkerResults[w].targetsTotal;
+            setProc('ANALYSIS COMPLETE', 100,
+                totalP + ' photos | ' + (totalT > 0 ? (totalP/totalT*100).toFixed(1) : 0) +
+                '% coverage | ' + _walkerResults.length + ' walkers');
+            await sleep(800);
+
+            // Show main UI
+            document.getElementById('processing').style.display = 'none';
+            document.getElementById('cesiumContainer').style.display = 'block';
+            document.getElementById('topBar').style.display = 'flex';
+            document.getElementById('dashboard').style.display = 'block';
+            document.getElementById('facePanel').style.display = 'block';
+
+            document.getElementById('bottomBar').style.display = 'block';
+            updateBarStats();
+
+            // Draw supplemental diagrams
+            drawPlaneOverview();
+            drawPhotoTimeline();
+
+            console.log('Analysis complete:', _walkerResults.length, 'walkers,',
+                _allSnapshots.length, 'photos');
+
+        } catch(e) {
+            procError('Analysis failed: ' + e.message);
+            console.error(e);
         }
+    }
 
-        setStatus('Found ' + _planes.length + ' orbital planes across ' + _shells.length + ' shells', 50);
-        await sleep(100);
-
-        // =====================================================================
-        // Step 4: Select a plane and plan greedy inspection
-        // =====================================================================
-
-        // Pick the plane with the most satellites for best demo
-        var targetPlane = _planes[0];
-        for (var i = 1; i < _planes.length; i++) {
-            if (_planes[i].sats.length > targetPlane.sats.length) {
-                targetPlane = _planes[i];
+    // ─── Plane Binning ───
+    function binIntoPlanes(sats) {
+        var planes = [];
+        for (var i = 0; i < sats.length; i++) {
+            var sat = sats[i];
+            var found = false;
+            for (var p = 0; p < planes.length; p++) {
+                if (Math.abs(sat.inclination - planes[p].inc) <= INC_TOLERANCE &&
+                    raanDiff(sat.raan, planes[p].raan) <= RAAN_TOLERANCE) {
+                    planes[p].sats.push(sat);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                planes.push({ inc: sat.inclination, raan: sat.raan, sats: [sat], avgAlt: 0 });
             }
         }
-
-        // Compute orbital parameters for this plane
-        var sma = targetPlane.sats[0].sma;
-        var period = 2 * Math.PI * Math.sqrt(sma * sma * sma / MU);
-        var n = 2 * Math.PI / period; // mean motion rad/s
-
-        // Phasing DV between two co-orbital sats (by mean anomaly difference)
-        function computePhasingDV(maFrom, maTo) {
-            var dMA = ((maTo - maFrom) % 360 + 360) % 360;
-            if (dMA > 180) dMA -= 360;
-            if (Math.abs(dMA) < 0.5) return 0;
-            var dMA_rad = dMA * DEG;
-            var newPeriod = period - dMA_rad / n;
-            if (newPeriod < period * 0.5) newPeriod = period * 0.5;
-            if (newPeriod > period * 1.5) newPeriod = period * 1.5;
-            var newSMA = Math.pow(MU * newPeriod * newPeriod / (4 * Math.PI * Math.PI), 1/3);
-            var v_circ = Math.sqrt(MU / sma);
-            var v_transfer = Math.sqrt(MU * (2 / sma - 1 / newSMA));
-            return Math.abs(v_transfer - v_circ) * 2; // enter + exit phasing
+        // Compute average altitude
+        for (var p = 0; p < planes.length; p++) {
+            var sum = 0;
+            for (var k = 0; k < planes[p].sats.length; k++) sum += planes[p].sats[k].altitudeKm;
+            planes[p].avgAlt = sum / planes[p].sats.length;
         }
+        return planes;
+    }
 
-        // Phasing transfer time
-        function computePhasingTime(maFrom, maTo) {
-            var dMA = ((maTo - maFrom) % 360 + 360) % 360;
-            if (dMA > 180) dMA -= 360;
-            if (Math.abs(dMA) < 0.5) return Math.abs(dMA * DEG) / n;
-            var dMA_rad = dMA * DEG;
-            var newPeriod = period - dMA_rad / n;
-            if (newPeriod < period * 0.5) newPeriod = period * 0.5;
-            if (newPeriod > period * 1.5) newPeriod = period * 1.5;
-            return newPeriod;
-        }
+    // ─── Walker Engine ───
+    function runWalker(walkerIdx, plane) {
+        var sats = plane.sats;
+        var sma = sats[0].sma;
+        var period = TWO_PI * Math.sqrt(sma * sma * sma / MU);
+        var n = TWO_PI / period;
 
-        setStatus('Computing medoid (cheapest DV center) for ' +
-            targetPlane.sats.length + ' satellites...', 55);
-        await sleep(50);
-
-        // Compute medoid: satellite with cheapest total DV to all others
-        var medoidIdx = 0;
-        var medoidCost = Infinity;
-        for (var i = 0; i < targetPlane.sats.length; i++) {
+        // Compute medoid
+        var medoidIdx = 0, medoidCost = Infinity;
+        for (var i = 0; i < sats.length; i++) {
             var cost = 0;
-            for (var j = 0; j < targetPlane.sats.length; j++) {
-                if (i === j) continue;
-                cost += computePhasingDV(
-                    targetPlane.sats[i].meanAnomaly,
-                    targetPlane.sats[j].meanAnomaly);
+            for (var j = 0; j < sats.length; j++) {
+                if (i !== j) cost += computePhasingDV(sma, period, sats[i].meanAnomaly, sats[j].meanAnomaly);
             }
-            if (cost < medoidCost) {
-                medoidCost = cost;
-                medoidIdx = i;
-            }
+            if (cost < medoidCost) { medoidCost = cost; medoidIdx = i; }
         }
 
-        var medoidSat = targetPlane.sats[medoidIdx];
-        setStatus('Medoid: ' + medoidSat.name + ' (MA=' +
-            medoidSat.meanAnomaly.toFixed(1) + '°) — plane Inc=' +
-            targetPlane.inc.toFixed(2) + '° RAAN=' +
-            targetPlane.raan.toFixed(2) + '°', 58);
-        await sleep(100);
+        var medoid = sats[medoidIdx];
 
-        // =====================================================================
-        // Step 5: Greedy nearest-neighbor plane-walk from medoid
-        // =====================================================================
-        setStatus('Computing greedy nearest-neighbor trajectory from medoid...', 60);
-
-        // Inspector starts near the medoid with small angular offset
-        var inspectorSat = JSON.parse(JSON.stringify(medoidSat));
-        inspectorSat.meanAnomaly = (inspectorSat.meanAnomaly + 5) % 360;
-
-        var inspectorECI = TLEParser.tleToECI(inspectorSat);
-        var inspectorPos = inspectorECI.pos.slice();
-        var inspectorVel = inspectorECI.vel.slice();
-
-        var totalDV = 0;
-        var totalTime = 0;
-        var fuelRemaining = INSPECTOR.fuelMass;
-        var maneuvers = [];
-        _snapshots = [];
-        var visitOrder = []; // indices into targetPlane.sats
-
-        var currentMA = inspectorSat.meanAnomaly;
-
-        // Greedy nearest-neighbor: prefer sunlit + cheap DV targets
+        // Greedy nearest-neighbor walk
         var visited = new Set();
-        var sunlitCount = 0;
-        var eclipseCount = 0;
-        for (var step = 0; step < targetPlane.sats.length; step++) {
-            var bestIdx = -1;
-            var bestCost = Infinity;
-            var bestDV = 0;
-            for (var j = 0; j < targetPlane.sats.length; j++) {
+        var currentMA = (medoid.meanAnomaly + 3) % 360; // small offset from medoid
+        var totalDV = 0, totalTime = 0;
+        var snapshots = [];
+        var maneuvers = [];
+        var totalWaitTime = 0;
+
+        for (var step = 0; step < sats.length; step++) {
+            // Find nearest unvisited target
+            var bestIdx = -1, bestDV = Infinity;
+            for (var j = 0; j < sats.length; j++) {
                 if (visited.has(j)) continue;
-                var dv = computePhasingDV(currentMA, targetPlane.sats[j].meanAnomaly);
-                var xferTime = computePhasingTime(currentMA, targetPlane.sats[j].meanAnomaly);
-                var arrivalTime = totalTime + xferTime;
+                var dv = computePhasingDV(sma, period, currentMA, sats[j].meanAnomaly);
+                // Slight preference for sunlit targets (less wait time)
+                var xferTime = computePhasingTime(sma, period, currentMA, sats[j].meanAnomaly);
+                var arrTime = totalTime + xferTime;
+                var tmpMA = (sats[j].meanAnomaly + (n * arrTime) * RAD) % 360;
+                var tmpSat = { sma: sma, eccentricity: sats[j].eccentricity || 0.0001,
+                    inclination: sats[j].inclination, raan: sats[j].raan,
+                    argPerigee: sats[j].argPerigee || 0, meanAnomaly: tmpMA };
+                var tmpECI = TLEParser.tleToECI(tmpSat);
+                var tmpSun = getSunECI(arrTime);
+                var eclipsed = isInEclipse(tmpECI.pos, tmpSun);
 
-                // Check sun illumination at arrival
-                var tSat = targetPlane.sats[j];
-                // Advance target MA to arrival time
-                var arrivalMA = (tSat.meanAnomaly + (n * arrivalTime) * RAD) % 360;
-                var tmpSat = { sma: sma, eccentricity: tSat.eccentricity || 0.0001,
-                    inclination: tSat.inclination, raan: tSat.raan,
-                    argPerigee: tSat.argPerigee || 0, meanAnomaly: arrivalMA };
-                var tECI = TLEParser.tleToECI(tmpSat);
-                var sunDir = getSunECI(arrivalTime);
-                var eclipsed = isInEclipse(tECI.pos, sunDir);
-
-                // Cost = DV with 5x penalty for shadow targets
-                var cost = dv + (eclipsed ? dv * 4 + 50 : 0);
-                if (cost < bestCost) {
-                    bestCost = cost;
-                    bestIdx = j;
-                    bestDV = dv;
-                }
+                // Cost: DV + small time penalty for eclipse wait
+                var cost = dv + (eclipsed ? 5 : 0);
+                if (cost < bestDV) { bestDV = cost; bestIdx = j; }
             }
             if (bestIdx === -1) break;
 
-            var target = targetPlane.sats[bestIdx];
-            var transferDV = bestDV;
-            var transferTime = computePhasingTime(currentMA, target.meanAnomaly);
+            var target = sats[bestIdx];
+            var transferDV = computePhasingDV(sma, period, currentMA, target.meanAnomaly);
+            var transferTime = computePhasingTime(sma, period, currentMA, target.meanAnomaly);
 
-            // Check fuel
-            var fuelNeeded = _dvToFuel(transferDV, fuelRemaining);
-            if (fuelRemaining - fuelNeeded < 0) break;
+            // Check DV budget
+            if (totalDV + transferDV > _config.dvBudget) break;
 
-            visited.add(bestIdx);
-            visitOrder.push(bestIdx);
-            fuelRemaining -= fuelNeeded;
+            // Apply transfer
             totalDV += transferDV;
-            totalTime += transferTime + INSPECTOR.photoTime;
+            totalTime += transferTime;
             currentMA = target.meanAnomaly;
+            visited.add(bestIdx);
 
-            // Compute illumination at photo time
-            var photoMA = (target.meanAnomaly + (n * totalTime) * RAD) % 360;
+            // Check time limit
+            if (totalTime > _config.durationSec) break;
+
+            // Check eclipse at arrival — if eclipsed, WAIT for sun
+            var waitTime = 0;
+            var arrivalMA = (target.meanAnomaly + (n * totalTime) * RAD) % 360;
+            var arrSat = { sma: sma, eccentricity: target.eccentricity || 0.0001,
+                inclination: target.inclination, raan: target.raan,
+                argPerigee: target.argPerigee || 0, meanAnomaly: arrivalMA };
+            var arrECI = TLEParser.tleToECI(arrSat);
+            var arrSun = getSunECI(totalTime);
+
+            if (isInEclipse(arrECI.pos, arrSun)) {
+                waitTime = computeEclipseWait(target, sma, period, totalTime);
+                totalTime += waitTime;
+                totalWaitTime += waitTime;
+            }
+
+            if (totalTime > _config.durationSec) break;
+
+            // Take photo (always sunlit now)
+            var photoTime = totalTime;
+            var photoMA = (target.meanAnomaly + (n * photoTime) * RAD) % 360;
             var photoSat = { sma: sma, eccentricity: target.eccentricity || 0.0001,
                 inclination: target.inclination, raan: target.raan,
                 argPerigee: target.argPerigee || 0, meanAnomaly: photoMA };
             var photoECI = TLEParser.tleToECI(photoSat);
-            var photoSun = getSunECI(totalTime);
-            var photoEclipse = isInEclipse(photoECI.pos, photoSun);
-            var illum = photoEclipse ? null :
-                computeIllumination(photoECI.pos, photoECI.vel, photoSun);
+            var photoSun = getSunECI(photoTime);
+            var faceData = computeFaceCapture(photoECI.pos, photoECI.vel, photoSun);
 
-            if (photoEclipse) eclipseCount++;
-            else sunlitCount++;
+            totalTime += _config.photoTime;
 
             maneuvers.push({
-                targetIdx: bestIdx,
-                targetName: target.name,
-                targetMA: target.meanAnomaly,
-                targetInc: target.inclination,
-                targetRaan: target.raan,
-                transferDV: transferDV,
-                transferTime: transferTime,
-                totalDV: totalDV,
-                totalTime: totalTime,
-                fuelRemaining: fuelRemaining
+                targetIdx: bestIdx, targetName: target.name,
+                transferDV: transferDV, transferTime: transferTime,
+                waitTime: waitTime, totalDV: totalDV, totalTime: totalTime
             });
 
-            _snapshots.push({
+            snapshots.push({
                 index: step + 1,
                 name: target.name,
-                time: totalTime,
+                time: photoTime,
+                totalTime: totalTime,
                 dv: transferDV,
                 totalDV: totalDV,
-                lat: null, lon: null, alt: target.altitudeKm,
+                alt: target.altitudeKm,
                 inc: target.inclination,
                 raan: target.raan,
                 meanAnomaly: target.meanAnomaly,
-                fuelRemaining: fuelRemaining,
-                eclipsed: photoEclipse,
-                sunlit: !photoEclipse,
-                illumination: illum ? illum.face : 'SHADOW',
-                brightness: illum ? illum.brightness : 0,
-                sunAngleDeg: illum ? illum.sunAngleDeg : 0
+                waitTime: waitTime,
+                faceLabel: faceData.label,
+                facePrimary: faceData.primary,
+                faceData: faceData,
+                brightness: faceData.brightness,
+                posECI: photoECI.pos,
+                velECI: photoECI.vel,
+                sunECI: photoSun
             });
-
-            setStatus('Planning maneuver ' + (step+1) + '/' + targetPlane.sats.length +
-                ' — DV: ' + totalDV.toFixed(1) + ' m/s', 60 + (step / targetPlane.sats.length) * 25);
-
-            if (step % 10 === 0) await sleep(1);
         }
 
-        // =====================================================================
-        // Step 6: Build results
-        // =====================================================================
-        _results = {
-            totalSatellites: _allSats.length,
-            shells: _shells.map(function(sh, i) {
-                return {
-                    index: i,
-                    incCenter: sh.incCenter,
-                    incRange: sh.incMin + '-' + sh.incMax,
-                    count: sh.count,
-                    planes: sh.planes ? sh.planes.length : 0
-                };
-            }),
-            totalPlanes: _planes.length,
-            targetPlane: {
-                inc: targetPlane.inc,
-                raan: targetPlane.raan,
-                satsInPlane: targetPlane.sats.length,
-                avgAlt: targetPlane.avgAlt,
-                medoid: medoidSat.name,
-                medoidMA: medoidSat.meanAnomaly,
-                medoidTotalCost: medoidCost
-            },
-            inspector: {
-                maxDV: INSPECTOR.maxDV,
-                isp: INSPECTOR.isp,
-                dryMass: INSPECTOR.dryMass,
-                fuelMass: INSPECTOR.fuelMass
-            },
-            mission: {
-                photosComplete: _snapshots.length,
-                totalTargets: targetPlane.sats.length,
-                sunlitPhotos: sunlitCount,
-                eclipsePhotos: eclipseCount,
-                totalDV: totalDV,
-                totalTime: totalTime,
-                totalTimeHrs: totalTime / 3600,
-                fuelUsed: INSPECTOR.fuelMass - fuelRemaining,
-                fuelRemaining: fuelRemaining,
-                maneuvers: maneuvers
-            }
+        return {
+            walkerIdx: walkerIdx,
+            walkerName: WALKER_NAMES[walkerIdx],
+            color: WALKER_COLORS[walkerIdx],
+            plane: { inc: plane.inc, raan: plane.raan, avgAlt: plane.avgAlt, totalSats: sats.length },
+            medoid: { name: medoid.name, ma: medoid.meanAnomaly, totalCost: medoidCost },
+            snapshots: snapshots,
+            maneuvers: maneuvers,
+            totalDV: totalDV,
+            totalTime: totalTime,
+            totalWaitTime: totalWaitTime,
+            photosComplete: snapshots.length,
+            targetsTotal: sats.length,
+            sma: sma,
+            period: period
         };
+    }
 
-        setStatus('Mission planned: ' + _snapshots.length + ' photos, ' +
-            totalDV.toFixed(1) + ' m/s DV, ' + (totalTime/3600).toFixed(1) + ' hrs', 88);
-        await sleep(200);
+    // =========================================================================
+    //  SECTION 7: CZML Generation
+    // =========================================================================
 
-        // =====================================================================
-        // Step 7: Generate CZML playback
-        // =====================================================================
-        setStatus('Generating CZML playback...', 90);
+    function generateCZML(walkerResults, targetPlanes) {
+        var maxTime = 0;
+        for (var w = 0; w < walkerResults.length; w++) {
+            if (walkerResults[w].totalTime > maxTime) maxTime = walkerResults[w].totalTime;
+        }
+        maxTime = Math.min(maxTime * 1.1, _config.durationSec);
 
-        var epoch = new Date();
+        var epoch = new Date(SIM_EPOCH_MS);
         var epochISO = epoch.toISOString();
-        var endTime = new Date(epoch.getTime() + totalTime * 1000);
-        var endISO = endTime.toISOString();
+        var endISO = new Date(SIM_EPOCH_MS + maxTime * 1000).toISOString();
 
-        var czml = [];
-
-        // Document packet
-        czml.push({
+        var czml = [{
             id: 'document',
-            name: 'Starlink Inspector — Plane Walk',
+            name: _config.constellation + ' Constellation Inspector',
             version: '1.0',
             clock: {
                 interval: epochISO + '/' + endISO,
@@ -655,587 +986,1597 @@
                 range: 'LOOP_STOP',
                 step: 'SYSTEM_CLOCK_MULTIPLIER'
             }
-        });
+        }];
 
-        // Generate inspector trajectory via Kepler propagation
-        var dt = 60; // 1 minute steps
-        var numSteps = Math.ceil(totalTime / dt);
-        var inspectorPositions = []; // epoch-seconds, x, y, z
-        var simPos = inspectorECI.pos.slice();
-        var simVel = inspectorECI.vel.slice();
-        var simTime = 0;
-        var maneuverIdx = 0;
+        // Generate walker trajectories
+        var dt = 120; // 2-min steps
+        for (var w = 0; w < walkerResults.length; w++) {
+            var wr = walkerResults[w];
+            var sma = wr.sma;
+            var medoidSat = targetPlanes[w].sats[0]; // use first sat as reference orbit
 
-        for (var step = 0; step <= numSteps; step++) {
-            var t = step * dt;
-            if (t > totalTime) t = totalTime;
+            var eci = TLEParser.tleToECI(medoidSat);
+            var pos = eci.pos.slice();
+            var vel = eci.vel.slice();
+            var positions = [];
+            var numSteps = Math.ceil(Math.min(wr.totalTime, maxTime) / dt);
 
-            // Apply maneuver DV at maneuver times
-            while (maneuverIdx < maneuvers.length && t >= maneuvers[maneuverIdx].totalTime - maneuvers[maneuverIdx].transferTime) {
-                maneuverIdx++;
-            }
-
-            // Propagate
-            if (step > 0) {
-                var result = TLEParser.propagateKepler(simPos, simVel, dt);
-                simPos = result.pos;
-                simVel = result.vel;
-            }
-
-            // Convert ECI to ECEF for CZML (Cesium expects ECEF in "cartesian" with epoch offsets)
-            var gmst = GMST0 + OMEGA_EARTH * t;
-            var cosG = Math.cos(-gmst);
-            var sinG = Math.sin(-gmst);
-            var ecefX = cosG * simPos[0] - sinG * simPos[1];
-            var ecefY = sinG * simPos[0] + cosG * simPos[1];
-            var ecefZ = simPos[2];
-
-            inspectorPositions.push(t, ecefX, ecefY, ecefZ);
-        }
-
-        // Inspector entity
-        czml.push({
-            id: 'inspector',
-            name: INSPECTOR.name,
-            availability: epochISO + '/' + endISO,
-            position: {
-                epoch: epochISO,
-                cartesian: inspectorPositions,
-                interpolationAlgorithm: 'LAGRANGE',
-                interpolationDegree: 5
-            },
-            point: {
-                color: { rgba: [0, 255, 136, 255] },
-                pixelSize: 14,
-                outlineColor: { rgba: [255, 255, 255, 200] },
-                outlineWidth: 2
-            },
-            path: {
-                show: true,
-                width: 2,
-                material: { solidColor: { color: { rgba: [0, 255, 136, 100] } } },
-                leadTime: 0,
-                trailTime: 3600
-            },
-            label: {
-                text: INSPECTOR.name,
-                font: '12pt monospace',
-                fillColor: { rgba: [0, 255, 136, 255] },
-                outlineColor: { rgba: [0, 0, 0, 200] },
-                outlineWidth: 2,
-                pixelOffset: { cartesian2: [10, -10] },
-                style: 'FILL_AND_OUTLINE'
-            },
-            model: {
-                gltf: 'models/satellite_simple.glb',
-                scale: 50000,
-                minimumPixelSize: 48
-            }
-        });
-
-        // Add target satellites — coarse 5-min steps, no labels/paths (inspector path only)
-        var targetDt = 300; // 5-minute steps for targets
-        var targetNumSteps = Math.ceil(totalTime / targetDt);
-        for (var ti = 0; ti < targetPlane.sats.length; ti++) {
-            var sat = targetPlane.sats[ti];
-            var eci = TLEParser.tleToECI(sat);
-
-            var targetPositions = [];
-            var tPos = eci.pos.slice();
-            var tVel = eci.vel.slice();
-
-            for (var step = 0; step <= targetNumSteps; step++) {
-                var tt = step * targetDt;
-                if (tt > totalTime) tt = totalTime;
-
+            for (var step = 0; step <= numSteps; step++) {
+                var t = step * dt;
                 if (step > 0) {
-                    var res = TLEParser.propagateKepler(tPos, tVel, targetDt);
-                    tPos = res.pos;
-                    tVel = res.vel;
+                    var r = TLEParser.propagateKepler(pos, vel, dt);
+                    pos = r.pos; vel = r.vel;
                 }
-
-                var gmst2 = GMST0 + OMEGA_EARTH * tt;
-                var cG = Math.cos(-gmst2);
-                var sG = Math.sin(-gmst2);
-
-                targetPositions.push(tt,
-                    cG * tPos[0] - sG * tPos[1],
-                    sG * tPos[0] + cG * tPos[1],
-                    tPos[2]
-                );
+                var gmst = GMST0 + OMEGA_EARTH * t;
+                var cg = Math.cos(-gmst), sg = Math.sin(-gmst);
+                positions.push(t, cg*pos[0]-sg*pos[1], sg*pos[0]+cg*pos[1], pos[2]);
             }
 
-            var wasPhotographed = visitOrder.indexOf(ti) !== -1;
-            var pointColor = wasPhotographed ? [68, 136, 255, 200] : [100, 100, 100, 100];
-
+            var c = wr.color;
             czml.push({
-                id: 'target_' + ti,
-                name: sat.name,
+                id: 'walker_' + w,
+                name: wr.walkerName + ' INSPECTOR',
                 availability: epochISO + '/' + endISO,
-                position: {
-                    epoch: epochISO,
-                    cartesian: targetPositions,
-                    interpolationAlgorithm: 'LAGRANGE',
-                    interpolationDegree: 3
-                },
-                point: {
-                    color: { rgba: pointColor },
-                    pixelSize: wasPhotographed ? 6 : 3
-                },
-                model: {
-                    gltf: 'models/satellite_simple.glb',
-                    scale: 30000,
-                    minimumPixelSize: 24
-                }
+                position: { epoch: epochISO, cartesian: positions, interpolationAlgorithm: 'LAGRANGE', interpolationDegree: 5 },
+                point: { color: { rgba: [c[0], c[1], c[2], 255] }, pixelSize: 12,
+                    outlineColor: { rgba: [255, 255, 255, 180] }, outlineWidth: 2 },
+                path: { show: true, width: 2,
+                    material: { solidColor: { color: { rgba: [c[0], c[1], c[2], 80] } } },
+                    leadTime: 0, trailTime: 2400 },
+                label: { text: wr.walkerName, font: '11pt monospace',
+                    fillColor: { rgba: [c[0], c[1], c[2], 255] },
+                    outlineColor: { rgba: [0, 0, 0, 200] }, outlineWidth: 2,
+                    pixelOffset: { cartesian2: [10, -10] }, style: 'FILL_AND_OUTLINE' }
             });
         }
 
-        setStatus('CZML generated: ' + czml.length + ' entities', 95);
-        await sleep(100);
+        // Add target satellites (lightweight, 15-min steps, only visited planes)
+        var tgtDt = 900;
+        for (var p = 0; p < targetPlanes.length; p++) {
+            var plane = targetPlanes[p];
+            var pColor = WALKER_COLORS[p];
+            var numTgtSteps = Math.ceil(Math.min(maxTime, _config.durationSec) / tgtDt);
 
-        // =====================================================================
-        // Step 8: Save outputs
-        // =====================================================================
-        setStatus('Saving playback and snapshots...', 97);
+            for (var ti = 0; ti < plane.sats.length; ti++) {
+                var sat = plane.sats[ti];
+                var tEci = TLEParser.tleToECI(sat);
+                var tPos = tEci.pos.slice(), tVel = tEci.vel.slice();
+                var tPositions = [];
 
-        // Save CZML
-        try {
-            await fetch('/api/sim/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: 'starlink_inspector_playback.json',
-                    scenario: czml
-                })
-            });
-        } catch(e) {
-            console.warn('Could not save CZML:', e);
-        }
-
-        // Save results JSON
-        try {
-            await fetch('/api/sim/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: 'starlink_inspector_results.json',
-                    scenario: _results
-                })
-            });
-        } catch(e) {
-            console.warn('Could not save results:', e);
-        }
-
-        // Save snapshots
-        try {
-            await fetch('/api/sim/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: 'starlink_inspector_snapshots.json',
-                    scenario: {
-                        mission: 'Starlink Inspector Plane Walk',
-                        plane: { inc: targetPlane.inc, raan: targetPlane.raan },
-                        totalPhotos: _snapshots.length,
-                        totalDV: totalDV,
-                        totalTime: totalTime,
-                        snapshots: _snapshots
+                for (var step = 0; step <= numTgtSteps; step++) {
+                    var tt = step * tgtDt;
+                    if (step > 0) {
+                        var r2 = TLEParser.propagateKepler(tPos, tVel, tgtDt);
+                        tPos = r2.pos; tVel = r2.vel;
                     }
-                })
-            });
-        } catch(e) {
-            console.warn('Could not save snapshots:', e);
-        }
+                    var g2 = GMST0 + OMEGA_EARTH * tt;
+                    var c2 = Math.cos(-g2), s2 = Math.sin(-g2);
+                    tPositions.push(tt, c2*tPos[0]-s2*tPos[1], s2*tPos[0]+c2*tPos[1], tPos[2]);
+                }
 
-        // =====================================================================
-        // Step 9: Initialize Cesium viewer and load CZML
-        // =====================================================================
-        setStatus('Initializing 3D viewer...', 99);
-
-        try {
-            _viewer = new Cesium.Viewer('cesiumContainer', {
-                baseLayerPicker: true,
-                geocoder: false,
-                homeButton: false,
-                sceneModePicker: false,
-                navigationHelpButton: false,
-                animation: true,
-                timeline: true,
-                fullscreenButton: false,
-                vrButton: false,
-                infoBox: true,
-                selectionIndicator: true,
-                shadows: false,
-                shouldAnimate: true
-            });
-
-            setupTerrain(_viewer);
-            setupImagery(_viewer);
-            _viewer.scene.globe.enableLighting = true;
-
-            // Load CZML
-            var dataSource = await Cesium.CzmlDataSource.load(czml);
-            _viewer.dataSources.add(dataSource);
-            _viewer.clock.multiplier = 50;
-            _viewer.zoomTo(dataSource);
-
-        } catch(e) {
-            showError('Cesium init failed: ' + e.message);
-            return;
-        }
-
-        // Hide overlay, show controls
-        document.getElementById('overlay').style.display = 'none';
-        document.getElementById('statusBar').style.display = 'block';
-        document.getElementById('speedControls').style.display = 'flex';
-        document.getElementById('resultsPanel').style.display = 'block';
-
-        document.getElementById('modelEntities').textContent = targetPlane.sats.length;
-
-        // =====================================================================
-        // Step 10: Build results panel
-        // =====================================================================
-        buildResultsPanel();
-        setupSpeedControls();
-        setupKeyboard();
-
-        // Track inspector position for phase display
-        _viewer.clock.onTick.addEventListener(function(clock) {
-            var elapsed = Cesium.JulianDate.secondsDifference(clock.currentTime,
-                Cesium.JulianDate.fromIso8601(epochISO));
-            var photoIdx = 0;
-            for (var i = 0; i < _snapshots.length; i++) {
-                if (elapsed >= _snapshots[i].time) photoIdx = i + 1;
+                czml.push({
+                    id: 'tgt_' + p + '_' + ti,
+                    name: sat.name,
+                    availability: epochISO + '/' + endISO,
+                    position: { epoch: epochISO, cartesian: tPositions, interpolationAlgorithm: 'LAGRANGE', interpolationDegree: 3 },
+                    point: { color: { rgba: [pColor[0], pColor[1], pColor[2], 60] }, pixelSize: 3 }
+                });
             }
-            document.getElementById('modelPhase').textContent =
-                'Photo ' + photoIdx + '/' + _snapshots.length;
-            document.getElementById('modelSpeed').textContent =
-                clock.multiplier.toFixed(0) + 'x';
+        }
+
+        // Add photo event markers (pulsing points at photo locations)
+        for (var w = 0; w < walkerResults.length; w++) {
+            var wr = walkerResults[w];
+            var c = wr.color;
+            for (var si = 0; si < wr.snapshots.length; si++) {
+                var snap = wr.snapshots[si];
+                if (!snap.posECI) continue;
+                var gmst = GMST0 + OMEGA_EARTH * snap.time;
+                var cg = Math.cos(-gmst), sg = Math.sin(-gmst);
+                var px = cg * snap.posECI[0] - sg * snap.posECI[1];
+                var py = sg * snap.posECI[0] + cg * snap.posECI[1];
+                var pz = snap.posECI[2];
+
+                var photoStart = new Date(SIM_EPOCH_MS + snap.time * 1000).toISOString();
+                var photoEnd = new Date(SIM_EPOCH_MS + (snap.time + 30) * 1000).toISOString();
+                czml.push({
+                    id: 'photo_' + w + '_' + si,
+                    name: 'PHOTO: ' + snap.name + ' [' + snap.faceLabel + ']',
+                    availability: photoStart + '/' + photoEnd,
+                    position: { cartesian: [px, py, pz] },
+                    point: {
+                        color: { rgba: [255, 255, 100, 200] },
+                        pixelSize: 8,
+                        outlineColor: { rgba: [c[0], c[1], c[2], 255] },
+                        outlineWidth: 3
+                    },
+                    label: {
+                        text: snap.faceLabel,
+                        font: 'bold 10pt monospace',
+                        fillColor: { rgba: [255, 255, 100, 255] },
+                        outlineColor: { rgba: [0, 0, 0, 200] },
+                        outlineWidth: 2,
+                        pixelOffset: { cartesian2: [0, -18] },
+                        style: 'FILL_AND_OUTLINE',
+                        show: true
+                    }
+                });
+            }
+        }
+
+        // Add ground station markers
+        if (_groundResults && _groundResults.stationStats) {
+            for (var si = 0; si < GROUND_STATIONS.length; si++) {
+                var st = GROUND_STATIONS[si];
+                var stPhotos = _groundResults.stationStats[si].photos;
+                var stColor = stPhotos > 0 ? [255, 170, 0, 255] : [100, 100, 100, 120];
+                var latR = st.lat * DEG, lonR = st.lon * DEG;
+                var sR = R_EARTH + st.alt;
+                czml.push({
+                    id: 'station_' + si,
+                    name: st.name + ' (' + stPhotos + ' photos)',
+                    position: {
+                        cartographicDegrees: [st.lon, st.lat, st.alt]
+                    },
+                    point: {
+                        color: { rgba: stColor },
+                        pixelSize: stPhotos > 0 ? 8 : 5,
+                        outlineColor: { rgba: [255, 255, 255, 150] },
+                        outlineWidth: 1
+                    },
+                    label: {
+                        text: st.name,
+                        font: '10pt monospace',
+                        fillColor: { rgba: stColor },
+                        outlineColor: { rgba: [0, 0, 0, 200] },
+                        outlineWidth: 2,
+                        pixelOffset: { cartesian2: [0, -16] },
+                        style: 'FILL_AND_OUTLINE',
+                        show: stPhotos > 0
+                    }
+                });
+            }
+        }
+
+        return czml;
+    }
+
+    // =========================================================================
+    //  SECTION 8: Cesium Viewer
+    // =========================================================================
+
+    async function initViewer(czml) {
+        _viewer = new Cesium.Viewer('cesiumContainer', {
+            baseLayerPicker: true, geocoder: false, homeButton: false,
+            sceneModePicker: false, navigationHelpButton: false,
+            animation: true, timeline: true, fullscreenButton: false,
+            vrButton: false, infoBox: true, selectionIndicator: true,
+            shadows: false, shouldAnimate: true
         });
 
-        console.log('Starlink Inspector Model loaded successfully');
-        console.log('Results:', _results);
+        if (typeof setupTerrain === 'function') setupTerrain(_viewer);
+        if (typeof setupImagery === 'function') setupImagery(_viewer);
+        _viewer.scene.globe.enableLighting = true;
 
-        // =====================================================================
-        // Helper functions
-        // =====================================================================
+        var ds = await Cesium.CzmlDataSource.load(czml);
+        _viewer.dataSources.add(ds);
+        _viewer.clock.multiplier = 50;
+        _viewer.zoomTo(ds);
 
-        function buildResultsPanel() {
-            var panel = document.getElementById('resultsPanel');
-            var html = '<h2>MISSION RESULTS</h2>';
-
-            // Constellation overview
-            html += '<h3>CONSTELLATION</h3>';
-            html += statRow('Total Starlink', _results.totalSatellites);
-            html += statRow('Orbital Shells', _results.shells.length);
-            html += statRow('Total Planes', _results.totalPlanes);
-
-            // Shell breakdown
-            html += '<h3>SHELLS</h3>';
-            for (var i = 0; i < _results.shells.length; i++) {
-                var sh = _results.shells[i];
-                html += statRow('Shell ' + (i+1) + ' (Inc ' + sh.incCenter.toFixed(1) + '°)',
-                    sh.count + ' sats, ' + sh.planes + ' planes');
+        // Tick handler for status bar
+        var epochJD = Cesium.JulianDate.fromIso8601(new Date(SIM_EPOCH_MS).toISOString());
+        _viewer.clock.onTick.addEventListener(function(clock) {
+            var elapsed = Cesium.JulianDate.secondsDifference(clock.currentTime, epochJD);
+            var photoCount = 0;
+            for (var i = 0; i < _allSnapshots.length; i++) {
+                if (elapsed >= _allSnapshots[i].time) photoCount++;
             }
+            document.getElementById('barPhotos').textContent = photoCount;
+            document.getElementById('barPhase').textContent =
+                'T+' + formatTime(elapsed) + ' / Photo ' + photoCount + '/' + _allSnapshots.length;
+            document.getElementById('barDV').textContent =
+                _walkerResults.reduce(function(s,w){ return s + w.totalDV; }, 0).toFixed(0);
+        });
+    }
 
-            // Target plane
-            html += '<h3>TARGET PLANE</h3>';
-            html += statRow('Inclination', _results.targetPlane.inc.toFixed(2) + '°');
-            html += statRow('RAAN', _results.targetPlane.raan.toFixed(2) + '°');
-            html += statRow('Avg Altitude', _results.targetPlane.avgAlt.toFixed(0) + ' km');
-            html += statRow('Satellites', _results.targetPlane.satsInPlane);
-            html += statRow('Medoid', _results.targetPlane.medoid);
-            html += statRow('Medoid MA', _results.targetPlane.medoidMA.toFixed(2) + '°');
-            html += statRow('Medoid DV Cost', _results.targetPlane.medoidTotalCost.toFixed(1) + ' m/s total');
+    // =========================================================================
+    //  SECTION 9: Dashboard
+    // =========================================================================
 
-            // Inspector
-            html += '<h3>INSPECTOR</h3>';
-            html += statRow('Max Delta-V', _results.inspector.maxDV.toFixed(1) + ' m/s');
-            html += statRow('ISP', _results.inspector.isp + ' s');
-            html += statRow('Dry Mass', _results.inspector.dryMass + ' kg');
-            html += statRow('Fuel Mass', _results.inspector.fuelMass + ' kg');
+    function buildDashboard() {
+        var d = document.getElementById('dashboard');
+        var html = '<h2>' + _config.constellation + ' INSPECTION RESULTS</h2>';
 
-            // Mission
-            html += '<h3>MISSION</h3>';
-            html += statRow('Photos Complete', _results.mission.photosComplete + '/' + _results.mission.totalTargets);
-            html += statRow('Total Delta-V', _results.mission.totalDV.toFixed(1) + ' m/s');
-            html += statRow('DV Budget Used', ((_results.mission.totalDV / _results.inspector.maxDV) * 100).toFixed(1) + '%');
-            html += statRow('Mission Duration', _results.mission.totalTimeHrs.toFixed(1) + ' hrs (' +
-                (_results.mission.totalTimeHrs / 24).toFixed(1) + ' days)');
-            html += statRow('Fuel Used', _results.mission.fuelUsed.toFixed(1) + ' kg');
-            html += statRow('Fuel Remaining', _results.mission.fuelRemaining.toFixed(1) + ' kg');
-            html += statRow('Sunlit Photos', _results.mission.sunlitPhotos + ' / ' + _results.mission.photosComplete);
-            html += statRow('Eclipse Photos', _results.mission.eclipsePhotos + ' (degraded)');
+        // Mission Summary — Summary Cards
+        var totalPhotos = _allSnapshots.length;
+        var totalTargets = 0, totalDV = 0, maxTime = 0, totalWait = 0;
+        for (var w = 0; w < _walkerResults.length; w++) {
+            totalTargets += _walkerResults[w].targetsTotal;
+            totalDV += _walkerResults[w].totalDV;
+            if (_walkerResults[w].totalTime > maxTime) maxTime = _walkerResults[w].totalTime;
+            totalWait += _walkerResults[w].totalWaitTime;
+        }
+        var covPct = totalTargets > 0 ? (totalPhotos/totalTargets*100).toFixed(1) : 0;
 
-            // Snapshot list
-            html += '<h3>SNAPSHOTS (' + _snapshots.length + ')</h3>';
-            html += '<div class="snapshot-list">';
-            for (var i = 0; i < _snapshots.length; i++) {
-                var snap = _snapshots[i];
-                var sunTag = snap.eclipsed
-                    ? '<span style="color:#ff4444;margin-left:4px">SHADOW</span>'
-                    : '<span style="color:#ffcc00;margin-left:4px">' + snap.illumination + '</span>';
-                html += '<div class="snapshot-item" data-idx="' + i + '">' +
-                    '<span class="snap-idx">#' + snap.index + '</span>' +
-                    '<span class="snap-name">' + snap.name + '</span>' +
-                    '<span class="snap-dv">dV=' + snap.dv.toFixed(1) + '</span>' +
-                    sunTag +
-                    '</div>';
-            }
+        // Efficiency score: photos per m/s of DV, weighted by face coverage
+        var uniqueFaces = 0;
+        for (var f = 0; f < FACE_SHORTS.length; f++) { if ((_faceTally[FACE_SHORTS[f]] || 0) > 0) uniqueFaces++; }
+        var faceCov = uniqueFaces / 6;
+        var efficiency = totalDV > 0 ? (totalPhotos / totalDV * faceCov * 100).toFixed(1) : 0;
+        var spacePhotos = totalPhotos - _groundSnapshots.length;
+
+        html += '<div class="summary-cards">';
+        html += '<div class="sum-card"><span class="sc-val">' + totalPhotos + '</span><span class="sc-label">PHOTOS TAKEN</span></div>';
+        html += '<div class="sum-card"><span class="sc-val">' + covPct + '%</span><span class="sc-label">COVERAGE</span></div>';
+        html += '<div class="sum-card"><span class="sc-val">' + totalDV.toFixed(0) + '</span><span class="sc-label">TOTAL DV (m/s)</span></div>';
+        html += '<div class="sum-card"><span class="sc-val">' + (maxTime/86400).toFixed(1) + 'd</span><span class="sc-label">DURATION</span></div>';
+        html += '<div class="sum-card"><span class="sc-val">' + uniqueFaces + '/6</span><span class="sc-label">FACES COVERED</span></div>';
+        html += '<div class="sum-card"><span class="sc-val">' + efficiency + '</span><span class="sc-label">EFFICIENCY SCORE</span></div>';
+        html += '</div>';
+
+        // Layer breakdown (space vs ground)
+        if (_groundSnapshots.length > 0) {
+            html += '<div style="display:flex;gap:3px;height:12px;border-radius:3px;overflow:hidden;margin:6px 0">';
+            var spacePct = totalPhotos > 0 ? (spacePhotos/totalPhotos*100) : 100;
+            var groundPct = 100 - spacePct;
+            html += '<div style="width:'+spacePct.toFixed(0)+'%;background:#00cc66;position:relative">';
+            if (spacePct > 15) html += '<span style="position:absolute;left:50%;top:0;transform:translateX(-50%);font-size:8px;color:#000;line-height:12px">SPACE '+spacePhotos+'</span>';
+            html += '</div>';
+            html += '<div style="width:'+groundPct.toFixed(0)+'%;background:#ffaa00;position:relative">';
+            if (groundPct > 15) html += '<span style="position:absolute;left:50%;top:0;transform:translateX(-50%);font-size:8px;color:#000;line-height:12px">GROUND '+_groundSnapshots.length+'</span>';
+            html += '</div></div>';
+        }
+
+        // Collapsible mission details
+        html += '<h3 class="section-toggle" onclick="this.classList.toggle(\'collapsed\')">MISSION DETAILS</h3>';
+        html += '<div class="section-body">';
+        html += sr('Constellation', _config.constellation + ' (' + _allSats.length + ' sats)');
+        html += sr('Orbital Planes', _planes.length + ' found, ' + _walkerResults.length + ' covered');
+        html += sr('Walkers Deployed', _walkerResults.length);
+        html += sr('DV Budget/Walker', _config.dvBudget + ' m/s');
+        html += sr('Photo Range', _config.photoRange + ' m');
+        html += sr('Eclipse Wait Total', formatTime(totalWait));
+        html += sr('Avg Photos/Walker', (_walkerResults.length > 0 ? (totalPhotos / _walkerResults.length).toFixed(1) : 0));
+        html += sr('Avg DV/Photo', (totalPhotos > 0 ? (totalDV / totalPhotos).toFixed(1) + ' m/s' : 'N/A'));
+        html += sr('Uncovered Planes', Math.max(0, _planes.length - _walkerResults.length));
+        html += '</div>';
+
+        // Per-walker summaries with progress bars
+        html += '<h3 class="section-toggle" onclick="this.classList.toggle(\'collapsed\')">WALKER STATUS</h3>';
+        html += '<div class="section-body">';
+        for (var w = 0; w < _walkerResults.length; w++) {
+            var wr = _walkerResults[w];
+            var c = wr.color;
+            var pct = wr.targetsTotal > 0 ? (wr.photosComplete / wr.targetsTotal * 100) : 0;
+            var dvPct = _config.dvBudget > 0 ? (wr.totalDV / _config.dvBudget * 100) : 0;
+            var dvColor = dvPct > 90 ? '#ff4444' : dvPct > 70 ? '#ffcc44' : 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+            var timePct = _config.durationSec > 0 ? (wr.totalTime / _config.durationSec * 100) : 0;
+            var timeBadge = timePct > 90 ? 'badge-over' : timePct > 50 ? 'badge-warn' : 'badge-good';
+
+            html += '<div class="walker-summary">';
+            html += '<div class="ws-head">';
+            html += '<span><span class="ws-color" style="background:rgb('+c[0]+','+c[1]+','+c[2]+')"></span>';
+            html += '<span class="ws-name">' + wr.walkerName + '</span></span>';
+            html += '<span style="color:#00aa66">' + wr.photosComplete + '/' + wr.targetsTotal +
+                ' <span class="time-badge ' + timeBadge + '">' + pct.toFixed(0) + '%</span></span>';
             html += '</div>';
 
-            panel.innerHTML = html;
+            // DV progress bar
+            html += sr('DV', wr.totalDV.toFixed(1) + ' / ' + _config.dvBudget + ' m/s');
+            html += '<div class="dv-bar-wrap"><div class="dv-bar-fill" style="width:' +
+                Math.min(100, dvPct).toFixed(0) + '%; background:' + dvColor + '"></div></div>';
 
-            // Click snapshot → show detail + fly to
-            var items = panel.querySelectorAll('.snapshot-item');
-            for (var i = 0; i < items.length; i++) {
-                items[i].addEventListener('click', function() {
-                    var idx = parseInt(this.getAttribute('data-idx'));
-                    showSnapshot(idx);
-                });
+            html += sr('Plane', 'Inc=' + wr.plane.inc.toFixed(1) + '° RAAN=' + wr.plane.raan.toFixed(1) + '°');
+            html += sr('Time', formatTime(wr.totalTime) + (wr.totalWaitTime > 0 ? ' (wait: ' + formatTime(wr.totalWaitTime) + ')' : ''));
+
+            // Per-walker face mini-bar
+            html += buildWalkerFaceBar(wr);
+            html += '</div>';
+        }
+        html += '</div>';
+
+        // Ground telescope section
+        if (_groundResults && _groundResults.stationStats) {
+            html += '<h3 class="section-toggle" onclick="this.classList.toggle(\'collapsed\')">GROUND TELESCOPES (' + GROUND_STATIONS.length + ' stations)</h3>';
+            html += '<div class="section-body">';
+            html += sr('Ground Photos', _groundSnapshots.length);
+            html += sr('Space Photos', _allSnapshots.length - _groundSnapshots.length);
+            for (var gs = 0; gs < _groundResults.stationStats.length; gs++) {
+                var st = _groundResults.stationStats[gs];
+                var stColor = st.photos > 0 ? '#00ff88' : '#ff4444';
+                html += '<div class="sr"><span class="l">' + st.name + '</span>';
+                html += '<span class="v" style="color:' + stColor + '">' + st.photos + ' photos</span></div>';
             }
+            html += '</div>';
         }
 
-        function showSnapshot(idx) {
-            var snap = _snapshots[idx];
-            var viewer = document.getElementById('snapshotViewer');
-            viewer.style.display = 'block';
-            document.getElementById('snapIdx').textContent = snap.index + '/' + _snapshots.length;
+        // Snapshot list (filtered by active walker)
+        html += '<h3 class="section-toggle" id="snapListTitle" onclick="this.classList.toggle(\'collapsed\')">ALL SNAPSHOTS (' + _allSnapshots.length + ')</h3>';
+        html += '<div class="section-body"><div class="snapshot-list" id="snapList">';
+        html += buildSnapshotListHTML(-1);
+        html += '</div></div>';
 
-            // Draw synthetic snapshot image with illumination
-            var canvas = document.getElementById('snapshotCanvas');
-            var ctx = canvas.getContext('2d');
-            var W = canvas.width, H = canvas.height;
-            var bri = snap.brightness || 0;
+        // Coverage gap analysis
+        html += '<h3 class="section-toggle" onclick="this.classList.toggle(\'collapsed\')">COVERAGE GAPS</h3>';
+        html += '<div class="section-body">' + buildCoverageGapHTML() + '</div>';
 
-            // Background: black (space)
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, W, H);
+        // Export button + Re-run button
+        html += '<button class="btn-export" onclick="exportResults()">EXPORT RESULTS JSON</button>';
+        html += '<button class="btn-rerun" onclick="rerunAnalysis()">RE-RUN WITH NEW CONFIG</button>';
 
-            // Stars
-            for (var i = 0; i < 40; i++) {
-                ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')';
-                ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
-            }
+        d.innerHTML = html;
+        bindSnapshotClicks();
+    }
 
-            // Earth limb at bottom (darker in eclipse)
-            ctx.fillStyle = snap.eclipsed ? '#040810' : '#0a1a3a';
-            ctx.beginPath();
-            ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
-            ctx.fill();
-            if (!snap.eclipsed) {
-                // Atmosphere glow
-                ctx.strokeStyle = 'rgba(60,140,255,0.15)';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
-                ctx.stroke();
-            }
-
-            var cx = W / 2 + (Math.random() - 0.5) * 40;
-            var cy = H / 2 + (Math.random() - 0.5) * 30;
-            var size = 22 + Math.random() * 10;
-
-            if (snap.eclipsed) {
-                // Eclipse: satellite is a dark silhouette
-                ctx.fillStyle = '#0a0a0a';
-                ctx.fillRect(cx - size * 2, cy - 3, size * 1.5, 6);
-                ctx.fillRect(cx + size * 0.5, cy - 3, size * 1.5, 6);
-                ctx.fillRect(cx - size/2, cy - size/2, size, size);
-
-                // Red ECLIPSE overlay
-                ctx.fillStyle = 'rgba(255, 40, 40, 0.8)';
-                ctx.font = 'bold 16px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText('ECLIPSE', W/2, H/2 - 50);
-                ctx.font = '11px monospace';
-                ctx.fillText('NO SOLAR ILLUMINATION', W/2, H/2 - 35);
-                ctx.textAlign = 'left';
-            } else {
-                // Sunlit: shade faces based on sun angle
-                // Determine sunlit vs shadow sides of the cube
-                var sunSide = snap.illumination || '+Z (NADIR)';
-                var litR = Math.round(68 + 180 * bri);
-                var litG = Math.round(136 + 100 * bri);
-                var litB = Math.round(200 + 55 * bri);
-                var darkR = Math.round(15 + 20 * bri);
-                var darkG = Math.round(25 + 30 * bri);
-                var darkB = Math.round(50 + 40 * bri);
-
-                var litColor = 'rgb(' + litR + ',' + litG + ',' + litB + ')';
-                var darkColor = 'rgb(' + darkR + ',' + darkG + ',' + darkB + ')';
-                var panelLit = 'rgb(' + Math.round(34+60*bri) + ',' + Math.round(68+80*bri) + ',' + Math.round(170+60*bri) + ')';
-                var panelDark = 'rgb(' + Math.round(10+15*bri) + ',' + Math.round(20+25*bri) + ',' + Math.round(60+30*bri) + ')';
-
-                // Isometric-ish cube: draw shadow side first, then lit side
-                // Left solar panel (shadow side)
-                ctx.fillStyle = panelDark;
-                ctx.fillRect(cx - size * 2, cy - 3, size * 1.4, 6);
-                // Right solar panel (lit side)
-                ctx.fillStyle = panelLit;
-                ctx.fillRect(cx + size * 0.6, cy - 3, size * 1.4, 8);
-
-                // 3D cube effect: dark face (left/top)
-                ctx.fillStyle = darkColor;
-                ctx.beginPath();
-                ctx.moveTo(cx - size/2, cy - size/2);
-                ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
-                ctx.lineTo(cx + size/2 - 6, cy - size/2 - 4);
-                ctx.lineTo(cx + size/2, cy - size/2);
-                ctx.fill();
-                ctx.beginPath();
-                ctx.moveTo(cx - size/2, cy - size/2);
-                ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
-                ctx.lineTo(cx - size/2 - 6, cy + size/2 - 4);
-                ctx.lineTo(cx - size/2, cy + size/2);
-                ctx.fill();
-
-                // Front face (lit)
-                ctx.fillStyle = litColor;
-                ctx.fillRect(cx - size/2, cy - size/2, size, size);
-                ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + 0.3*bri) + ')';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(cx - size/2, cy - size/2, size, size);
-
-                // Sun direction indicator (yellow arrow)
-                var sunAngle = (snap.sunAngleDeg || 45) * DEG;
-                var arrowLen = 35;
-                var ax = W - 40, ay = 30;
-                ctx.strokeStyle = '#ffcc00';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(ax, ay);
-                ctx.lineTo(ax + arrowLen * Math.cos(sunAngle), ay + arrowLen * Math.sin(sunAngle));
-                ctx.stroke();
-                ctx.fillStyle = '#ffcc00';
-                ctx.font = '9px monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText('SUN', W - 15, 15);
-                ctx.textAlign = 'left';
-
-                // Face label on satellite
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.font = '8px monospace';
-                ctx.textAlign = 'center';
-                ctx.fillText(sunSide, cx, cy + 3);
-                ctx.textAlign = 'left';
-            }
-
-            // Crosshair (always visible)
-            ctx.strokeStyle = snap.eclipsed ? 'rgba(255,60,60,0.5)' : 'rgba(0,255,136,0.6)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(cx - 30, cy); ctx.lineTo(cx - 10, cy);
-            ctx.moveTo(cx + 10, cy); ctx.lineTo(cx + 30, cy);
-            ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy - 10);
-            ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy + 30);
-            ctx.stroke();
-
-            // Info overlay on image
-            ctx.fillStyle = snap.eclipsed ? 'rgba(255,80,80,0.8)' : 'rgba(0,255,136,0.8)';
-            ctx.font = '10px monospace';
-            ctx.fillText('TGT: ' + snap.name, 5, 12);
-            ctx.fillText('ALT: ' + snap.alt.toFixed(0) + ' km', 5, 24);
-            ctx.fillText('T+' + formatTime(snap.time), 5, 36);
-            ctx.fillText('DV: ' + snap.totalDV.toFixed(1) + ' m/s', 5, 48);
-            ctx.fillText(snap.eclipsed ? 'ECLIPSED' :
-                'FACE: ' + snap.illumination + ' [' + (snap.brightness * 100).toFixed(0) + '%]', 5, 60);
-
-            // Info text below canvas
-            var illumHtml = snap.eclipsed
-                ? '<span style="color:#ff4444">ECLIPSED - NO ILLUMINATION</span>'
-                : '<span style="color:#ffcc00">Illuminated face: ' + snap.illumination +
-                  ' (' + (snap.brightness * 100).toFixed(0) + '% brightness)</span>';
-            document.getElementById('snapInfo').innerHTML =
-                '<div style="color:#00aa66">' +
-                'Target: ' + snap.name + '<br>' +
-                'Inc: ' + snap.inc.toFixed(2) + '° | RAAN: ' + snap.raan.toFixed(2) + '°<br>' +
-                'MA: ' + snap.meanAnomaly.toFixed(2) + '° | Alt: ' + snap.alt.toFixed(0) + ' km<br>' +
-                'Transfer DV: ' + snap.dv.toFixed(2) + ' m/s | Cum DV: ' + snap.totalDV.toFixed(1) + ' m/s<br>' +
-                'Fuel remaining: ' + snap.fuelRemaining.toFixed(1) + ' kg<br>' +
-                'Time: T+' + formatTime(snap.time) + '<br>' +
-                illumHtml +
-                '</div>';
-
-            // Jump viewer to this time
-            if (_viewer) {
-                var snapTime = new Date(epoch.getTime() + snap.time * 1000);
-                _viewer.clock.currentTime = Cesium.JulianDate.fromIso8601(snapTime.toISOString());
+    /** Build a mini horizontal bar showing face distribution for one walker. */
+    function buildWalkerFaceBar(wr) {
+        var faceCounts = {};
+        for (var f = 0; f < FACE_SHORTS.length; f++) faceCounts[FACE_SHORTS[f]] = 0;
+        for (var s = 0; s < wr.snapshots.length; s++) {
+            var label = wr.snapshots[s].faceLabel;
+            for (var i = 0; i < label.length; i += 2) {
+                var face = label.substring(i, i + 2);
+                if (faceCounts[face] !== undefined) faceCounts[face]++;
             }
         }
+        var total = wr.photosComplete || 1;
+        var faceBarColors = { Pr:'#00cc66', Re:'#ff6644', Na:'#4488ff', Ra:'#ff44aa', No:'#ffcc00', An:'#aa66ff' };
+        var html = '<div class="walker-face-bar">';
+        for (var f = 0; f < FACE_SHORTS.length; f++) {
+            var face = FACE_SHORTS[f];
+            var count = faceCounts[face];
+            var pct = (count / total * 100);
+            if (pct < 1 && count > 0) pct = 1;
+            html += '<div class="wfb-seg" style="width:' + pct.toFixed(0) + '%;background:' +
+                faceBarColors[face] + '">' + (pct >= 8 ? '<span>' + face + '</span>' : '') + '</div>';
+        }
+        html += '</div>';
+        return html;
+    }
 
-        function setupSpeedControls() {
-            var btns = document.querySelectorAll('.speed-btn');
-            for (var i = 0; i < btns.length; i++) {
-                btns[i].addEventListener('click', function() {
-                    var speed = parseFloat(this.getAttribute('data-speed'));
-                    _viewer.clock.multiplier = speed;
-                    for (var j = 0; j < btns.length; j++) btns[j].classList.remove('active');
-                    this.classList.add('active');
-                });
-            }
+    /** Export results as JSON download. */
+    function exportResults() {
+        var data = {
+            config: _config,
+            totalSatellites: _allSats.length,
+            totalPlanes: _planes.length,
+            faceTally: _faceTally,
+            comboTally: _comboTally,
+            walkers: _walkerResults.map(function(wr) {
+                return {
+                    name: wr.walkerName, plane: wr.plane, medoid: wr.medoid,
+                    totalDV: wr.totalDV, totalTime: wr.totalTime, totalWaitTime: wr.totalWaitTime,
+                    photosComplete: wr.photosComplete, targetsTotal: wr.targetsTotal,
+                    snapshots: wr.snapshots.map(function(s) {
+                        return { name: s.name, time: s.time, dv: s.dv, totalDV: s.totalDV,
+                            faceLabel: s.faceLabel, brightness: s.brightness, waitTime: s.waitTime };
+                    })
+                };
+            })
+        };
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = _config.constellation.toLowerCase() + '_inspection_results.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function buildSnapshotListHTML(walkerFilter) {
+        var html = '';
+        var snaps;
+        if (walkerFilter === -1) {
+            snaps = _allSnapshots;
+        } else {
+            snaps = _allSnapshots.filter(function(s) { return s.walkerIdx === walkerFilter; });
         }
 
-        function setupKeyboard() {
-            document.addEventListener('keydown', function(e) {
-                if (e.key === ' ') {
-                    e.preventDefault();
-                    _viewer.clock.shouldAnimate = !_viewer.clock.shouldAnimate;
-                } else if (e.key === '+' || e.key === '=') {
-                    _viewer.clock.multiplier = Math.min(_viewer.clock.multiplier * 2, 1000);
-                } else if (e.key === '-') {
-                    _viewer.clock.multiplier = Math.max(_viewer.clock.multiplier / 2, 1);
+        for (var i = 0; i < snaps.length; i++) {
+            var snap = snaps[i];
+            var isGround = snap.walkerIdx === -2;
+            var wc = isGround ? [255, 170, 0] :
+                (snap.walkerIdx >= 0 ? WALKER_COLORS[snap.walkerIdx] : [100, 100, 100]);
+            var prefix = isGround ? snap.stationName.substring(0, 3).toUpperCase() : '#' + snap.index;
+            html += '<div class="snap-item" data-gidx="' + snap.globalIdx + '">';
+            html += '<span class="si-idx" style="color:rgb('+wc[0]+','+wc[1]+','+wc[2]+')">' + prefix + '</span>';
+            html += '<span class="si-name">' + snap.name + '</span>';
+            var faceClass = snap.faceLabel.length > 2 ? 'face-multi' : 'face-' + snap.faceLabel;
+            html += '<span class="si-face ' + faceClass + '">' + snap.faceLabel + '</span>';
+            html += '<span class="si-dv">' + (isGround ? snap.stationName.substring(0,6) : snap.dv.toFixed(1)) + '</span>';
+            html += '</div>';
+        }
+        return html;
+    }
+
+    function bindSnapshotClicks() {
+        var items = document.querySelectorAll('.snap-item');
+        for (var i = 0; i < items.length; i++) {
+            items[i].addEventListener('click', function() {
+                // Clear previous active
+                var prev = document.querySelector('.snap-item.active');
+                if (prev) prev.classList.remove('active');
+                this.classList.add('active');
+                var gidx = parseInt(this.getAttribute('data-gidx'));
+                showSnapshot(gidx);
+            });
+        }
+    }
+
+    function sr(label, value) {
+        return '<div class="sr"><span class="l">' + label + '</span><span class="v">' + value + '</span></div>';
+    }
+
+    // =========================================================================
+    //  SECTION 10: Face Charts
+    // =========================================================================
+
+    function buildFaceCharts() {
+        // Bar chart: individual face counts
+        var faceCtx = document.getElementById('faceChart').getContext('2d');
+        var faceCounts = FACE_SHORTS.map(function(f) { return _faceTally[f] || 0; });
+        var maxCount = Math.max.apply(null, faceCounts);
+        var faceColors = faceCounts.map(function(c) {
+            if (c === 0) return 'rgba(255, 60, 60, 0.8)';
+            if (c === maxCount) return 'rgba(0, 255, 136, 0.8)';
+            return 'rgba(255, 200, 50, 0.8)';
+        });
+        var faceBorders = faceCounts.map(function(c) {
+            if (c === 0) return '#ff4444';
+            if (c === maxCount) return '#00ff88';
+            return '#ffcc44';
+        });
+
+        _faceChart = new Chart(faceCtx, {
+            type: 'bar',
+            data: {
+                labels: FACE_SHORTS.map(function(f,i) { return FACE_DEFS[i].name + ' (' + f + ')'; }),
+                datasets: [{
+                    label: 'Photo Count',
+                    data: faceCounts,
+                    backgroundColor: faceColors,
+                    borderColor: faceBorders,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false },
+                    title: { display: true, text: 'Individual Face Captures', color: '#00cc88', font: { size: 12, family: 'Courier New' } }
+                },
+                scales: {
+                    x: { ticks: { color: '#00aa66', font: { size: 10, family: 'Courier New' } },
+                         grid: { color: 'rgba(0,255,136,0.08)' } },
+                    y: { ticks: { color: '#00aa66', font: { size: 10, family: 'Courier New' } },
+                         grid: { color: 'rgba(0,255,136,0.08)' },
+                         beginAtZero: true }
                 }
+            }
+        });
+
+        // Combo chart: top 10 face combinations
+        var comboCtx = document.getElementById('comboChart').getContext('2d');
+        var comboEntries = Object.keys(_comboTally).map(function(k) { return { label: k, count: _comboTally[k] }; });
+        comboEntries.sort(function(a,b) { return b.count - a.count; });
+        comboEntries = comboEntries.slice(0, 10);
+
+        _comboChart = new Chart(comboCtx, {
+            type: 'bar',
+            data: {
+                labels: comboEntries.map(function(e) { return e.label; }),
+                datasets: [{
+                    label: 'Combination Count',
+                    data: comboEntries.map(function(e) { return e.count; }),
+                    backgroundColor: 'rgba(100, 160, 255, 0.7)',
+                    borderColor: '#6688ff',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: { legend: { display: false },
+                    title: { display: true, text: 'Face Combo Distribution', color: '#00cc88', font: { size: 12, family: 'Courier New' } }
+                },
+                scales: {
+                    x: { ticks: { color: '#00aa66', font: { size: 10, family: 'Courier New' } },
+                         grid: { color: 'rgba(0,255,136,0.08)' }, beginAtZero: true },
+                    y: { ticks: { color: '#00aa66', font: { size: 10, family: 'Courier New' } },
+                         grid: { color: 'rgba(0,255,136,0.08)' } }
+                }
+            }
+        });
+
+        updateFaceStats();
+    }
+
+    var FACE_COLORS = { Pr:'#00cc66', Re:'#ff6644', Na:'#4488ff', Ra:'#ff44aa', No:'#ffcc00', An:'#aa66ff' };
+
+    function updateFaceStats() {
+        var html = '';
+        var max = 0, maxFace = '', neverFaces = [];
+        for (var f = 0; f < FACE_SHORTS.length; f++) {
+            var face = FACE_SHORTS[f];
+            var count = _faceTally[face] || 0;
+            if (count > max) { max = count; maxFace = face; }
+            if (count === 0) neverFaces.push(face);
+        }
+
+        // Per-face progress bars
+        var total = _allSnapshots.length || 1;
+        for (var f = 0; f < FACE_SHORTS.length; f++) {
+            var face = FACE_SHORTS[f];
+            var count = _faceTally[face] || 0;
+            var pct = max > 0 ? (count / max * 100) : 0;
+            var color = FACE_COLORS[face] || '#00aa66';
+            html += '<div style="display:flex;align-items:center;gap:4px;margin:1px 0">';
+            html += '<span style="width:24px;color:' + color + ';font-size:10px;font-weight:bold">' + face + '</span>';
+            html += '<div style="flex:1;height:8px;background:#0a1a0a;border-radius:2px;overflow:hidden">';
+            html += '<div style="width:' + pct.toFixed(0) + '%;height:100%;background:' + color + ';border-radius:2px"></div></div>';
+            html += '<span style="width:30px;text-align:right;font-size:10px;color:' + (count === 0 ? '#ff4444' : '#00aa66') + '">' + count + '</span>';
+            html += '</div>';
+        }
+
+        html += '<div class="fs-row" style="margin-top:4px"><span class="fs-label">Most captured:</span>';
+        html += '<span class="fs-val fs-most">' + (maxFace || 'N/A') + ' (' + max + ')</span></div>';
+
+        html += '<div class="fs-row"><span class="fs-label">Never captured:</span>';
+        html += '<span class="fs-val ' + (neverFaces.length > 0 ? 'fs-never' : 'fs-most') + '">' +
+            (neverFaces.length > 0 ? neverFaces.join(', ') : 'All faces covered!') + '</span></div>';
+
+        html += '<div class="fs-row"><span class="fs-label">Unique combos:</span>';
+        html += '<span class="fs-val fs-mid">' + Object.keys(_comboTally).length + '</span></div>';
+
+        html += '<div class="fs-row"><span class="fs-label">Total photos:</span>';
+        html += '<span class="fs-val">' + _allSnapshots.length + '</span></div>';
+
+        document.getElementById('faceStats').innerHTML = html;
+    }
+
+    /** Build walker efficiency comparison bars (photos per m/s DV). */
+    function buildEfficiencyBars() {
+        var el = document.getElementById('efficiencyBars');
+        if (!el || _walkerResults.length === 0) return;
+
+        var maxEff = 0;
+        var effs = [];
+        for (var w = 0; w < _walkerResults.length; w++) {
+            var wr = _walkerResults[w];
+            var eff = wr.totalDV > 0 ? (wr.photosComplete / wr.totalDV) : 0;
+            effs.push(eff);
+            if (eff > maxEff) maxEff = eff;
+        }
+
+        var html = '';
+        for (var w = 0; w < _walkerResults.length; w++) {
+            var wr = _walkerResults[w];
+            var c = wr.color;
+            var pct = maxEff > 0 ? (effs[w] / maxEff * 100) : 0;
+            html += '<div style="display:flex;align-items:center;gap:4px;margin:2px 0">';
+            html += '<span style="width:28px;font-size:9px;color:rgb('+c[0]+','+c[1]+','+c[2]+')">' + WALKER_NAMES[w].substring(0, 3) + '</span>';
+            html += '<div style="flex:1;height:6px;background:#0a1a0a;border-radius:2px;overflow:hidden">';
+            html += '<div style="width:'+pct.toFixed(0)+'%;height:100%;background:rgb('+c[0]+','+c[1]+','+c[2]+');border-radius:2px"></div></div>';
+            html += '<span style="width:40px;text-align:right;font-size:9px;color:#00aa66">' + effs[w].toFixed(2) + '</span>';
+            html += '</div>';
+        }
+        html += '<div style="font-size:9px;color:#005533;margin-top:2px;text-align:right">photos / m/s</div>';
+        el.innerHTML = html;
+    }
+
+    // =========================================================================
+    //  SECTION 11: Snapshot Viewer
+    // =========================================================================
+
+    function showSnapshot(globalIdx) {
+        var snap = _allSnapshots[globalIdx];
+        if (!snap) return;
+
+        document.getElementById('snapViewer').style.display = 'block';
+        document.getElementById('snapIdx').textContent = (globalIdx + 1) + '/' + _allSnapshots.length;
+
+        var canvas = document.getElementById('snapCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+
+        // Background
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+
+        // Stars
+        var rng = globalIdx * 137;
+        for (var i = 0; i < 40; i++) {
+            rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+            var sx = (rng % W);
+            rng = (rng * 1103515245 + 12345) & 0x7fffffff;
+            var sy = (rng % H);
+            ctx.fillStyle = 'rgba(255,255,255,' + (0.3 + (rng % 70) / 100) + ')';
+            ctx.fillRect(sx, sy, 1, 1);
+        }
+
+        // Earth limb
+        ctx.fillStyle = '#0a1a3a';
+        ctx.beginPath();
+        ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(60,140,255,0.15)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.ellipse(W/2, H + 80, 200, 100, 0, Math.PI, 0);
+        ctx.stroke();
+
+        var cx = W / 2, cy = H / 2;
+        var size = 24;
+        var bri = snap.brightness || 0;
+        var fd = snap.faceData;
+
+        // Determine lit vs dark colors
+        var litR = Math.round(68 + 180 * bri), litG = Math.round(136 + 100 * bri), litB = Math.round(200 + 55 * bri);
+        var darkR = Math.round(15 + 20 * bri), darkG = Math.round(25 + 30 * bri), darkB = Math.round(50 + 40 * bri);
+        var litColor = 'rgb(' + litR + ',' + litG + ',' + litB + ')';
+        var darkColor = 'rgb(' + darkR + ',' + darkG + ',' + darkB + ')';
+
+        // Solar panels
+        var panelLit = 'rgb(' + Math.round(34+60*bri) + ',' + Math.round(68+80*bri) + ',' + Math.round(170+60*bri) + ')';
+        var panelDark = 'rgb(' + Math.round(10+15*bri) + ',' + Math.round(20+25*bri) + ',' + Math.round(60+30*bri) + ')';
+
+        ctx.fillStyle = panelDark;
+        ctx.fillRect(cx - size * 2, cy - 3, size * 1.4, 6);
+        ctx.fillStyle = panelLit;
+        ctx.fillRect(cx + size * 0.6, cy - 3, size * 1.4, 8);
+
+        // 3D cube
+        ctx.fillStyle = darkColor;
+        ctx.beginPath();
+        ctx.moveTo(cx - size/2, cy - size/2);
+        ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
+        ctx.lineTo(cx + size/2 - 6, cy - size/2 - 4);
+        ctx.lineTo(cx + size/2, cy - size/2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(cx - size/2, cy - size/2);
+        ctx.lineTo(cx - size/2 - 6, cy - size/2 - 4);
+        ctx.lineTo(cx - size/2 - 6, cy + size/2 - 4);
+        ctx.lineTo(cx - size/2, cy + size/2);
+        ctx.fill();
+
+        ctx.fillStyle = litColor;
+        ctx.fillRect(cx - size/2, cy - size/2, size, size);
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.2 + 0.3*bri) + ')';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - size/2, cy - size/2, size, size);
+
+        // Face label on satellite
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = 'bold 10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(snap.faceLabel, cx, cy + 3);
+
+        // Walker/station color indicator
+        var isGround = snap.walkerIdx === -2;
+        var wc = isGround ? [255, 170, 0] :
+            (snap.walkerIdx >= 0 ? WALKER_COLORS[snap.walkerIdx] : [100, 100, 100]);
+        ctx.fillStyle = 'rgb(' + wc[0] + ',' + wc[1] + ',' + wc[2] + ')';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(isGround ? snap.stationName : WALKER_NAMES[snap.walkerIdx], W - 8, 14);
+
+        if (isGround) {
+            // Ground telescope label
+            ctx.fillStyle = 'rgba(255,170,0,0.6)';
+            ctx.font = '9px monospace';
+            ctx.fillText('GROUND TELESCOPE', W - 8, 26);
+            ctx.fillText('EL: ' + (snap.elevation || 0).toFixed(1) + '°', W - 8, 38);
+        }
+
+        // Crosshair
+        ctx.strokeStyle = 'rgba(0,255,136,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - 30, cy); ctx.lineTo(cx - 10, cy);
+        ctx.moveTo(cx + 10, cy); ctx.lineTo(cx + 30, cy);
+        ctx.moveTo(cx, cy - 30); ctx.lineTo(cx, cy - 10);
+        ctx.moveTo(cx, cy + 10); ctx.lineTo(cx, cy + 30);
+        ctx.stroke();
+
+        // Info overlay
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(0,255,136,0.8)';
+        ctx.font = '10px monospace';
+        ctx.fillText('TGT: ' + snap.name, 5, 12);
+        ctx.fillText('ALT: ' + snap.alt.toFixed(0) + ' km', 5, 24);
+        ctx.fillText('T+' + formatTime(snap.time), 5, 36);
+        ctx.fillText('DV: ' + snap.totalDV.toFixed(1) + ' m/s', 5, 48);
+        ctx.fillText('FACE: ' + snap.faceLabel + ' [' + (snap.brightness * 100).toFixed(0) + '%]', 5, 60);
+        if (snap.waitTime > 0) {
+            ctx.fillStyle = 'rgba(255,180,50,0.8)';
+            ctx.fillText('WAITED: ' + formatTime(snap.waitTime), 5, 72);
+        }
+
+        // Draw sun arrow and axis overlays
+        if (snap.faceData) drawSnapshotOverlays(ctx, snap, W, H);
+
+        _currentSnapIdx = globalIdx;
+
+        // Info panel
+        var wName = isGround ? snap.stationName : WALKER_NAMES[snap.walkerIdx];
+        var infoHtml = '<div style="color:#00aa66">';
+        if (isGround) {
+            infoHtml += 'Station: <span style="color:#ffaa00">' + snap.stationName + '</span><br>';
+            infoHtml += 'Target: ' + snap.name + ' | Alt: ' + snap.alt.toFixed(0) + ' km<br>';
+            infoHtml += 'Elevation: ' + (snap.elevation || 0).toFixed(1) + '° | Az: ' + (snap.azimuth || 0).toFixed(1) + '°<br>';
+            infoHtml += 'Range: ' + ((snap.range || 0) / 1000).toFixed(0) + ' km<br>';
+        } else {
+            infoHtml += 'Walker: <span style="color:rgb('+wc[0]+','+wc[1]+','+wc[2]+')">'+wName+'</span> | ';
+            infoHtml += 'Target: ' + snap.name + '<br>';
+            infoHtml += 'Inc: ' + snap.inc.toFixed(2) + '° | RAAN: ' + snap.raan.toFixed(2) + '°<br>';
+            infoHtml += 'Transfer DV: ' + snap.dv.toFixed(2) + ' m/s | Cum: ' + snap.totalDV.toFixed(1) + ' m/s<br>';
+            if (snap.waitTime > 0) infoHtml += 'Eclipse wait: ' + formatTime(snap.waitTime) + '<br>';
+        }
+        infoHtml += 'Face: <b style="color:#ffcc00">' + snap.faceLabel + '</b> (' +
+            (snap.brightness * 100).toFixed(0) + '% brightness)<br>';
+        infoHtml += 'Time: T+' + formatTime(snap.time);
+        infoHtml += '</div>';
+        document.getElementById('snapInfo').innerHTML = infoHtml;
+
+        // Jump viewer to this time and track the walker
+        if (_viewer) {
+            var snapDate = new Date(SIM_EPOCH_MS + snap.time * 1000);
+            _viewer.clock.currentTime = Cesium.JulianDate.fromIso8601(snapDate.toISOString());
+
+            // Try to fly to the walker/station entity
+            var targetEntityId = isGround ? 'station_' + snap.stationIdx : 'walker_' + snap.walkerIdx;
+            var ds = _viewer.dataSources.get(0);
+            if (ds) {
+                var entity = ds.entities.getById(targetEntityId);
+                if (entity) {
+                    _viewer.trackedEntity = entity;
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    //  SECTION 12: Walker Tabs & UI Controls
+    // =========================================================================
+
+    function buildWalkerTabs(numWalkers) {
+        var container = document.getElementById('walkerTabs');
+        var html = '<div class="walker-tab active" data-walker="-1">ALL</div>';
+        for (var w = 0; w < numWalkers; w++) {
+            var c = WALKER_COLORS[w];
+            html += '<div class="walker-tab" data-walker="' + w + '" style="border-top-color:rgb(' +
+                c[0]+','+c[1]+','+c[2]+')">' + WALKER_NAMES[w] + '</div>';
+        }
+        // Ground telescope tab
+        if (_groundSnapshots.length > 0) {
+            html += '<div class="walker-tab" data-walker="-2" style="border-top-color:#ffaa00">GROUND</div>';
+        }
+        container.innerHTML = html;
+
+        var tabs = container.querySelectorAll('.walker-tab');
+        for (var i = 0; i < tabs.length; i++) {
+            tabs[i].addEventListener('click', function() {
+                for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('active');
+                this.classList.add('active');
+                _activeWalker = parseInt(this.getAttribute('data-walker'));
+                filterByWalker(_activeWalker);
+            });
+        }
+    }
+
+    function filterByWalker(walkerIdx) {
+        // Update snapshot list
+        var listEl = document.getElementById('snapList');
+        var titleEl = document.getElementById('snapListTitle');
+        if (listEl) {
+            listEl.innerHTML = buildSnapshotListHTML(walkerIdx);
+            bindSnapshotClicks();
+        }
+        if (titleEl) {
+            var snaps = walkerIdx < 0 ? _allSnapshots :
+                _allSnapshots.filter(function(s) { return s.walkerIdx === walkerIdx; });
+            titleEl.textContent = (walkerIdx < 0 ? 'ALL' : WALKER_NAMES[walkerIdx]) +
+                ' SNAPSHOTS (' + snaps.length + ')';
+        }
+
+        // Update face charts for filtered walker
+        updateFaceChartsForWalker(walkerIdx);
+    }
+
+    /** Recompute and redraw face charts for a specific walker or all. */
+    function updateFaceChartsForWalker(walkerIdx) {
+        // Recompute tallies
+        var ft = {}, ct = {};
+        for (var f = 0; f < FACE_SHORTS.length; f++) ft[FACE_SHORTS[f]] = 0;
+        var snaps = walkerIdx < 0 ? _allSnapshots :
+            _allSnapshots.filter(function(s) { return s.walkerIdx === walkerIdx; });
+
+        for (var i = 0; i < snaps.length; i++) {
+            var label = snaps[i].faceLabel;
+            ct[label] = (ct[label] || 0) + 1;
+            for (var j = 0; j < label.length; j += 2) {
+                var face = label.substring(j, j + 2);
+                if (ft[face] !== undefined) ft[face]++;
+            }
+        }
+
+        // Update face bar chart
+        if (_faceChart) {
+            var faceCounts = FACE_SHORTS.map(function(f) { return ft[f] || 0; });
+            var maxC = Math.max.apply(null, faceCounts);
+            _faceChart.data.datasets[0].data = faceCounts;
+            _faceChart.data.datasets[0].backgroundColor = faceCounts.map(function(c) {
+                if (c === 0) return 'rgba(255, 60, 60, 0.8)';
+                if (c === maxC) return 'rgba(0, 255, 136, 0.8)';
+                return 'rgba(255, 200, 50, 0.8)';
+            });
+            _faceChart.data.datasets[0].borderColor = faceCounts.map(function(c) {
+                if (c === 0) return '#ff4444';
+                if (c === maxC) return '#00ff88';
+                return '#ffcc44';
+            });
+            _faceChart.options.plugins.title.text = (walkerIdx < 0 ? 'All Walkers' : WALKER_NAMES[walkerIdx]) + ' — Face Captures';
+            _faceChart.update();
+        }
+
+        // Update combo chart
+        if (_comboChart) {
+            var comboEntries = Object.keys(ct).map(function(k) { return { label: k, count: ct[k] }; });
+            comboEntries.sort(function(a,b) { return b.count - a.count; });
+            comboEntries = comboEntries.slice(0, 10);
+            _comboChart.data.labels = comboEntries.map(function(e) { return e.label; });
+            _comboChart.data.datasets[0].data = comboEntries.map(function(e) { return e.count; });
+            _comboChart.update();
+        }
+
+        // Update stats text
+        var statsHtml = '';
+        var max = 0, maxFace = '', neverFaces = [];
+        for (var f = 0; f < FACE_SHORTS.length; f++) {
+            var face = FACE_SHORTS[f];
+            var count = ft[face] || 0;
+            if (count > max) { max = count; maxFace = face; }
+            if (count === 0) neverFaces.push(face);
+        }
+        var prefix = walkerIdx < 0 ? '' : WALKER_NAMES[walkerIdx] + ': ';
+        statsHtml += '<div class="fs-row"><span class="fs-label">Most captured:</span>';
+        statsHtml += '<span class="fs-val fs-most">' + prefix + (maxFace || 'N/A') + ' (' + max + ')</span></div>';
+        statsHtml += '<div class="fs-row"><span class="fs-label">Never captured:</span>';
+        statsHtml += '<span class="fs-val ' + (neverFaces.length > 0 ? 'fs-never' : 'fs-most') + '">' +
+            (neverFaces.length > 0 ? neverFaces.join(', ') : 'All faces covered!') + '</span></div>';
+        statsHtml += '<div class="fs-row"><span class="fs-label">Unique combos:</span>';
+        statsHtml += '<span class="fs-val fs-mid">' + Object.keys(ct).length + '</span></div>';
+        statsHtml += '<div class="fs-row"><span class="fs-label">Photos:</span>';
+        statsHtml += '<span class="fs-val">' + snaps.length + '</span></div>';
+        document.getElementById('faceStats').innerHTML = statsHtml;
+    }
+
+    function updateBarStats() {
+        var totalPhotos = _allSnapshots.length;
+        var totalDV = 0;
+        for (var w = 0; w < _walkerResults.length; w++) totalDV += _walkerResults[w].totalDV;
+        document.getElementById('barPhotos').textContent = totalPhotos;
+        document.getElementById('barDV').textContent = totalDV.toFixed(0);
+        document.getElementById('barTitle').textContent = _config.constellation + ' INSPECTOR';
+    }
+
+    function setupControls() {
+        // Speed buttons
+        var btns = document.querySelectorAll('.spd-btn');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].addEventListener('click', function() {
+                var spd = parseFloat(this.getAttribute('data-spd'));
+                _viewer.clock.multiplier = spd;
+                for (var j = 0; j < btns.length; j++) btns[j].classList.remove('active');
+                this.classList.add('active');
             });
         }
 
-        function statRow(label, value) {
-            return '<div class="stat-row"><span class="stat-label">' + label +
-                '</span><span class="stat-value">' + value + '</span></div>';
+        // Keyboard
+        document.addEventListener('keydown', function(e) {
+            if (e.key === ' ') {
+                e.preventDefault();
+                _viewer.clock.shouldAnimate = !_viewer.clock.shouldAnimate;
+            } else if (e.key === '+' || e.key === '=') {
+                _viewer.clock.multiplier = Math.min(_viewer.clock.multiplier * 2, 1000);
+            } else if (e.key === '-') {
+                _viewer.clock.multiplier = Math.max(_viewer.clock.multiplier / 2, 1);
+            } else if (e.key === 'Escape') {
+                document.getElementById('snapViewer').style.display = 'none';
+            } else if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                navigateSnapshot(1);
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                navigateSnapshot(-1);
+            } else if (e.key === 'g' || e.key === 'G') {
+                var po = document.getElementById('planeOverview');
+                if (po.style.display === 'none') { po.style.display = 'block'; drawPlaneOverview(); }
+                else po.style.display = 'none';
+            } else if (e.key === 't' || e.key === 'T') {
+                var tp = document.getElementById('timelinePanel');
+                if (tp.style.display === 'none') { tp.style.display = 'block'; drawPhotoTimeline(); }
+                else tp.style.display = 'none';
+            } else if (e.key === 'd' || e.key === 'D') {
+                var db = document.getElementById('dashboard');
+                db.style.display = db.style.display === 'none' ? 'block' : 'none';
+            } else if (e.key === 'f' || e.key === 'F') {
+                var fp = document.getElementById('facePanel');
+                fp.style.display = fp.style.display === 'none' ? 'block' : 'none';
+            }
+        });
+    }
+
+    // =========================================================================
+    //  SECTION 13: Ground Telescope Observation Layer
+    // =========================================================================
+
+    // Global ground telescope network — distributed for polar/equatorial coverage
+    var GROUND_STATIONS = [
+        { name: 'Cape Canaveral', lat: 28.396, lon: -80.605, alt: 3 },
+        { name: 'Goldstone',     lat: 35.427, lon: -116.890, alt: 900 },
+        { name: 'Svalbard',      lat: 78.230, lon: 15.395, alt: 450 },
+        { name: 'Canberra',      lat: -35.402, lon: 149.009, alt: 550 },
+        { name: 'Madrid',        lat: 40.432, lon: -3.745, alt: 830 },
+        { name: 'Maui',          lat: 20.708, lon: -156.257, alt: 3055 },
+        { name: 'Ascension Is.', lat: -7.969, lon: -14.394, alt: 200 },
+        { name: 'Diego Garcia',  lat: -7.320, lon: 72.423, alt: 5 },
+        { name: 'Thule',         lat: 76.531, lon: -68.703, alt: 77 },
+        { name: 'Santiago',      lat: -33.437, lon: -70.661, alt: 520 }
+    ];
+
+    var MIN_ELEVATION_DEG = 30; // minimum elevation for usable ground photos
+    var GROUND_SCAN_STEP = 120; // seconds between ground visibility checks
+    var _groundResults = null;
+    var _groundSnapshots = [];
+
+    /** Compute topocentric AZ/EL from ground station to satellite. */
+    function computeAzEl(satPosECI, stationLat, stationLon, stationAlt, simTimeSec) {
+        var latR = stationLat * DEG;
+        var lonR = stationLon * DEG;
+        var gmst = GMST0 + OMEGA_EARTH * simTimeSec;
+
+        // Station ECEF
+        var sR = R_EARTH + stationAlt;
+        var stX = sR * Math.cos(latR) * Math.cos(lonR);
+        var stY = sR * Math.cos(latR) * Math.sin(lonR);
+        var stZ = sR * Math.sin(latR);
+
+        // Satellite ECI → ECEF
+        var cg = Math.cos(-gmst), sg = Math.sin(-gmst);
+        var satX = cg * satPosECI[0] - sg * satPosECI[1];
+        var satY = sg * satPosECI[0] + cg * satPosECI[1];
+        var satZ = satPosECI[2];
+
+        // Delta ECEF
+        var dx = satX - stX, dy = satY - stY, dz = satZ - stZ;
+        var range = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        // Rotate to ENU
+        var sinLat = Math.sin(latR), cosLat = Math.cos(latR);
+        var sinLon = Math.sin(lonR), cosLon = Math.cos(lonR);
+        var east  = -sinLon * dx + cosLon * dy;
+        var north = -sinLat * cosLon * dx - sinLat * sinLon * dy + cosLat * dz;
+        var up    =  cosLat * cosLon * dx + cosLat * sinLon * dy + sinLat * dz;
+
+        var el = Math.atan2(up, Math.sqrt(east*east + north*north));
+        var az = Math.atan2(east, north);
+        if (az < 0) az += TWO_PI;
+
+        return { az: az * RAD, el: el * RAD, range: range };
+    }
+
+    /** Check if ground station is in Earth's shadow (nighttime needed for optical telescope). */
+    function isStationDark(stationLat, stationLon, simTimeSec) {
+        var latR = stationLat * DEG;
+        var lonR = stationLon * DEG;
+        var sR = R_EARTH;
+        var stECEF = [sR * Math.cos(latR) * Math.cos(lonR), sR * Math.cos(latR) * Math.sin(lonR), sR * Math.sin(latR)];
+
+        // Rotate sun to ECEF
+        var sunECI = getSunECI(simTimeSec);
+        var gmst = GMST0 + OMEGA_EARTH * simTimeSec;
+        var cg = Math.cos(-gmst), sg = Math.sin(-gmst);
+        var sunECEF = [cg * sunECI[0] - sg * sunECI[1], sg * sunECI[0] + cg * sunECI[1], sunECI[2]];
+
+        // Station sees sun if dot product > 0 (civil twilight approximation: > -0.1 × R_EARTH)
+        var dot = stECEF[0]*sunECEF[0] + stECEF[1]*sunECEF[1] + stECEF[2]*sunECEF[2];
+        return dot < 0; // negative = sun below horizon
+    }
+
+    /** Compute face label as seen from ground station.
+     *  Ground telescopes primarily see the nadir face (looking up at satellite bottom).
+     *  The viewing angle determines the mix of nadir + prograde/retrograde/normal.
+     */
+    function computeGroundFaceCapture(satPosECI, satVelECI, stationPosECI) {
+        var r = vLen(satPosECI);
+        var vl = vLen(satVelECI);
+        if (r < 1000 || vl < 100) return { label: '??', faces: {}, primary: '??', brightness: 0.5 };
+
+        // Body frame
+        var prograde = vNorm(satVelECI);
+        var nadir = vScale(vNorm(satPosECI), -1);
+        var normal = vNorm(vCross(prograde, nadir));
+
+        // Viewing direction: from satellite toward station
+        var viewDir = vNorm(vSub(stationPosECI, satPosECI));
+
+        // Project view direction onto body axes
+        var dotPr = vDot(viewDir, prograde);
+        var dotNo = vDot(viewDir, normal);
+        var dotNa = vDot(viewDir, nadir);
+
+        // Ground always sees mostly nadir (looking up), but also adjacent faces
+        var THRESHOLD = 0.2;
+        var label = '';
+        var faces = {};
+
+        if (dotPr > THRESHOLD)       { label += 'Pr'; faces.Pr = dotPr; }
+        else if (dotPr < -THRESHOLD) { label += 'Re'; faces.Re = -dotPr; }
+        if (dotNa > THRESHOLD)       { label += 'Na'; faces.Na = dotNa; }
+        else if (dotNa < -THRESHOLD) { label += 'Ra'; faces.Ra = -dotNa; }
+        if (dotNo > THRESHOLD)       { label += 'No'; faces.No = dotNo; }
+        else if (dotNo < -THRESHOLD) { label += 'An'; faces.An = -dotNo; }
+
+        if (label === '') {
+            var checks = [['Pr',dotPr],['Re',-dotPr],['Na',dotNa],['Ra',-dotNa],['No',dotNo],['An',-dotNo]];
+            var best = checks[0];
+            for (var i = 1; i < checks.length; i++) { if (checks[i][1] > best[1]) best = checks[i]; }
+            label = best[0];
+            faces[best[0]] = Math.max(0, best[1]);
         }
 
-        function formatTime(seconds) {
-            var h = Math.floor(seconds / 3600);
-            var m = Math.floor((seconds % 3600) / 60);
-            return h + 'h ' + m + 'm';
+        var primary = label.substring(0, 2);
+        var brightness = 0.6; // ground photos assumed good quality when visible
+        for (var f in faces) { if (faces[f] > brightness) { brightness = faces[f]; primary = f; } }
+
+        return { label: label, faces: faces, primary: primary, brightness: brightness };
+    }
+
+    /** Pre-compute dark windows for a station (skip daytime scanning entirely).
+     *  Returns array of {start, end} intervals where station is dark.
+     */
+    function computeDarkWindows(station, missionDur) {
+        var windows = [];
+        var inDark = false;
+        var darkStart = 0;
+        var coarseStep = 600; // 10-min steps for twilight detection
+        for (var t = 0; t <= missionDur; t += coarseStep) {
+            var dark = isStationDark(station.lat, station.lon, t);
+            if (dark && !inDark) { darkStart = Math.max(0, t - coarseStep); inDark = true; }
+            if (!dark && inDark) { windows.push({ start: darkStart, end: t }); inDark = false; }
         }
+        if (inDark) windows.push({ start: darkStart, end: missionDur });
+        return windows;
+    }
+
+    /** Run ground telescope observation campaign.
+     *  Scans all target satellites across all planes for ground visibility windows.
+     *  Optimized: pre-computes dark windows per station, only scans during darkness.
+     */
+    function runGroundObservations(targetPlanes) {
+        var groundSnaps = [];
+        var stationStats = [];
+        var missionDur = _config.durationSec;
+        var scanStep = GROUND_SCAN_STEP;
+
+        for (var si = 0; si < GROUND_STATIONS.length; si++) {
+            var station = GROUND_STATIONS[si];
+            var stationPhotos = 0;
+
+            // Pre-compute when this station is dark (optical needs darkness)
+            var darkWindows = computeDarkWindows(station, missionDur);
+            if (darkWindows.length === 0) {
+                stationStats.push({ name: station.name, lat: station.lat, lon: station.lon, photos: 0 });
+                continue;
+            }
+
+            // Pre-compute station ECEF (doesn't change)
+            var stLatR = station.lat * DEG, stLonR = station.lon * DEG;
+            var sR = R_EARTH + station.alt;
+            var stPosECEF_x = sR * Math.cos(stLatR) * Math.cos(stLonR);
+            var stPosECEF_y = sR * Math.cos(stLatR) * Math.sin(stLonR);
+            var stPosECEF_z = sR * Math.sin(stLatR);
+
+            for (var p = 0; p < targetPlanes.length; p++) {
+                var plane = targetPlanes[p];
+                var sma = plane.sats[0].sma;
+                var period = TWO_PI * Math.sqrt(sma * sma * sma / MU);
+                var n = TWO_PI / period;
+
+                for (var ti = 0; ti < plane.sats.length; ti++) {
+                    var sat = plane.sats[ti];
+                    var photographed = false;
+
+                    // Only scan during dark windows
+                    for (var wi = 0; wi < darkWindows.length && !photographed; wi++) {
+                        var win = darkWindows[wi];
+                        for (var t = win.start; t < win.end && !photographed; t += scanStep) {
+                            // Propagate satellite to time t
+                            var ma = (sat.meanAnomaly + (n * t) * RAD) % 360;
+                            var tmpSat = { sma: sma, eccentricity: sat.eccentricity || 0.0001,
+                                inclination: sat.inclination, raan: sat.raan,
+                                argPerigee: sat.argPerigee || 0, meanAnomaly: ma };
+                            var eci = TLEParser.tleToECI(tmpSat);
+
+                            // Check elevation
+                            var azel = computeAzEl(eci.pos, station.lat, station.lon, station.alt, t);
+                            if (azel.el < MIN_ELEVATION_DEG) continue;
+
+                            // Check satellite illuminated (sat in sun while station in dark)
+                            var sunECI = getSunECI(t);
+                            if (isInEclipse(eci.pos, sunECI)) continue;
+
+                            // Good observation! Compute face
+                            var gmst = GMST0 + OMEGA_EARTH * t;
+                            var cg = Math.cos(gmst), sg = Math.sin(gmst);
+                            var stECI = [cg*stPosECEF_x - sg*stPosECEF_y, sg*stPosECEF_x + cg*stPosECEF_y, stPosECEF_z];
+
+                            var faceData = computeGroundFaceCapture(eci.pos, eci.vel, stECI);
+
+                            groundSnaps.push({
+                                source: 'ground',
+                                stationName: station.name,
+                                stationIdx: si,
+                                name: sat.name,
+                                planeIdx: p,
+                                satIdx: ti,
+                                time: t,
+                                elevation: azel.el,
+                                azimuth: azel.az,
+                                range: azel.range,
+                                faceLabel: faceData.label,
+                                facePrimary: faceData.primary,
+                                brightness: faceData.brightness,
+                                alt: sat.altitudeKm
+                            });
+                            photographed = true;
+                            stationPhotos++;
+                        }
+                    }
+                }
+            }
+
+            stationStats.push({
+                name: station.name,
+                lat: station.lat,
+                lon: station.lon,
+                photos: stationPhotos
+            });
+        }
+
+        return { snapshots: groundSnaps, stationStats: stationStats };
+    }
+
+    /** Integrate ground observations into the analysis pipeline.
+     *  Called after space walkers complete.
+     */
+    function integrateGroundLayer(targetPlanes) {
+        setProc('Running ground telescope observations...', 86,
+            GROUND_STATIONS.length + ' stations scanning ' + _config.durationDays + ' day window');
+
+        _groundResults = runGroundObservations(targetPlanes);
+        _groundSnapshots = _groundResults.snapshots;
+
+        // Add ground snapshots to global collection (with special walkerIdx = -2)
+        for (var i = 0; i < _groundSnapshots.length; i++) {
+            var gs = _groundSnapshots[i];
+            gs.walkerIdx = -2; // ground telescope marker
+            gs.globalIdx = _allSnapshots.length;
+            gs.index = i + 1;
+            gs.dv = 0;
+            gs.totalDV = 0;
+            gs.waitTime = 0;
+            gs.totalTime = gs.time;
+            gs.inc = 0; gs.raan = 0; gs.meanAnomaly = 0;
+            gs.faceData = { label: gs.faceLabel, faces: {}, primary: gs.facePrimary, brightness: gs.brightness };
+            _allSnapshots.push(gs);
+            tallyFace(gs.faceLabel);
+        }
+
+        // Compute coverage improvement
+        var spaceOnlyPhotos = _allSnapshots.length - _groundSnapshots.length;
+        var addedByGround = _groundSnapshots.length;
+
+        // Count unique satellites photographed (space + ground combined)
+        var photodSats = new Set();
+        for (var i = 0; i < _allSnapshots.length; i++) {
+            photodSats.add(_allSnapshots[i].name);
+        }
+
+        return {
+            groundPhotos: addedByGround,
+            spacePhotos: spaceOnlyPhotos,
+            totalPhotos: _allSnapshots.length,
+            uniqueSats: photodSats.size,
+            stationStats: _groundResults.stationStats
+        };
+    }
+
+    // =========================================================================
+    //  SECTION 14: Utilities
+    // =========================================================================
+
+    function formatTime(seconds) {
+        if (!isFinite(seconds) || seconds < 0) return '0h 0m';
+        var d = Math.floor(seconds / 86400);
+        var h = Math.floor((seconds % 86400) / 3600);
+        var m = Math.floor((seconds % 3600) / 60);
+        if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
+        return h + 'h ' + m + 'm';
+    }
+
+    function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+    // =========================================================================
+    //  SECTION 15: Orbital Plane Map
+    // =========================================================================
+
+    /** Draw a RAAN vs Inclination scatter showing all planes and walker assignments. */
+    function drawPlaneOverview() {
+        var canvas = document.getElementById('planeCanvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#060a10';
+        ctx.fillRect(0, 0, W, H);
+
+        // Axes
+        var margin = { top: 14, right: 14, bottom: 22, left: 36 };
+        var pw = W - margin.left - margin.right;
+        var ph = H - margin.top - margin.bottom;
+
+        // Find data range
+        var minInc = 200, maxInc = -1, minRaan = 400, maxRaan = -1;
+        for (var i = 0; i < _planes.length; i++) {
+            if (_planes[i].inc < minInc) minInc = _planes[i].inc;
+            if (_planes[i].inc > maxInc) maxInc = _planes[i].inc;
+            if (_planes[i].raan < minRaan) minRaan = _planes[i].raan;
+            if (_planes[i].raan > maxRaan) maxRaan = _planes[i].raan;
+        }
+        var incPad = Math.max(1, (maxInc - minInc) * 0.1);
+        var raanPad = Math.max(5, (maxRaan - minRaan) * 0.1);
+        minInc -= incPad; maxInc += incPad;
+        minRaan -= raanPad; maxRaan += raanPad;
+
+        function xOf(raan) { return margin.left + (raan - minRaan) / (maxRaan - minRaan) * pw; }
+        function yOf(inc) { return margin.top + (1 - (inc - minInc) / (maxInc - minInc)) * ph; }
+
+        // Grid
+        ctx.strokeStyle = 'rgba(0,255,136,0.06)';
+        ctx.lineWidth = 1;
+        for (var gi = 0; gi < 5; gi++) {
+            var gy = margin.top + gi / 4 * ph;
+            ctx.beginPath(); ctx.moveTo(margin.left, gy); ctx.lineTo(W - margin.right, gy); ctx.stroke();
+        }
+        for (var gi = 0; gi < 5; gi++) {
+            var gx = margin.left + gi / 4 * pw;
+            ctx.beginPath(); ctx.moveTo(gx, margin.top); ctx.lineTo(gx, H - margin.bottom); ctx.stroke();
+        }
+
+        // Axis labels
+        ctx.fillStyle = '#005533';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('RAAN (deg)', W / 2, H - 2);
+        ctx.save();
+        ctx.translate(8, H / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Inc (deg)', 0, 0);
+        ctx.restore();
+
+        // Tick labels
+        ctx.fillStyle = '#005533';
+        ctx.textAlign = 'center';
+        ctx.font = '8px monospace';
+        for (var gi = 0; gi <= 4; gi++) {
+            var rv = minRaan + gi / 4 * (maxRaan - minRaan);
+            ctx.fillText(rv.toFixed(0) + '°', margin.left + gi / 4 * pw, H - margin.bottom + 12);
+        }
+        ctx.textAlign = 'right';
+        for (var gi = 0; gi <= 4; gi++) {
+            var iv = minInc + gi / 4 * (maxInc - minInc);
+            ctx.fillText(iv.toFixed(1) + '°', margin.left - 3, margin.top + (1 - gi / 4) * ph + 3);
+        }
+
+        // Plot all planes as dim dots
+        for (var i = 0; i < _planes.length; i++) {
+            var p = _planes[i];
+            var px = xOf(p.raan), py = yOf(p.inc);
+            var size = Math.max(2, Math.min(8, Math.sqrt(p.sats.length) * 0.8));
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+            ctx.beginPath();
+            ctx.arc(px, py, size, 0, TWO_PI);
+            ctx.fill();
+        }
+
+        // Highlight walker-assigned planes
+        var numUsed = Math.min(_walkerResults.length, _planes.length);
+        for (var w = 0; w < numUsed; w++) {
+            var p = _planes[w];
+            var c = WALKER_COLORS[w];
+            var px = xOf(p.raan), py = yOf(p.inc);
+            var size = Math.max(4, Math.min(14, Math.sqrt(p.sats.length) * 1.2));
+
+            // Glow
+            ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.15)';
+            ctx.beginPath(); ctx.arc(px, py, size + 6, 0, TWO_PI); ctx.fill();
+
+            // Dot
+            ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.9)';
+            ctx.beginPath(); ctx.arc(px, py, size, 0, TWO_PI); ctx.fill();
+
+            // Border
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+            ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(px, py, size, 0, TWO_PI); ctx.stroke();
+
+            // Label
+            ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.8)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText(WALKER_NAMES[w].substring(0, 3) + ' (' + p.sats.length + ')', px + size + 3, py + 3);
+        }
+    }
+
+    // =========================================================================
+    //  SECTION 16: Photo Timeline
+    // =========================================================================
+
+    /** Draw a timeline showing when each walker takes photos over mission duration. */
+    function drawPhotoTimeline() {
+        var canvas = document.getElementById('timelineCanvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var W = canvas.width, H = canvas.height;
+
+        ctx.fillStyle = '#060a10';
+        ctx.fillRect(0, 0, W, H);
+
+        var margin = { top: 8, right: 8, bottom: 18, left: 40 };
+        var pw = W - margin.left - margin.right;
+        var ph = H - margin.top - margin.bottom;
+
+        var maxTime = _config.durationSec;
+        var numRows = _walkerResults.length + (_groundSnapshots.length > 0 ? 1 : 0);
+        var rowH = Math.min(12, ph / numRows);
+
+        // Time axis
+        ctx.strokeStyle = 'rgba(0,255,136,0.1)';
+        ctx.lineWidth = 1;
+        var dayMarks = Math.ceil(maxTime / 86400);
+        for (var d = 0; d <= dayMarks; d++) {
+            var dx = margin.left + (d * 86400) / maxTime * pw;
+            ctx.beginPath(); ctx.moveTo(dx, margin.top); ctx.lineTo(dx, H - margin.bottom); ctx.stroke();
+            ctx.fillStyle = '#005533';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('D' + d, dx, H - margin.bottom + 12);
+        }
+
+        // Walker rows
+        for (var w = 0; w < _walkerResults.length; w++) {
+            var wr = _walkerResults[w];
+            var c = wr.color;
+            var y = margin.top + w * rowH;
+
+            // Row label
+            ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.7)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(WALKER_NAMES[w].substring(0, 3), margin.left - 3, y + rowH * 0.75);
+
+            // Row background
+            ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.04)';
+            ctx.fillRect(margin.left, y, pw, rowH - 1);
+
+            // Photo events
+            for (var s = 0; s < wr.snapshots.length; s++) {
+                var snap = wr.snapshots[s];
+                var sx = margin.left + snap.time / maxTime * pw;
+                ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.8)';
+                ctx.fillRect(sx - 1, y + 1, 2, rowH - 2);
+            }
+        }
+
+        // Ground row
+        if (_groundSnapshots.length > 0) {
+            var gy = margin.top + _walkerResults.length * rowH;
+            ctx.fillStyle = 'rgba(255, 170, 0, 0.7)';
+            ctx.font = '8px monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText('GND', margin.left - 3, gy + rowH * 0.75);
+
+            ctx.fillStyle = 'rgba(255, 170, 0, 0.04)';
+            ctx.fillRect(margin.left, gy, pw, rowH - 1);
+
+            for (var g = 0; g < _groundSnapshots.length; g++) {
+                var gx = margin.left + _groundSnapshots[g].time / maxTime * pw;
+                ctx.fillStyle = 'rgba(255, 170, 0, 0.6)';
+                ctx.fillRect(gx - 1, gy + 1, 2, rowH - 2);
+            }
+        }
+    }
+
+    // =========================================================================
+    //  SECTION 17: Coverage Gap Analysis
+    // =========================================================================
+
+    /** Analyze which satellites were never photographed and suggest reasons. */
+    function buildCoverageGapHTML() {
+        var photodNames = new Set();
+        for (var i = 0; i < _allSnapshots.length; i++) photodNames.add(_allSnapshots[i].name);
+
+        var gaps = [];
+        var numUsed = Math.min(_walkerResults.length, _planes.length);
+        for (var w = 0; w < numUsed; w++) {
+            var plane = _planes[w];
+            for (var si = 0; si < plane.sats.length; si++) {
+                if (!photodNames.has(plane.sats[si].name)) {
+                    gaps.push({ name: plane.sats[si].name, plane: w, reason: 'DV/time budget exhausted' });
+                }
+            }
+        }
+
+        if (gaps.length === 0) {
+            return '<div style="color:#00ff88;font-size:11px;padding:4px 0">All target satellites photographed!</div>';
+        }
+
+        var html = '<div style="color:#ff8844;font-size:11px;padding:2px 0">' + gaps.length + ' targets missed</div>';
+        var shown = Math.min(gaps.length, 12);
+        for (var i = 0; i < shown; i++) {
+            var g = gaps[i];
+            var c = WALKER_COLORS[g.plane];
+            html += '<div class="gap-row">';
+            html += '<span class="gap-dot" style="background:rgb('+c[0]+','+c[1]+','+c[2]+')"></span>';
+            html += '<span class="gap-name">' + g.name + '</span>';
+            html += '<span class="gap-reason">' + g.reason + '</span>';
+            html += '</div>';
+        }
+        if (gaps.length > shown) {
+            html += '<div style="color:#555;font-size:10px;padding:2px 0">...and ' + (gaps.length - shown) + ' more</div>';
+        }
+        return html;
+    }
+
+    // =========================================================================
+    //  SECTION 18: Enhanced Snapshot Viewer
+    // =========================================================================
+
+    /** Draw sun direction arrow and body frame axes on snapshot canvas. */
+    function drawSnapshotOverlays(ctx, snap, W, H) {
+        var cx = W / 2, cy = H / 2;
+        var fd = snap.faceData;
+
+        // Sun direction indicator (top-left corner)
+        var sunAngle = Math.atan2(fd.dotNo || 0, fd.dotPr || 0);
+        var arrowLen = 20;
+        var sx = 30, sy = H - 30;
+        var ax = sx + Math.cos(sunAngle) * arrowLen;
+        var ay = sy - Math.sin(sunAngle) * arrowLen;
+
+        // Sun glow
+        var grad = ctx.createRadialGradient(ax, ay, 0, ax, ay, 12);
+        grad.addColorStop(0, 'rgba(255,240,100,0.3)');
+        grad.addColorStop(1, 'rgba(255,240,100,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(ax, ay, 12, 0, TWO_PI); ctx.fill();
+
+        // Arrow line
+        ctx.strokeStyle = 'rgba(255,200,50,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(ax, ay);
+        ctx.stroke();
+
+        // Arrowhead
+        ctx.fillStyle = 'rgba(255,200,50,0.9)';
+        ctx.beginPath();
+        ctx.arc(ax, ay, 3, 0, TWO_PI);
+        ctx.fill();
+
+        // Sun label
+        ctx.fillStyle = 'rgba(255,200,50,0.5)';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('SUN', sx, sy + 12);
+
+        // Body frame axes (bottom-right)
+        var axO = W - 50, ayO = H - 30;
+        var axLen = 18;
+
+        // Prograde (+X) - green
+        ctx.strokeStyle = 'rgba(0,200,100,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(axO, ayO); ctx.lineTo(axO + axLen, ayO); ctx.stroke();
+        ctx.fillStyle = 'rgba(0,200,100,0.5)';
+        ctx.font = '7px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('Pr', axO + axLen + 2, ayO + 3);
+
+        // Normal (+Y) - up, yellow
+        ctx.strokeStyle = 'rgba(200,200,50,0.5)';
+        ctx.beginPath(); ctx.moveTo(axO, ayO); ctx.lineTo(axO, ayO - axLen); ctx.stroke();
+        ctx.fillStyle = 'rgba(200,200,50,0.5)';
+        ctx.textAlign = 'center';
+        ctx.fillText('No', axO, ayO - axLen - 3);
+
+        // Nadir (+Z) - into screen (toward Earth), blue
+        ctx.strokeStyle = 'rgba(60,120,255,0.5)';
+        ctx.beginPath(); ctx.moveTo(axO, ayO); ctx.lineTo(axO - 10, ayO + 10); ctx.stroke();
+        ctx.fillStyle = 'rgba(60,120,255,0.5)';
+        ctx.textAlign = 'right';
+        ctx.fillText('Na', axO - 12, ayO + 14);
+
+        // Illuminated face labels on satellite body
+        var labelRadius = 40;
+        ctx.font = 'bold 9px monospace';
+        ctx.textAlign = 'center';
+        var facePositions = {
+            'Pr': [cx + labelRadius, cy],
+            'Re': [cx - labelRadius, cy],
+            'Na': [cx, cy + labelRadius * 0.7],
+            'Ra': [cx, cy - labelRadius * 0.7],
+            'No': [cx + labelRadius * 0.5, cy - labelRadius * 0.5],
+            'An': [cx - labelRadius * 0.5, cy + labelRadius * 0.5]
+        };
+
+        for (var face in fd.faces) {
+            if (fd.faces[face] > 0.1) {
+                var fp = facePositions[face];
+                if (fp) {
+                    var alpha = 0.3 + 0.5 * fd.faces[face];
+                    ctx.fillStyle = 'rgba(255,255,100,' + alpha.toFixed(2) + ')';
+                    ctx.fillText(face, fp[0], fp[1] + 3);
+                }
+            }
+        }
+    }
+
+    var _currentSnapIdx = -1;
+
+    // =========================================================================
+    //  SECTION 19: Keyboard Navigation & Re-run
+    // =========================================================================
+
+    function navigateSnapshot(delta) {
+        if (_allSnapshots.length === 0) return;
+        if (_currentSnapIdx < 0) _currentSnapIdx = 0;
+        else _currentSnapIdx = (_currentSnapIdx + delta + _allSnapshots.length) % _allSnapshots.length;
+        showSnapshot(_currentSnapIdx);
+    }
+
+    function rerunAnalysis() {
+        // Reset state
+        _walkerResults = [];
+        _allSnapshots = [];
+        _groundSnapshots = [];
+        _groundResults = null;
+        _faceTally = {};
+        _comboTally = {};
+        if (_faceChart) { _faceChart.destroy(); _faceChart = null; }
+        if (_comboChart) { _comboChart.destroy(); _comboChart = null; }
+
+        // Hide all panels
+        document.getElementById('cesiumContainer').style.display = 'none';
+        document.getElementById('topBar').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('facePanel').style.display = 'none';
+        document.getElementById('snapViewer').style.display = 'none';
+        document.getElementById('bottomBar').style.display = 'none';
+        document.getElementById('planeOverview').style.display = 'none';
+        document.getElementById('timelinePanel').style.display = 'none';
+
+        // Destroy viewer
+        if (_viewer) { _viewer.destroy(); _viewer = null; }
+
+        // Show splash
+        document.getElementById('splash').style.display = 'flex';
+    }
 
     })();
-
-    // =========================================================================
-    // Utility functions
-    // =========================================================================
-
-    function _raanDiff(a, b) {
-        var d = Math.abs(a - b);
-        if (d > 180) d = 360 - d;
-        return d;
-    }
-
-    function _dvToFuel(dv, currentFuel) {
-        // Tsiolkovsky: dv = Isp * g0 * ln(m0/m1)
-        // m0 = dry + currentFuel, m1 = m0 * exp(-dv / (Isp * g0))
-        var g0 = 9.80665;
-        var isp = 220;
-        var dryMass = 300;
-        var m0 = dryMass + currentFuel;
-        var m1 = m0 * Math.exp(-dv / (isp * g0));
-        return m0 - m1;
-    }
-
-    function setStatus(msg, pct) {
-        document.getElementById('statusText').textContent = msg;
-        document.getElementById('progressFill').style.width = pct + '%';
-    }
-
-    function showError(msg) {
-        document.getElementById('errorText').textContent = msg;
-        document.getElementById('errorText').style.display = 'block';
-    }
-
-    function sleep(ms) {
-        return new Promise(function(resolve) { setTimeout(resolve, ms); });
-    }
     </script>
 </body>
 </html>

@@ -268,6 +268,14 @@
                     target.active = false;
                     target.state._destroyed = true;
                     this._kills++;
+                    // Explosion at target position
+                    if (world.viewer && target.state && target.state.lat != null) {
+                        var killPos = Cesium.Cartesian3.fromRadians(
+                            target.state.lon, target.state.lat, target.state.alt || 0);
+                        if (typeof SimEffects !== 'undefined' && SimEffects.spawnExplosion) {
+                            SimEffects.spawnExplosion(killPos, 'medium', 'conventional');
+                        }
+                    }
                 } else {
                     eng.result = 'MISS';
                 }
@@ -419,7 +427,8 @@
             var missileData = {
                 launchTime: world.simTime,
                 launchPos: launchPos.clone(),
-                currentPos: launchPos.clone()
+                currentPos: launchPos.clone(),
+                trailPositions: [launchPos.clone()]
             };
 
             var cesiumEntity = viewer.entities.add({
@@ -439,7 +448,26 @@
                 }
             });
 
+            // Smoke trail
+            var trailEntity = viewer.entities.add({
+                name: 'A2A Trail ' + eng.weaponType + ' #' + this._totalFired,
+                polyline: {
+                    positions: new Cesium.CallbackProperty(
+                        (function(md) {
+                            return function() { return md.trailPositions; };
+                        })(missileData),
+                        false
+                    ),
+                    width: 2,
+                    material: new Cesium.PolylineGlowMaterialProperty({
+                        glowPower: 0.2,
+                        color: Cesium.Color.LIGHTSKYBLUE.withAlpha(0.3)
+                    })
+                }
+            });
+
             missileData.entity = cesiumEntity;
+            missileData.trailEntity = trailEntity;
             eng._missileEntities.push(missileData);
             this._missileVisuals.push(missileData);
         }
@@ -462,6 +490,12 @@
                 var interpPos = new Cesium.Cartesian3();
                 Cesium.Cartesian3.lerp(md.launchPos, tgtPos, frac, interpPos);
                 md.currentPos = interpPos;
+
+                // Grow trail (keep last 40 positions)
+                if (md.trailPositions) {
+                    md.trailPositions.push(interpPos.clone());
+                    if (md.trailPositions.length > 40) md.trailPositions.shift();
+                }
             }
         }
 
@@ -471,6 +505,9 @@
 
             for (var m = 0; m < eng._missileEntities.length; m++) {
                 var md = eng._missileEntities[m];
+                if (viewer && md.trailEntity) {
+                    viewer.entities.remove(md.trailEntity);
+                }
                 if (viewer && md.entity) {
                     viewer.entities.remove(md.entity);
                 }

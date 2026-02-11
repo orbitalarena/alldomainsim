@@ -40,6 +40,7 @@ const LiveSimEngine = (function() {
     let _started = false;
     let _observerMode = false;
     let _isStaticPlayer = false; // true when player is a static_ground entity (cyber ops, command post)
+    let _playerDeathHandled = false;
 
     // Per-entity visualization control groups
     let _vizGroups = {};  // { groupKey: { show, orbits, trails, labels, sensors } }
@@ -94,6 +95,11 @@ const LiveSimEngine = (function() {
     let _weaponIndex = -1;      // -1 = no weapon selected
     let _sensorList = [];       // [{name, type}]
     let _sensorIndex = -1;      // -1 = no sensor active
+
+    // Target Designation (Ace Combat-style lock-on)
+    let _designatedTargetId = null;   // ECS entity ID of locked target
+    let _radarContacts = [];          // [{id, name, bearing, range, team, lat, lon, alt, aspect, closureRate}]
+    let _radarTickLast = 0;
 
     // Sensor view effects
     let _sensorNoiseCanvas = null;
@@ -1486,6 +1492,10 @@ const LiveSimEngine = (function() {
         _showMessage(w.name + ' ×' + w.count);
     }
 
+    // Active player missiles in flight
+    var _playerMissiles = [];
+    var _nextMissileId = 0;
+
     function _fireWeapon() {
         if (_weaponIndex < 0 || _weaponIndex >= _weaponList.length) {
             _showMessage('NO WEAPON SELECTED');
@@ -1504,13 +1514,280 @@ const LiveSimEngine = (function() {
         }
 
         w.count--;
-        if (w.type === 'nuclear' || w.type === 'cruise') {
-            _showMessage(w.name + ' LAUNCH — ' + (w.yield_kt || 0) + ' kT');
-        } else if (w.type === 'gun') {
+        if (w.type === 'gun') {
             w.count = Math.max(0, w.count - 19);  // 20 rounds per burst
             _showMessage('GUN BURST — ' + w.count + ' RND');
+            // Audio: gun burst
+            if (_audioEnabled && typeof SimAudio !== 'undefined') SimAudio.playWeaponFire('gun');
         } else {
-            _showMessage(w.name + ' AWAY — ' + w.count + ' REM');
+            var isNuke = w.type === 'nuclear' || w.type === 'cruise';
+            // Build launch message with target info
+            var tgtName = '';
+            if (_designatedTargetId && _playerState._selectedTarget) {
+                tgtName = ' → ' + (_playerState._selectedTarget.name || 'TGT');
+            }
+            if (isNuke) {
+                _showMessage(w.name + ' LAUNCH' + tgtName + ' — ' + (w.yield_kt || 0) + ' kT');
+            } else {
+                _showMessage(w.name + ' AWAY' + tgtName + ' — ' + w.count + ' REM');
+            }
+            // Audio: missile launch
+            if (_audioEnabled && typeof SimAudio !== 'undefined') {
+                SimAudio.playWeaponFire('missile');
+                SimAudio.playFoxCall();
+            }
+            // Visual: spawn missile entity in Cesium
+            _spawnPlayerMissile(w);
+        }
+    }
+
+    /** Spawn a visual missile entity that flies from player toward target/heading. */
+    function _spawnPlayerMissile(weapon) {
+        if (!_viewer || !_playerState) return;
+
+        var lat = _playerState.lat;
+        var lon = _playerState.lon;
+        var alt = _playerState.alt || 5000;
+        var heading = _playerState.heading || 0;
+        var speed = weapon.speed || 900; // m/s default missile speed
+        var maxFlightTime = weapon.flightTime || 30; // seconds
+
+        if (lat == null || lon == null) return;
+
+        var missileId = 'player_missile_' + (_nextMissileId++);
+        var startPos = Cesium.Cartesian3.fromRadians(lon, lat, alt);
+
+        // Determine missile color based on weapon type
+        var isIR = weapon.name && (weapon.name.indexOf('AIM-9') >= 0 || weapon.name.indexOf('IR') >= 0);
+        var color = isIR ? Cesium.Color.YELLOW.withAlpha(0.9) : Cesium.Color.CYAN.withAlpha(0.9);
+        var trailColor = isIR ? Cesium.Color.ORANGE.withAlpha(0.3) : Cesium.Color.CYAN.withAlpha(0.2);
+
+        // Create missile entity with a trail
+        var missileEntity = _viewer.entities.add({
+            id: missileId,
+            position: startPos,
+            point: {
+                pixelSize: 6,
+                color: color,
+                outlineColor: Cesium.Color.WHITE.withAlpha(0.8),
+                outlineWidth: 2
+            },
+            label: {
+                text: weapon.name || 'MSL',
+                font: '9pt monospace',
+                fillColor: color,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                pixelOffset: new Cesium.Cartesian2(0, -14),
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                show: true
+            }
+        });
+
+        var trailPositions = [startPos.clone()];
+        var trailEntity = _viewer.entities.add({
+            id: missileId + '_trail',
+            polyline: {
+                positions: new Cesium.CallbackProperty(function() { return trailPositions; }, false),
+                width: 2,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.3,
+                    color: trailColor
+                })
+            }
+        });
+
+        // Also spawn SimEffects trail if available
+        if (typeof SimEffects !== 'undefined' && SimEffects.spawnMissileTrail) {
+            // We'll update the end position each frame in _tickPlayerMissiles
+        }
+
+        _playerMissiles.push({
+            id: missileId,
+            entity: missileEntity,
+            trailEntity: trailEntity,
+            trailPositions: trailPositions,
+            lat: lat,
+            lon: lon,
+            alt: alt,
+            heading: heading,
+            gamma: _playerState.gamma || 0,
+            speed: speed,
+            elapsed: 0,
+            maxTime: maxFlightTime,
+            weapon: weapon,
+            targetId: _designatedTargetId  // lock-on target for guidance
+        });
+    }
+
+    /** Find target entity for missile proportional navigation. Prefers lock-on target. */
+    function _findMissileTarget(m) {
+        if (!_world) return null;
+
+        // Priority 1: designated lock-on target
+        if (m.targetId) {
+            var locked = _world.getEntity(m.targetId);
+            if (locked && locked.active && locked.state && locked.state.lat != null) {
+                return locked;
+            }
+            // Lock target lost — fall through to proximity search
+        }
+
+        // Priority 2: nearest hostile in forward hemisphere
+        var playerTeam = _playerEntity ? _playerEntity.team : '';
+        var bestEnt = null;
+        var bestRange = Infinity;
+        var R_E = 6371000;
+        _world.entities.forEach(function(ent) {
+            if (!ent.active || ent.team === playerTeam) return;
+            if (ent.id === (_playerEntity ? _playerEntity.id : '')) return;
+            var es = ent.state;
+            if (!es || es.lat == null || es.lon == null) return;
+            var dlat = es.lat - m.lat;
+            var dlon = es.lon - m.lon;
+            var surfDist = R_E * Math.sqrt(dlat * dlat + dlon * dlon * Math.cos(m.lat) * Math.cos(m.lat));
+            var dAlt = (es.alt || 0) - m.alt;
+            var range = Math.sqrt(surfDist * surfDist + dAlt * dAlt);
+            // Only pursue targets within 40km and roughly ahead
+            if (range < 40000 && range < bestRange) {
+                var bearingToTarget = Math.atan2(dlon * Math.cos(m.lat), dlat);
+                var angleDiff = bearingToTarget - m.heading;
+                while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+                if (Math.abs(angleDiff) < Math.PI * 0.75) { // 135 deg forward cone
+                    bestEnt = ent;
+                    bestRange = range;
+                }
+            }
+        });
+        return bestEnt;
+    }
+
+    /** Tick player missiles — advance position, detect hits, remove expired. */
+    function _tickPlayerMissiles(dt) {
+        if (_playerMissiles.length === 0) return;
+
+        var R_EARTH = 6371000;
+        var toRemove = [];
+
+        for (var i = 0; i < _playerMissiles.length; i++) {
+            var m = _playerMissiles[i];
+            m.elapsed += dt;
+
+            // Check expiry
+            if (m.elapsed > m.maxTime) {
+                toRemove.push(i);
+                continue;
+            }
+
+            // Proportional navigation: steer toward nearest hostile
+            var tgt = _findMissileTarget(m);
+            if (tgt && tgt.state) {
+                var ts = tgt.state;
+                var dlat = ts.lat - m.lat;
+                var dlon = ts.lon - m.lon;
+                var dAltT = (ts.alt || 0) - m.alt;
+                var bearingToTarget = Math.atan2(dlon * Math.cos(m.lat), dlat);
+                var surfDistT = R_EARTH * Math.sqrt(dlat * dlat + dlon * dlon * Math.cos(m.lat) * Math.cos(m.lat));
+                var rangeT = Math.sqrt(surfDistT * surfDistT + dAltT * dAltT);
+                var gammaToTarget = Math.atan2(dAltT, surfDistT);
+
+                // PN gain — steer more aggressively as missile gets closer
+                var maxTurnRate = 15 * (Math.PI / 180); // 15 deg/s max turn rate
+                var headingError = bearingToTarget - m.heading;
+                while (headingError > Math.PI) headingError -= 2 * Math.PI;
+                while (headingError < -Math.PI) headingError += 2 * Math.PI;
+                var gammaError = gammaToTarget - m.gamma;
+
+                // Apply proportional navigation (N=3)
+                var turnH = Math.max(-maxTurnRate * dt, Math.min(maxTurnRate * dt, 3 * headingError));
+                var turnG = Math.max(-maxTurnRate * dt, Math.min(maxTurnRate * dt, 3 * gammaError));
+                m.heading += turnH;
+                m.gamma += turnG;
+            }
+
+            // Advance position (great-circle, constant speed)
+            var dDist = m.speed * dt;
+            var dAlt = dDist * Math.sin(m.gamma);
+            var dGround = dDist * Math.cos(m.gamma);
+            var dLat = dGround * Math.cos(m.heading) / R_EARTH;
+            var dLon = dGround * Math.sin(m.heading) / (R_EARTH * Math.cos(m.lat));
+            m.lat += dLat;
+            m.lon += dLon;
+            m.alt += dAlt;
+
+            // Hit ground check
+            if (m.alt < 0) {
+                // Ground impact explosion
+                var impactPos = Cesium.Cartesian3.fromRadians(m.lon, m.lat, 0);
+                if (typeof SimEffects !== 'undefined' && SimEffects.spawnExplosion) {
+                    SimEffects.spawnExplosion(impactPos, 'small', 'conventional');
+                }
+                if (_audioEnabled && typeof SimAudio !== 'undefined') SimAudio.playExplosion();
+                toRemove.push(i);
+                continue;
+            }
+
+            // Update Cesium entity position
+            var newPos = Cesium.Cartesian3.fromRadians(m.lon, m.lat, m.alt);
+            if (m.entity) m.entity.position = newPos;
+
+            // Update trail (keep last 30 positions for performance)
+            m.trailPositions.push(newPos.clone());
+            if (m.trailPositions.length > 30) m.trailPositions.shift();
+
+            // Check proximity to ECS entities for hits
+            if (_world) {
+                var hitEntity = null;
+                _world.entities.forEach(function(ent) {
+                    if (hitEntity) return;
+                    if (!ent.active || ent.id === (_playerEntity ? _playerEntity.id : '')) return;
+                    if (ent.team === (_playerEntity ? _playerEntity.team : '')) return;
+                    var es = ent.state;
+                    if (!es || es.lat == null || es.lon == null) return;
+
+                    // Slant range check
+                    var dlat2 = es.lat - m.lat;
+                    var dlon2 = es.lon - m.lon;
+                    var surfDist = R_EARTH * Math.sqrt(dlat2 * dlat2 + dlon2 * dlon2 * Math.cos(m.lat) * Math.cos(m.lat));
+                    var dAlt2 = (es.alt || 0) - m.alt;
+                    var slantRange = Math.sqrt(surfDist * surfDist + dAlt2 * dAlt2);
+
+                    if (slantRange < 500) { // 500m proximity fuse
+                        hitEntity = ent;
+                    }
+                });
+
+                if (hitEntity) {
+                    // HIT
+                    hitEntity.state._destroyed = true;
+                    hitEntity.active = false;
+                    _showMessage('SPLASH — ' + (hitEntity.name || hitEntity.id));
+
+                    // Audio: explosion + kill confirm
+                    if (_audioEnabled && typeof SimAudio !== 'undefined') {
+                        SimAudio.playExplosion();
+                        setTimeout(function() { SimAudio.playKillConfirm(); }, 300);
+                    }
+
+                    // Visual explosion
+                    if (typeof SimEffects !== 'undefined' && SimEffects.spawnExplosion) {
+                        SimEffects.spawnExplosion(newPos, 'medium', 'conventional');
+                    }
+
+                    toRemove.push(i);
+                    continue;
+                }
+            }
+        }
+
+        // Remove expired/hit missiles
+        for (var r = toRemove.length - 1; r >= 0; r--) {
+            var idx = toRemove[r];
+            var rm = _playerMissiles[idx];
+            if (rm.entity) _viewer.entities.remove(rm.entity);
+            if (rm.trailEntity) _viewer.entities.remove(rm.trailEntity);
+            _playerMissiles.splice(idx, 1);
         }
     }
 
@@ -4528,6 +4805,8 @@ const LiveSimEngine = (function() {
                 case 'KeyL':
                     _togglePointingPanel();
                     break;
+                case 'KeyY': _cycleTarget(); break;
+                case 'KeyU': _deselectTarget(); break;
                 case 'KeyM': _togglePlannerMode(); break;
                 case 'KeyC': _cycleCamera(); break;
                 case 'KeyH':
@@ -5134,9 +5413,10 @@ const LiveSimEngine = (function() {
             // Skip if well beyond radar range (> 1.5x maxRange)
             if (range > maxRange * 1.5) return;
 
-            // Determine threat type
+            // Determine threat type from SAM and A2A engagements
             var threatType = 'search';
             var weapComp = ent.getComponent('weapons');
+            // Check SAM engagements (_engagements)
             if (weapComp && s._engagements && s._engagements.length > 0) {
                 for (var ei = 0; ei < s._engagements.length; ei++) {
                     var eng = s._engagements[ei];
@@ -5145,6 +5425,20 @@ const LiveSimEngine = (function() {
                             threatType = 'lock';
                             break;
                         } else if (eng.state === 'TRACK' || eng.state === 'DETECT') {
+                            threatType = 'track';
+                        }
+                    }
+                }
+            }
+            // Check A2A engagements (_a2aEngagements) — LOCK/FIRE/GUIDE states
+            if (threatType !== 'lock' && s._a2aEngagements && s._a2aEngagements.length > 0) {
+                for (var ai = 0; ai < s._a2aEngagements.length; ai++) {
+                    var aEng = s._a2aEngagements[ai];
+                    if (aEng.targetId === playerId) {
+                        if (aEng.state === 'FIRE' || aEng.state === 'GUIDE') {
+                            threatType = 'lock';
+                            break;
+                        } else if (aEng.state === 'LOCK') {
                             threatType = 'track';
                         }
                     }
@@ -5210,10 +5504,11 @@ const LiveSimEngine = (function() {
 
             // Check for A2A missile engagements
             var a2aComp = ent.getComponent ? ent.getComponent('weapons/a2a_missile') : null;
-            if (a2aComp && s._engagements) {
-                for (var j = 0; j < s._engagements.length; j++) {
-                    var eng2 = s._engagements[j];
-                    if (eng2.targetId === playerId && (eng2.state === 'ENGAGE' || eng2.state === 'FIRE')) {
+            var a2aEngs = s._a2aEngagements || (a2aComp ? s._engagements : null);
+            if (a2aComp && a2aEngs) {
+                for (var j = 0; j < a2aEngs.length; j++) {
+                    var eng2 = a2aEngs[j];
+                    if (eng2.targetId === playerId && (eng2.state === 'FIRE' || eng2.state === 'GUIDE')) {
                         var bearing2 = _bearingTo(pLat, pLon, s.lat, s.lon);
                         var range2 = _rangeTo(pLat, pLon, s.lat, s.lon, _playerState.alt || 0, s.alt || 0);
                         missiles.push({
@@ -5248,6 +5543,186 @@ const LiveSimEngine = (function() {
         var surfDist = R * c;
         var dAlt = alt2 - alt1;
         return Math.sqrt(surfDist * surfDist + dAlt * dAlt);
+    }
+
+    // -----------------------------------------------------------------------
+    // Player Radar — populate _radarContacts and _selectedTarget for HUD
+    // -----------------------------------------------------------------------
+
+    function _tickPlayerRadar() {
+        if (!_world || !_playerState || !_playerEntity) return;
+        var now = Date.now();
+        if (now - _radarTickLast < 250) return; // 4Hz
+        _radarTickLast = now;
+
+        var pLat = _playerState.lat;
+        var pLon = _playerState.lon;
+        var pAlt = _playerState.alt || 0;
+        var pHeading = _playerState.heading || 0;
+        if (pLat == null || pLon == null) { _radarContacts = []; return; }
+
+        // Radar max range: from player sensor config or default 200km
+        var maxRange = 200000;
+        if (_sensorList.length > 0 && _sensorList[0].maxRange) {
+            maxRange = _sensorList[0].maxRange;
+        }
+        _playerState._radarMaxRange = maxRange;
+
+        var playerTeam = _playerEntity.team;
+        var playerId = _playerEntity.id;
+        var contacts = [];
+        var R = 6371000;
+
+        _world.entities.forEach(function(ent) {
+            if (!ent.active || ent.id === playerId) return;
+            var es = ent.state;
+            if (!es || es.lat == null || es.lon == null) return;
+            // Skip ground-only entities without meaningful alt
+            if (ent.type === 'ground' && !es.alt) return;
+
+            // Compute slant range
+            var dlat = es.lat - pLat;
+            var dlon = es.lon - pLon;
+            var surfDist = R * Math.sqrt(dlat * dlat + dlon * dlon * Math.cos(pLat) * Math.cos(pLat));
+            var dAlt = (es.alt || 0) - pAlt;
+            var range = Math.sqrt(surfDist * surfDist + dAlt * dAlt);
+
+            if (range > maxRange) return;
+
+            // Bearing from player to entity (radians CW from north)
+            var bearing = Math.atan2(dlon * Math.cos(pLat), dlat);
+            // Relative bearing (degrees from nose)
+            var relBearing = (bearing - pHeading) * (180 / Math.PI);
+            // Normalize to [-180, 180]
+            while (relBearing > 180) relBearing -= 360;
+            while (relBearing < -180) relBearing += 360;
+
+            // Aspect angle (what angle is the target showing us)
+            var targetHeading = es.heading || 0;
+            var bearingFromTarget = Math.atan2(-dlon * Math.cos(es.lat), -dlat);
+            var aspect = (bearingFromTarget - targetHeading) * (180 / Math.PI);
+            while (aspect > 180) aspect -= 360;
+            while (aspect < -180) aspect += 360;
+
+            // Closure rate (simplified — radial component of relative velocity)
+            var closureRate = 0;
+            if (es.speed != null && _playerState.speed != null) {
+                // Radial closure = player speed toward target - target speed away from player
+                var pSpeedRadial = _playerState.speed * Math.cos((bearing - pHeading));
+                var tSpeedRadial = (es.speed || 0) * Math.cos((bearing - targetHeading + Math.PI));
+                closureRate = pSpeedRadial + tSpeedRadial;
+            }
+
+            contacts.push({
+                id: ent.id,
+                name: ent.name || ent.id,
+                bearing: relBearing,  // degrees from nose
+                range: range,         // meters
+                team: ent.team || 'unknown',
+                lat: es.lat,
+                lon: es.lon,
+                alt: es.alt || 0,
+                aspect: aspect,
+                closureRate: closureRate
+            });
+        });
+
+        // Sort by range (closest first)
+        contacts.sort(function(a, b) { return a.range - b.range; });
+        _radarContacts = contacts;
+        _playerState._radarContacts = contacts;
+
+        // Validate designated target still exists and is in contacts
+        if (_designatedTargetId) {
+            var found = false;
+            for (var i = 0; i < contacts.length; i++) {
+                if (contacts[i].id === _designatedTargetId) { found = true; break; }
+            }
+            if (!found) {
+                _designatedTargetId = null;
+                _playerState._selectedTarget = null;
+            }
+        }
+
+        // Populate _selectedTarget for HUD target bracket
+        if (_designatedTargetId && _viewer) {
+            var tgt = null;
+            for (var j = 0; j < contacts.length; j++) {
+                if (contacts[j].id === _designatedTargetId) { tgt = contacts[j]; break; }
+            }
+            if (tgt) {
+                // Get screen coordinates for HUD bracket
+                var tgtCartesian = Cesium.Cartesian3.fromRadians(tgt.lon, tgt.lat, tgt.alt);
+                var screenPos = null;
+                try {
+                    if (Cesium.SceneTransforms.worldToWindowCoordinates) {
+                        screenPos = Cesium.SceneTransforms.worldToWindowCoordinates(_viewer.scene, tgtCartesian);
+                    } else if (Cesium.SceneTransforms.wgs84ToWindowCoordinates) {
+                        screenPos = Cesium.SceneTransforms.wgs84ToWindowCoordinates(_viewer.scene, tgtCartesian);
+                    }
+                } catch(e) { /* behind camera */ }
+                _playerState._selectedTarget = {
+                    screenX: screenPos ? screenPos.x : null,
+                    screenY: screenPos ? screenPos.y : null,
+                    range: tgt.range,
+                    name: tgt.name,
+                    aspect: tgt.aspect,
+                    closureRate: tgt.closureRate,
+                    team: tgt.team,
+                    id: tgt.id
+                };
+            }
+        } else {
+            _playerState._selectedTarget = null;
+        }
+    }
+
+    /** Cycle target designation through radar contacts. */
+    function _cycleTarget() {
+        if (_radarContacts.length === 0) {
+            _showMessage('NO CONTACTS');
+            _designatedTargetId = null;
+            return;
+        }
+
+        // Find hostiles first, then all contacts
+        var hostiles = _radarContacts.filter(function(c) {
+            return c.team !== (_playerEntity ? _playerEntity.team : '');
+        });
+        var pool = hostiles.length > 0 ? hostiles : _radarContacts;
+
+        if (!_designatedTargetId) {
+            // Select closest hostile
+            _designatedTargetId = pool[0].id;
+        } else {
+            // Find current index and cycle to next
+            var curIdx = -1;
+            for (var i = 0; i < pool.length; i++) {
+                if (pool[i].id === _designatedTargetId) { curIdx = i; break; }
+            }
+            var nextIdx = (curIdx + 1) % pool.length;
+            _designatedTargetId = pool[nextIdx].id;
+        }
+
+        var tgt = null;
+        for (var k = 0; k < _radarContacts.length; k++) {
+            if (_radarContacts[k].id === _designatedTargetId) { tgt = _radarContacts[k]; break; }
+        }
+        if (tgt) {
+            var rangeKm = (tgt.range / 1000).toFixed(1);
+            _showMessage('TGT: ' + tgt.name + ' | ' + rangeKm + 'km');
+            // Play lock tone
+            if (_audioEnabled && typeof SimAudio !== 'undefined') {
+                SimAudio.playWarning('lock');
+            }
+        }
+    }
+
+    /** Deselect target. */
+    function _deselectTarget() {
+        _designatedTargetId = null;
+        _playerState._selectedTarget = null;
+        _showMessage('TGT DESELECTED');
     }
 
     // -----------------------------------------------------------------------
@@ -5636,8 +6111,10 @@ const LiveSimEngine = (function() {
         _applyVizControls();
 
         // --- Check player death ---
-        if (_playerEntity && !_playerEntity.active) {
+        if (_playerEntity && !_playerEntity.active && !_playerDeathHandled) {
+            _playerDeathHandled = true;
             _showMessage('DESTROYED', 5000);
+            if (_audioEnabled && typeof SimAudio !== 'undefined') SimAudio.playExplosion();
         }
 
         // --- SIMULATION SUBSYSTEMS ---
@@ -5698,6 +6175,14 @@ const LiveSimEngine = (function() {
         _tickRWR();
         // Missile Warning System — detect active missiles targeting player
         _tickMWS();
+        // Player radar — generate contacts for HUD B-scope + target bracket
+        _tickPlayerRadar();
+        // Threat tones — Ace Combat-style audio tied to RWR/MWS state
+        if (_audioEnabled && typeof SimAudio !== 'undefined' && SimAudio.updateThreatTones) {
+            SimAudio.updateThreatTones(_playerState._rwr, _playerState._mws);
+        }
+        // Tick player-fired missiles (visual entities, hit detection)
+        _tickPlayerMissiles(totalDt);
         // Formation status — track wingmen
         _tickFormation();
         // ILS approach guidance — glideslope/localizer for HUD
@@ -8661,6 +9146,23 @@ const LiveSimEngine = (function() {
                 time: now, type: 'KILL', source: sourceEntity.name || sourceId,
                 target: eng.targetName || targetId, weapon: weapon, result: 'KILL'
             });
+
+            // Audio/visual effects for kills
+            if (_audioEnabled && typeof SimAudio !== 'undefined') {
+                SimAudio.playExplosion();
+                if (sourceId === playerId) {
+                    setTimeout(function() { SimAudio.playKillConfirm(); }, 300);
+                }
+            }
+            // Spawn explosion at target position if viewer available
+            if (_viewer && typeof SimEffects !== 'undefined') {
+                var targetEnt = _world ? _world.getEntity(targetId) : null;
+                if (targetEnt && targetEnt.state && targetEnt.state.lat != null) {
+                    var killPos = Cesium.Cartesian3.fromRadians(
+                        targetEnt.state.lon, targetEnt.state.lat, targetEnt.state.alt || 0);
+                    SimEffects.spawnExplosion(killPos, 'medium', 'conventional');
+                }
+            }
         } else if (result === 'MISS') {
             _engagementStats.misses[wc] = (_engagementStats.misses[wc] || 0) + 1;
             _engagementStats.misses.total++;
